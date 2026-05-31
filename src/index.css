@@ -1,0 +1,189 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary-color: #faad14;
+  --primary-color-hover: #ffc53d;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --error-color: #f5222d;
+  --bg-dark: #0a1c14; /* Deep dark green */
+  --bg-card-dark: #133526;
+  --bg-light: #f0f2f5;
+  --bg-card-light: #ffffff;
+  --billiard-green: #1b5e20;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Premium Dark/Light Base */
+body.dark-theme {
+  background-color: var(--bg-dark);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+body.light-theme {
+  background-color: var(--bg-light);
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #397354;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-color);
+}
+
+/* Utilities */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-success { color: var(--success-color); }
+.text-danger { color: var(--error-color); }
+.text-warning { color: var(--warning-color); }
+.text-primary { color: var(--primary-color); }
+.text-gold { color: #faad14; }
+
+.mt-1 { margin-top: 8px; }
+.mt-2 { margin-top: 16px; }
+.mt-3 { margin-top: 24px; }
+.mb-1 { margin-bottom: 8px; }
+.mb-2 { margin-bottom: 16px; }
+.mb-3 { margin-bottom: 24px; }
+
+.p-2 { padding: 16px; }
+.p-3 { padding: 24px; }
+
+.d-flex { display: flex; }
+.align-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.gap-1 { gap: 8px; }
+.gap-2 { gap: 16px; }
+.gap-3 { gap: 24px; }
+
+/* Micro-animations */
+.hover-scale {
+  transition: transform 0.2s ease-in-out;
+}
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+.table-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  border-top: 4px solid var(--billiard-green);
+}
+
+.dark-theme .table-card {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  border-top: 4px solid var(--primary-color);
+}
+
+.table-card:hover {
+  box-shadow: 0 8px 24px rgba(250, 173, 20, 0.2);
+  transform: translateY(-4px);
+}
+
+.table-card-active {
+  animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(250, 173, 20, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(250, 173, 20, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(250, 173, 20, 0); }
+}
+
+.timer-display {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: 2px;
+  color: var(--primary-color);
+  background: rgba(0,0,0,0.2);
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: inline-block;
+  margin: 12px 0;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.price-display {
+  font-size: 20px;
+  font-weight: 600;
+  color: #52c41a;
+}
+
+/* Auth Layout */
+.auth-layout {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f291e 0%, #0a1c14 100%);
+}
+
+.light-theme .auth-layout {
+  background: linear-gradient(135deg, #e6f7ff 0%, #b5f5ec 100%);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 40px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  border-top: 4px solid var(--primary-color);
+}
+
+/* Layout adjustments */
+.ant-layout-header {
+  padding: 0 24px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  z-index: 10;
+}
+
+.dark-theme .ant-layout-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ant-layout-sider {
+  box-shadow: 2px 0 8px 0 rgba(0,0,0,0.1);
+  z-index: 11;
+}
+
+.dark-theme .ant-layout-sider {
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.page-container {
+  padding: 24px;
+}
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px;
+  }
+}
