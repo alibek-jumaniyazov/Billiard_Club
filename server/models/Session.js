@@ -46,6 +46,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      pausedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      totalPausedMs: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+      },
       durationMinutes: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -66,7 +74,7 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
       },
       status: {
-        type: DataTypes.ENUM('active', 'completed', 'cancelled'),
+        type: DataTypes.ENUM('active', 'paused', 'completed', 'cancelled'),
         defaultValue: 'active',
       },
       paymentMethod: {

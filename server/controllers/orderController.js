@@ -27,21 +27,26 @@ const getOrders = async (req, res, next) => {
 };
 
 const createOrder = async (req, res, next) => {
+  const { sequelize } = require('../models');
+  const t = await sequelize.transaction();
+
   try {
     const { sessionId, tableId, items } = req.body;
 
     let [order] = await Order.findOrCreate({
       where: { sessionId, status: 'open' },
       defaults: { sessionId, tableId, userId: req.user.id, status: 'open', totalAmount: 0 },
+      transaction: t,
     });
 
     if (!items || items.length === 0) {
+      await t.rollback();
       return res.status(400).json({ success: false, message: 'Buyurtma elementlari talab qilinadi' });
     }
 
     let addedAmount = 0;
     for (const item of items) {
-      const product = await Product.findByPk(item.productId);
+      const product = await Product.findByPk(item.productId, { transaction: t });
       if (!product) continue;
 
       const subtotal = parseFloat(product.price) * parseInt(item.quantity);
@@ -51,24 +56,26 @@ const createOrder = async (req, res, next) => {
         quantity: item.quantity,
         price: product.price,
         subtotal,
-      });
+      }, { transaction: t });
       addedAmount += subtotal;
 
       if (product.stock > 0) {
-        await product.update({ stock: Math.max(0, product.stock - item.quantity) });
+        await product.update({ stock: Math.max(0, product.stock - item.quantity) }, { transaction: t });
       }
     }
 
     const newTotal = parseFloat(order.totalAmount) + addedAmount;
-    await order.update({ totalAmount: newTotal.toFixed(2) });
+    await order.update({ totalAmount: newTotal.toFixed(2) }, { transaction: t });
 
     if (sessionId) {
-      const session = await Session.findByPk(sessionId);
+      const session = await Session.findByPk(sessionId, { transaction: t });
       if (session) {
         const newBarAmount = parseFloat(session.barAmount || 0) + addedAmount;
-        await session.update({ barAmount: newBarAmount.toFixed(2) });
+        await session.update({ barAmount: newBarAmount.toFixed(2) }, { transaction: t });
       }
     }
+
+    await t.commit();
 
     const fullOrder = await Order.findByPk(order.id, {
       include: [{ model: OrderItem, as: 'items', include: [{ model: Product, as: 'product' }] }],
@@ -76,6 +83,7 @@ const createOrder = async (req, res, next) => {
 
     res.status(201).json({ success: true, message: 'Buyurtma qo\'shildi', data: fullOrder });
   } catch (error) {
+    await t.rollback();
     next(error);
   }
 };

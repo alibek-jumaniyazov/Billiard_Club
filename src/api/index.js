@@ -23,6 +23,9 @@ export const sessionsApi = {
   getOne: (id) => api.get(`/sessions/${id}`),
   start: (data) => api.post('/sessions/start', data),
   end: (id, data) => api.put(`/sessions/${id}/end`, data),
+  pause: (id) => api.put(`/sessions/${id}/pause`),
+  resume: (id) => api.put(`/sessions/${id}/resume`),
+  cancel: (id) => api.put(`/sessions/${id}/cancel`),
 };
 
 export const categoriesApi = {

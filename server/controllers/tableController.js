@@ -1,9 +1,9 @@
 const { Table, Session } = require('../models');
+const { Op } = require('sequelize');
 
 const getTables = async (req, res, next) => {
   try {
     const { page = 1, limit = 50, search, status, sortBy = 'number', sortOrder = 'ASC' } = req.query;
-    const { Op } = require('sequelize');
 
     const where = { isActive: true };
     if (search) where.name = { [Op.iLike]: `%${search}%` };
@@ -11,15 +11,40 @@ const getTables = async (req, res, next) => {
 
     const { count, rows } = await Table.findAndCountAll({
       where,
-      include: [{ model: Session, as: 'sessions', where: { status: 'active' }, required: false }],
+      include: [
+        {
+          model: Session,
+          as: 'sessions',
+          where: { status: { [Op.in]: ['active', 'paused'] } },
+          required: false,
+        },
+      ],
       order: [[sortBy, sortOrder.toUpperCase()]],
       limit: parseInt(limit),
       offset: (parseInt(page) - 1) * parseInt(limit),
     });
 
+    // Har bir stol uchun bugungi yakunlangan sessiyalar sonini hisoblaymiz
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tablesWithStats = await Promise.all(rows.map(async (table) => {
+      const todayCompletedCount = await Session.count({
+        where: {
+          tableId: table.id,
+          status: 'completed',
+          endTime: { [Op.gte]: today },
+        },
+      });
+
+      const tableData = table.toJSON();
+      tableData.todayCompletedSessions = todayCompletedCount;
+      return tableData;
+    }));
+
     res.json({
       success: true,
-      data: rows,
+      data: tablesWithStats,
       pagination: { total: count, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(count / limit) },
     });
   } catch (error) {
@@ -30,7 +55,7 @@ const getTables = async (req, res, next) => {
 const getTable = async (req, res, next) => {
   try {
     const table = await Table.findByPk(req.params.id, {
-      include: [{ model: Session, as: 'sessions', where: { status: 'active' }, required: false, limit: 1 }],
+      include: [{ model: Session, as: 'sessions', where: { status: { [Op.in]: ['active', 'paused'] } }, required: false, limit: 1 }],
     });
     if (!table) return res.status(404).json({ success: false, message: 'Stol topilmadi' });
     res.json({ success: true, data: table });
@@ -67,7 +92,7 @@ const deleteTable = async (req, res, next) => {
     const table = await Table.findByPk(req.params.id);
     if (!table) return res.status(404).json({ success: false, message: 'Stol topilmadi' });
 
-    const activeSession = await Session.findOne({ where: { tableId: table.id, status: 'active' } });
+    const activeSession = await Session.findOne({ where: { tableId: table.id, status: { [Op.in]: ['active', 'paused'] } } });
     if (activeSession) return res.status(400).json({ success: false, message: 'Aktiv sessiya mavjud, stolni o\'chirib bo\'lmaydi' });
 
     await table.update({ isActive: false });
