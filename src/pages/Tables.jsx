@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Typography, Button, Tag, Space, Modal, Form, Input, InputNumber, Select, message, Divider, Segmented, Statistic } from 'antd';
+import { Row, Col, Card, Typography, Button, Tag, Space, Modal, Form, Input, InputNumber, Select, message, Divider, Segmented, Statistic, Switch } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, PlayCircleOutlined, CoffeeOutlined, StopOutlined } from '@ant-design/icons';
 import { tablesApi, sessionsApi, productsApi, ordersApi } from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -74,6 +74,7 @@ const Tables = () => {
 
   // Watch items for live calculation in Order Modal
   const orderItems = Form.useWatch('items', orderForm);
+  const isDebt = Form.useWatch('isDebt', endForm);
 
   const fetchData = async () => {
     try {
@@ -209,7 +210,16 @@ const Tables = () => {
 
   const openEndModal = (table) => {
     setSelectedTable(table);
-    endForm.setFieldsValue({ paymentMethod: 'cash', discount: 0 });
+    const activeSession = table.sessions?.[0];
+    endForm.setFieldsValue({ 
+      paymentMethod: 'cash', 
+      discount: 0,
+      isDebt: false,
+      isTableDebt: true,
+      isBarDebt: activeSession?.barAmount > 0,
+      customerName: activeSession?.customerName || '',
+      customerPhone: activeSession?.customerPhone || '',
+    });
     setIsEndModalOpen(true);
   };
 
@@ -441,10 +451,45 @@ const Tables = () => {
         </div>
 
         <Form form={endForm} layout="vertical" onFinish={handleEndSession}>
+          <Form.Item name="isDebt" valuePropName="checked" style={{ background: 'rgba(250, 173, 20, 0.1)', padding: 12, borderRadius: 8 }}>
+            <Switch checkedChildren="Qarzga yozish" unCheckedChildren="To'liq to'lash" />
+            <Text style={{ marginLeft: 12, fontWeight: 500 }}>Ushbu chek qarzga yoziladimi?</Text>
+          </Form.Item>
+
+          {isDebt && (
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: 16, borderRadius: 8, marginBottom: 16 }}>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="customerName" label="Mijoz ismi (Majburiy)" rules={[{ required: true, message: 'Ism kiriting' }]}>
+                    <Input placeholder="Ismni kiriting" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="customerPhone" label="Telefon raqami (Ixtiyoriy)">
+                    <Input placeholder="+998..." />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="isTableDebt" valuePropName="checked" style={{ margin: 0 }}>
+                    <Switch checkedChildren="Stol qarzga" unCheckedChildren="Stol to'lanadi" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="isBarDebt" valuePropName="checked" style={{ margin: 0 }}>
+                    <Switch checkedChildren="Bar qarzga" unCheckedChildren="Bar to'lanadi" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 12 }}>
+                Qarzga qaysi qismlar yozilishini belgilang. Tizim aniq summani avtomatik hisoblab qarzga yozadi.
+              </Text>
+            </div>
+          )}
+
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="paymentMethod" label="To'lov usuli" rules={[{ required: true }]}>
-                <Select>
+                <Select disabled={isDebt}>
                   <Select.Option value="cash">Naqd pul</Select.Option>
                   <Select.Option value="card">Plastik karta</Select.Option>
                   <Select.Option value="transfer">Pul o'tkazmasi</Select.Option>
@@ -453,12 +498,12 @@ const Tables = () => {
             </Col>
             <Col span={12}>
               <Form.Item name="discount" label="Chegirma (so'm)">
-                <InputNumber style={{ width: '100%' }} min={0} step={1000} />
+                <InputNumber style={{ width: '100%' }} min={0} step={1000} disabled={isDebt} />
               </Form.Item>
             </Col>
           </Row>
-          <Button type="primary" danger htmlType="submit" block size="large" icon={<StopOutlined />}>
-            O'yinni tugatish va Chek chiqarish
+          <Button type={isDebt ? "default" : "primary"} danger={!isDebt} htmlType="submit" block size="large" icon={<StopOutlined />}>
+            {isDebt ? "Qarzga yozish va Yakunlash" : "O'yinni tugatish va Chek chiqarish"}
           </Button>
         </Form>
       </Modal>

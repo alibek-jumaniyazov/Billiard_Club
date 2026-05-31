@@ -99,8 +99,40 @@ const endSession = async (req, res, next) => {
       }
     }
 
-    const { paymentMethod = 'cash', discount = 0, notes } = req.body;
+    const { paymentMethod = 'cash', discount = 0, notes, isDebt = false, isTableDebt = false, isBarDebt = false, customerName, customerPhone } = req.body;
     const totalAmount = Math.max(0, tableAmount + barAmount - parseFloat(discount));
+    
+    let actualPaidAmount = totalAmount;
+    let totalDebt = 0;
+
+    if (isDebt) {
+      if (!customerName && !session.customerName) {
+        return res.status(400).json({ success: false, message: 'Qarzga yozish uchun mijoz ismi kiritilishi shart' });
+      }
+      if (!isTableDebt && !isBarDebt) {
+        return res.status(400).json({ success: false, message: "Qarzga yozish uchun Stol yoki Bar ni belgilang" });
+      }
+      
+      const tDebt = isTableDebt ? tableAmount : 0;
+      const bDebt = isBarDebt ? barAmount : 0;
+      totalDebt = tDebt + bDebt;
+      actualPaidAmount = Math.max(0, totalAmount - totalDebt);
+
+      const finalCustomerName = customerName || session.customerName;
+      const finalCustomerPhone = customerPhone || session.customerPhone;
+
+      const { Debt } = require('../models');
+      await Debt.create({
+        sessionId: session.id,
+        customerName: finalCustomerName,
+        customerPhone: finalCustomerPhone,
+        tableAmount: tDebt.toFixed(2),
+        barAmount: bDebt.toFixed(2),
+        totalDebt: totalDebt.toFixed(2),
+        remainingDebt: totalDebt.toFixed(2),
+        description: notes,
+      });
+    }
 
     await session.update({
       endTime,
@@ -110,7 +142,9 @@ const endSession = async (req, res, next) => {
       totalAmount: totalAmount.toFixed(2),
       status: 'completed',
       paymentMethod,
-      isPaid: true,
+      isPaid: !isDebt || actualPaidAmount > 0, // considered paid if they paid at least something or not debt
+      customerName: customerName || session.customerName,
+      customerPhone: customerPhone || session.customerPhone,
       notes,
     });
 
@@ -121,7 +155,7 @@ const endSession = async (req, res, next) => {
       sessionId: session.id,
       tableAmount: tableAmount.toFixed(2),
       barAmount: barAmount.toFixed(2),
-      totalAmount: totalAmount.toFixed(2),
+      totalAmount: actualPaidAmount.toFixed(2), // Record only what was actually paid today
       paymentMethod,
       discount,
     });
@@ -132,13 +166,15 @@ const endSession = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: "O'yin tugadi",
+      message: isDebt ? "O'yin tugadi va qarzga yozildi" : "O'yin tugadi",
       data: {
         session: updatedSession,
         durationMinutes,
         tableAmount: tableAmount.toFixed(2),
         barAmount: barAmount.toFixed(2),
         totalAmount: totalAmount.toFixed(2),
+        actualPaidAmount: actualPaidAmount.toFixed(2),
+        totalDebt: totalDebt.toFixed(2),
       },
     });
   } catch (error) {

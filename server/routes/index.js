@@ -9,6 +9,7 @@ const orderRoutes = require('./orders');
 const reportRoutes = require('./reports');
 const staffRoutes = require('./staff');
 const settingsRoutes = require('./settings');
+const debtRoutes = require('./debts');
 
 const router = express.Router();
 
@@ -22,5 +23,6 @@ router.use('/orders', orderRoutes);
 router.use('/reports', reportRoutes);
 router.use('/staff', staffRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/debts', debtRoutes);
 
 module.exports = router;

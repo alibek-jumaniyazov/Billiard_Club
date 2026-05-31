@@ -15,7 +15,7 @@ import Products from './pages/Products';
 import Orders from './pages/Orders';
 import Reports from './pages/Reports';
 import Staff from './pages/Staff';
-import Settings from './pages/Settings';
+import Debts from './pages/Debts';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, hasRole } = useAuth();
@@ -88,10 +88,10 @@ function App() {
           } 
         />
         <Route 
-          path="settings" 
+          path="debts" 
           element={
             <ProtectedRoute allowedRoles={['admin']}>
-              <Settings />
+              <Debts />
             </ProtectedRoute>
           } 
         />

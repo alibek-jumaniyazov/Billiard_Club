@@ -61,3 +61,9 @@ export const settingsApi = {
   get: () => api.get('/settings'),
   update: (data) => api.put('/settings', data),
 };
+
+export const debtsApi = {
+  getAll: (params) => api.get('/debts', { params }),
+  pay: (id, amount) => api.post(`/debts/${id}/pay`, { amount }),
+  delete: (id) => api.delete(`/debts/${id}`),
+};
