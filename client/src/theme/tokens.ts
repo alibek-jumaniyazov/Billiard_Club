@@ -3,9 +3,10 @@ import { theme as antTheme, type ThemeConfig } from 'antd';
 /**
  * PRIME BILLIARD — dizayn tokenlarining YAGONA manbasi.
  *
- * Estetika: hashamatli billiard klubi — chuqur qora/karbon/grafit yuzalar,
- * to'q zumrad (mato) urg'ular, premium oltin (#d4af37 oilasi), kumush matn,
- * jonli holatlar uchun nozik neon-yashil.
+ * Estetika: hashamatli billiard klubi — boy, chuqur qarag'ay-karbon yuzalar
+ * (zich qora EMAS — har bir qatlam aniq ajralib turadi), to'q zumrad (mato)
+ * urg'ular, premium oltin (#d4af37 oilasi), kumush matn, jonli holatlar uchun
+ * nozik neon-yashil va sekin harakatlanuvchi "aurora" fon nurlari.
  *
  * MUHIM: index.css dagi :root CSS o'zgaruvchilari va Landing.tsx konstantalari
  * shu fayldagi qiymatlardan olinadi — rang faqat SHU YERDA o'zgartiriladi.
@@ -15,37 +16,37 @@ import { theme as antTheme, type ThemeConfig } from 'antd';
 
 /** Fon qatlamlari — eng chuquridan (sahifa) ko'tarilganigacha (hover) */
 const bg = {
-  /** Sahifaning eng chuqur foni — deyarli qora, xira yashil tusi bilan */
-  bg0: '#0a0c0b',
+  /** Sahifaning eng chuqur foni — boy qarag'ay-karbon (zich qora emas) */
+  bg0: '#0e1513',
   /** Karbon karta foni */
-  bg1: '#121514',
+  bg1: '#151d1a',
   /** Ko'tarilgan yuzalar (modal, dropdown, jadval sarlavhasi) */
-  bg2: '#181c1a',
+  bg2: '#1c2622',
   /** Hover / tanlangan qator foni */
-  bg3: '#1f2422',
+  bg3: '#243029',
 } as const;
 
-/** Grafit chegara shkalasi */
+/** Grafit chegara shkalasi — ko'tarilgan fonda aniq o'qiladigan qilib yoritilgan */
 const border = {
-  subtle: '#1d2320',
-  base: '#262d29',
-  strong: '#333b37',
+  subtle: '#243029',
+  base: '#2e3b35',
+  strong: '#3d4c44',
 } as const;
 
-/** Zumrad shkalasi — to'q mato yashilidan yorqin urg'ugacha */
+/** Zumrad shkalasi — to'q mato yashilidan yorqin urg'ugacha (biroz to'yinganroq) */
 const emerald = {
   /** Eng to'q — fon gradientlari uchun */
-  deepest: '#0c1f16',
+  deepest: '#0d2419',
   /** To'q mato (felt) — tanlangan menyu bandi foni */
-  deep: '#122a1d',
+  deep: '#143224',
   /** Asosiy mato yashili */
-  felt: '#17402a',
+  felt: '#1a4a30',
   /** O'rtacha zumrad */
-  base: '#1e5c3a',
+  base: '#216b42',
   /** Yorqin urg'u (grafik, ikonka) */
-  bright: '#2f9e64',
+  bright: '#33ab6c',
   /** Eng yorqin — hoverdagi urg'ular */
-  glow: '#43c17e',
+  glow: '#4bd48c',
 } as const;
 
 /** Premium oltin — #d4af37 oilasi (antd stock #faad14 EMAS) */
@@ -59,18 +60,20 @@ const gold = {
   subtle: 'rgba(212, 175, 55, 0.12)',
   /** Shaffof oltin chiziq/chegara */
   line: 'rgba(212, 175, 55, 0.22)',
+  /** Tashqi nur (glow) — CTA va faol elementlar atrofidagi oltin yog'du */
+  glow: 'rgba(212, 175, 55, 0.45)',
   /** Oltin ustidagi matn rangi */
   contrast: '#141210',
   /** Brend gradienti (logo, mark) */
   gradient: 'linear-gradient(135deg, #e2c358 0%, #d4af37 45%, #b5922c 100%)',
 } as const;
 
-/** Kumush matn shkalasi */
+/** Kumush matn shkalasi — ko'tarilgan fonda aniqroq ierarxiya */
 const text = {
-  primary: '#e8ebe9',
-  secondary: '#a9b3ad',
-  tertiary: '#717c76',
-  disabled: '#4b5450',
+  primary: '#eef2f0',
+  secondary: '#b3bfb8',
+  tertiary: '#7d8a83',
+  disabled: '#525c56',
 } as const;
 
 /** Semantik ranglar — palitraga moslashtirilgan */
@@ -83,6 +86,17 @@ const semantic = {
 
 /** Neon-yashil — jonli taymer / faol sessiya urg'usi */
 const neonGreen = '#3fe08c';
+
+/**
+ * Aurora — animatsion fon "nur dog'lari" palitrasi.
+ * AnimatedBackground komponenti va index.css dagi .aurora-blob-* klasslar
+ * shu qiymatlarning nusxasidan foydalanadi.
+ */
+const aurora = {
+  emerald: 'rgba(47, 158, 100, 0.20)',
+  gold: 'rgba(212, 175, 55, 0.10)',
+  teal: 'rgba(66, 160, 150, 0.14)',
+} as const;
 
 /** Grafik (chart) palitrasi — oltin birinchi, keyin palitra ranglari */
 const chart = [
@@ -114,17 +128,19 @@ const spacing = { xxs: 4, xs: 8, sm: 12, md: 16, lg: 24, xl: 32, xxl: 48 } as co
 /** Radius shkalasi (px) */
 const radius = { sm: 8, md: 12, lg: 16, xl: 24, pill: 999 } as const;
 
-/** Soya/ko'tarilish shkalasi — qorong'i muhitga moslangan, nozik */
+/** Soya/ko'tarilish shkalasi — yumshoqroq va kengroq, chuqurlik hissi uchun */
 const shadow = {
   /** 1-daraja: karta */
-  level1: '0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25)',
+  level1: '0 1px 3px rgba(0, 0, 0, 0.32), 0 4px 16px rgba(0, 0, 0, 0.22)',
   /** 2-daraja: dropdown, popover */
-  level2: '0 4px 12px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.3)',
+  level2: '0 4px 16px rgba(0, 0, 0, 0.38), 0 12px 32px rgba(0, 0, 0, 0.26)',
   /** 3-daraja: modal, drawer */
-  level3: '0 8px 24px rgba(0, 0, 0, 0.55), 0 16px 48px rgba(0, 0, 0, 0.35)',
+  level3: '0 10px 32px rgba(0, 0, 0, 0.46), 0 24px 64px rgba(0, 0, 0, 0.3)',
   /** Faol stol kartasi uchun zumrad-oltin nur */
   glowActive:
-    '0 0 0 1px rgba(212, 175, 55, 0.35), 0 0 18px rgba(63, 224, 140, 0.12)',
+    '0 0 0 1px rgba(212, 175, 55, 0.35), 0 0 20px rgba(75, 212, 140, 0.14)',
+  /** Har bir kartaning yuqori qirrasidagi nozik yorug'lik — chuqurlik illyuziyasi */
+  cardHighlight: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
 } as const;
 
 /** Harakat (motion) davomiyliklari va easinglari */
@@ -142,7 +158,7 @@ const motion = {
 /* ------------------------------------------------------------------ TOKENS */
 
 export const TOKENS = {
-  color: { bg, border, emerald, gold, text, semantic, neonGreen, chart },
+  color: { bg, border, emerald, gold, text, semantic, neonGreen, aurora, chart },
   spacing,
   radius,
   shadow,
@@ -214,7 +230,8 @@ export const buildAntdTheme = (): ThemeConfig => ({
       colorBorderSecondary: border.subtle,
       borderRadiusLG: radius.md,
       headerBg: 'transparent',
-      boxShadowTertiary: shadow.level1,
+      /* Yuqori qirra yorug'ligi soya bilan birga — kartaga chuqurlik beradi */
+      boxShadowTertiary: `${shadow.level1}, ${shadow.cardHighlight}`,
     },
     Table: {
       headerBg: bg.bg2,
@@ -226,7 +243,9 @@ export const buildAntdTheme = (): ThemeConfig => ({
       colorBgContainer: bg.bg1,
     },
     Button: {
-      primaryShadow: 'none',
+      /* Nozik oltin yog'du — asosiy tugma "jonli" ko'rinadi
+         (oltin gradient esa index.css dagi .ant-btn-primary qoidasida) */
+      primaryShadow: '0 2px 8px rgba(212, 175, 55, 0.25)',
       primaryColor: gold.contrast,
       defaultBg: 'transparent',
       defaultBorderColor: border.strong,
@@ -269,7 +288,8 @@ export const buildAntdTheme = (): ThemeConfig => ({
       titleFontSize: 17,
     },
     Drawer: {
-      colorBgElevated: bg.bg1,
+      /* Ko'tarilgan qatlam — sahifa fonidan aniq ajralib turadi */
+      colorBgElevated: bg.bg2,
     },
     Tag: {
       defaultBg: bg.bg2,
@@ -288,7 +308,7 @@ export const buildAntdTheme = (): ThemeConfig => ({
       inkBarColor: gold.base,
     },
     Segmented: {
-      trackBg: bg.bg0,
+      trackBg: bg.bg1,
       itemSelectedBg: bg.bg3,
       itemColor: text.secondary,
       itemSelectedColor: text.primary,

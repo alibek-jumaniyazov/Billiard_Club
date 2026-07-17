@@ -26,6 +26,7 @@ export default {
     haveAccount: 'Hisobingiz bormi?',
     loginLink: 'Kirish',
     successTitle: 'Tabriklaymiz! Klubingiz tayyor',
+    backHome: 'Bosh sahifa',
   },
   ru: {
     docTitle: 'Регистрация — Prime Billiard',
@@ -54,5 +55,6 @@ export default {
     haveAccount: 'Уже есть аккаунт?',
     loginLink: 'Войти',
     successTitle: 'Поздравляем! Ваш клуб готов',
+    backHome: 'На главную',
   },
 };

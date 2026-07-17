@@ -51,8 +51,10 @@ const StatCard = ({
     <Card
       className={className}
       style={{
-        background: `linear-gradient(150deg, ${TOKENS.color.bg.bg2} 0%, ${TOKENS.color.bg.bg1} 55%)`,
+        /* Diagonal nozik "sheen" + karbon gradient — chuqurlik hissi */
+        background: `linear-gradient(120deg, rgba(255, 255, 255, 0.03) 0%, transparent 42%), linear-gradient(150deg, ${TOKENS.color.bg.bg2} 0%, ${TOKENS.color.bg.bg1} 55%)`,
         borderColor: TOKENS.color.border.subtle,
+        boxShadow: `${TOKENS.shadow.level1}, ${TOKENS.shadow.cardHighlight}`,
         height: '100%',
         ...style,
       }}

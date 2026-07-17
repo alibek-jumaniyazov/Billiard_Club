@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { App, Button, Col, Divider, Form, Input, Row, Segmented, Typography } from 'antd';
 import {
+  ArrowLeftOutlined,
   EnvironmentOutlined,
   LockOutlined,
   PhoneOutlined,
@@ -9,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { BrandLogo, GlassCard, PageTransition } from '../components/ui';
+import { AnimatedBackground, BrandLogo, GlassCard, PageTransition } from '../components/ui';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -64,10 +65,26 @@ const Register = () => {
 
   return (
     <div className="auth-page">
+      {/* Jonli aurora fon — karta orqasida suzadi (qatlamlash index.css da) */}
+      <AnimatedBackground variant="aurora" withGrain />
+
+      {/* Landing sahifaga qaytish — shisha pilyula (chap yuqorida) */}
+      <Link to="/" className="auth-back-pill" title={t('register.backHome')}>
+        <ArrowLeftOutlined />
+        {t('register.backHome')}
+      </Link>
+
       <PageTransition>
-        <GlassCard padding={32} style={{ width: 620, maxWidth: '100%' }}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <BrandLogo size={44} withWordmark style={{ marginBottom: 14 }} />
+        <GlassCard padding={TOKENS.spacing.xl} style={{ width: 620, maxWidth: '100%' }}>
+          <div style={{ textAlign: 'center', marginBottom: TOKENS.spacing.lg }}>
+            {/* Logo ham bosh sahifaga qaytaradi */}
+            <Link
+              to="/"
+              title={t('register.backHome')}
+              style={{ display: 'inline-block', cursor: 'pointer' }}
+            >
+              <BrandLogo size={44} withWordmark style={{ marginBottom: 14 }} />
+            </Link>
             <Title level={3} style={{ margin: '0 0 4px' }}>
               {t('register.title')}
             </Title>
@@ -215,7 +232,13 @@ const Register = () => {
             </div>
 
             <Form.Item style={{ marginBottom: 12 }}>
-              <Button type="primary" htmlType="submit" block loading={loading}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                block
+                loading={loading}
+                className="auth-submit-glow"
+              >
                 {t('register.submit')}
               </Button>
             </Form.Item>

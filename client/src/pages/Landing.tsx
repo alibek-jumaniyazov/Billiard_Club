@@ -20,11 +20,19 @@ import {
 } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { motion, MotionConfig, type Variants } from 'framer-motion';
+import {
+  motion,
+  MotionConfig,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+  type Variants,
+} from 'framer-motion';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { SUPPORT_PHONE, SUPPORT_TELEGRAM } from '../constants';
 import { TOKENS } from '../theme/tokens';
-import { BrandLogo, GlassCard } from '../components/ui';
+import { AnimatedBackground, BrandLogo, GlassCard } from '../components/ui';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { formatNumber } from '../utils/format';
 
@@ -33,8 +41,16 @@ const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
 /** Aloqa emaili (kontakt bo'limi) — env orqali sozlanadi */
 const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || 'support@primebilliard.uz';
 
+/** Token hexini shaffof rgba() ga aylantiradi — sahifada hex takrorlanmasin */
+const hexToRgba = (hex: string, alpha: number): string => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+};
+
 /* Neytral shaffof qatlamlar (brend ranglari EMAS — alfa-overlay) */
-const NAV_BG = 'rgba(10, 12, 11, 0.82)'; // bg.bg0 @ 82%
+const NAV_BG = hexToRgba(bg.bg0, 0.82);
+/** 40px dan pastga aylantirilganda navbar foni biroz zichlashadi */
+const NAV_BG_SCROLLED = hexToRgba(bg.bg0, 0.94);
 const SOFT_PANEL = 'rgba(255, 255, 255, 0.02)';
 const CARD_TINT = 'rgba(255, 255, 255, 0.03)';
 
@@ -147,11 +163,11 @@ interface FloatingBallSpec {
 }
 
 const HERO_BALLS: FloatingBallSpec[] = [
-  { num: 1, color: gold.base, left: '5%', top: '14%', size: 34, delay: 0, duration: 7, opacity: 0.5 },
-  { num: 3, color: semantic.error, left: '88%', top: '10%', size: 26, delay: 1.2, duration: 8, opacity: 0.4, hideSm: true },
-  { num: 2, color: semantic.info, left: '72%', top: '80%', size: 30, delay: 0.6, duration: 6.5, opacity: 0.35, hideSm: true },
-  { num: 6, color: emerald.bright, left: '30%', top: '84%', size: 24, delay: 2, duration: 7.5, opacity: 0.4 },
-  { num: 9, color: gold.hover, left: '58%', top: '6%', size: 22, delay: 1.6, duration: 9, opacity: 0.35 },
+  { num: 1, color: gold.base, left: '5%', top: '14%', size: 34, delay: 0, duration: 12, opacity: 0.5 },
+  { num: 3, color: semantic.error, left: '88%', top: '10%', size: 26, delay: 1.2, duration: 14, opacity: 0.4, hideSm: true },
+  { num: 2, color: semantic.info, left: '72%', top: '80%', size: 30, delay: 0.6, duration: 11, opacity: 0.35, hideSm: true },
+  { num: 6, color: emerald.bright, left: '30%', top: '84%', size: 24, delay: 2, duration: 13, opacity: 0.4 },
+  { num: 9, color: gold.hover, left: '58%', top: '6%', size: 22, delay: 1.6, duration: 15.5, opacity: 0.35 },
 ];
 
 /** Billiard soqqasi SVG motivi (raqamli, yumshoq soya bilan) */
@@ -159,21 +175,22 @@ const BallSvg = ({ num, color, size }: { num: number; color: string; size: numbe
   <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true" focusable="false">
     <defs>
       <radialGradient id={`lp-ball-${num}`} cx="0.32" cy="0.28" r="0.9">
-        <stop offset="0%" stopColor="#fff" stopOpacity="0.9" />
+        {/* Yaltiroq nuqta va soya — neytral oq/qora (palitra rangi emas) */}
+        <stop offset="0%" stopColor="rgb(255, 255, 255)" stopOpacity="0.9" />
         <stop offset="30%" stopColor={color} />
         <stop offset="80%" stopColor={color} />
-        <stop offset="100%" stopColor="#000" stopOpacity="0.55" />
+        <stop offset="100%" stopColor="rgb(0, 0, 0)" stopOpacity="0.55" />
       </radialGradient>
     </defs>
     <circle cx="20" cy="20" r="19" fill={`url(#lp-ball-${num})`} />
-    <circle cx="20" cy="20" r="7.5" fill="#fff" fillOpacity="0.92" />
+    <circle cx="20" cy="20" r="7.5" fill="rgb(255, 255, 255)" fillOpacity="0.92" />
     <text
       x="20"
       y="23.2"
       textAnchor="middle"
       fontSize="9"
       fontWeight="700"
-      fill="#000"
+      fill="rgb(0, 0, 0)"
       fillOpacity="0.8"
     >
       {num}
@@ -181,13 +198,17 @@ const BallSvg = ({ num, color, size }: { num: number; color: string; size: numbe
   </svg>
 );
 
-/** Hero fonida suzib yuruvchi soqqa — faqat transform (y) animatsiyasi */
+/** Hero fonida suzib yuruvchi soqqa — faqat transform (y/x) animatsiyasi.
+    Uzun davomiylik + turli fazadagi yon siljish suzishni yumshoq qiladi. */
 const FloatingBall = ({ ball }: { ball: FloatingBallSpec }) => (
   <motion.div
     aria-hidden
     className={ball.hideSm ? 'lp-hide-sm' : undefined}
-    animate={{ y: [0, -16, 0] }}
-    transition={{ duration: ball.duration, repeat: Infinity, ease: 'easeInOut', delay: ball.delay }}
+    animate={{ y: [0, -14, 0], x: [0, 6, 0] }}
+    transition={{
+      y: { duration: ball.duration, repeat: Infinity, ease: 'easeInOut', delay: ball.delay },
+      x: { duration: ball.duration * 1.4, repeat: Infinity, ease: 'easeInOut', delay: ball.delay },
+    }}
     style={{
       position: 'absolute',
       left: ball.left,
@@ -269,7 +290,7 @@ const TableIllustration = () => (
         <motion.span
           key={i}
           animate={{ y: [0, -8, 0] }}
-          transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut', delay: ball.delay }}
+          transition={{ duration: 7.5, repeat: Infinity, ease: 'easeInOut', delay: ball.delay }}
           style={{
             position: 'absolute',
             left: ball.left,
@@ -285,6 +306,21 @@ const TableIllustration = () => (
       ))}
     </div>
   </div>
+);
+
+/* ------------------------------------------------- Bo'lim ajratuvchi qatlam */
+
+/** Bo'limlar orasidagi yumshoq gradient o'tish (zumrad → shaffof) —
+    sahifa tekis qora plitalar to'plami bo'lib ko'rinmasligi uchun */
+const SectionDivider = () => (
+  <div
+    aria-hidden
+    style={{
+      height: 80,
+      background: `linear-gradient(180deg, ${emerald.deepest} 0%, ${hexToRgba(emerald.deepest, 0)} 100%)`,
+      pointerEvents: 'none',
+    }}
+  />
 );
 
 /* ------------------------------------------------------- Bo'lim sarlavhasi */
@@ -340,6 +376,15 @@ const Landing = () => {
   const { lang, setLang } = useAppSettings();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navScrolled, setNavScrolled] = useState(false);
+  const reduceMotion = useReducedMotion();
+
+  /* Skroll qiymati — navbar zichligi va hero parallaksi uchun.
+     MotionValue to'g'ridan-to'g'ri transformga yoziladi: layout o'qilmaydi,
+     state faqat 40px chegara kesilganda almashadi (React o'zi bail out qiladi). */
+  const { scrollY } = useScroll();
+  const heroBallsY = useTransform(scrollY, [0, 640], [0, 80]);
+  useMotionValueEvent(scrollY, 'change', (y) => setNavScrolled(y > 40));
 
   useDocumentHead('landing.metaTitle', 'landing.metaDescription');
 
@@ -440,6 +485,31 @@ const Landing = () => {
           .lp-faq .ant-collapse-header { font-weight: 600; font-size: 15.5px; color: var(--text-primary) !important; padding: 16px 20px !important; align-items: center !important; }
           .lp-faq .ant-collapse-content { background: transparent !important; border-top: 1px solid var(--border-subtle) !important; }
           .lp-faq .ant-collapse-content-box { padding: 16px 20px !important; }
+          /* Tanlangan tarif — sekin oltin chegara jilosi. Faqat background-position
+             drift (1-2px lik ramka maydonida arzon repaint); mask ichki qismni ochiq
+             qoldiradi, shimmer faqat chegarada yuradi. */
+          .lp-plan-glow::before {
+            content: '';
+            position: absolute;
+            inset: -1px;
+            border-radius: ${TOKENS.radius.xl + 1}px;
+            padding: 2px;
+            background: linear-gradient(115deg, ${gold.line} 0%, ${gold.hover} 25%, ${gold.line} 50%, ${gold.hover} 75%, ${gold.line} 100%);
+            background-size: 200% 100%;
+            -webkit-mask: linear-gradient(rgba(0, 0, 0, 1) 0 0) content-box, linear-gradient(rgba(0, 0, 0, 1) 0 0);
+            -webkit-mask-composite: xor;
+            mask: linear-gradient(rgba(0, 0, 0, 1) 0 0) content-box, linear-gradient(rgba(0, 0, 0, 1) 0 0);
+            mask-composite: exclude;
+            animation: lp-gold-drift 8s linear infinite;
+            pointer-events: none;
+          }
+          @keyframes lp-gold-drift {
+            from { background-position: 0% 50%; }
+            to { background-position: 200% 50%; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .lp-plan-glow::before { animation: none; }
+          }
         `}</style>
 
         {/* ------------------------------------------------ Yopishqoq navbar */}
@@ -448,10 +518,13 @@ const Landing = () => {
             position: 'sticky',
             top: 0,
             zIndex: 40,
-            background: NAV_BG,
+            /* Skrollda shisha fon biroz zichlashadi — kontent ustida o'qilishi yaxshilanadi */
+            background: navScrolled ? NAV_BG_SCROLLED : NAV_BG,
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
             borderBottom: `1px solid ${border.subtle}`,
+            boxShadow: navScrolled ? TOKENS.shadow.level1 : 'none',
+            transition: 'background 0.3s ease, box-shadow 0.3s ease',
           }}
         >
           <div
@@ -551,39 +624,23 @@ const Landing = () => {
 
         <main>
           {/* -------------------------------------------------------- Hero */}
-          <section style={{ position: 'relative', overflow: 'hidden' }}>
-            {/* Fon: nozik zumrad/oltin radiallar + suzuvchi soqqalar */}
-            <div
+          <section style={{ position: 'relative', overflow: 'hidden', isolation: 'isolate' }}>
+            {/* Fon: jonli aurora nurlari + donadorlik — hero kontenti ORQASIDA suzadi */}
+            <AnimatedBackground variant="aurora" withGrain />
+            {/* Suzuvchi soqqalar qatlami — skrollda nozik parallaks (faqat transform) */}
+            <motion.div
               aria-hidden
               style={{
                 position: 'absolute',
-                top: -180,
-                right: -120,
-                width: 520,
-                height: 520,
-                borderRadius: '50%',
-                background: `radial-gradient(circle, ${gold.subtle}, transparent 65%)`,
+                inset: 0,
                 pointerEvents: 'none',
+                y: reduceMotion ? 0 : heroBallsY,
               }}
-            />
-            <div
-              aria-hidden
-              style={{
-                position: 'absolute',
-                bottom: -220,
-                left: -160,
-                width: 620,
-                height: 620,
-                borderRadius: '50%',
-                background: `radial-gradient(circle, ${emerald.deep}, transparent 65%)`,
-                pointerEvents: 'none',
-              }}
-            />
-            <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            >
               {HERO_BALLS.map((ball) => (
                 <FloatingBall key={ball.num} ball={ball} />
               ))}
-            </div>
+            </motion.div>
 
             <div
               style={{
@@ -717,6 +774,8 @@ const Landing = () => {
             </div>
           </section>
 
+          <SectionDivider />
+
           {/* ------------------------------------------------ Imkoniyatlar */}
           <section id="features" style={sectionPad}>
             <div style={container}>
@@ -791,6 +850,8 @@ const Landing = () => {
             </div>
           </section>
 
+          <SectionDivider />
+
           {/* --------------------------------------------- Qanday ishlaydi */}
           <section id="how" style={{ ...sectionPad, background: SOFT_PANEL }}>
             <div style={container}>
@@ -864,6 +925,8 @@ const Landing = () => {
             </div>
           </section>
 
+          <SectionDivider />
+
           {/* ------------------------------------------------------ Tariflar */}
           <section id="pricing" style={sectionPad}>
             <div style={container}>
@@ -883,6 +946,7 @@ const Landing = () => {
                     <Col xs={24} md={8} key={plan.code}>
                       <motion.div variants={fadeUp} style={{ height: '100%' }}>
                         <div
+                          className={plan.highlighted ? 'lp-plan-glow' : undefined}
                           style={{
                             height: '100%',
                             display: 'flex',
@@ -1045,6 +1109,8 @@ const Landing = () => {
             </div>
           </section>
 
+          <SectionDivider />
+
           {/* ------------------------------------------------ Mijozlar fikri */}
           <section id="testimonials" style={{ ...sectionPad, background: SOFT_PANEL }}>
             <div style={container}>
@@ -1122,6 +1188,8 @@ const Landing = () => {
             </div>
           </section>
 
+          <SectionDivider />
+
           {/* --------------------------------------------------- Savol-javob */}
           <section id="faq" style={sectionPad}>
             <div style={{ ...container, maxWidth: 800 }}>
@@ -1145,6 +1213,8 @@ const Landing = () => {
               </motion.div>
             </div>
           </section>
+
+          <SectionDivider />
 
           {/* --------------------------------------------------------- Aloqa */}
           <section id="contact" style={{ ...sectionPad, background: SOFT_PANEL }}>

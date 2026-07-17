@@ -12,7 +12,8 @@ interface GlassCardProps {
 }
 
 /**
- * Glassmorphism o'rami — shaffof fon + blur + oltin tusli 1px chegara.
+ * Glassmorphism o'rami — shaffof fon + blur + grafit chegara (hoverda oltin
+ * tusga yumshoq o'tadi — .glass-card klassi index.css da).
  * EHTIYOTKORLIK bilan ishlating: faqat navbar/overlay kabi "suzuvchi"
  * yuzalar uchun; oddiy kontent kartalari uchun antd Card qoladi.
  */
@@ -24,15 +25,14 @@ const GlassCard = ({
   className,
 }: GlassCardProps) => (
   <div
-    className={className}
+    className={className ? `glass-card ${className}` : 'glass-card'}
     style={{
-      background: 'rgba(24, 28, 26, 0.6)',
-      backdropFilter: 'blur(14px)',
-      WebkitBackdropFilter: 'blur(14px)',
-      border: `1px solid ${TOKENS.color.gold.line}`,
+      background: 'rgba(28, 38, 34, 0.6)' /* bg.bg2 @ 60% */,
+      backdropFilter: 'blur(18px)',
+      WebkitBackdropFilter: 'blur(18px)',
       borderRadius: radius,
       padding,
-      boxShadow: TOKENS.shadow.level2,
+      boxShadow: `${TOKENS.shadow.level2}, ${TOKENS.shadow.cardHighlight}`,
       ...style,
     }}
   >

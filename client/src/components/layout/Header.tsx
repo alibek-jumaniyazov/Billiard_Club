@@ -7,7 +7,6 @@ import {
   Segmented,
   Space,
   Tag,
-  theme,
   Typography,
 } from 'antd';
 import {
@@ -24,6 +23,7 @@ import { viewingClub } from '../../api/client';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_TAG_COLORS } from '../../constants';
+import { TOKENS } from '../../theme/tokens';
 import NotificationsBell from '../ui/NotificationsBell';
 
 const { Header: AntHeader } = Layout;
@@ -39,7 +39,6 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
   const { lang, setLang } = useAppSettings();
   const { user, club, logout } = useAuth();
   const navigate = useNavigate();
-  const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
 
   // Jonli soat (avval bir marta render bo'lib qotib qolardi)
@@ -73,11 +72,12 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 16px',
-        // Karbon glass yuzasi — Layout headerBg ataylab transparent
-        background: 'rgba(10, 12, 11, 0.82)',
+        // Karbon glass yuzasi — Layout headerBg ataylab transparent;
+        // rang to'g'ridan-to'g'ri bg0 tokenidan olinadi (palitra ko'tarilsa avtomatik ergashadi)
+        background: `color-mix(in srgb, ${TOKENS.color.bg.bg0} 80%, transparent)`,
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        borderBottom: `1px solid ${TOKENS.color.border.subtle}`,
       }}
     >
       <Space size="middle">

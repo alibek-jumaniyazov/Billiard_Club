@@ -21,6 +21,7 @@ export default {
     recheck: 'Holatni tekshirish',
     stillLocked: 'Obuna hali ham faol emas',
     nowActive: "Obuna faollashdi! Tizimga yo'naltirilmoqda...",
+    backHome: 'Bosh sahifa',
   },
   ru: {
     docTitle: 'Подписка — Prime Billiard',
@@ -43,5 +44,6 @@ export default {
     recheck: 'Проверить статус',
     stillLocked: 'Подписка всё ещё неактивна',
     nowActive: 'Подписка активирована! Выполняется переход...',
+    backHome: 'На главную',
   },
 };

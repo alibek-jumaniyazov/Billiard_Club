@@ -3,6 +3,7 @@ import { Drawer, Grid, Layout } from 'antd';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import AnimatedBackground from '../ui/AnimatedBackground';
 import { TOKENS } from '../../theme/tokens';
 
 const { Content } = Layout;
@@ -40,14 +41,17 @@ const AppLayout = () => {
         </Drawer>
       )}
 
-      <Layout>
+      {/* isolation: aurora z-index'i qatlamdan tashqariga (modal/drawer) chiqmasin */}
+      <Layout style={{ position: 'relative', isolation: 'isolate' }}>
+        {/* Nozik aurora foni — kontent ORQASIDA suzadi (pointer-events: none, z-index: 0) */}
+        <AnimatedBackground variant="subtle" />
         <Header
           collapsed={isMobile ? !drawerOpen : collapsed}
           onToggle={() =>
             isMobile ? setDrawerOpen((open) => !open) : setCollapsed((c) => !c)
           }
         />
-        <Content className="page-container">
+        <Content className="page-container" style={{ position: 'relative', zIndex: 1 }}>
           <Outlet />
         </Content>
       </Layout>

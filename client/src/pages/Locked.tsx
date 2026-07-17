@@ -9,11 +9,11 @@ import {
   StopOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { authApi, subscriptionApi } from '../api';
 import SubscriptionPlans from '../components/subscription/SubscriptionPlans';
-import { BrandLogo, GlassCard, PageTransition } from '../components/ui';
+import { AnimatedBackground, BrandLogo, GlassCard, PageTransition } from '../components/ui';
 import { SUPPORT_PHONE, SUPPORT_TELEGRAM } from '../constants';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -86,6 +86,7 @@ const Locked = () => {
   if (loading) {
     return (
       <div className="auth-page">
+        <AnimatedBackground variant="aurora" withGrain />
         <Spin size="large" />
       </div>
     );
@@ -142,173 +143,189 @@ const Locked = () => {
   return (
     <div
       style={{
+        position: 'relative',
+        isolation: 'isolate' /* aurora z-index'i sahifadan tashqariga chiqmasin */,
+        overflow: 'hidden',
         minHeight: '100vh',
         background: PAGE_BG,
         backgroundColor: bg.bg0,
         padding: '40px 16px 56px',
       }}
     >
-      <PageTransition>
-        <div
-          style={{
-            maxWidth: 1040,
-            margin: '0 auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: TOKENS.spacing.lg,
-          }}
-        >
-          <div style={{ textAlign: 'center' }}>
-            <BrandLogo size={48} withWordmark />
-          </div>
+      {/* Jonli aurora fon — kontent orqasida suzadi */}
+      <AnimatedBackground variant="aurora" withGrain />
 
-          {/* Holat gerosi: nima bo'ldi + ma'lumotlar xavfsizligi kafolati */}
-          <GlassCard>
-            <div
-              style={{
-                display: 'flex',
-                gap: TOKENS.spacing.lg,
-                alignItems: 'flex-start',
-                flexWrap: 'wrap',
-              }}
-            >
+      {/* Kontent aurora nurlari USTIDA turadi */}
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <PageTransition>
+          <div
+            style={{
+              maxWidth: 1040,
+              margin: '0 auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: TOKENS.spacing.lg,
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              {/* Logo — bosh sahifaga qaytish (ochilgan bo'lsa tizimga olib kiradi) */}
+              <Link
+                to="/"
+                title={t('locked.backHome')}
+                style={{ display: 'inline-block', cursor: 'pointer' }}
+              >
+                <BrandLogo size={48} withWordmark />
+              </Link>
+            </div>
+
+            {/* Holat gerosi: nima bo'ldi + ma'lumotlar xavfsizligi kafolati */}
+            <GlassCard>
               <div
                 style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: '50%',
-                  flexShrink: 0,
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 24,
-                  color: isBlocked ? semantic.error : gold.base,
-                  background: isBlocked
-                    ? `color-mix(in srgb, ${semantic.error} 12%, transparent)`
-                    : gold.subtle,
-                  border: `1px solid ${
-                    isBlocked
-                      ? `color-mix(in srgb, ${semantic.error} 30%, transparent)`
-                      : gold.line
-                  }`,
+                  gap: TOKENS.spacing.lg,
+                  alignItems: 'flex-start',
+                  flexWrap: 'wrap',
                 }}
               >
-                {isBlocked ? <StopOutlined /> : <LockOutlined />}
-              </div>
-              <div style={{ flex: 1, minWidth: 240 }}>
-                <Title level={3} style={{ margin: 0 }}>
-                  {title}
-                </Title>
-                {club?.name && (
-                  <Text type="secondary" style={{ display: 'block', marginTop: 2, fontSize: 14 }}>
-                    {club.name}
-                  </Text>
-                )}
-                <Text type="secondary" style={{ display: 'block', marginTop: 10 }}>
-                  {desc}
-                </Text>
-                {club?.effectiveEndsAt && !isBlocked && (
-                  <Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
-                    {t('locked.endedAt')}:{' '}
-                    <span className="tabular-nums" style={{ color: text.primary }}>
-                      {dayjs(club.effectiveEndsAt).format('DD.MM.YYYY')}
-                    </span>
-                  </Text>
-                )}
-
-                {/* Ma'lumotlar xavfsiz — ishonch bloki */}
                 <div
                   style={{
-                    marginTop: 16,
-                    padding: '12px 16px',
-                    borderRadius: TOKENS.radius.md,
-                    background: emerald.deep,
-                    border: `1px solid ${emerald.felt}`,
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    flexShrink: 0,
                     display: 'flex',
-                    gap: 12,
-                    alignItems: 'flex-start',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 24,
+                    color: isBlocked ? semantic.error : gold.base,
+                    background: isBlocked
+                      ? `color-mix(in srgb, ${semantic.error} 12%, transparent)`
+                      : gold.subtle,
+                    border: `1px solid ${
+                      isBlocked
+                        ? `color-mix(in srgb, ${semantic.error} 30%, transparent)`
+                        : gold.line
+                    }`,
                   }}
                 >
-                  <SafetyCertificateOutlined
-                    style={{ color: emerald.glow, fontSize: 18, marginTop: 2 }}
-                  />
-                  <div>
-                    <Text strong style={{ display: 'block', color: emerald.glow, fontSize: 13.5 }}>
-                      {t('locked.dataSafeTitle')}
+                  {isBlocked ? <StopOutlined /> : <LockOutlined />}
+                </div>
+                <div style={{ flex: 1, minWidth: 240 }}>
+                  <Title level={3} style={{ margin: 0 }}>
+                    {title}
+                  </Title>
+                  {club?.name && (
+                    <Text type="secondary" style={{ display: 'block', marginTop: 2, fontSize: 14 }}>
+                      {club.name}
                     </Text>
-                    <Text type="secondary" style={{ fontSize: 13 }}>
-                      {t('locked.dataSafeDesc')}
+                  )}
+                  <Text type="secondary" style={{ display: 'block', marginTop: 10 }}>
+                    {desc}
+                  </Text>
+                  {club?.effectiveEndsAt && !isBlocked && (
+                    <Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
+                      {t('locked.endedAt')}:{' '}
+                      <span className="tabular-nums" style={{ color: text.primary }}>
+                        {dayjs(club.effectiveEndsAt).format('DD.MM.YYYY')}
+                      </span>
                     </Text>
+                  )}
+
+                  {/* Ma'lumotlar xavfsiz — ishonch bloki */}
+                  <div
+                    style={{
+                      marginTop: 16,
+                      padding: '12px 16px',
+                      borderRadius: TOKENS.radius.md,
+                      background: emerald.deep,
+                      border: `1px solid ${emerald.felt}`,
+                      display: 'flex',
+                      gap: 12,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <SafetyCertificateOutlined
+                      style={{ color: emerald.glow, fontSize: 18, marginTop: 2 }}
+                    />
+                    <div>
+                      <Text strong style={{ display: 'block', color: emerald.glow, fontSize: 13.5 }}>
+                        {t('locked.dataSafeTitle')}
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: 13 }}>
+                        {t('locked.dataSafeDesc')}
+                      </Text>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </GlassCard>
-
-          {/* Klub egasi: tariflar + xarid oqimi (kutilayotgan faktura banneri bilan) */}
-          {canPurchase && (
-            <SubscriptionPlans
-              plans={plans}
-              plansError={plansError}
-              onRetry={() => void fetchPlans()}
-              pendingInvoice={subStatus?.currentInvoice ?? null}
-              activePlanCode={subStatus?.activePlan?.code ?? null}
-              onChanged={handleChanged}
-            />
-          )}
-
-          {/* Kassir/operator: obunani faqat admin uzaytiradi */}
-          {!isAdmin && !isBlocked && (
-            <GlassCard padding={TOKENS.spacing.md}>
-              <Text type="secondary">{t('locked.staffContactAdmin')}</Text>
             </GlassCard>
-          )}
 
-          {/* Ikkilamchi amallar: aloqa, tekshirish, chiqish */}
-          <GlassCard padding={TOKENS.spacing.md}>
-            <div
-              style={{
-                display: 'flex',
-                gap: 12,
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-              }}
-            >
-              <Space size={12} wrap>
-                <Button
-                  icon={<SendOutlined />}
-                  href={SUPPORT_TELEGRAM}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  {t('locked.telegram')}
-                </Button>
-                {SUPPORT_PHONE && (
-                  <Text type="secondary">
-                    <PhoneOutlined style={{ marginRight: 6 }} />
-                    {t('locked.contact')}:{' '}
-                    <span className="tabular-nums" style={{ color: text.primary }}>
-                      {SUPPORT_PHONE}
-                    </span>
-                  </Text>
-                )}
-              </Space>
-              <Space size={12} wrap>
-                <Button
-                  type={canPurchase ? 'default' : 'primary'}
-                  icon={<ReloadOutlined />}
-                  loading={checking}
-                  onClick={handleRecheck}
-                >
-                  {t('locked.recheck')}
-                </Button>
-                <Button onClick={handleLogout}>{t('btn.logout')}</Button>
-              </Space>
-            </div>
-          </GlassCard>
-        </div>
-      </PageTransition>
+            {/* Klub egasi: tariflar + xarid oqimi (kutilayotgan faktura banneri bilan) */}
+            {canPurchase && (
+              <SubscriptionPlans
+                plans={plans}
+                plansError={plansError}
+                onRetry={() => void fetchPlans()}
+                pendingInvoice={subStatus?.currentInvoice ?? null}
+                activePlanCode={subStatus?.activePlan?.code ?? null}
+                onChanged={handleChanged}
+              />
+            )}
+
+            {/* Kassir/operator: obunani faqat admin uzaytiradi */}
+            {!isAdmin && !isBlocked && (
+              <GlassCard padding={TOKENS.spacing.md}>
+                <Text type="secondary">{t('locked.staffContactAdmin')}</Text>
+              </GlassCard>
+            )}
+
+            {/* Ikkilamchi amallar: aloqa, tekshirish, chiqish */}
+            <GlassCard padding={TOKENS.spacing.md}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <Space size={12} wrap>
+                  <Button
+                    icon={<SendOutlined />}
+                    href={SUPPORT_TELEGRAM}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    {t('locked.telegram')}
+                  </Button>
+                  {SUPPORT_PHONE && (
+                    <Text type="secondary">
+                      <PhoneOutlined style={{ marginRight: 6 }} />
+                      {t('locked.contact')}:{' '}
+                      <span className="tabular-nums" style={{ color: text.primary }}>
+                        {SUPPORT_PHONE}
+                      </span>
+                    </Text>
+                  )}
+                </Space>
+                <Space size={12} wrap>
+                  <Button
+                    type={canPurchase ? 'default' : 'primary'}
+                    icon={<ReloadOutlined />}
+                    loading={checking}
+                    onClick={handleRecheck}
+                  >
+                    {t('locked.recheck')}
+                  </Button>
+                  <Button onClick={handleLogout}>{t('btn.logout')}</Button>
+                </Space>
+              </div>
+            </GlassCard>
+          </div>
+        </PageTransition>
+      </div>
     </div>
   );
 };

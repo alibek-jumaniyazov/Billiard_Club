@@ -11,6 +11,7 @@ export default {
     failed: "Username yoki parol noto'g'ri",
     noAccount: "Hisobingiz yo'qmi?",
     registerLink: 'Bepul sinovni boshlang',
+    backHome: 'Bosh sahifa',
   },
   ru: {
     docTitle: 'Вход — Prime Billiard',
@@ -24,5 +25,6 @@ export default {
     failed: 'Неверное имя пользователя или пароль',
     noAccount: 'Нет аккаунта?',
     registerLink: 'Начните бесплатный период',
+    backHome: 'На главную',
   },
 };

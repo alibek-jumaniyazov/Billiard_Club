@@ -7,24 +7,24 @@
  */
 
 :root {
-  /* Fon qatlamlari */
-  --bg0: #0a0c0b;
-  --bg1: #121514;
-  --bg2: #181c1a;
-  --bg3: #1f2422;
+  /* Fon qatlamlari — boy qarag'ay-karbon (zich qora emas) */
+  --bg0: #0e1513;
+  --bg1: #151d1a;
+  --bg2: #1c2622;
+  --bg3: #243029;
 
   /* Grafit chegaralar */
-  --border-subtle: #1d2320;
-  --border-base: #262d29;
-  --border-strong: #333b37;
+  --border-subtle: #243029;
+  --border-base: #2e3b35;
+  --border-strong: #3d4c44;
 
   /* Zumrad shkalasi */
-  --emerald-deepest: #0c1f16;
-  --emerald-deep: #122a1d;
-  --emerald-felt: #17402a;
-  --emerald-base: #1e5c3a;
-  --emerald-bright: #2f9e64;
-  --emerald-glow: #43c17e;
+  --emerald-deepest: #0d2419;
+  --emerald-deep: #143224;
+  --emerald-felt: #1a4a30;
+  --emerald-base: #216b42;
+  --emerald-bright: #33ab6c;
+  --emerald-glow: #4bd48c;
 
   /* Premium oltin */
   --gold: #d4af37;
@@ -32,12 +32,18 @@
   --gold-active: #b5922c;
   --gold-subtle: rgba(212, 175, 55, 0.12);
   --gold-line: rgba(212, 175, 55, 0.22);
+  --gold-glow: rgba(212, 175, 55, 0.45);
+
+  /* Aurora — animatsion fon nur dog'lari */
+  --aurora-emerald: rgba(47, 158, 100, 0.2);
+  --aurora-gold: rgba(212, 175, 55, 0.1);
+  --aurora-teal: rgba(66, 160, 150, 0.14);
 
   /* Kumush matn */
-  --text-primary: #e8ebe9;
-  --text-secondary: #a9b3ad;
-  --text-tertiary: #717c76;
-  --text-disabled: #4b5450;
+  --text-primary: #eef2f0;
+  --text-secondary: #b3bfb8;
+  --text-tertiary: #7d8a83;
+  --text-disabled: #525c56;
 
   /* Semantik */
   --success: #43b97b;
@@ -119,18 +125,39 @@ body {
   background: var(--text-tertiary);
 }
 
-/* Faol stol kartasi — nozik zumrad/oltin nur (avvalgi keskin puls o'rniga) */
+/* Asosiy tugma — nozik oltin gradient (tokens.ts dagi primaryShadow bilan juft).
+   antd colorPrimary yakka rang bo'lgani uchun gradient shu yerda beriladi. */
+.ant-btn-primary:not(:disabled) {
+  background: linear-gradient(180deg, var(--gold-hover) 0%, var(--gold) 62%, var(--gold-active) 100%);
+}
+.ant-btn-primary:not(:disabled):hover {
+  filter: brightness(1.07);
+}
+.ant-btn-primary:not(:disabled):active {
+  filter: brightness(0.94);
+}
+
+/* GlassCard — chegara hoverda oltin tusga yumshoq o'tadi */
+.glass-card {
+  border: 1px solid var(--border-strong);
+  transition: border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card:hover {
+  border-color: var(--gold-line);
+}
+
+/* Faol stol kartasi — nozik zumrad/oltin nur, yangi palitraga moslangan */
 @keyframes glow-active {
   0%,
   100% {
     box-shadow:
       0 0 0 1px rgba(212, 175, 55, 0.35),
-      0 0 14px rgba(63, 224, 140, 0.08);
+      0 0 16px rgba(75, 212, 140, 0.1);
   }
   50% {
     box-shadow:
       0 0 0 1px rgba(212, 175, 55, 0.5),
-      0 0 22px rgba(63, 224, 140, 0.18);
+      0 0 24px rgba(75, 212, 140, 0.2);
   }
 }
 
@@ -161,23 +188,225 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Login/Register/Locked sahifalari foni — chuqur qora + zumrad va oltin nur */
+/* ------------------------------------------------------------------ Aurora
+   Sekin suzuvchi, kuchli blur qilingan nur dog'lari — "premium-futuristik"
+   fon. Faqat transform/opacity animatsiya qilinadi (60fps kafolati).
+   Ishlatilishi: <AnimatedBackground /> (components/ui) shu klasslarni render
+   qiladi; ota element position: relative bo'lishi kerak. */
+.aurora-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+}
+
+.aurora-blob-1 {
+  width: 55vmax;
+  height: 55vmax;
+  top: -18%;
+  left: -12%;
+  background: radial-gradient(circle at center, var(--aurora-emerald), transparent 70%);
+  animation:
+    aurora-drift-1 80s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate,
+    aurora-shimmer 34s ease-in-out infinite;
+}
+
+.aurora-blob-2 {
+  width: 46vmax;
+  height: 46vmax;
+  bottom: -22%;
+  right: -12%;
+  background: radial-gradient(circle at center, var(--aurora-teal), transparent 70%);
+  animation:
+    aurora-drift-2 90s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate,
+    aurora-shimmer 42s ease-in-out infinite;
+}
+
+.aurora-blob-3 {
+  width: 38vmax;
+  height: 38vmax;
+  top: 28%;
+  right: 18%;
+  background: radial-gradient(circle at center, var(--aurora-gold), transparent 70%);
+  animation:
+    aurora-drift-3 65s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate,
+    aurora-shimmer 28s ease-in-out infinite;
+}
+
+/* "subtle" varianti — ilova ichida: xiraroq, chalg'itmaydigan */
+.aurora-bg--subtle .aurora-blob {
+  opacity: 0.5;
+}
+
+@keyframes aurora-drift-1 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(9vw, 6vh, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(-5vw, 10vh, 0) scale(0.94);
+  }
+}
+
+@keyframes aurora-drift-2 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-10vw, -7vh, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(6vw, -11vh, 0) scale(0.96);
+  }
+}
+
+@keyframes aurora-drift-3 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-7vw, 8vh, 0) scale(1.15);
+  }
+  100% {
+    transform: translate3d(8vw, -6vh, 0) scale(0.9);
+  }
+}
+
+/* Juda sekin, rang-neytral "nafas" — faqat opacity */
+@keyframes aurora-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+/* Harakat kamaytirilgan: animatsiya yo'q — bloblar statik gradient bo'lib qoladi */
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob-1,
+  .aurora-blob-2,
+  .aurora-blob-3 {
+    animation: none;
+  }
+}
+
+/* Nozik donadorlik (grain) qatlami — teksturaviy "boylik" beradi.
+   AnimatedBackground `withGrain` prop'i orqali .aurora-bg ichida render
+   qiladi; mustaqil ishlatilsa ota element position: relative bo'lsin. */
+.grain-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* Login/Register/Locked sahifalari foni — chuqur qarag'ay gradient;
+   aurora qatlami (AnimatedBackground) kontent ORQASIDA suzadi */
 .auth-page {
+  position: relative;
+  isolation: isolate; /* aurora z-index'i sahifadan tashqariga chiqmasin */
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   background:
-    radial-gradient(ellipse at 20% 15%, rgba(23, 64, 42, 0.45), transparent 55%),
-    radial-gradient(ellipse at 80% 85%, rgba(212, 175, 55, 0.08), transparent 50%),
-    var(--bg0);
+    radial-gradient(ellipse at 20% 12%, rgba(26, 74, 48, 0.4), transparent 55%),
+    radial-gradient(ellipse at 82% 88%, rgba(212, 175, 55, 0.07), transparent 50%),
+    linear-gradient(165deg, var(--bg1) 0%, var(--bg0) 45%, var(--emerald-deepest) 100%);
   padding: 16px;
+}
+
+/* Aurora fondan keyingi barcha kontent nurlar USTIDA turadi */
+.auth-page > *:not(.aurora-bg) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Auth sahifalar — chap yuqori burchakdagi "Bosh sahifa" shisha pilyulasi.
+   MUHIM: yuqoridagi *:not(.aurora-bg) qoidasi position: relative beradi —
+   bu qoida undan KEYIN kelgani uchun fixed g'olib chiqadi. */
+.auth-page > .auth-back-pill {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-secondary);
+  text-decoration: none;
+  background: color-mix(in srgb, var(--bg2) 55%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border-base);
+  transition:
+    color 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.auth-page > .auth-back-pill:hover {
+  color: var(--gold-hover);
+  border-color: var(--gold-line);
+}
+@media (max-width: 768px) {
+  .auth-page > .auth-back-pill {
+    top: 12px;
+    left: 12px;
+  }
+}
+
+/* Auth submit tugmasi — hoverda nozik oltin yog'du.
+   Yog'du pseudo-qatlamda: faqat opacity o'tadi (60fps kafolati). */
+.auth-submit-glow {
+  position: relative;
+}
+.auth-submit-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 6px 22px var(--gold-glow);
+  opacity: 0;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+.auth-submit-glow:not(:disabled):hover::after {
+  opacity: 1;
 }
 
 /* Sider — tanlangan menyu bandidagi oltin chap rels */
 .app-sider .ant-menu-item {
   position: relative;
 }
+
+/* Tanlangan band foni — chapdan o'ngga so'nadigan yumshoq zumrad gradient
+   (antd itemSelectedBg yakka rang bergani uchun shu yerda almashtiriladi;
+   !important — antd CSS-in-JS qoidasi hujjatga keyinroq qo'shilishidan qat'i
+   nazar gradient g'olib chiqishi uchun) */
+.app-sider .ant-menu-item-selected {
+  background-color: transparent !important;
+  background-image: linear-gradient(90deg, var(--emerald-deep) 0%, transparent 92%);
+}
+
 .app-sider .ant-menu-item-selected::before {
   content: '';
   position: absolute;

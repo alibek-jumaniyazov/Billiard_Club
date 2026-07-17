@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { App, Button, Form, Input, Segmented, Typography } from 'antd';
-import { LockOutlined, UserOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { BrandLogo, GlassCard, PageTransition } from '../components/ui';
+import { AnimatedBackground, BrandLogo, GlassCard, PageTransition } from '../components/ui';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -34,10 +34,26 @@ const Login = () => {
 
   return (
     <div className="auth-page">
+      {/* Jonli aurora fon — karta orqasida suzadi (qatlamlash index.css da) */}
+      <AnimatedBackground variant="aurora" withGrain />
+
+      {/* Landing sahifaga qaytish — shisha pilyula (chap yuqorida) */}
+      <Link to="/" className="auth-back-pill" title={t('login.backHome')}>
+        <ArrowLeftOutlined />
+        {t('login.backHome')}
+      </Link>
+
       <PageTransition>
-        <GlassCard padding={32} style={{ width: 420, maxWidth: '100%' }}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <BrandLogo size={48} withWordmark style={{ marginBottom: 14 }} />
+        <GlassCard padding={TOKENS.spacing.xl} style={{ width: 420, maxWidth: '100%' }}>
+          <div style={{ textAlign: 'center', marginBottom: TOKENS.spacing.lg }}>
+            {/* Logo ham bosh sahifaga qaytaradi */}
+            <Link
+              to="/"
+              title={t('login.backHome')}
+              style={{ display: 'inline-block', cursor: 'pointer' }}
+            >
+              <BrandLogo size={48} withWordmark style={{ marginBottom: 14 }} />
+            </Link>
             <Text type="secondary" style={{ display: 'block' }}>
               {t('login.subtitle')}
             </Text>
@@ -63,7 +79,13 @@ const Login = () => {
               />
             </Form.Item>
             <Form.Item style={{ marginBottom: 12 }}>
-              <Button type="primary" htmlType="submit" block loading={loading}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                block
+                loading={loading}
+                className="auth-submit-glow"
+              >
                 {t('login.submit')}
               </Button>
             </Form.Item>

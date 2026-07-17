@@ -34,7 +34,16 @@ const PageHeader = ({ title, subtitle, icon, extra, stats, style }: PageHeaderPr
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <Title level={3} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Title
+          level={3}
+          style={{
+            margin: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            letterSpacing: '-0.01em',
+          }}
+        >
           {icon && (
             <span style={{ color: TOKENS.color.gold.base, fontSize: 22, display: 'inline-flex' }}>
               {icon}
@@ -43,7 +52,13 @@ const PageHeader = ({ title, subtitle, icon, extra, stats, style }: PageHeaderPr
           {title}
         </Title>
         {subtitle && (
-          <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
+          <Text
+            style={{
+              display: 'block',
+              marginTop: 4,
+              color: TOKENS.color.text.secondary,
+            }}
+          >
             {subtitle}
           </Text>
         )}
