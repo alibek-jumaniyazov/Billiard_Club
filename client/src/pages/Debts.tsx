@@ -13,29 +13,38 @@ import {
   Row,
   Segmented,
   Select,
+  Skeleton,
   Space,
-  Statistic,
   Table,
   Tag,
   Typography,
 } from 'antd';
 import {
-  BookOutlined,
+  CreditCardOutlined,
   DeleteOutlined,
   DollarOutlined,
   HistoryOutlined,
   ReloadOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { debtsApi, errorMessage } from '../api';
+import {
+  EmptyState,
+  MoneyText,
+  PageHeader,
+  PageTransition,
+  StatCard,
+  StatusTag,
+} from '../components/ui';
 import { PAYMENT_METHODS } from '../constants';
 import { useAuth } from '../context/AuthContext';
+import { TOKENS } from '../theme/tokens';
 import type { Debt, DebtPayment, PaymentMethod } from '../types';
-import { formatMoney } from '../utils/format';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 type StatusFilter = 'unpaid' | 'paid' | 'all';
 
@@ -53,6 +62,7 @@ const Debts = () => {
 
   const [debts, setDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
@@ -95,6 +105,7 @@ const Debts = () => {
         message.error(errorMessage(err, t('common.error')));
       } finally {
         setLoading(false);
+        setLoaded(true);
       }
     },
     [message, t],
@@ -189,22 +200,33 @@ const Debts = () => {
       title: t('debts.totalDebtCol'),
       dataIndex: 'totalDebt',
       width: 140,
-      render: (value: number) => formatMoney(value, t('common.sum')),
+      align: 'right',
+      render: (value: number) => <MoneyText amount={value} currency={t('common.sum')} />,
     },
     {
       title: t('debts.paidAmountCol'),
       dataIndex: 'paidAmount',
       width: 140,
-      render: (value: number) => <Text type="success">{formatMoney(value, t('common.sum'))}</Text>,
+      align: 'right',
+      render: (value: number) => (
+        <MoneyText
+          amount={value}
+          currency={t('common.sum')}
+          color={TOKENS.color.semantic.success}
+        />
+      ),
     },
     {
       title: t('debts.remainingCol'),
       dataIndex: 'remainingDebt',
       width: 150,
+      align: 'right',
       render: (value: number) => (
-        <Text strong style={{ color: '#faad14' }}>
-          {formatMoney(value, t('common.sum'))}
-        </Text>
+        <MoneyText
+          amount={value}
+          currency={t('common.sum')}
+          color={value > 0 ? TOKENS.color.gold.base : undefined}
+        />
       ),
     },
     {
@@ -216,12 +238,12 @@ const Debts = () => {
     {
       title: t('debts.status'),
       dataIndex: 'isPaid',
-      width: 120,
+      width: 130,
       render: (isPaid: boolean) =>
         isPaid ? (
-          <Tag color="green">{t('status.paid')}</Tag>
+          <StatusTag status="paid" label={t('status.paid')} />
         ) : (
-          <Tag color="red">{t('status.unpaid')}</Tag>
+          <StatusTag status="debt" label={t('status.unpaid')} />
         ),
     },
     {
@@ -265,7 +287,7 @@ const Debts = () => {
     {
       title: t('debts.amount'),
       dataIndex: 'amount',
-      render: (value: number) => <Text strong>{formatMoney(value, t('common.sum'))}</Text>,
+      render: (value: number) => <MoneyText amount={value} currency={t('common.sum')} />,
     },
     {
       title: t('payment.method'),
@@ -288,90 +310,112 @@ const Debts = () => {
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ marginBottom: 0 }}>
-            <BookOutlined /> {t('debts.title')}
-          </Title>
-          <Text type="secondary">{t('debts.subtitle')}</Text>
-        </div>
-        <Space>
-          <Segmented
-            options={[
-              { label: t('status.unpaid'), value: 'unpaid' },
-              { label: t('status.paid'), value: 'paid' },
-              { label: t('common.all'), value: 'all' },
-            ]}
-            value={status}
-            onChange={(value) => applyStatus(value as StatusFilter)}
-          />
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={() => void fetchDebts({ page, limit: pageSize, search, status })}
-          />
-        </Space>
-      </div>
-
-      {/* Serverdan kelgan TO'LIQ filtr bo'yicha yig'indilar (faqat joriy sahifa emas) */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-        <Col xs={24} sm={12}>
-          <Card>
-            <Statistic
-              title={t('debts.statRemaining')}
-              value={formatMoney(totals?.totalRemaining, t('common.sum'))}
-              valueStyle={{ color: (totals?.totalRemaining ?? 0) > 0 ? '#faad14' : undefined }}
-              loading={loading && totals === null}
+    <PageTransition>
+      <PageHeader
+        icon={<CreditCardOutlined />}
+        title={t('debts.title')}
+        subtitle={t('debts.subtitle')}
+        extra={
+          <>
+            <Segmented
+              options={[
+                { label: t('status.unpaid'), value: 'unpaid' },
+                { label: t('status.paid'), value: 'paid' },
+                { label: t('common.all'), value: 'all' },
+              ]}
+              value={status}
+              onChange={(value) => applyStatus(value as StatusFilter)}
             />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12}>
-          <Card>
-            <Statistic
-              title={t('debts.statTotal')}
-              value={formatMoney(totals?.totalDebt, t('common.sum'))}
-              loading={loading && totals === null}
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => void fetchDebts({ page, limit: pageSize, search, status })}
             />
-          </Card>
-        </Col>
-      </Row>
+          </>
+        }
+        stats={
+          <Row gutter={[16, 16]}>
+            {/* Serverdan kelgan TO'LIQ filtr bo'yicha yig'indilar (faqat joriy sahifa emas) */}
+            <Col xs={24} sm={12} lg={6}>
+              <StatCard
+                label={t('debts.statRemaining')}
+                value={
+                  <MoneyText
+                    amount={totals?.totalRemaining}
+                    currency={t('common.sum')}
+                    color={(totals?.totalRemaining ?? 0) > 0 ? TOKENS.color.gold.base : undefined}
+                    style={{ fontSize: 'inherit', fontWeight: 'inherit' }}
+                  />
+                }
+                icon={<DollarOutlined />}
+                loading={loading && totals === null}
+              />
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <StatCard
+                label={t('debts.statTotal')}
+                value={
+                  <MoneyText
+                    amount={totals?.totalDebt}
+                    currency={t('common.sum')}
+                    style={{ fontSize: 'inherit', fontWeight: 'inherit' }}
+                  />
+                }
+                icon={<WalletOutlined />}
+                accent={TOKENS.color.emerald.bright}
+                loading={loading && totals === null}
+              />
+            </Col>
+          </Row>
+        }
+      />
 
-      <Card>
-        <Input.Search
-          placeholder={t('debts.searchPlaceholder')}
-          allowClear
-          enterButton
-          onSearch={applySearch}
-          style={{ maxWidth: 380, marginBottom: 16 }}
-        />
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={debts}
-          loading={loading}
-          scroll={{ x: 1000 }}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            onChange: (p, ps) => {
-              setPage(p);
-              setPageSize(ps);
-              void fetchDebts({ page: p, limit: ps, search, status });
-            },
-          }}
-        />
-      </Card>
+      {!loaded ? (
+        <Card>
+          <Skeleton active paragraph={{ rows: 6 }} />
+        </Card>
+      ) : (
+        <Card>
+          <Input.Search
+            placeholder={t('debts.searchPlaceholder')}
+            allowClear
+            enterButton
+            onSearch={applySearch}
+            style={{ maxWidth: 380, marginBottom: 16 }}
+          />
+          <Table
+            rowKey="id"
+            size="middle"
+            sticky
+            columns={columns}
+            dataSource={debts}
+            loading={loading}
+            scroll={{ x: 1000 }}
+            locale={{
+              emptyText: (
+                <EmptyState
+                  icon={<CreditCardOutlined />}
+                  title={t('debts.emptyTitle')}
+                  hint={t('debts.emptyHint')}
+                />
+              ),
+            }}
+            pagination={{
+              current: page,
+              pageSize,
+              total,
+              showSizeChanger: true,
+              position: ['bottomRight'],
+              onChange: (p, ps) => {
+                // pageSize o'zgarsa 1-sahifaga qaytamiz (boshqa sahifalar bilan bir xil)
+                const nextPage = ps !== pageSize ? 1 : p;
+                setPage(nextPage);
+                setPageSize(ps);
+                void fetchDebts({ page: nextPage, limit: ps, search, status });
+              },
+            }}
+          />
+        </Card>
+      )}
 
       {/* Qarzni uzish */}
       <Modal
@@ -386,13 +430,25 @@ const Debts = () => {
         cancelText={t('btn.cancel')}
         confirmLoading={paying}
       >
-        <Card size="small" style={{ marginBottom: 16 }}>
-          <Statistic
-            title={t('debts.remainingLabel')}
-            value={formatMoney(payDebt?.remainingDebt, t('common.sum'))}
-            valueStyle={{ color: '#faad14' }}
+        <div
+          style={{
+            background: TOKENS.color.bg.bg2,
+            border: `1px solid ${TOKENS.color.border.subtle}`,
+            borderRadius: TOKENS.radius.md,
+            padding: '12px 16px',
+            marginBottom: 16,
+          }}
+        >
+          <Text type="secondary" style={{ fontSize: 13, display: 'block' }}>
+            {t('debts.remainingLabel')}
+          </Text>
+          <MoneyText
+            amount={payDebt?.remainingDebt}
+            currency={t('common.sum')}
+            size="lg"
+            color={TOKENS.color.gold.base}
           />
-        </Card>
+        </div>
         <Form form={payForm} layout="vertical">
           <Form.Item
             name="amount"
@@ -446,7 +502,7 @@ const Debts = () => {
         title={`${t('debts.historyTitle')} — ${historyDebt?.customerName ?? ''}`}
         open={!!historyDebt}
         onClose={() => setHistoryDebt(null)}
-        width={520}
+        width="min(480px, 100vw)"
       >
         <Table
           rowKey="id"
@@ -454,10 +510,15 @@ const Debts = () => {
           columns={paymentColumns}
           dataSource={payments}
           loading={paymentsLoading}
+          locale={{
+            emptyText: (
+              <EmptyState icon={<HistoryOutlined />} title={t('debts.historyEmpty')} />
+            ),
+          }}
           pagination={false}
         />
       </Drawer>
-    </div>
+    </PageTransition>
   );
 };
 

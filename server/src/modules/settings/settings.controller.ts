@@ -6,6 +6,7 @@ import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
 import { UpdateSettingsDto } from './dto/settings.dto';
 import { SettingsService } from './settings.service';
+import { SUPPORTED_TIMEZONES } from './timezones';
 
 @Controller('settings')
 export class SettingsController {
@@ -15,6 +16,12 @@ export class SettingsController {
   async get(@ClubId() clubId: number) {
     const data = await this.settingsService.get(clubId);
     return { success: true, data };
+  }
+
+  /** Qo'llab-quvvatlanadigan vaqt mintaqalari ro'yxati (UI select uchun) */
+  @Get('timezones')
+  timezones() {
+    return { success: true, data: SUPPORTED_TIMEZONES };
   }
 
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)

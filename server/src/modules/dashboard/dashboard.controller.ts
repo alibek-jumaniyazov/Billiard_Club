@@ -9,6 +9,7 @@ export class DashboardController {
   @Get('stats')
   async stats(@ClubId() clubId: number) {
     const data = await this.dashboardService.stats(clubId);
-    return { success: true, data };
+    // serverNow — jonli taymerlarda soat siljishini (clock skew) yo'qotish uchun
+    return { success: true, data, serverNow: new Date().toISOString() };
   }
 }

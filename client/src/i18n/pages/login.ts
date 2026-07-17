@@ -1,5 +1,6 @@
 export default {
   uz: {
+    docTitle: 'Kirish — Prime Billiard',
     title: 'Tizimga kirish',
     subtitle: 'Billiard klub boshqaruv tizimi',
     username: 'Username',
@@ -8,8 +9,11 @@ export default {
     passwordRequired: 'Parol kiriting',
     submit: 'Kirish',
     failed: "Username yoki parol noto'g'ri",
+    noAccount: "Hisobingiz yo'qmi?",
+    registerLink: 'Bepul sinovni boshlang',
   },
   ru: {
+    docTitle: 'Вход — Prime Billiard',
     title: 'Вход в систему',
     subtitle: 'Система управления бильярдным клубом',
     username: 'Имя пользователя',
@@ -18,5 +22,7 @@ export default {
     passwordRequired: 'Введите пароль',
     submit: 'Войти',
     failed: 'Неверное имя пользователя или пароль',
+    noAccount: 'Нет аккаунта?',
+    registerLink: 'Начните бесплатный период',
   },
 };

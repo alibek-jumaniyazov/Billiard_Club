@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Button, Card, Form, Input, Typography, App, Segmented } from 'antd';
-import { LockOutlined, TrophyOutlined, UserOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { App, Button, Form, Input, Segmented, Typography } from 'antd';
+import { LockOutlined, UserOutlined } from '@ant-design/icons';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../context/AuthContext';
+import { BrandLogo, GlassCard, PageTransition } from '../components/ui';
 import { useAppSettings } from '../context/AppSettingsContext';
+import { useAuth } from '../context/AuthContext';
+import { useDocumentHead } from '../hooks/useDocumentHead';
+import { TOKENS } from '../theme/tokens';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const Login = () => {
   const { t } = useTranslation();
@@ -15,6 +18,8 @@ const Login = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+
+  useDocumentHead('login.docTitle', 'landing.metaLoginDescription');
 
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
@@ -29,64 +34,68 @@ const Login = () => {
 
   return (
     <div className="auth-page">
-      <Card style={{ width: 400, maxWidth: '100%' }} styles={{ body: { padding: 32 } }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+      <PageTransition>
+        <GlassCard padding={32} style={{ width: 420, maxWidth: '100%' }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <BrandLogo size={48} withWordmark style={{ marginBottom: 14 }} />
+            <Text type="secondary" style={{ display: 'block' }}>
+              {t('login.subtitle')}
+            </Text>
+          </div>
+
+          <Form layout="vertical" onFinish={onFinish} size="large" requiredMark={false}>
+            <Form.Item
+              name="username"
+              label={t('login.username')}
+              rules={[{ required: true, message: t('login.usernameRequired') }]}
+            >
+              <Input prefix={<UserOutlined />} autoComplete="username" autoFocus maxLength={50} />
+            </Form.Item>
+            <Form.Item
+              name="password"
+              label={t('login.password')}
+              rules={[{ required: true, message: t('login.passwordRequired') }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined />}
+                autoComplete="current-password"
+                maxLength={100}
+              />
+            </Form.Item>
+            <Form.Item style={{ marginBottom: 12 }}>
+              <Button type="primary" htmlType="submit" block loading={loading}>
+                {t('login.submit')}
+              </Button>
+            </Form.Item>
+          </Form>
+
           <div
             style={{
-              width: 64,
-              height: 64,
-              margin: '0 auto 16px',
-              borderRadius: 16,
               display: 'flex',
+              justifyContent: 'space-between',
               alignItems: 'center',
-              justifyContent: 'center',
-              background: 'linear-gradient(135deg, #faad14, #d48806)',
-              color: '#111',
-              fontSize: 30,
+              gap: 12,
+              flexWrap: 'wrap',
+              marginTop: 4,
+              paddingTop: 16,
+              borderTop: `1px solid ${TOKENS.color.border.subtle}`,
             }}
           >
-            <TrophyOutlined />
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              {t('login.noAccount')} <Link to="/register">{t('login.registerLink')}</Link>
+            </Text>
+            <Segmented
+              size="small"
+              value={lang}
+              onChange={(value) => setLang(value as 'uz' | 'ru')}
+              options={[
+                { label: "O'z", value: 'uz' },
+                { label: 'Ру', value: 'ru' },
+              ]}
+            />
           </div>
-          <Title level={3} style={{ marginBottom: 4 }}>
-            PRIME BILLIARD
-          </Title>
-          <Text type="secondary">{t('login.subtitle')}</Text>
-        </div>
-
-        <Form layout="vertical" onFinish={onFinish} size="large" requiredMark={false}>
-          <Form.Item
-            name="username"
-            label={t('login.username')}
-            rules={[{ required: true, message: t('login.usernameRequired') }]}
-          >
-            <Input prefix={<UserOutlined />} autoComplete="username" autoFocus />
-          </Form.Item>
-          <Form.Item
-            name="password"
-            label={t('login.password')}
-            rules={[{ required: true, message: t('login.passwordRequired') }]}
-          >
-            <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
-          </Form.Item>
-          <Form.Item style={{ marginBottom: 12 }}>
-            <Button type="primary" htmlType="submit" block loading={loading}>
-              {t('login.submit')}
-            </Button>
-          </Form.Item>
-        </Form>
-
-        <div style={{ textAlign: 'center' }}>
-          <Segmented
-            size="small"
-            value={lang}
-            onChange={(value) => setLang(value as 'uz' | 'ru')}
-            options={[
-              { label: "O'zbekcha", value: 'uz' },
-              { label: 'Русский', value: 'ru' },
-            ]}
-          />
-        </div>
-      </Card>
+        </GlassCard>
+      </PageTransition>
     </div>
   );
 };

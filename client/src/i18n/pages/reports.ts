@@ -17,6 +17,8 @@ export default {
     debtsCreated: 'Yangi qarzlar',
     debtsCollected: 'Undirilgan qarzlar',
     paymentBreakdown: "To'lov usullari bo'yicha",
+    expensesTotal: 'Xarajatlar',
+    profit: 'Foyda',
     // Jadval
     sessionsTitle: 'Yakunlangan sessiyalar',
     endedAt: 'Tugagan vaqti',
@@ -24,6 +26,18 @@ export default {
     barAmount: 'Bar summasi',
     paymentStatus: "To'lov holati",
     exportExcel: 'Excel yuklab olish',
+    // Bar savdosi hisoboti
+    tabSessions: 'Sessiyalar',
+    tabProducts: 'Bar savdosi',
+    productCol: 'Mahsulot',
+    categoryCol: 'Kategoriya',
+    quantitySold: 'Sotilgan miqdor',
+    revenueCol: 'Tushum',
+    totalQuantity: 'Jami sotilgan',
+    totalRevenue: 'Jami tushum',
+    // Bo'sh holatlar
+    emptySessions: 'Bu davrda yakunlangan sessiyalar topilmadi',
+    emptyProducts: 'Bu davrda bar savdosi topilmadi',
   },
   ru: {
     title: 'Финансовые отчёты',
@@ -43,6 +57,8 @@ export default {
     debtsCreated: 'Новые долги',
     debtsCollected: 'Погашенные долги',
     paymentBreakdown: 'По способам оплаты',
+    expensesTotal: 'Расходы',
+    profit: 'Прибыль',
     // Таблица
     sessionsTitle: 'Завершённые сессии',
     endedAt: 'Время окончания',
@@ -50,5 +66,17 @@ export default {
     barAmount: 'Сумма бара',
     paymentStatus: 'Статус оплаты',
     exportExcel: 'Скачать Excel',
+    // Отчёт по продажам бара
+    tabSessions: 'Сессии',
+    tabProducts: 'Продажи бара',
+    productCol: 'Товар',
+    categoryCol: 'Категория',
+    quantitySold: 'Продано (кол-во)',
+    revenueCol: 'Выручка',
+    totalQuantity: 'Всего продано',
+    totalRevenue: 'Общая выручка',
+    // Пустые состояния
+    emptySessions: 'Завершённых сессий за период не найдено',
+    emptyProducts: 'Продаж бара за период не найдено',
   },
 };

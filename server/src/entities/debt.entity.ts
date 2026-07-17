@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { NumericTransformer } from '../common/transformers/numeric.transformer';
 import { Club } from './club.entity';
+import { Customer } from './customer.entity';
 import { Session } from './session.entity';
 import { User } from './user.entity';
 import { DebtPayment } from './debt-payment.entity';
@@ -50,6 +51,15 @@ export class Debt {
   @Index()
   @Column({ type: 'varchar', length: 20, nullable: true })
   customerPhone: string | null;
+
+  /** Ro'yxatdagi mijoz (bo'lsa) — erkin matnli customerName o'rniga */
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  customerId: number | null;
+
+  @ManyToOne(() => Customer, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'customerId' })
+  customer: Customer | null;
 
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 0, transformer: new NumericTransformer() })
   tableAmount: number;

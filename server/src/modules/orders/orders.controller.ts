@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ClubId } from '../../common/decorators/club-id.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
@@ -35,5 +35,18 @@ export class OrdersController {
   ) {
     const data = await this.ordersService.create(clubId, user, dto);
     return { success: true, message: t(lang, 'orders.created'), data };
+  }
+
+  /** Ochiq buyurtmani bekor qilish (ombor qaytariladi) — kassir va admin */
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
+  @HttpCode(200)
+  @Post(':id/cancel')
+  async cancel(
+    @ClubId() clubId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Lang() lang: Language,
+  ) {
+    const data = await this.ordersService.cancel(clubId, id);
+    return { success: true, message: t(lang, 'orders.cancelled'), data };
   }
 }

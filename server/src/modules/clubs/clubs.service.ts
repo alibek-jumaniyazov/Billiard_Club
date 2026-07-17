@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
-import { Between, DataSource, Repository } from 'typeorm';
+import { Between, Brackets, DataSource, EntityManager, Repository } from 'typeorm';
 import { Category } from '../../entities/category.entity';
 import { Club } from '../../entities/club.entity';
 import { Contract, ContractType } from '../../entities/contract.entity';
@@ -24,6 +24,7 @@ import {
   CreateClubDto,
   CreateContractDto,
   ExtendSubscriptionDto,
+  ListClubsQueryDto,
   UpdateClubDto,
 } from './dto/clubs.dto';
 
@@ -46,10 +47,40 @@ export class ClubsService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
   ) {}
 
-  /** Barcha klublar + obuna holati va qolgan kunlar */
-  async findAll() {
-    const clubs = await this.clubRepo.find({ order: { createdAt: 'DESC' } });
-    return Promise.all(clubs.map((club) => this.withMeta(club)));
+  /**
+   * Klublar ro'yxati: qidiruv (nom/egasi/telefon), holat filtri va
+   * sahifalash bilan. Parametrsiz chaqiruv (eski klient) — birinchi
+   * 50 ta klub, createdAt bo'yicha kamayish tartibida.
+   */
+  async findAll(query: ListClubsQueryDto = {}) {
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 50, 200);
+
+    const qb = this.clubRepo.createQueryBuilder('club');
+
+    if (query.status) {
+      qb.andWhere('club.status = :status', { status: query.status });
+    }
+    if (query.search) {
+      qb.andWhere(
+        new Brackets((b) => {
+          b.where('club.name ILIKE :search', { search: `%${query.search}%` })
+            .orWhere('club.ownerName ILIKE :search', { search: `%${query.search}%` })
+            .orWhere('club.phone ILIKE :search', { search: `%${query.search}%` });
+        }),
+      );
+    }
+
+    const [clubs, total] = await qb
+      .orderBy('club.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data: await Promise.all(clubs.map((club) => this.withMeta(club))),
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: number) {
@@ -297,21 +328,15 @@ export class ClubsService {
       endDate.setMonth(endDate.getMonth() + CONTRACT_MONTHS[dto.type]);
     }
 
-    const contract = await this.dataSource.transaction(async (manager) => {
-      const created = await manager.save(Contract, {
-        clubId,
+    const contract = await this.dataSource.transaction(async (manager) =>
+      this.applyContractInTransaction(manager, clubId, {
         type: dto.type as ContractType,
         amount: dto.amount,
         startDate,
         endDate,
         notes: dto.notes ?? null,
-      });
-      await manager.update(Club, clubId, {
-        subscriptionEndsAt: endDate,
-        status: ClubStatus.ACTIVE,
-      });
-      return created;
-    });
+      }),
+    );
 
     void this.telegram.notify(
       [
@@ -324,6 +349,37 @@ export class ClubsService {
       ].join('\n'),
     );
 
+    return contract;
+  }
+
+  /**
+   * Shartnoma yozuvi + klub obunasini uzaytirish — chaqiruvchining
+   * tranzaksiyasi ichida. addContract() va obuna to'lovini tasdiqlash
+   * (SubscriptionModule confirm) ikkalasi ham shu yagona yo'ldan o'tadi.
+   */
+  async applyContractInTransaction(
+    manager: EntityManager,
+    clubId: number,
+    data: {
+      type: ContractType;
+      amount: number;
+      startDate: Date;
+      endDate: Date;
+      notes: string | null;
+    },
+  ): Promise<Contract> {
+    const contract = await manager.save(Contract, {
+      clubId,
+      type: data.type,
+      amount: data.amount,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      notes: data.notes,
+    });
+    await manager.update(Club, clubId, {
+      subscriptionEndsAt: data.endDate,
+      status: ClubStatus.ACTIVE,
+    });
     return contract;
   }
 

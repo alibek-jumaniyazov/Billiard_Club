@@ -16,7 +16,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
-import { EndSessionDto, ListSessionsQueryDto, StartSessionDto } from './dto/sessions.dto';
+import {
+  EndSessionDto,
+  ListSessionsQueryDto,
+  StartSessionDto,
+  TransferSessionDto,
+} from './dto/sessions.dto';
 import { SessionsService } from './sessions.service';
 
 @Controller('sessions')
@@ -27,6 +32,13 @@ export class SessionsController {
   async findAll(@ClubId() clubId: number, @Query() query: ListSessionsQueryDto) {
     const { data, pagination } = await this.sessionsService.findAll(clubId, query);
     return { success: true, data, pagination };
+  }
+
+  /** Chek oldindan ko'rish — yakunlamasdan joriy sekundlik summalar (checkout modal) */
+  @Get(':id/receipt')
+  async receipt(@ClubId() clubId: number, @Param('id', ParseIntPipe) id: number) {
+    const data = await this.sessionsService.receipt(clubId, id);
+    return { success: true, data };
   }
 
   @Get(':id')
@@ -88,6 +100,20 @@ export class SessionsController {
   ) {
     const data = await this.sessionsService.resume(clubId, id);
     return { success: true, message: t(lang, 'sessions.resumed'), data };
+  }
+
+  /** Sessiyani boshqa stolga ko'chirish — faqat faol sessiya */
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
+  @HttpCode(200)
+  @Post(':id/transfer')
+  async transfer(
+    @ClubId() clubId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: TransferSessionDto,
+    @Lang() lang: Language,
+  ) {
+    const data = await this.sessionsService.transfer(clubId, id, dto);
+    return { success: true, message: t(lang, 'sessions.transferred'), data };
   }
 
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)

@@ -39,3 +39,43 @@ export enum PaymentMethod {
   CARD = 'card',
   TRANSFER = 'transfer',
 }
+
+export enum InvoiceStatus {
+  PENDING = 'pending',
+  PAID = 'paid',
+  CANCELLED = 'cancelled',
+  EXPIRED = 'expired',
+}
+
+export enum CouponType {
+  PERCENT = 'percent',
+  FIXED = 'fixed',
+}
+
+export enum FeedbackType {
+  SUGGESTION = 'suggestion',
+  COMPLAINT = 'complaint',
+  BUG = 'bug',
+  FEATURE = 'feature',
+}
+
+export enum FeedbackPriority {
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+}
+
+export enum FeedbackStatus {
+  UNREAD = 'unread',
+  READ = 'read',
+  RESOLVED = 'resolved',
+  REJECTED = 'rejected',
+}
+
+export enum ReservationStatus {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+  SEATED = 'seated',
+  CANCELLED = 'cancelled',
+  NO_SHOW = 'no_show',
+}

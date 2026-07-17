@@ -4,9 +4,157 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0a1c14" />
-    <meta name="description" content="Prime Billiard — billiard klublar uchun boshqaruv tizimi" />
-    <title>Prime Billiard</title>
+    <!-- theme-color = TOKENS.color.bg.bg0 (src/theme/tokens.ts bilan sinxron) -->
+    <meta name="theme-color" content="#0a0c0b" />
+
+    <!-- Asosiy SEO (uz — standart til; sarlavha/meta har route/tilda
+         src/hooks/useDocumentHead.ts orqali reaktiv yangilanadi) -->
+    <title>Prime Billiard — billiard klublari uchun boshqaruv tizimi</title>
+    <meta
+      name="description"
+      content="Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. 7 kun bepul sinab ko'ring."
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://primebilliard.uz/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Prime Billiard" />
+    <meta property="og:title" content="Prime Billiard — billiard klublari uchun boshqaruv tizimi" />
+    <meta
+      property="og:description"
+      content="Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. 7 kun bepul sinab ko'ring."
+    />
+    <meta property="og:url" content="https://primebilliard.uz/" />
+    <meta property="og:image" content="https://primebilliard.uz/og-cover.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="uz_UZ" />
+    <meta property="og:locale:alternate" content="ru_RU" />
+
+    <!-- Twitter card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Prime Billiard — billiard klublari uchun boshqaruv tizimi" />
+    <meta
+      name="twitter:description"
+      content="Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. 7 kun bepul sinab ko'ring."
+    />
+    <meta name="twitter:image" content="https://primebilliard.uz/og-cover.png" />
+
+    <!-- JSON-LD: Organization -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Prime Billiard",
+        "url": "https://primebilliard.uz/",
+        "logo": "https://primebilliard.uz/favicon.svg",
+        "sameAs": ["https://t.me/control_billiard_bot"]
+      }
+    </script>
+
+    <!-- JSON-LD: SoftwareApplication (tariflar server seed bilan sinxron) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Prime Billiard",
+        "url": "https://primebilliard.uz/",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "inLanguage": ["uz", "ru"],
+        "description": "Billiard klublari uchun boshqaruv tizimi: jonli stol taymerlari, bar POS, qarzlar daftari, moliyaviy hisobotlar va xodimlar rollari.",
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Oylik obuna",
+            "price": "290000",
+            "priceCurrency": "UZS",
+            "category": "subscription"
+          },
+          {
+            "@type": "Offer",
+            "name": "6 oylik obuna",
+            "price": "1490000",
+            "priceCurrency": "UZS",
+            "category": "subscription"
+          },
+          {
+            "@type": "Offer",
+            "name": "Yillik obuna",
+            "price": "2490000",
+            "priceCurrency": "UZS",
+            "category": "subscription"
+          }
+        ]
+      }
+    </script>
+
+    <!-- JSON-LD: FAQPage (src/i18n/pages/landing.ts dagi uz FAQ bilan sinxron) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "7 kunlik bepul sinov qanday ishlaydi?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Ro'yxatdan o'tishingiz bilan barcha imkoniyatlar 7 kunga bepul ochiladi. Karta yoki to'lov talab qilinmaydi. Sinov tugagach, qulay tarifni tanlab davom etasiz."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Obuna tugasa, ma'lumotlarim o'chib ketadimi?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yo'q. Ma'lumotlaringiz to'liq saqlanadi — faqat kirish vaqtincha yopiladi. To'lovdan so'ng tizim zudlik bilan qayta ochiladi va hammasi joyida bo'ladi."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Qanday qurilma kerak?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Hech qanday maxsus qurilma shart emas: telefon, planshet yoki kompyuterdagi brauzer kifoya. O'rnatish talab qilinmaydi."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Xodimlarim uchun alohida hisoblar boʼladimi?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Ha. Admin, kassir va operator rollari mavjud — har bir xodim o'z login-paroli bilan kiradi va faqat o'z vazifalariga ruxsat oladi."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Stol vaqti qanday hisoblanadi?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sessiya ochilganda taymer avtomatik boshlanadi, pauza va davom ettirish mavjud. Yakunda summa soatlik narx asosida o'zi hisoblanadi."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Tizim qaysi tillarda ishlaydi?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Interfeys o'zbek va rus tillarida. Tilni istalgan payt bir bosishda almashtirish mumkin."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "To'lov qanday amalga oshiriladi?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Tarifni tanlab, Telegram orqali menejer bilan bog'lanasiz. To'lov tasdiqlangach, obuna zudlik bilan faollashadi."
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

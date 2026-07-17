@@ -13,10 +13,13 @@ import {
 import { BigIntTransformer, NumericTransformer } from '../common/transformers/numeric.transformer';
 import { PaymentMethod, SessionStatus } from './enums';
 import { Club } from './club.entity';
+import { Customer } from './customer.entity';
 import { Table } from './table.entity';
 import { User } from './user.entity';
 import { Order } from './order.entity';
 import { Sale } from './sale.entity';
+import { SessionSegment } from './session-segment.entity';
+import { SessionPayment } from './session-payment.entity';
 
 @Entity('sessions')
 export class Session {
@@ -54,6 +57,15 @@ export class Session {
   @Column({ type: 'varchar', length: 20, nullable: true })
   customerPhone: string | null;
 
+  /** Ro'yxatdagi mijoz (bo'lsa) — erkin matnli customerName o'rniga */
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  customerId: number | null;
+
+  @ManyToOne(() => Customer, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'customerId' })
+  customer: Customer | null;
+
   /**
    * Sessiya boshlanganidagi stol narxi (soatiga) — hisob shu narxda yuritiladi,
    * stol narxi keyin o'zgartirilsa ham yakuniy hisob o'zgarmaydi.
@@ -84,6 +96,10 @@ export class Session {
   @Column({ type: 'int', nullable: true })
   durationMinutes: number | null;
 
+  /** Faol o'yin davomiyligi soniyalarda — sekundlik aniqlikdagi hisob uchun */
+  @Column({ type: 'int', nullable: true })
+  durationSeconds: number | null;
+
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 0, transformer: new NumericTransformer() })
   tableAmount: number;
 
@@ -103,6 +119,13 @@ export class Session {
   @Column({ type: 'boolean', default: false })
   isPaid: boolean;
 
+  /** Qo'lda tuzatish: musbat — ustama, manfiy — chegirma (sabab majburiy) */
+  @Column({ type: 'decimal', precision: 14, scale: 2, default: 0, transformer: new NumericTransformer() })
+  adjustmentAmount: number;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  adjustmentReason: string | null;
+
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
@@ -117,4 +140,12 @@ export class Session {
 
   @OneToOne(() => Sale, (sale) => sale.session)
   sale: Sale | null;
+
+  /** Stol/narx segmentlari (transfer tarixi) — hisob shu segmentlar bo'yicha */
+  @OneToMany(() => SessionSegment, (segment) => segment.session)
+  segments: SessionSegment[];
+
+  /** Bo'lib to'lash yozuvlari (split payment) */
+  @OneToMany(() => SessionPayment, (payment) => payment.session)
+  payments: SessionPayment[];
 }

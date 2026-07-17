@@ -9,6 +9,13 @@ export default {
     totalAmount: 'Jami summa',
     status: 'Holat',
     enteredBy: 'Kiritgan xodim',
+    // Bekor qilish
+    cancelOrder: 'Bekor qilish',
+    cancelConfirmTitle: 'Buyurtma bekor qilinsinmi?',
+    cancelConfirmDesc: 'Mahsulotlar omborga qaytariladi',
+    // Bo'sh holat
+    emptyTitle: "Buyurtmalar yo'q",
+    emptyHint: "Bar buyurtmalari Stollar sahifasida faol o'yinga qo'shiladi",
   },
   ru: {
     title: 'Заказы бара',
@@ -20,5 +27,12 @@ export default {
     totalAmount: 'Сумма',
     status: 'Статус',
     enteredBy: 'Оформил сотрудник',
+    // Отмена
+    cancelOrder: 'Отменить',
+    cancelConfirmTitle: 'Отменить заказ?',
+    cancelConfirmDesc: 'Товары вернутся на склад',
+    // Пустое состояние
+    emptyTitle: 'Заказов нет',
+    emptyHint: 'Заказы бара добавляются к активной игре на странице «Столы»',
   },
 };

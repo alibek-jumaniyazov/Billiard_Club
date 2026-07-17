@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { dataSourceOptions } from './database/data-source';
 import { envValidationSchema } from './config/env.validation';
+import { AuditModule } from './common/audit/audit.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -24,6 +26,13 @@ import { StaffModule } from './modules/staff/staff.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { SubscriptionModule } from './modules/subscription/subscription.module';
+import { FeedbackModule } from './modules/feedback/feedback.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PlatformModule } from './modules/platform/platform.module';
+import { CustomersModule } from './modules/customers/customers.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
+import { ReservationsModule } from './modules/reservations/reservations.module';
 
 @Module({
   imports: [
@@ -35,6 +44,9 @@ import { ReportsModule } from './modules/reports/reports.module';
     TypeOrmModule.forFeature([Club]),
     // Umumiy limit: 15 daqiqada 500 so'rov (login uchun alohida qattiqroq limit bor)
     ThrottlerModule.forRoot([{ ttl: 15 * 60 * 1000, limit: 500 }]),
+    // Cron ishlar (obuna muddati, eslatmalar) uchun
+    ScheduleModule.forRoot(),
+    AuditModule,
     TelegramModule,
     AuthModule,
     PublicModule,
@@ -48,6 +60,13 @@ import { ReportsModule } from './modules/reports/reports.module';
     SettingsModule,
     DashboardModule,
     ReportsModule,
+    SubscriptionModule,
+    FeedbackModule,
+    NotificationsModule,
+    PlatformModule,
+    CustomersModule,
+    ExpensesModule,
+    ReservationsModule,
   ],
   controllers: [AppController],
   providers: [

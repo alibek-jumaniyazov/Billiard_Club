@@ -1,4 +1,61 @@
-/* Prime Billiard — global uslublar */
+/*
+ * Prime Billiard — global uslublar (FAQAT qorong'i premium tema).
+ *
+ * MUHIM: quyidagi :root o'zgaruvchilari src/theme/tokens.ts dagi palitradan
+ * KO'CHIRILGAN nusxa — kanonik manba tokens.ts. Rangni o'zgartirganda avval
+ * tokens.ts ni yangilang, keyin bu yerdagi mos qiymatni sinxronlang.
+ */
+
+:root {
+  /* Fon qatlamlari */
+  --bg0: #0a0c0b;
+  --bg1: #121514;
+  --bg2: #181c1a;
+  --bg3: #1f2422;
+
+  /* Grafit chegaralar */
+  --border-subtle: #1d2320;
+  --border-base: #262d29;
+  --border-strong: #333b37;
+
+  /* Zumrad shkalasi */
+  --emerald-deepest: #0c1f16;
+  --emerald-deep: #122a1d;
+  --emerald-felt: #17402a;
+  --emerald-base: #1e5c3a;
+  --emerald-bright: #2f9e64;
+  --emerald-glow: #43c17e;
+
+  /* Premium oltin */
+  --gold: #d4af37;
+  --gold-hover: #e2c358;
+  --gold-active: #b5922c;
+  --gold-subtle: rgba(212, 175, 55, 0.12);
+  --gold-line: rgba(212, 175, 55, 0.22);
+
+  /* Kumush matn */
+  --text-primary: #e8ebe9;
+  --text-secondary: #a9b3ad;
+  --text-tertiary: #717c76;
+  --text-disabled: #4b5450;
+
+  /* Semantik */
+  --success: #43b97b;
+  --warning: #d9a13d;
+  --error: #d9544d;
+  --info: #5f93b8;
+
+  /* Neon-yashil — jonli holatlar */
+  --neon-green: #3fe08c;
+
+  /* Radius shkalasi */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  color-scheme: dark;
+}
 
 * {
   margin: 0;
@@ -6,9 +63,30 @@
   box-sizing: border-box;
 }
 
+html {
+  background: var(--bg0);
+}
+
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--bg0);
+  color: var(--text-primary);
+  font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Matn belgilash rangi — oltin tus */
+::selection {
+  background: rgba(212, 175, 55, 0.28);
+  color: #f5f0e0;
+}
+
+/* Klaviatura fokus halqasi — oltin */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .page-container {
@@ -24,40 +102,46 @@ body {
   }
 }
 
-/* Custom scrollbar */
+/* Nozik grafit scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(128, 128, 128, 0.35);
-  border-radius: 4px;
+  background: var(--border-strong);
+  border-radius: 5px;
+  border: 2px solid var(--bg0);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(128, 128, 128, 0.55);
+  background: var(--text-tertiary);
 }
 
-/* Faol stol kartasi pulsatsiyasi */
-@keyframes pulse-border {
-  0% {
-    box-shadow: 0 0 0 0 rgba(250, 173, 20, 0.45);
-  }
-  70% {
-    box-shadow: 0 0 0 8px rgba(250, 173, 20, 0);
-  }
+/* Faol stol kartasi — nozik zumrad/oltin nur (avvalgi keskin puls o'rniga) */
+@keyframes glow-active {
+  0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(250, 173, 20, 0);
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.35),
+      0 0 14px rgba(63, 224, 140, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.5),
+      0 0 22px rgba(63, 224, 140, 0.18);
   }
 }
 
 .table-card-active {
-  animation: pulse-border 2s infinite;
-  border-color: #faad14 !important;
+  animation: glow-active 2.6s ease-in-out infinite;
+  border-color: var(--gold) !important; /* antd Card chegarasidan ustun kelish uchun */
 }
 
-/* Jonli taymer displeyi */
+/* Jonli taymer displeyi — barcha raqamli ko'rsatkichlar tabular-nums */
 .timer-display {
-  font-family: 'Consolas', 'SF Mono', monospace;
+  font-family: 'Consolas', 'SF Mono', 'JetBrains Mono', 'Menlo', monospace;
   font-variant-numeric: tabular-nums;
   letter-spacing: 1px;
 }
@@ -72,15 +156,47 @@ body {
   animation: blink 1.2s step-start infinite;
 }
 
-/* Login sahifasi foni */
+/* Raqam/pul ustunlari uchun umumiy yordamchi */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Login/Register/Locked sahifalari foni — chuqur qora + zumrad va oltin nur */
 .auth-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(ellipse at 20% 20%, rgba(27, 94, 32, 0.5), transparent 55%),
-    radial-gradient(ellipse at 80% 80%, rgba(250, 173, 20, 0.12), transparent 50%),
-    #0a1c14;
+    radial-gradient(ellipse at 20% 15%, rgba(23, 64, 42, 0.45), transparent 55%),
+    radial-gradient(ellipse at 80% 85%, rgba(212, 175, 55, 0.08), transparent 50%),
+    var(--bg0);
   padding: 16px;
+}
+
+/* Sider — tanlangan menyu bandidagi oltin chap rels */
+.app-sider .ant-menu-item {
+  position: relative;
+}
+.app-sider .ant-menu-item-selected::before {
+  content: '';
+  position: absolute;
+  left: -8px; /* itemMarginInline ni qoplaydi */
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gold);
+}
+
+/* Harakat kamaytirilgan rejim — barcha animatsiyalarni o'chirish */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

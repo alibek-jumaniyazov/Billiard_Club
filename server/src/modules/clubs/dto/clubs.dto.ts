@@ -1,5 +1,7 @@
+import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsEnum,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -13,6 +15,32 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { ClubStatus } from '../../../entities/enums';
+
+/** Klublar ro'yxati: qidiruv, holat filtri va sahifalash */
+export class ListClubsQueryDto {
+  /** Nom / egasi / telefon bo'yicha qidiruv */
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  search?: string;
+
+  @IsOptional()
+  @IsEnum(ClubStatus)
+  status?: ClubStatus;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  page?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  limit?: number;
+}
 
 export class CreateClubDto {
   @IsString()

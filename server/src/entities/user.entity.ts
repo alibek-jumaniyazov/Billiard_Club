@@ -46,6 +46,14 @@ export class User {
   @Column({ type: 'timestamptz', nullable: true })
   lastLogin: Date | null;
 
+  /** Ketma-ket muvaffaqiyatsiz login urinishlari — brute-force himoyasi */
+  @Column({ type: 'int', default: 0 })
+  failedLoginAttempts: number;
+
+  /** Shu vaqtgacha akkaunt vaqtincha bloklangan (N ta xato urinishdan keyin) */
+  @Column({ type: 'timestamptz', nullable: true })
+  lockedUntil: Date | null;
+
   /** superadmin uchun NULL, qolganlar uchun majburiy */
   @Index()
   @Column({ type: 'int', nullable: true })

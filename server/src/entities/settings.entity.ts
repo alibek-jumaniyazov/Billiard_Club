@@ -49,6 +49,10 @@ export class Settings {
   @Column({ type: 'varchar', length: 5, default: '02:00' })
   workingHoursEnd: string;
 
+  /** Klub vaqt mintaqasi — "bugun/hafta/oy" chegaralari shu bo'yicha hisoblanadi */
+  @Column({ type: 'varchar', length: 50, default: 'Asia/Tashkent' })
+  timezone: string;
+
   @Column({ type: 'text', nullable: true })
   logo: string | null;
 

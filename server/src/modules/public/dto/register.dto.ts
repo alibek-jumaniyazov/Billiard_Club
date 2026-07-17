@@ -41,7 +41,7 @@ export class RegisterDto {
   username: string;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
   @MaxLength(100)
   password: string;
 

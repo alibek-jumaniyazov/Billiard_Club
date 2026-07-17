@@ -50,4 +50,10 @@ export class UpdateSettingsDto {
   @IsOptional()
   @Matches(TIME_PATTERN, { message: 'workingHoursEnd HH:MM formatida bo\'lishi kerak' })
   workingHoursEnd?: string;
+
+  /** Klub vaqt mintaqasi — ro'yxat bo'yicha tekshiruv servisda (i18n xato uchun) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  timezone?: string;
 }

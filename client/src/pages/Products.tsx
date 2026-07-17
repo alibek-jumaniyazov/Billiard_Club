@@ -11,6 +11,7 @@ import {
   Popconfirm,
   Row,
   Select,
+  Skeleton,
   Space,
   Table,
   Tabs,
@@ -18,6 +19,7 @@ import {
   Typography,
 } from 'antd';
 import {
+  AppstoreOutlined,
   CoffeeOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -28,18 +30,25 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { categoriesApi, errorMessage, productsApi } from '../api';
+import {
+  EmptyState,
+  MoneyText,
+  PageHeader,
+  PageTransition,
+  StatusTag,
+} from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import type { Category, Product } from '../types';
-import { formatMoney, formatNumber } from '../utils/format';
+import { formatNumber } from '../utils/format';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 /** O'lchov birliklari — tarjimasi products.unit_<qiymat> kalitida */
 const UNITS = ['dona', 'paket', 'piyola', 'litr'] as const;
 
-/** Qoldiq rangi: 0 — qizil, 10 dan kam — sariq, aks holda yashil */
-const stockColor = (stock: number): string =>
-  stock <= 0 ? 'red' : stock < 10 ? 'orange' : 'green';
+/** Qoldiq semantikasi: 0 — xato, 10 dan kam — ogohlantirish, aks holda yaxshi */
+const stockStatus = (stock: number): string =>
+  stock <= 0 ? 'error' : stock < 10 ? 'warning' : 'success';
 
 interface ProductFormValues {
   categoryId: number;
@@ -64,6 +73,7 @@ const Products = () => {
   // Mahsulotlar (server pagination)
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [productsLoaded, setProductsLoaded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
@@ -73,6 +83,7 @@ const Products = () => {
   // Kategoriyalar
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
 
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -99,6 +110,7 @@ const Products = () => {
       message.error(errorMessage(err, t('common.error')));
     } finally {
       setProductsLoading(false);
+      setProductsLoaded(true);
     }
   }, [page, pageSize, search, categoryFilter, message, t]);
 
@@ -111,6 +123,7 @@ const Products = () => {
       message.error(errorMessage(err, t('common.error')));
     } finally {
       setCategoriesLoading(false);
+      setCategoriesLoaded(true);
     }
   }, [message, t]);
 
@@ -239,24 +252,24 @@ const Products = () => {
       title: t('products.category'),
       key: 'category',
       width: 180,
-      render: (_, product) => (
-        <Tag color="blue">{product.category?.name ?? t('products.noCategory')}</Tag>
-      ),
+      render: (_, product) => <Tag>{product.category?.name ?? t('products.noCategory')}</Tag>,
     },
     {
       title: t('common.price'),
       dataIndex: 'price',
       width: 160,
-      render: (price: number) => formatMoney(price, t('common.sum')),
+      align: 'right',
+      render: (price: number) => <MoneyText amount={price} currency={t('common.sum')} />,
     },
     {
       title: t('products.stock'),
       dataIndex: 'stock',
       width: 150,
       render: (stock: number, product) => (
-        <Tag color={stockColor(stock)}>
-          {formatNumber(stock)} {unitLabel(product.unit)}
-        </Tag>
+        <StatusTag
+          status={stockStatus(stock)}
+          label={`${formatNumber(stock)} ${unitLabel(product.unit)}`}
+        />
       ),
     },
   ];
@@ -325,31 +338,23 @@ const Products = () => {
   }
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ marginBottom: 0 }}>
-            <CoffeeOutlined /> {t('products.title')}
-          </Title>
-          <Text type="secondary">{t('products.subtitle')}</Text>
-        </div>
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={() => {
-            void fetchProducts();
-            void fetchCategories();
-          }}
-        />
-      </div>
+    <PageTransition>
+      <PageHeader
+        icon={<AppstoreOutlined />}
+        title={t('products.title')}
+        subtitle={t('products.subtitle')}
+        extra={
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              void fetchProducts();
+              void fetchCategories();
+            }}
+          >
+            {t('btn.refresh')}
+          </Button>
+        }
+      />
 
       <Tabs
         defaultActiveKey="products"
@@ -361,7 +366,11 @@ const Products = () => {
                 <CoffeeOutlined /> {t('products.tabProducts')}
               </span>
             ),
-            children: (
+            children: !productsLoaded ? (
+              <Card>
+                <Skeleton active paragraph={{ rows: 6 }} />
+              </Card>
+            ) : (
               <Card>
                 <div
                   style={{
@@ -402,14 +411,37 @@ const Products = () => {
                 </div>
                 <Table
                   rowKey="id"
+                  size="middle"
+                  sticky
                   columns={productColumns}
                   dataSource={products}
                   loading={productsLoading}
+                  locale={{
+                    emptyText: (
+                      <EmptyState
+                        icon={<CoffeeOutlined />}
+                        title={t('products.emptyProducts')}
+                        hint={t('products.emptyProductsHint')}
+                        action={
+                          canManage ? (
+                            <Button
+                              type="primary"
+                              icon={<PlusOutlined />}
+                              onClick={openCreateProduct}
+                            >
+                              {t('products.addProduct')}
+                            </Button>
+                          ) : undefined
+                        }
+                      />
+                    ),
+                  }}
                   pagination={{
                     current: page,
                     pageSize,
                     total,
                     showSizeChanger: true,
+                    position: ['bottomRight'],
                     onChange: (p, ps) => {
                       setPage(ps !== pageSize ? 1 : p);
                       setPageSize(ps);
@@ -427,7 +459,11 @@ const Products = () => {
                 <TagsOutlined /> {t('products.tabCategories')}
               </span>
             ),
-            children: (
+            children: !categoriesLoaded ? (
+              <Card>
+                <Skeleton active paragraph={{ rows: 4 }} />
+              </Card>
+            ) : (
               <Card>
                 {canManage && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
@@ -438,9 +474,31 @@ const Products = () => {
                 )}
                 <Table
                   rowKey="id"
+                  size="middle"
+                  sticky
                   columns={categoryColumns}
                   dataSource={categories}
                   loading={categoriesLoading}
+                  locale={{
+                    emptyText: (
+                      <EmptyState
+                        icon={<TagsOutlined />}
+                        title={t('products.emptyCategories')}
+                        hint={t('products.emptyCategoriesHint')}
+                        action={
+                          canManage ? (
+                            <Button
+                              type="primary"
+                              icon={<PlusOutlined />}
+                              onClick={openCreateCategory}
+                            >
+                              {t('products.addCategory')}
+                            </Button>
+                          ) : undefined
+                        }
+                      />
+                    ),
+                  }}
                   pagination={false}
                   scroll={{ x: 520 }}
                 />
@@ -532,7 +590,7 @@ const Products = () => {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </PageTransition>
   );
 };
 

@@ -13,6 +13,18 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 1200,
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        // Yirik kutubxonalar alohida, uzoq keshlanadigan bo'laklarga
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          antd: ['antd', '@ant-design/icons'],
+          charts: ['recharts'],
+          motion: ['framer-motion'],
+          i18n: ['i18next', 'react-i18next', 'dayjs'],
+        },
+      },
+    },
   },
 });

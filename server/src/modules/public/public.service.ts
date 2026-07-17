@@ -7,7 +7,7 @@ import { ClubStatus, UserRole } from '../../entities/enums';
 import { Settings } from '../../entities/settings.entity';
 import { User } from '../../entities/user.entity';
 import { TelegramService } from '../../telegram/telegram.service';
-import { AuthService } from '../auth/auth.service';
+import { AuthService, RequestContext } from '../auth/auth.service';
 import { RegisterDto } from './dto/register.dto';
 
 const TRIAL_DAYS = 7;
@@ -28,7 +28,7 @@ export class PublicService {
    * ro'yxatdan o'tgan PAYTdan boshlanadi. Sizga Telegram xabar ketadi,
    * foydalanuvchi darhol tizimga kiritiladi (avto-login).
    */
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, ctx: RequestContext) {
     // Honeypot: yashirin maydon to'ldirilgan bo'lsa — bot. Jimgina rad etamiz
     // (429 emas, 400 ham emas — botga muvaffaqiyat/xato farqini bildirmaymiz).
     if (dto.website && dto.website.trim().length > 0) {
@@ -92,8 +92,9 @@ export class PublicService {
       ].join('\n'),
     );
 
-    // Avto-login: foydalanuvchi ro'yxatdan o'tishi bilan tizimga kiradi
-    const tokens = this.authService.generateTokens(admin);
+    // Avto-login: login bilan bir xil yo'l — refresh sessiya saqlanadi,
+    // cookie kontrollerda o'rnatiladi (aks holda 15 daqiqadan keyin chiqib ketardi)
+    const tokens = await this.authService.issueTokens(admin, ctx);
     return {
       user: { ...admin, password: undefined },
       club: {

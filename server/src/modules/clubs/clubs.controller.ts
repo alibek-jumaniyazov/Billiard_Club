@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -19,6 +20,7 @@ import {
   CreateClubDto,
   CreateContractDto,
   ExtendSubscriptionDto,
+  ListClubsQueryDto,
   ResetClubPasswordDto,
   UpdateClubDto,
 } from './dto/clubs.dto';
@@ -33,10 +35,11 @@ import {
 export class ClubsController {
   constructor(private readonly clubsService: ClubsService) {}
 
+  /** Klublar ro'yxati: ?search=&status=&page=&limit= (default: limit 50) */
   @Get()
-  async findAll() {
-    const data = await this.clubsService.findAll();
-    return { success: true, data };
+  async findAll(@Query() query: ListClubsQueryDto) {
+    const { data, pagination } = await this.clubsService.findAll(query);
+    return { success: true, data, pagination };
   }
 
   /** Platforma analitikasi: daromad, klublar holati, tugayotgan obunalar */

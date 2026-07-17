@@ -41,6 +41,9 @@ export default {
     passwordRequired: 'Parol kiriting (kamida 6 belgi)',
     passwordMin: 'Parol kamida 6 belgidan iborat bo\'lishi kerak',
     roleRequired: 'Lavozimni tanlang',
+    // Bo'sh holat
+    emptyTitle: 'Xodimlar topilmadi',
+    emptyHint: "Qidiruv yoki filtrni o'zgartiring, yoki yangi xodim qo'shing",
   },
   ru: {
     title: 'Сотрудники',
@@ -84,5 +87,8 @@ export default {
     passwordRequired: 'Введите пароль (мин. 6 символов)',
     passwordMin: 'Пароль должен содержать минимум 6 символов',
     roleRequired: 'Выберите должность',
+    // Пустое состояние
+    emptyTitle: 'Сотрудники не найдены',
+    emptyHint: 'Измените поиск или фильтр, либо добавьте нового сотрудника',
   },
 };

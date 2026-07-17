@@ -1,5 +1,5 @@
 import { lazy, ReactNode, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Spin } from 'antd';
 import AppLayout from './components/layout/AppLayout';
 import { viewingClub } from './api/client';
@@ -20,7 +20,20 @@ const Debts = lazy(() => import('./pages/Debts'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Staff = lazy(() => import('./pages/Staff'));
 const Settings = lazy(() => import('./pages/Settings'));
-const AdminClubs = lazy(() => import('./pages/AdminClubs'));
+const Customers = lazy(() => import('./pages/Customers'));
+const Expenses = lazy(() => import('./pages/Expenses'));
+const Reservations = lazy(() => import('./pages/Reservations'));
+const Feedback = lazy(() => import('./pages/Feedback'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const Subscription = lazy(() => import('./pages/Subscription'));
+const Profile = lazy(() => import('./pages/Profile'));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const AdminClubsPage = lazy(() => import('./pages/admin/AdminClubsPage'));
+const AdminBilling = lazy(() => import('./pages/admin/AdminBilling'));
+const AdminFeedback = lazy(() => import('./pages/admin/AdminFeedback'));
+const AdminNotifications = lazy(() => import('./pages/admin/AdminNotifications'));
+const AdminLogs = lazy(() => import('./pages/admin/AdminLogs'));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 
 const FullScreenSpin = () => (
   <div
@@ -39,6 +52,12 @@ const FullScreenSpin = () => (
 const homeFor = (role: UserRole): string => (role === 'superadmin' ? '/admin' : '/dashboard');
 
 /**
+ * "Klubni ko'rish" rejimidagi superadmin uchun ham YOPIQ sahifalar —
+ * server bu endpointlarda superadminni 403 bilan qaytaradi
+ */
+const SUPERADMIN_VIEW_BLOCKED = ['/feedback', '/notifications', '/subscription'];
+
+/**
  * Himoyalangan marshrut:
  *  1) autentifikatsiya
  *  2) obuna holati (muddati tugagan/bloklangan klub -> /locked)
@@ -46,6 +65,7 @@ const homeFor = (role: UserRole): string => (role === 'superadmin' ? '/admin' : 
  */
 const Protected = ({ roles, children }: { roles?: UserRole[]; children: ReactNode }) => {
   const { user, club, loading, hasRole } = useAuth();
+  const location = useLocation();
 
   if (loading) return <FullScreenSpin />;
   if (!user) return <Navigate to="/login" replace />;
@@ -56,8 +76,15 @@ const Protected = ({ roles, children }: { roles?: UserRole[]; children: ReactNod
     (club.status === 'blocked' || club.status === 'expired' || club.isExpired);
   if (clubLocked) return <Navigate to="/locked" replace />;
 
-  // Superadmin klub ichini ko'rayotganda barcha klub sahifalari ochiq
-  if (user.role === 'superadmin' && viewingClub.get()) return <>{children}</>;
+  // Superadmin klub ichini ko'rayotganda klub sahifalari ochiq —
+  // server 403 qaytaradigan sahifalar (blocklist) bundan mustasno
+  if (user.role === 'superadmin' && viewingClub.get()) {
+    const path = location.pathname.replace(/\/+$/, '') || '/';
+    if (SUPERADMIN_VIEW_BLOCKED.includes(path)) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    return <>{children}</>;
+  }
 
   if (roles && !hasRole(...roles)) {
     return <Navigate to={homeFor(user.role)} replace />;
@@ -108,7 +135,55 @@ const App = () => {
             path="/admin"
             element={
               <Protected roles={['superadmin']}>
-                <AdminClubs />
+                <AdminDashboard />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/clubs"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminClubsPage />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/billing"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminBilling />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/feedback"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminFeedback />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/notifications"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminNotifications />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/logs"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminLogs />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin/settings"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminSettings />
               </Protected>
             }
           />
@@ -169,6 +244,62 @@ const App = () => {
             element={
               <Protected roles={['admin', 'kassir']}>
                 <Reports />
+              </Protected>
+            }
+          />
+          <Route
+            path="/customers"
+            element={
+              <Protected roles={['admin', 'kassir', 'operator']}>
+                <Customers />
+              </Protected>
+            }
+          />
+          <Route
+            path="/reservations"
+            element={
+              <Protected roles={['admin', 'kassir', 'operator']}>
+                <Reservations />
+              </Protected>
+            }
+          />
+          <Route
+            path="/expenses"
+            element={
+              <Protected roles={['admin', 'kassir']}>
+                <Expenses />
+              </Protected>
+            }
+          />
+          <Route
+            path="/feedback"
+            element={
+              <Protected roles={['admin', 'kassir', 'operator']}>
+                <Feedback />
+              </Protected>
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <Protected roles={['admin']}>
+                <Notifications />
+              </Protected>
+            }
+          />
+          <Route
+            path="/subscription"
+            element={
+              <Protected roles={['admin']}>
+                <Subscription />
+              </Protected>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <Protected roles={['superadmin', 'admin', 'kassir', 'operator']}>
+                <Profile />
               </Protected>
             }
           />

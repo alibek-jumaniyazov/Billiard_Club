@@ -4,14 +4,22 @@ import { AppDataSource } from './data-source';
 import { Category } from '../entities/category.entity';
 import { Club } from '../entities/club.entity';
 import { ClubStatus, UserRole } from '../entities/enums';
+import { Plan } from '../entities/plan.entity';
+import { PlatformSetting } from '../entities/platform-setting.entity';
 import { Product } from '../entities/product.entity';
 import { Settings } from '../entities/settings.entity';
 import { Table } from '../entities/table.entity';
 import { User } from '../entities/user.entity';
+import {
+  DEFAULT_TELEGRAM_EVENTS,
+  TELEGRAM_EVENTS_SETTING_KEY,
+} from '../telegram/telegram.service';
 
 /**
  * Boshlang'ich ma'lumotlar:
  *  - Superadmin (SUPERADMIN_USERNAME / SUPERADMIN_PASSWORD .env dan)
+ *  - Standart obuna tariflari (oylik / 6 oylik / yillik)
+ *  - Telegram hodisa sozlamalari (platform_settings, hammasi yoqilgan)
  *  - SEED_DEMO_CLUB=true bo'lsa — demo klub (7 kunlik sinov) namunaviy
  *    stollar/mahsulotlar bilan. Faqat development uchun!
  *
@@ -44,6 +52,65 @@ async function seed() {
     console.log(`✅ Superadmin yaratildi: ${superUsername}`);
   } else {
     console.log(`ℹ️ Superadmin mavjud: ${superUsername}`);
+  }
+
+  // ---------- Obuna tariflari ----------
+  const planRepo = AppDataSource.getRepository(Plan);
+  const defaultPlans: Array<Partial<Plan> & { code: string }> = [
+    {
+      code: 'monthly',
+      nameUz: 'Oylik',
+      nameRu: 'Месячный',
+      descriptionUz: '30 kunlik obuna — barcha imkoniyatlar',
+      descriptionRu: 'Подписка на 30 дней — все возможности',
+      durationDays: 30,
+      price: 290000,
+      sortOrder: 1,
+    },
+    {
+      code: 'semiannual',
+      nameUz: '6 oylik',
+      nameRu: 'Полугодовой',
+      descriptionUz: '180 kunlik obuna — oylikdan 14% tejamkor',
+      descriptionRu: 'Подписка на 180 дней — на 14% выгоднее месячной',
+      durationDays: 180,
+      price: 1490000,
+      sortOrder: 2,
+    },
+    {
+      code: 'yearly',
+      nameUz: 'Yillik',
+      nameRu: 'Годовой',
+      descriptionUz: '365 kunlik obuna — oylikdan 28% tejamkor',
+      descriptionRu: 'Подписка на 365 дней — на 28% выгоднее месячной',
+      durationDays: 365,
+      price: 2490000,
+      sortOrder: 3,
+    },
+  ];
+  for (const plan of defaultPlans) {
+    const existingPlan = await planRepo.findOne({ where: { code: plan.code } });
+    if (!existingPlan) {
+      await planRepo.save(plan);
+      console.log(`✅ Tarif yaratildi: ${plan.code}`);
+    } else {
+      console.log(`ℹ️ Tarif mavjud: ${plan.code}`);
+    }
+  }
+
+  // ---------- Telegram hodisa sozlamalari ----------
+  const platformSettingRepo = AppDataSource.getRepository(PlatformSetting);
+  const tgEvents = await platformSettingRepo.findOne({
+    where: { key: TELEGRAM_EVENTS_SETTING_KEY },
+  });
+  if (!tgEvents) {
+    await platformSettingRepo.save({
+      key: TELEGRAM_EVENTS_SETTING_KEY,
+      value: DEFAULT_TELEGRAM_EVENTS,
+    });
+    console.log('✅ Telegram hodisa sozlamalari yaratildi (hammasi yoqilgan)');
+  } else {
+    console.log('ℹ️ Telegram hodisa sozlamalari mavjud');
   }
 
   // ---------- Demo klub (faqat dev) ----------

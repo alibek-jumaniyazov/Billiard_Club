@@ -1,0 +1,91 @@
+/** Profil sahifasi: shaxsiy ma'lumotlar, parol almashtirish, faol qurilmalar */
+export default {
+  uz: {
+    pageTitle: 'Profil',
+    pageSubtitle: "Shaxsiy ma'lumotlar va hisob xavfsizligi",
+
+    // Ma'lumotlar kartasi
+    infoTitle: "Ma'lumotlarim",
+    name: 'Ism',
+    username: 'Login',
+    role: 'Rol',
+    club: 'Klub',
+    lastLogin: 'Oxirgi kirish',
+
+    // Parol almashtirish
+    passwordTitle: 'Parolni almashtirish',
+    passwordSubtitle: "Parol o'zgargach boshqa qurilmalardagi sessiyalar bekor qilinadi",
+    currentPassword: 'Joriy parol',
+    currentRequired: 'Joriy parolni kiriting',
+    newPassword: 'Yangi parol',
+    newRequired: 'Yangi parol kiriting (kamida 8 belgi)',
+    confirmPassword: 'Yangi parolni tasdiqlang',
+    confirmRequired: 'Parolni qayta kiriting',
+    confirmMismatch: 'Parollar mos kelmadi',
+    changeBtn: 'Parolni yangilash',
+    passwordChanged: 'Parol muvaffaqiyatli yangilandi',
+
+    // Faol qurilmalar (refresh sessiyalar)
+    sessionsTitle: 'Faol qurilmalar',
+    sessionsSubtitle: 'Hisobingizga kirilgan qurilmalar — keraksizlarini bekor qiling',
+    colDevice: 'Qurilma',
+    colIp: 'IP manzil',
+    colSignedIn: 'Kirilgan vaqt',
+    colExpires: 'Amal qiladi',
+    currentDevice: 'Joriy qurilma',
+    unknownDevice: "Noma'lum qurilma",
+    revoke: 'Chiqarish',
+    revokeConfirm: 'Bu qurilma tizimdan chiqarilsinmi?',
+    revoked: 'Sessiya bekor qilindi',
+    revokeOthers: 'Boshqa barcha qurilmalardan chiqish',
+    revokeOthersConfirm: 'Joriy qurilmadan tashqari barcha sessiyalar bekor qilinsinmi?',
+    revokedOthers: '{{n}} ta sessiya bekor qilindi',
+    sessionsEmpty: 'Faol sessiyalar topilmadi',
+    sessionsLoadError: "Sessiyalarni yuklab bo'lmadi",
+    retry: 'Qayta urinish',
+  },
+  ru: {
+    pageTitle: 'Профиль',
+    pageSubtitle: 'Личные данные и безопасность аккаунта',
+
+    // Карточка данных
+    infoTitle: 'Мои данные',
+    name: 'Имя',
+    username: 'Логин',
+    role: 'Роль',
+    club: 'Клуб',
+    lastLogin: 'Последний вход',
+
+    // Смена пароля
+    passwordTitle: 'Смена пароля',
+    passwordSubtitle: 'После смены пароля сессии на других устройствах будут завершены',
+    currentPassword: 'Текущий пароль',
+    currentRequired: 'Введите текущий пароль',
+    newPassword: 'Новый пароль',
+    newRequired: 'Введите новый пароль (мин. 8 символов)',
+    confirmPassword: 'Подтвердите новый пароль',
+    confirmRequired: 'Повторите пароль',
+    confirmMismatch: 'Пароли не совпадают',
+    changeBtn: 'Обновить пароль',
+    passwordChanged: 'Пароль успешно обновлён',
+
+    // Активные устройства
+    sessionsTitle: 'Активные устройства',
+    sessionsSubtitle: 'Устройства, с которых выполнен вход — завершите лишние',
+    colDevice: 'Устройство',
+    colIp: 'IP-адрес',
+    colSignedIn: 'Время входа',
+    colExpires: 'Действует до',
+    currentDevice: 'Текущее устройство',
+    unknownDevice: 'Неизвестное устройство',
+    revoke: 'Завершить',
+    revokeConfirm: 'Завершить сессию на этом устройстве?',
+    revoked: 'Сессия завершена',
+    revokeOthers: 'Выйти на всех других устройствах',
+    revokeOthersConfirm: 'Завершить все сессии, кроме текущей?',
+    revokedOthers: 'Завершено сессий: {{n}}',
+    sessionsEmpty: 'Активных сессий не найдено',
+    sessionsLoadError: 'Не удалось загрузить сессии',
+    retry: 'Повторить',
+  },
+};

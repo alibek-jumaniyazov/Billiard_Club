@@ -16,9 +16,17 @@ export const envValidationSchema = Joi.object({
   DB_PASS: Joi.string().allow('').required(),
 
   JWT_SECRET: Joi.string().min(32).required(),
-  JWT_REFRESH_SECRET: Joi.string().min(32).required(),
-  JWT_EXPIRES_IN: Joi.string().default('8h'),
+  // Refresh siri access siridan farq qilishi SHART — aks holda qisqa muddatli
+  // access token refresh yo'lida ham o'tib, yangi juftliklar chiqarib berardi
+  JWT_REFRESH_SECRET: Joi.string().min(32).disallow(Joi.ref('JWT_SECRET')).required(),
+  // Qisqa access TTL — o'g'irlangan token zarar oynasini toraytiradi,
+  // uzluksizlik rotatsiyali refresh oqimi zimmasida
+  JWT_EXPIRES_IN: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: Joi.string().default('7d'),
+
+  // Faqat reverse proxy (nginx/Caddy) ortida true qilinadi — aks holda
+  // X-Forwarded-For orqali rate-limit identifikatsiyasini aldash mumkin
+  TRUST_PROXY: Joi.boolean().default(false),
 
   FRONTEND_URL: Joi.string().default('http://localhost:5173'),
 

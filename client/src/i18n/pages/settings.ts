@@ -13,6 +13,11 @@ export default {
     currencySymbol: 'Valyuta belgisi',
     defaultTablePrice: 'Standart soatlik narx',
     priceRequired: 'Standart narxni kiriting',
+    // Vaqt mintaqasi
+    regional: 'Mintaqaviy sozlamalar',
+    timezone: 'Vaqt mintaqasi',
+    timezoneHint:
+      "Kunlik hisobot va statistika chegaralari («bugun», «hafta», «oy») shu mintaqa bo'yicha hisoblanadi",
     // Ish vaqti
     workingHours: 'Ish vaqti',
     workingHoursNote:
@@ -34,6 +39,11 @@ export default {
     currencySymbol: 'Символ валюты',
     defaultTablePrice: 'Стандартная цена за час',
     priceRequired: 'Введите стандартную цену',
+    // Часовой пояс
+    regional: 'Региональные настройки',
+    timezone: 'Часовой пояс',
+    timezoneHint:
+      'Границы дневных отчётов и статистики («сегодня», «неделя», «месяц») рассчитываются по этому поясу',
     // Время работы
     workingHours: 'Время работы',
     workingHoursNote:

@@ -11,29 +11,40 @@ import {
   Popconfirm,
   Row,
   Select,
+  Skeleton,
   Space,
-  Statistic,
   Switch,
   Table,
   Tag,
   Typography,
 } from 'antd';
 import {
+  CrownOutlined,
+  DollarOutlined,
   EditOutlined,
   PlusOutlined,
   ReloadOutlined,
   TeamOutlined,
   UserDeleteOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, staffApi } from '../api';
+import {
+  EmptyState,
+  PageHeader,
+  PageTransition,
+  StatCard,
+  StatusTag,
+} from '../components/ui';
 import { ROLE_COLORS, ROLE_TAG_COLORS } from '../constants';
 import { useAuth } from '../context/AuthContext';
+import { TOKENS } from '../theme/tokens';
 import type { User, UserRole } from '../types';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 /** Klub ichida tayinlanadigan rollar (superadmin bunga kirmaydi) */
 const STAFF_ROLES: UserRole[] = ['admin', 'kassir', 'operator'];
@@ -66,6 +77,7 @@ const Staff = () => {
 
   const [staff, setStaff] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
@@ -99,6 +111,7 @@ const Staff = () => {
       message.error(errorMessage(err, t('common.error')));
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, [page, pageSize, search, roleFilter, message, t]);
 
@@ -207,7 +220,9 @@ const Staff = () => {
       render: (name: string, record) => (
         <Space size={8}>
           <Text strong>{name}</Text>
-          {record.id === currentUser?.id && <Tag color="green">{t('staff.you')}</Tag>}
+          {record.id === currentUser?.id && (
+            <StatusTag status="success" label={t('staff.you')} />
+          )}
         </Space>
       ),
     },
@@ -231,9 +246,9 @@ const Staff = () => {
       width: 120,
       render: (isActive: boolean) =>
         isActive ? (
-          <Tag color="green">{t('status.active')}</Tag>
+          <StatusTag status="success" label={t('status.active')} />
         ) : (
-          <Tag color="red">{t('staff.inactive')}</Tag>
+          <StatusTag status="cancelled" label={t('staff.inactive')} />
         ),
     },
     {
@@ -278,110 +293,129 @@ const Staff = () => {
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ marginBottom: 0 }}>
-            <TeamOutlined /> {t('staff.title')}
-          </Title>
-          <Text type="secondary">{t('staff.subtitle')}</Text>
-        </div>
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={refetchAll} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-            {t('staff.addStaff')}
-          </Button>
-        </Space>
-      </div>
+    <PageTransition>
+      <PageHeader
+        icon={<TeamOutlined />}
+        title={t('staff.title')}
+        subtitle={t('staff.subtitle')}
+        extra={
+          <>
+            <Button icon={<ReloadOutlined />} onClick={refetchAll} />
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+              {t('staff.addStaff')}
+            </Button>
+          </>
+        }
+        stats={
+          <Row gutter={[16, 16]}>
+            <Col xs={12} md={6}>
+              <StatCard
+                label={t('staff.totalStaff')}
+                value={staffTotal}
+                icon={<TeamOutlined />}
+                accent={TOKENS.color.emerald.bright}
+                loading={statsLoading}
+              />
+            </Col>
+            <Col xs={12} md={6}>
+              <StatCard
+                label={t('staff.admins')}
+                value={roleCounts.admin}
+                icon={<CrownOutlined />}
+                accent={ROLE_COLORS.admin}
+                loading={statsLoading}
+              />
+            </Col>
+            <Col xs={12} md={6}>
+              <StatCard
+                label={t('staff.kassirs')}
+                value={roleCounts.kassir}
+                icon={<DollarOutlined />}
+                accent={ROLE_COLORS.kassir}
+                loading={statsLoading}
+              />
+            </Col>
+            <Col xs={12} md={6}>
+              <StatCard
+                label={t('staff.operators')}
+                value={roleCounts.operator}
+                icon={<UserOutlined />}
+                accent={ROLE_COLORS.operator}
+                loading={statsLoading}
+              />
+            </Col>
+          </Row>
+        }
+      />
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-        <Col xs={12} md={6}>
-          <Card>
-            <Statistic title={t('staff.totalStaff')} value={staffTotal} loading={statsLoading} />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card>
-            <Statistic
-              title={t('staff.admins')}
-              value={roleCounts.admin}
-              loading={statsLoading}
-              valueStyle={{ color: ROLE_COLORS.admin }}
+      {!loaded ? (
+        <Card>
+          <Skeleton active paragraph={{ rows: 6 }} />
+        </Card>
+      ) : (
+        <Card>
+          <Space wrap style={{ marginBottom: 16 }}>
+            <Input.Search
+              allowClear
+              placeholder={t('staff.searchPlaceholder')}
+              style={{ width: 260 }}
+              onSearch={(value) => {
+                setSearch(value.trim());
+                setPage(1);
+              }}
             />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card>
-            <Statistic
-              title={t('staff.kassirs')}
-              value={roleCounts.kassir}
-              loading={statsLoading}
-              valueStyle={{ color: ROLE_COLORS.kassir }}
+            <Select<UserRole>
+              allowClear
+              placeholder={t('staff.filterRole')}
+              style={{ width: 180 }}
+              value={roleFilter}
+              onChange={(value) => {
+                setRoleFilter(value);
+                setPage(1);
+              }}
+              options={STAFF_ROLES.map((role) => ({ value: role, label: t(`role.${role}`) }))}
             />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card>
-            <Statistic
-              title={t('staff.operators')}
-              value={roleCounts.operator}
-              loading={statsLoading}
-              valueStyle={{ color: ROLE_COLORS.operator }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Card>
-        <Space wrap style={{ marginBottom: 16 }}>
-          <Input.Search
-            allowClear
-            placeholder={t('staff.searchPlaceholder')}
-            style={{ width: 260 }}
-            onSearch={(value) => {
-              setSearch(value.trim());
-              setPage(1);
+          </Space>
+          <Table
+            rowKey="id"
+            size="middle"
+            sticky
+            columns={columns}
+            dataSource={staff}
+            loading={loading}
+            scroll={{ x: 1000 }}
+            locale={{
+              emptyText: (
+                <EmptyState
+                  icon={<TeamOutlined />}
+                  title={t('staff.emptyTitle')}
+                  hint={t('staff.emptyHint')}
+                  action={
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={() => setCreateOpen(true)}
+                    >
+                      {t('staff.addStaff')}
+                    </Button>
+                  }
+                />
+              ),
+            }}
+            pagination={{
+              current: page,
+              pageSize,
+              total,
+              showSizeChanger: true,
+              position: ['bottomRight'],
+              onChange: (p, ps) => {
+                setPage(ps !== pageSize ? 1 : p);
+                setPageSize(ps);
+              },
             }}
           />
-          <Select<UserRole>
-            allowClear
-            placeholder={t('staff.filterRole')}
-            style={{ width: 180 }}
-            value={roleFilter}
-            onChange={(value) => {
-              setRoleFilter(value);
-              setPage(1);
-            }}
-            options={STAFF_ROLES.map((role) => ({ value: role, label: t(`role.${role}`) }))}
-          />
-        </Space>
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={staff}
-          loading={loading}
-          scroll={{ x: 1000 }}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            onChange: (p, ps) => {
-              setPage(ps !== pageSize ? 1 : p);
-              setPageSize(ps);
-            },
-          }}
-        />
-      </Card>
+        </Card>
+      )}
 
       {/* Yangi xodim */}
       <Modal
@@ -479,7 +513,7 @@ const Staff = () => {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </PageTransition>
   );
 };
 

@@ -93,6 +93,22 @@ export default {
     ownerRequired: 'Egasining ismini kiriting',
     usernameRequired: 'Login kiriting (kamida 3 belgi)',
     passwordRequired: 'Parol kiriting (kamida 6 belgi)',
+    // Ro'yxat: qidiruv/filtr/bo'sh holat
+    searchPlaceholder: 'Nomi, egasi yoki telefon...',
+    statusFilter: "Holat bo'yicha",
+    createdAt: "Qo'shilgan",
+    emptyTitle: 'Klublar topilmadi',
+    emptyHint: "Qidiruv yoki filtrni o'zgartirib ko'ring",
+    // Batafsil drawer
+    tabOverview: 'Umumiy',
+    tabInvoices: 'Hisob-fakturalar',
+    invoiceNumber: 'Raqam',
+    invoicesEmpty: "Hisob-fakturalar yo'q",
+    invoicesHint: "Klub obuna to'lovlari shu yerda ko'rinadi",
+    contractsEmpty: "Shartnomalar hali yo'q",
+    // Nusxalash yorliqlari (clipboard matni uchun)
+    loginLabel: 'Login',
+    passwordLabel: 'Parol',
   },
   ru: {
     title: 'Центр управления',
@@ -188,5 +204,21 @@ export default {
     ownerRequired: 'Введите имя владельца',
     usernameRequired: 'Введите логин (мин. 3 символа)',
     passwordRequired: 'Введите пароль (мин. 6 символов)',
+    // Список: поиск/фильтр/пустое состояние
+    searchPlaceholder: 'Название, владелец или телефон...',
+    statusFilter: 'По статусу',
+    createdAt: 'Добавлен',
+    emptyTitle: 'Клубы не найдены',
+    emptyHint: 'Попробуйте изменить поиск или фильтр',
+    // Детальный drawer
+    tabOverview: 'Обзор',
+    tabInvoices: 'Счета',
+    invoiceNumber: 'Номер',
+    invoicesEmpty: 'Счетов нет',
+    invoicesHint: 'Платежи клуба за подписку появятся здесь',
+    contractsEmpty: 'Контрактов пока нет',
+    // Ярлыки копирования (для текста в буфер обмена)
+    loginLabel: 'Логин',
+    passwordLabel: 'Пароль',
   },
 };

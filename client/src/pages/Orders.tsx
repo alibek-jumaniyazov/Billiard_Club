@@ -4,28 +4,45 @@ import {
   Button,
   Card,
   Col,
+  Popconfirm,
   Row,
   Select,
+  Skeleton,
   Space,
-  Statistic,
   Table,
   Tag,
   Typography,
 } from 'antd';
-import { CoffeeOutlined, ReloadOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import {
+  CloseCircleOutlined,
+  CoffeeOutlined,
+  DollarOutlined,
+  ReloadOutlined,
+  ShoppingCartOutlined,
+} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, ordersApi } from '../api';
+import {
+  EmptyState,
+  MoneyText,
+  PageHeader,
+  PageTransition,
+  StatCard,
+  StatusTag,
+} from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { TOKENS } from '../theme/tokens';
 import type { Order, OrderStatus } from '../types';
-import { formatMoney } from '../utils/format';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
-const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  open: 'processing',
-  closed: 'green',
-  cancelled: 'default',
+/** Buyurtma holati -> StatusTag semantik kaliti */
+const ORDER_STATUS_KEYS: Record<OrderStatus, string> = {
+  open: 'active',
+  closed: 'success',
+  cancelled: 'cancelled',
 };
 
 interface TodayStats {
@@ -36,13 +53,18 @@ interface TodayStats {
 const Orders = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
+  const { hasRole } = useAuth();
+  // Server bilan bir xil: bekor qilish kassir/admin/superadmin uchun
+  const canCancel = hasRole('superadmin', 'admin', 'kassir');
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState<OrderStatus | 'all'>('all');
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
 
   const [stats, setStats] = useState<TodayStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -59,6 +81,7 @@ const Orders = () => {
       message.error(errorMessage(err, t('common.error')));
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, [message, t, page, pageSize, status]);
 
@@ -88,6 +111,21 @@ const Orders = () => {
     void fetchStats();
   };
 
+  // Ochiq buyurtmani bekor qilish — ombor qaytadi, sessiya bar summasi kamayadi
+  const handleCancel = async (order: Order) => {
+    setCancellingId(order.id);
+    try {
+      const res = await ordersApi.cancel(order.id);
+      message.success(res.message);
+      void fetchOrders();
+      void fetchStats();
+    } catch (err) {
+      message.error(errorMessage(err, t('common.error')));
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const columns: ColumnsType<Order> = [
     {
       title: t('orders.orderId'),
@@ -108,7 +146,7 @@ const Orders = () => {
         order.items && order.items.length > 0 ? (
           <Space size={4} wrap>
             {order.items.map((item) => (
-              <Tag key={item.id} color="blue">
+              <Tag key={item.id}>
                 {item.product?.name ?? `#${item.productId}`} × {item.quantity}
               </Tag>
             ))}
@@ -121,17 +159,16 @@ const Orders = () => {
       title: t('orders.totalAmount'),
       dataIndex: 'totalAmount',
       width: 150,
-      render: (amount: number) => (
-        <Text strong style={{ color: '#52c41a' }}>
-          {formatMoney(amount, t('common.sum'))}
-        </Text>
-      ),
+      align: 'right',
+      render: (amount: number) => <MoneyText amount={amount} currency={t('common.sum')} />,
     },
     {
       title: t('orders.status'),
       dataIndex: 'status',
       width: 130,
-      render: (s: OrderStatus) => <Tag color={ORDER_STATUS_COLORS[s]}>{t(`status.${s}`)}</Tag>,
+      render: (s: OrderStatus) => (
+        <StatusTag status={ORDER_STATUS_KEYS[s]} label={t(`status.${s}`)} />
+      ),
     },
     {
       title: t('common.date'),
@@ -147,88 +184,129 @@ const Orders = () => {
     },
   ];
 
+  if (canCancel) {
+    columns.push({
+      title: t('common.actions'),
+      key: 'actions',
+      width: 140,
+      render: (_, order) =>
+        order.status === 'open' ? (
+          <Popconfirm
+            title={t('orders.cancelConfirmTitle')}
+            description={t('orders.cancelConfirmDesc')}
+            okText={t('common.yes')}
+            cancelText={t('common.no')}
+            okButtonProps={{ danger: true }}
+            onConfirm={() => void handleCancel(order)}
+          >
+            <Button
+              size="small"
+              danger
+              icon={<CloseCircleOutlined />}
+              loading={cancellingId === order.id}
+            >
+              {t('orders.cancelOrder')}
+            </Button>
+          </Popconfirm>
+        ) : null,
+    });
+  }
+
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ marginBottom: 0 }}>
-            <ShoppingCartOutlined /> {t('orders.title')}
-          </Title>
-          <Text type="secondary">{t('orders.subtitle')}</Text>
-        </div>
-        <Space>
-          <Select<OrderStatus | 'all'>
-            value={status}
-            style={{ width: 170 }}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
+    <PageTransition>
+      <PageHeader
+        icon={<CoffeeOutlined />}
+        title={t('orders.title')}
+        subtitle={t('orders.subtitle')}
+        extra={
+          <>
+            <Select<OrderStatus | 'all'>
+              value={status}
+              style={{ width: 170 }}
+              onChange={(value) => {
+                setStatus(value);
+                setPage(1);
+              }}
+              options={[
+                { value: 'all', label: t('common.all') },
+                { value: 'open', label: t('status.open') },
+                { value: 'closed', label: t('status.closed') },
+                { value: 'cancelled', label: t('status.cancelled') },
+              ]}
+            />
+            <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
+              {t('btn.refresh')}
+            </Button>
+          </>
+        }
+        stats={
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} lg={6}>
+              <StatCard
+                label={t('orders.todayAmount')}
+                value={
+                  <MoneyText
+                    amount={stats?.todayAmount}
+                    currency={t('common.sum')}
+                    style={{ fontSize: 'inherit', fontWeight: 'inherit' }}
+                  />
+                }
+                icon={<DollarOutlined />}
+                loading={statsLoading}
+              />
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <StatCard
+                label={t('orders.todayCount')}
+                value={stats?.todayCount ?? 0}
+                icon={<ShoppingCartOutlined />}
+                accent={TOKENS.color.emerald.bright}
+                loading={statsLoading}
+              />
+            </Col>
+          </Row>
+        }
+      />
+
+      {!loaded ? (
+        <Card>
+          <Skeleton active paragraph={{ rows: 6 }} />
+        </Card>
+      ) : (
+        <Card>
+          <Table
+            rowKey="id"
+            size="middle"
+            sticky
+            columns={columns}
+            dataSource={orders}
+            loading={loading}
+            scroll={{ x: 960 }}
+            locale={{
+              emptyText: (
+                <EmptyState
+                  icon={<CoffeeOutlined />}
+                  title={t('orders.emptyTitle')}
+                  hint={t('orders.emptyHint')}
+                />
+              ),
             }}
-            options={[
-              { value: 'all', label: t('common.all') },
-              { value: 'open', label: t('status.open') },
-              { value: 'closed', label: t('status.closed') },
-              { value: 'cancelled', label: t('status.cancelled') },
-            ]}
+            pagination={{
+              current: page,
+              pageSize,
+              total,
+              showSizeChanger: true,
+              position: ['bottomRight'],
+              onChange: (p, ps) => {
+                // pageSize o'zgarsa 1-sahifaga qaytamiz
+                setPage(ps !== pageSize ? 1 : p);
+                setPageSize(ps);
+              },
+            }}
           />
-          <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
-            {t('btn.refresh')}
-          </Button>
-        </Space>
-      </div>
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={statsLoading}>
-            <Statistic
-              title={t('orders.todayAmount')}
-              value={formatMoney(stats?.todayAmount, t('common.sum'))}
-              prefix={<CoffeeOutlined />}
-              valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={statsLoading}>
-            <Statistic
-              title={t('orders.todayCount')}
-              value={stats?.todayCount ?? 0}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Card>
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={orders}
-          loading={loading}
-          scroll={{ x: 900 }}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            onChange: (p, ps) => {
-              // pageSize o'zgarsa 1-sahifaga qaytamiz
-              setPage(ps !== pageSize ? 1 : p);
-              setPageSize(ps);
-            },
-          }}
-        />
-      </Card>
-    </div>
+        </Card>
+      )}
+    </PageTransition>
   );
 };
 

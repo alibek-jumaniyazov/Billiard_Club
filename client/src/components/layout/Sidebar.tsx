@@ -3,30 +3,45 @@ import { Layout, Menu, theme, Typography } from 'antd';
 import {
   AppstoreOutlined,
   BarChartOutlined,
+  BellOutlined,
+  CalendarOutlined,
   CoffeeOutlined,
+  CommentOutlined,
+  ContactsOutlined,
   CreditCardOutlined,
+  CrownOutlined,
   DashboardOutlined,
+  DollarOutlined,
+  FileSearchOutlined,
   HistoryOutlined,
+  NotificationOutlined,
+  PieChartOutlined,
   SettingOutlined,
   ShopOutlined,
   TableOutlined,
   TeamOutlined,
-  TrophyOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { viewingClub } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_COLORS } from '../../constants';
+import { TOKENS } from '../../theme/tokens';
+import { BrandLogo } from '../ui';
 
 const { Sider } = Layout;
 const { Text } = Typography;
 
 interface SidebarProps {
   collapsed: boolean;
+  /** true — mobil Drawer ichida (sticky/height o'chiriladi) */
+  inDrawer?: boolean;
+  /** Menyu bandi bosilganda chaqiriladi (mobil Drawerni yopish uchun) */
+  onNavigate?: () => void;
 }
 
-const Sidebar = ({ collapsed }: SidebarProps) => {
+const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
   const { t } = useTranslation();
   const { user, hasRole } = useAuth();
   const navigate = useNavigate();
@@ -37,10 +52,27 @@ const Sidebar = ({ collapsed }: SidebarProps) => {
   const isSuperadmin = hasRole('superadmin');
 
   const items = useMemo(() => {
-    // Superadmin: klub ichini ko'rmayotganda faqat klublar menyusi
+    // Superadmin: klub ichini ko'rmayotganda — to'liq platforma menyusi
     if (isSuperadmin && !viewing) {
       return [
-        { key: '/admin', icon: <ShopOutlined />, label: t('menu.clubs') },
+        {
+          key: 'g-platform',
+          type: 'group' as const,
+          label: collapsed ? null : t('menu.groupPlatform'),
+          children: [
+            { key: '/admin', icon: <PieChartOutlined />, label: t('menu.adminDashboard') },
+            { key: '/admin/clubs', icon: <ShopOutlined />, label: t('menu.clubs') },
+            { key: '/admin/billing', icon: <DollarOutlined />, label: t('menu.adminBilling') },
+            { key: '/admin/feedback', icon: <CommentOutlined />, label: t('menu.adminFeedback') },
+            {
+              key: '/admin/notifications',
+              icon: <NotificationOutlined />,
+              label: t('menu.adminNotifications'),
+            },
+            { key: '/admin/logs', icon: <FileSearchOutlined />, label: t('menu.adminLogs') },
+            { key: '/admin/settings', icon: <SettingOutlined />, label: t('menu.adminSettings') },
+          ],
+        },
       ];
     }
 
@@ -66,6 +98,20 @@ const Sidebar = ({ collapsed }: SidebarProps) => {
           { key: '/dashboard', icon: <DashboardOutlined />, label: t('menu.dashboard') },
           { key: '/tables', icon: <TableOutlined />, label: t('menu.tables') },
           { key: '/sessions', icon: <HistoryOutlined />, label: t('menu.sessions') },
+          { key: '/reservations', icon: <CalendarOutlined />, label: t('menu.reservations') },
+        ],
+      },
+      {
+        key: 'g-crm',
+        type: 'group' as const,
+        label: collapsed ? null : t('menu.groupCrm'),
+        children: [
+          { key: '/customers', icon: <ContactsOutlined />, label: t('menu.customers') },
+          // Server superadminni klub /feedback ga kiritmaydi (403) —
+          // ko'rish rejimida bandni yashiramiz
+          ...(isSuperadmin && viewing
+            ? []
+            : [{ key: '/feedback', icon: <CommentOutlined />, label: t('menu.feedback') }]),
         ],
       },
       {
@@ -87,6 +133,7 @@ const Sidebar = ({ collapsed }: SidebarProps) => {
         children: [
           { key: '/reports', icon: <BarChartOutlined />, label: t('menu.reports') },
           { key: '/debts', icon: <CreditCardOutlined />, label: t('menu.debts') },
+          { key: '/expenses', icon: <WalletOutlined />, label: t('menu.expenses') },
         ],
       });
     }
@@ -98,6 +145,13 @@ const Sidebar = ({ collapsed }: SidebarProps) => {
         label: collapsed ? null : t('menu.groupManagement'),
         children: [
           { key: '/staff', icon: <TeamOutlined />, label: t('menu.staff') },
+          // /notifications va /subscription ham superadmin uchun serverda 403
+          ...(isSuperadmin && viewing
+            ? []
+            : [
+                { key: '/notifications', icon: <BellOutlined />, label: t('menu.notifications') },
+                { key: '/subscription', icon: <CrownOutlined />, label: t('menu.subscription') },
+              ]),
           { key: '/settings', icon: <SettingOutlined />, label: t('menu.settings') },
         ],
       });
@@ -107,82 +161,63 @@ const Sidebar = ({ collapsed }: SidebarProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapsed, hasRole, t, isSuperadmin, viewing?.id]);
 
-  const selectedKey =
-    location.pathname === '/' ? '/dashboard' : `/${location.pathname.split('/')[1]}`;
+  // /admin/* sahifalarida to'liq yo'l tanlanadi; klub sahifalarida birinchi segment
+  const selectedKey = location.pathname.startsWith('/admin')
+    ? location.pathname.replace(/\/+$/, '') || '/admin'
+    : location.pathname === '/'
+      ? '/dashboard'
+      : `/${location.pathname.split('/')[1]}`;
 
   return (
     <Sider
-      width={240}
-      collapsed={collapsed}
+      className="app-sider"
+      width={inDrawer ? '100%' : 240}
+      collapsed={inDrawer ? false : collapsed}
       collapsedWidth={72}
+      breakpoint={inDrawer ? undefined : 'lg'}
       style={{
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
+        ...(inDrawer
+          ? { height: '100%' }
+          : { position: 'sticky', top: 0, height: '100vh' }),
         display: 'flex',
         flexDirection: 'column',
-        borderRight: `1px solid ${token.colorBorderSecondary}`,
+        borderRight: inDrawer ? 'none' : `1px solid ${token.colorBorderSecondary}`,
       }}
     >
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
-          padding: collapsed ? '16px 0' : '16px 20px',
-          justifyContent: collapsed ? 'center' : 'flex-start',
+          padding: collapsed && !inDrawer ? '16px 0' : '16px 18px',
+          justifyContent: collapsed && !inDrawer ? 'center' : 'flex-start',
         }}
       >
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 10,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'linear-gradient(135deg, #faad14, #d48806)',
-            color: '#111',
-            fontSize: 20,
-          }}
-        >
-          <TrophyOutlined />
-        </div>
-        {!collapsed && (
-          <div style={{ lineHeight: 1.2 }}>
-            <Text strong style={{ fontSize: 15, display: 'block' }}>
-              PRIME BILLIARD
-            </Text>
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              {t(`role.${user?.role ?? 'operator'}`)}
-            </Text>
-          </div>
-        )}
+        <BrandLogo size={38} withWordmark={!collapsed || inDrawer} />
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 88 }}>
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 72 }}>
         <Menu
           mode="inline"
           selectedKeys={[selectedKey]}
           items={items}
           onClick={({ key }) => {
-            // Superadmin klublar paneliga qaytsa — ko'rish rejimi tugaydi
-            if (key === '/admin') viewingClub.clear();
-            navigate(key);
+            // Superadmin platforma paneliga qaytsa — ko'rish rejimi tugaydi
+            if (String(key).startsWith('/admin')) viewingClub.clear();
+            navigate(String(key));
+            onNavigate?.();
           }}
           style={{ borderInlineEnd: 'none', background: 'transparent' }}
         />
       </div>
 
-      {!collapsed && user && (
+      {(!collapsed || inDrawer) && user && (
         <div
           style={{
             position: 'absolute',
             bottom: 0,
             left: 0,
             right: 0,
-            padding: '12px 16px',
+            padding: '10px 16px',
             borderTop: `1px solid ${token.colorBorderSecondary}`,
             background: token.colorBgContainer,
             display: 'flex',
@@ -192,26 +227,27 @@ const Sidebar = ({ collapsed }: SidebarProps) => {
         >
           <div
             style={{
-              width: 34,
-              height: 34,
+              width: 30,
+              height: 30,
               borderRadius: '50%',
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              fontSize: 13,
               background: ROLE_COLORS[user.role],
-              color: '#111',
+              color: TOKENS.color.gold.contrast,
               fontWeight: 700,
             }}
           >
             {user.name.charAt(0).toUpperCase()}
           </div>
-          <div style={{ minWidth: 0 }}>
-            <Text strong ellipsis style={{ display: 'block', fontSize: 13 }}>
+          <div style={{ minWidth: 0, lineHeight: 1.25 }}>
+            <Text strong ellipsis style={{ display: 'block', fontSize: 12.5 }}>
               {user.name}
             </Text>
             <Text type="secondary" style={{ fontSize: 11 }}>
-              @{user.username}
+              {t(`role.${user.role}`)}
             </Text>
           </div>
         </div>

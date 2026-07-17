@@ -9,5 +9,7 @@ import { ClubsService } from './clubs.service';
   imports: [TypeOrmModule.forFeature([Club, User])],
   controllers: [ClubsController],
   providers: [ClubsService],
+  // SubscriptionModule shartnoma yaratish yo'lini qayta ishlatadi
+  exports: [ClubsService],
 })
 export class ClubsModule {}

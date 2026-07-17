@@ -27,6 +27,10 @@ export default {
     historyTitle: "To'lovlar tarixi",
     amount: 'Summa',
     receivedBy: 'Kim qabul qilgan',
+    historyEmpty: "To'lovlar hali yo'q",
+    // Bo'sh holat
+    emptyTitle: "Qarzlar yo'q",
+    emptyHint: "Bu filtr bo'yicha qarz yozuvlari topilmadi",
   },
   ru: {
     title: 'Книга долгов',
@@ -56,5 +60,9 @@ export default {
     historyTitle: 'История платежей',
     amount: 'Сумма',
     receivedBy: 'Кто принял',
+    historyEmpty: 'Платежей пока нет',
+    // Пустое состояние
+    emptyTitle: 'Долгов нет',
+    emptyHint: 'По этому фильтру долговых записей не найдено',
   },
 };

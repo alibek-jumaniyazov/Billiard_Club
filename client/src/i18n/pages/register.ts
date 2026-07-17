@@ -1,6 +1,7 @@
 export default {
   uz: {
-    title: "Bepul sinovni boshlang",
+    docTitle: "Ro'yxatdan o'tish — Prime Billiard",
+    title: 'Bepul sinovni boshlang',
     subtitle: "7 kun — to'lovsiz, karta talab qilinmaydi",
     step1: "Klub ma'lumotlari",
     step2: 'Kirish hisobingiz',
@@ -17,7 +18,7 @@ export default {
     usernameRequired: 'Login kiriting (kamida 3 belgi)',
     usernamePattern: 'Faqat lotin harflari, raqam va _ . - belgilari',
     password: 'Parol',
-    passwordRequired: 'Parol kiriting (kamida 6 belgi)',
+    passwordRequired: 'Parol kiriting (kamida 8 belgi)',
     confirmPassword: 'Parolni tasdiqlang',
     confirmRequired: 'Parolni qayta kiriting',
     confirmMismatch: 'Parollar mos kelmadi',
@@ -25,9 +26,9 @@ export default {
     haveAccount: 'Hisobingiz bormi?',
     loginLink: 'Kirish',
     successTitle: 'Tabriklaymiz! Klubingiz tayyor',
-    successDesc: '7 kunlik bepul sinov boshlandi. Tizimga kiritilmoqdasiz...',
   },
   ru: {
+    docTitle: 'Регистрация — Prime Billiard',
     title: 'Начните бесплатный период',
     subtitle: '7 дней — без оплаты, карта не требуется',
     step1: 'Данные клуба',
@@ -45,7 +46,7 @@ export default {
     usernameRequired: 'Введите логин (мин. 3 символа)',
     usernamePattern: 'Только латинские буквы, цифры и _ . -',
     password: 'Пароль',
-    passwordRequired: 'Введите пароль (мин. 6 символов)',
+    passwordRequired: 'Введите пароль (мин. 8 символов)',
     confirmPassword: 'Подтвердите пароль',
     confirmRequired: 'Повторите пароль',
     confirmMismatch: 'Пароли не совпадают',
@@ -53,6 +54,5 @@ export default {
     haveAccount: 'Уже есть аккаунт?',
     loginLink: 'Войти',
     successTitle: 'Поздравляем! Ваш клуб готов',
-    successDesc: 'Бесплатный период на 7 дней начался. Выполняется вход...',
   },
 };

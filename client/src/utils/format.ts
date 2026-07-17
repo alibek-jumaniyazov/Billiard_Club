@@ -32,3 +32,27 @@ export const formatElapsed = (ms: number): string => {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 };
+
+/** Soniyalarni HH:MM:SS ga aylantiradi (server durationSeconds uchun) */
+export const formatSeconds = (seconds: number | null | undefined): string =>
+  formatElapsed(Math.max(0, seconds ?? 0) * 1000);
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** ISO sana -> "HH:mm" (mahalliy vaqt) — "boshlandi" yorlig'i uchun */
+export const formatClock = (iso: string | number | Date | null | undefined): string => {
+  if (iso == null) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+
+/** ISO sana -> "DD.MM.YYYY HH:mm" (chek/chop etish uchun) */
+export const formatDateTime = (iso: string | number | Date | null | undefined): string => {
+  if (iso == null) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()} ${pad2(
+    d.getHours(),
+  )}:${pad2(d.getMinutes())}`;
+};

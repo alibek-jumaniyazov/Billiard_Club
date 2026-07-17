@@ -1,0 +1,86 @@
+export default {
+  uz: {
+    title: 'Xarajatlar',
+    subtitle: 'Klub chiqimlarini hisobga olish va nazorat qilish',
+    // Filtrlar
+    filterCategory: 'Toifa',
+    allCategories: 'Barcha toifalar',
+    // Yig'indi banner
+    statSum: "Filtr bo'yicha jami",
+    statCount: 'Yozuvlar soni',
+    // Jadval
+    categoryCol: 'Toifa',
+    amountCol: 'Summa',
+    descriptionCol: 'Izoh',
+    spentAtCol: 'Xarajat sanasi',
+    addedBy: 'Kim kiritgan',
+    // Yaratish / tahrirlash
+    addExpense: "Xarajat qo'shish",
+    editExpense: 'Xarajatni tahrirlash',
+    categoryLabel: 'Toifa',
+    categoryRequired: 'Toifani kiriting yoki tanlang',
+    categoryPlaceholder: "Tanlang yoki o'zingiz yozing",
+    amountLabel: 'Summa',
+    amountRequired: 'Summani kiriting',
+    amountInvalid: "Summa 0 dan katta bo'lishi kerak",
+    descriptionLabel: 'Izoh',
+    descriptionPlaceholder: 'Nimaga sarflandi (ixtiyoriy)',
+    dateLabel: 'Xarajat sanasi',
+    dateHint: "Bo'sh qoldirilsa — hozirgi vaqt olinadi",
+    // Toifa tarjimalari (server til-neytral kalitlar yuboradi)
+    'cat.rent': 'Ijara',
+    'cat.utilities': 'Kommunal',
+    'cat.salary': 'Oylik maosh',
+    'cat.products': 'Mahsulotlar',
+    'cat.equipment': 'Jihozlar',
+    'cat.repair': "Ta'mirlash",
+    'cat.marketing': 'Marketing',
+    'cat.tax': 'Soliq',
+    'cat.other': 'Boshqa',
+    // Bo'sh holat
+    emptyTitle: "Xarajatlar yo'q",
+    emptyHint: "Tanlangan davr uchun xarajat yozuvlari topilmadi",
+  },
+  ru: {
+    title: 'Расходы',
+    subtitle: 'Учёт и контроль расходов клуба',
+    // Фильтры
+    filterCategory: 'Категория',
+    allCategories: 'Все категории',
+    // Баннер с суммой
+    statSum: 'Итого по фильтру',
+    statCount: 'Количество записей',
+    // Таблица
+    categoryCol: 'Категория',
+    amountCol: 'Сумма',
+    descriptionCol: 'Комментарий',
+    spentAtCol: 'Дата расхода',
+    addedBy: 'Кто внёс',
+    // Создание / редактирование
+    addExpense: 'Добавить расход',
+    editExpense: 'Редактировать расход',
+    categoryLabel: 'Категория',
+    categoryRequired: 'Введите или выберите категорию',
+    categoryPlaceholder: 'Выберите или введите свою',
+    amountLabel: 'Сумма',
+    amountRequired: 'Введите сумму',
+    amountInvalid: 'Сумма должна быть больше 0',
+    descriptionLabel: 'Комментарий',
+    descriptionPlaceholder: 'На что потрачено (необязательно)',
+    dateLabel: 'Дата расхода',
+    dateHint: 'Если оставить пустым — берётся текущее время',
+    // Переводы категорий (сервер шлёт языконейтральные ключи)
+    'cat.rent': 'Аренда',
+    'cat.utilities': 'Коммунальные',
+    'cat.salary': 'Зарплата',
+    'cat.products': 'Товары',
+    'cat.equipment': 'Оборудование',
+    'cat.repair': 'Ремонт',
+    'cat.marketing': 'Маркетинг',
+    'cat.tax': 'Налоги',
+    'cat.other': 'Прочее',
+    // Пустое состояние
+    emptyTitle: 'Расходов нет',
+    emptyHint: 'За выбранный период записи о расходах не найдены',
+  },
+};

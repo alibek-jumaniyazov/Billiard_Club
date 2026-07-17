@@ -32,6 +32,11 @@ export default {
     priceRequired: 'Narxni kiriting',
     stockRequired: 'Qoldiqni kiriting',
     categoryNameRequired: 'Kategoriya nomini kiriting',
+    // Bo'sh holatlar
+    emptyProducts: "Mahsulotlar yo'q",
+    emptyProductsHint: "Birinchi mahsulotni qo'shing yoki qidiruv shartini o'zgartiring",
+    emptyCategories: "Kategoriyalar yo'q",
+    emptyCategoriesHint: "Mahsulotlarni guruhlash uchun kategoriya qo'shing",
   },
   ru: {
     title: 'Товары',
@@ -65,5 +70,10 @@ export default {
     priceRequired: 'Введите цену',
     stockRequired: 'Введите остаток',
     categoryNameRequired: 'Введите название категории',
+    // Пустые состояния
+    emptyProducts: 'Товаров нет',
+    emptyProductsHint: 'Добавьте первый товар или измените условие поиска',
+    emptyCategories: 'Категорий нет',
+    emptyCategoriesHint: 'Добавьте категорию для группировки товаров',
   },
 };

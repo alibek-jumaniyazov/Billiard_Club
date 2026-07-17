@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Dropdown,
+  Grid,
   Layout,
   Segmented,
   Space,
-  Switch,
   Tag,
   theme,
   Typography,
@@ -15,8 +15,6 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  MoonOutlined,
-  SunOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -26,6 +24,7 @@ import { viewingClub } from '../../api/client';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_TAG_COLORS } from '../../constants';
+import NotificationsBell from '../ui/NotificationsBell';
 
 const { Header: AntHeader } = Layout;
 const { Text } = Typography;
@@ -37,10 +36,11 @@ interface HeaderProps {
 
 const Header = ({ collapsed, onToggle }: HeaderProps) => {
   const { t } = useTranslation();
-  const { isDarkMode, toggleTheme, lang, setLang } = useAppSettings();
+  const { lang, setLang } = useAppSettings();
   const { user, club, logout } = useAuth();
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
 
   // Jonli soat (avval bir marta render bo'lib qotib qolardi)
   const [now, setNow] = useState(() => dayjs());
@@ -73,18 +73,25 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 16px',
+        // Karbon glass yuzasi — Layout headerBg ataylab transparent
+        background: 'rgba(10, 12, 11, 0.82)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
         borderBottom: `1px solid ${token.colorBorderSecondary}`,
       }}
     >
       <Space size="middle">
         <Button
           type="text"
+          aria-label="Menu"
           icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           onClick={onToggle}
         />
-        <Text type="secondary" style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {now.format('HH:mm — DD.MM.YYYY')}
-        </Text>
+        {screens.sm !== false && (
+          <Text type="secondary" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {now.format('HH:mm — DD.MM.YYYY')}
+          </Text>
+        )}
         {viewing && (
           <Tag
             color="purple"
@@ -118,16 +125,18 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
             { label: 'Ру', value: 'ru' },
           ]}
         />
-        <Switch
-          checked={isDarkMode}
-          onChange={toggleTheme}
-          checkedChildren={<MoonOutlined />}
-          unCheckedChildren={<SunOutlined />}
-        />
+        <NotificationsBell />
         {user && (
           <Dropdown
             menu={{
               items: [
+                {
+                  key: 'profile',
+                  icon: <UserOutlined />,
+                  label: t('menu.profile'),
+                  onClick: () => navigate('/profile'),
+                },
+                { type: 'divider' as const },
                 {
                   key: 'logout',
                   icon: <LogoutOutlined />,
@@ -140,12 +149,14 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
             trigger={['click']}
           >
             <Button type="text" icon={<UserOutlined />}>
-              <Space size={6}>
-                {user.name}
-                <Tag color={ROLE_TAG_COLORS[user.role]} style={{ marginInlineEnd: 0 }}>
-                  {t(`role.${user.role}`)}
-                </Tag>
-              </Space>
+              {screens.md !== false && (
+                <Space size={6}>
+                  {user.name}
+                  <Tag color={ROLE_TAG_COLORS[user.role]} style={{ marginInlineEnd: 0 }}>
+                    {t(`role.${user.role}`)}
+                  </Tag>
+                </Space>
+              )}
             </Button>
           </Dropdown>
         )}

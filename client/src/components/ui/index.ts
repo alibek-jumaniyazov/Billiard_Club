@@ -1,0 +1,10 @@
+/** Umumiy UI primitivlari — barrel eksport */
+export { default as BrandLogo } from './BrandLogo';
+export { default as EmptyState } from './EmptyState';
+export { default as GlassCard } from './GlassCard';
+export { default as MoneyText } from './MoneyText';
+export { default as PageHeader } from './PageHeader';
+export { default as PageTransition } from './PageTransition';
+export { default as StatCard } from './StatCard';
+export { default as StatusTag } from './StatusTag';
+export { TickerProvider, useNow, ElapsedTime } from './Ticker';

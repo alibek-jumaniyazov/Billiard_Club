@@ -15,6 +15,14 @@ import register from './pages/register';
 import landing from './pages/landing';
 import adminClubs from './pages/adminClubs';
 import locked from './pages/locked';
+import subscription from './pages/subscription';
+import profile from './pages/profile';
+import customers from './pages/customers';
+import expenses from './pages/expenses';
+import reservations from './pages/reservations';
+import feedback from './pages/feedback';
+import notifications from './pages/notifications';
+import admin from './pages/admin';
 
 export type Lang = 'uz' | 'ru';
 
@@ -36,6 +44,14 @@ const pages: Record<string, PageDict> = {
   landing,
   adminClubs,
   locked,
+  subscription,
+  profile,
+  customers,
+  expenses,
+  reservations,
+  feedback,
+  notifications,
+  admin,
 };
 
 const buildLocale = (lang: Lang): Record<string, string> => {

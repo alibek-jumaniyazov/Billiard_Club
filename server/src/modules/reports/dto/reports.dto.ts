@@ -30,4 +30,17 @@ export class ReportQueryDto {
   @IsOptional()
   @IsString()
   to?: string;
+
+  /** Sessiyalar ro'yxati sahifalash (limit servisda 100 bilan chegaralanadi) */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  page?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  limit?: number;
 }

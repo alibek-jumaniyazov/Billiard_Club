@@ -1,17 +1,28 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Not, Repository } from 'typeorm';
+import { DataSource, In, Not, Repository } from 'typeorm';
 import { SessionStatus } from '../../entities/enums';
 import { Session } from '../../entities/session.entity';
 import { Table } from '../../entities/table.entity';
+import { safeTimezone } from '../settings/timezones';
 import { CreateTableDto, UpdateTableDto } from './dto/tables.dto';
 
 @Injectable()
 export class TablesService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(Table) private readonly tableRepo: Repository<Table>,
     @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
   ) {}
+
+  /** Klub vaqt mintaqasi — "bugun" chegarasi shu mintaqada (dashboard bilan bir xil) */
+  private async clubTimezone(clubId: number): Promise<string> {
+    const rows: Array<{ timezone: string | null }> = await this.dataSource.query(
+      `SELECT s.timezone FROM settings s WHERE s."clubId" = $1`,
+      [clubId],
+    );
+    return safeTimezone(rows[0]?.timezone);
+  }
 
   /** Stollar + joriy faol sessiyalar + bugungi yakunlangan o'yinlar soni (bitta so'rovda, N+1 siz) */
   async findAll(clubId: number) {
@@ -31,15 +42,18 @@ export class TablesService {
     });
     const activeByTable = new Map(activeSessions.map((s) => [s.tableId, s]));
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // "Bugun" — klub vaqt mintaqasida (server-lokal yarim tun EMAS)
+    const tz = await this.clubTimezone(clubId);
     const counts: Array<{ tableId: number; cnt: string }> = await this.sessionRepo
       .createQueryBuilder('session')
       .select('session.tableId', 'tableId')
       .addSelect('COUNT(*)', 'cnt')
       .where('session.tableId IN (:...tableIds)', { tableIds })
       .andWhere('session.status = :status', { status: SessionStatus.COMPLETED })
-      .andWhere('session.endTime >= :today', { today })
+      .andWhere(
+        `session."endTime" >= (date_trunc('day', now() AT TIME ZONE :tz) AT TIME ZONE :tz)`,
+        { tz },
+      )
       .groupBy('session.tableId')
       .getRawMany();
     const countByTable = new Map(counts.map((c) => [Number(c.tableId), parseInt(c.cnt, 10)]));

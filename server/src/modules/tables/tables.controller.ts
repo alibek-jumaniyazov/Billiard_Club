@@ -23,13 +23,14 @@ export class TablesController {
   @Get()
   async findAll(@ClubId() clubId: number) {
     const data = await this.tablesService.findAll(clubId);
-    return { success: true, data };
+    // serverNow — mijoz soat siljishini (clock offset) hisoblab, driftsiz tiker yuritishi uchun
+    return { success: true, data, serverNow: new Date().toISOString() };
   }
 
   @Get(':id')
   async findOne(@ClubId() clubId: number, @Param('id', ParseIntPipe) id: number) {
     const data = await this.tablesService.findOne(clubId, id);
-    return { success: true, data };
+    return { success: true, data, serverNow: new Date().toISOString() };
   }
 
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
