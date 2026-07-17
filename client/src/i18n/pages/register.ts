@@ -1,6 +1,6 @@
 export default {
   uz: {
-    docTitle: "Ro'yxatdan o'tish — Prime Billiard",
+    docTitle: "Ro'yxatdan o'tish — Billiard Club",
     title: 'Bepul sinovni boshlang',
     subtitle: "7 kun — to'lovsiz, karta talab qilinmaydi",
     step1: "Klub ma'lumotlari",
@@ -29,7 +29,7 @@ export default {
     backHome: 'Bosh sahifa',
   },
   ru: {
-    docTitle: 'Регистрация — Prime Billiard',
+    docTitle: 'Регистрация — Billiard Club',
     title: 'Начните бесплатный период',
     subtitle: '7 дней — без оплаты, карта не требуется',
     step1: 'Данные клуба',

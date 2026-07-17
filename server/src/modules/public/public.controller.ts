@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
@@ -33,5 +33,12 @@ export class PublicController {
     // Avto-login login bilan bir xil: refresh FAQAT httpOnly cookie orqali
     this.authService.setRefreshCookie(res, refreshToken);
     return { success: true, message: t(lang, 'clubs.created'), data };
+  }
+
+  /** Landing uchun faol tariflar — autentifikatsiyasiz ochiq ro'yxat */
+  @Public()
+  @Get('plans')
+  async plans() {
+    return { success: true, data: await this.publicService.plans() };
   }
 }

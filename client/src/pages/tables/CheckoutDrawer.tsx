@@ -602,7 +602,7 @@ const CheckoutDrawer = ({
     const row = (label: string, value: string, bold = false) =>
       lines.push(`<div class="r${bold ? ' b' : ''}"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`);
 
-    lines.push(`<h1>${escapeHtml(clubName || 'Prime Billiard')}</h1>`);
+    lines.push(`<h1>${escapeHtml(clubName || 'Billiard Club')}</h1>`);
     lines.push(
       `<div class="c">${escapeHtml(`${t('common.table')} ${table?.number ?? ''} — ${table?.name ?? ''}`)}<br>${escapeHtml(formatDateTime(new Date()))}</div>`,
     );

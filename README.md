@@ -1,4 +1,4 @@
-# Prime Billiard — Billiard klublar uchun boshqaruv tizimi (SaaS)
+# Billiard Club — Billiard klublar uchun boshqaruv tizimi (SaaS)
 
 Billiard klublariga **oylik obuna** asosida sotiladigan, ko'p-klubli (multi-tenant) boshqaruv tizimi:
 stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun klublarni boshqarish paneli.

@@ -1,7 +1,7 @@
 /** Obuna blok ekrani — tariflar/xarid matnlari subscription.* dan olinadi */
 export default {
   uz: {
-    docTitle: 'Obuna — Prime Billiard',
+    docTitle: 'Obuna — Billiard Club',
     expiredTitle: 'Obuna muddati tugagan',
     expiredDesc:
       "Klubingizning obuna muddati tugadi. Quyidagi tariflardan birini tanlab obunani darhol uzaytirishingiz mumkin.",
@@ -24,7 +24,7 @@ export default {
     backHome: 'Bosh sahifa',
   },
   ru: {
-    docTitle: 'Подписка — Prime Billiard',
+    docTitle: 'Подписка — Billiard Club',
     expiredTitle: 'Срок подписки истёк',
     expiredDesc:
       'Срок подписки вашего клуба истёк. Выберите один из тарифов ниже, чтобы продлить её прямо сейчас.',

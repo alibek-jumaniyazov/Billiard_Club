@@ -14,7 +14,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { DataSource, IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
 import { Club } from '../../entities/club.entity';
-import { UserRole } from '../../entities/enums';
 import { RefreshSession } from '../../entities/refresh-session.entity';
 import { User } from '../../entities/user.entity';
 import { TelegramService } from '../../telegram/telegram.service';
@@ -342,11 +341,6 @@ export class AuthService {
       ip: ctx.ip,
       userAgent: ctx.userAgent,
     });
-
-    // Klub egalari (admin) va superadmin kirishlari haqida Telegram xabar
-    if (user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN) {
-      void this.telegram.notifyLogin(user, club, ctx.ip ?? '-');
-    }
 
     return { user: this.sanitize(user), club: this.clubInfo(club), ...tokens };
   }

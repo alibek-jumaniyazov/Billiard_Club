@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://primebilliard.uz/sitemap.xml
+Sitemap: https://billiardclub.uz/sitemap.xml

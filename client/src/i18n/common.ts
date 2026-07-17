@@ -1,7 +1,7 @@
 /** Umumiy tarjimalar — barcha sahifalarda ishlatiladi */
 const common = {
   uz: {
-    appName: 'Prime Billiard',
+    appName: 'Billiard Club',
     // Menyu
     'menu.dashboard': 'Bosh sahifa',
     'menu.tables': 'Stollar',
@@ -107,7 +107,7 @@ const common = {
     'error.reload': 'Sahifani yangilash',
   },
   ru: {
-    appName: 'Prime Billiard',
+    appName: 'Billiard Club',
     // Меню
     'menu.dashboard': 'Главная',
     'menu.tables': 'Столы',

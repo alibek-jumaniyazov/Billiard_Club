@@ -13,7 +13,7 @@ interface BrandLogoProps {
 const { gold, emerald, text } = TOKENS.color;
 
 /**
- * Prime Billiard brend belgisi — zumrad mato ustidagi oltin soqqa va kiy.
+ * Billiard Club brend belgisi — zumrad mato ustidagi oltin soqqa va kiy.
  * Sidebar, Login, Register va Landing bitta shu komponentdan foydalanadi
  * (avval 4 joyda har xil nusxa bor edi).
  */
@@ -33,7 +33,7 @@ const BrandLogo = ({ size = 40, withWordmark = false, style, className }: BrandL
       height={size}
       viewBox="0 0 48 48"
       role="img"
-      aria-label="Prime Billiard"
+      aria-label="Billiard Club"
       style={{ flexShrink: 0, display: 'block' }}
     >
       <defs>
@@ -75,7 +75,7 @@ const BrandLogo = ({ size = 40, withWordmark = false, style, className }: BrandL
       <circle cx="29" cy="28" r="10" fill="url(#pb-ball)" />
       {/* Soqqadagi yaltirash */}
       <circle cx="25.5" cy="24.5" r="3" fill="#fff" fillOpacity="0.55" />
-      {/* Soqqa raqam doirasi — zumrad "P" */}
+      {/* Soqqa raqam doirasi — zumrad "B" */}
       <circle cx="31" cy="30.5" r="4.4" fill={emerald.deepest} fillOpacity="0.9" />
       <text
         x="31"
@@ -86,7 +86,7 @@ const BrandLogo = ({ size = 40, withWordmark = false, style, className }: BrandL
         fill={gold.hover}
         fontFamily="inherit"
       >
-        P
+        B
       </text>
     </svg>
     {withWordmark && (
@@ -99,7 +99,7 @@ const BrandLogo = ({ size = 40, withWordmark = false, style, className }: BrandL
           whiteSpace: 'nowrap',
         }}
       >
-        PRIME <span style={{ color: gold.base }}>BILLIARD</span>
+        BILLIARD <span style={{ color: gold.base }}>CLUB</span>
       </span>
     )}
   </span>

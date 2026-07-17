@@ -342,6 +342,8 @@ export const adminApi = {
 
 /** Landing sahifadan ro'yxatdan o'tish (autentifikatsiyasiz) */
 export const publicApi = {
+  /** Ommaviy tariflar — superadmin boshqaradigan faol tariflar (landing narxlari) */
+  plans: () => get<Plan[]>('/public/plans'),
   register: (body: {
     clubName: string;
     ownerName: string;

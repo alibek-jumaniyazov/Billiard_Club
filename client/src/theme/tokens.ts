@@ -1,7 +1,7 @@
 import { theme as antTheme, type ThemeConfig } from 'antd';
 
 /**
- * PRIME BILLIARD — dizayn tokenlarining YAGONA manbasi.
+ * BILLIARD CLUB — dizayn tokenlarining YAGONA manbasi.
  *
  * Estetika: hashamatli billiard klubi — boy, chuqur qarag'ay-karbon yuzalar
  * (zich qora EMAS — har bir qatlam aniq ajralib turadi), to'q zumrad (mato)

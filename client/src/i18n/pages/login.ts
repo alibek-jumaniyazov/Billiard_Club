@@ -1,6 +1,6 @@
 export default {
   uz: {
-    docTitle: 'Kirish — Prime Billiard',
+    docTitle: 'Kirish — Billiard Club',
     title: 'Tizimga kirish',
     subtitle: 'Billiard klub boshqaruv tizimi',
     username: 'Username',
@@ -14,7 +14,7 @@ export default {
     backHome: 'Bosh sahifa',
   },
   ru: {
-    docTitle: 'Вход — Prime Billiard',
+    docTitle: 'Вход — Billiard Club',
     title: 'Вход в систему',
     subtitle: 'Система управления бильярдным клубом',
     username: 'Имя пользователя',

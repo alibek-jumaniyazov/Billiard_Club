@@ -6,13 +6,13 @@
 export default {
   uz: {
     // SEO meta (useDocumentHead)
-    metaTitle: 'Prime Billiard — billiard klublari uchun boshqaruv tizimi',
+    metaTitle: 'Billiard Club — billiard klublari uchun boshqaruv tizimi',
     metaDescription:
       "Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. 7 kun bepul sinab ko'ring.",
-    metaLoginTitle: 'Kirish — Prime Billiard',
+    metaLoginTitle: 'Kirish — Billiard Club',
     metaLoginDescription:
-      "Prime Billiard hisobingizga kiring va klubingizni istalgan qurilmadan boshqaring.",
-    metaRegisterTitle: "7 kun bepul sinov — Prime Billiard",
+      "Billiard Club hisobingizga kiring va klubingizni istalgan qurilmadan boshqaring.",
+    metaRegisterTitle: "7 kun bepul sinov — Billiard Club",
     metaRegisterDescription:
       "1 daqiqada ro'yxatdan o'ting va billiard klubingizni 7 kun bepul boshqaring. Karta talab qilinmaydi.",
     // Navigatsiya
@@ -31,6 +31,7 @@ export default {
     heroCta: '7 kunlik bepul sinovni boshlash',
     heroSecondary: "Imkoniyatlarni ko'rish",
     heroNote: "Karta talab qilinmaydi · 5 daqiqada ishga tushadi",
+    heroTableHint: 'Soqqani teshikka urib tushiring 🎯',
     // Ijtimoiy isbot — ko'rsatkichlar
     stat1Value: 'Real vaqt',
     stat1Label: 'stollar jonli nazoratda',
@@ -44,7 +45,7 @@ export default {
     featuresOverline: 'Imkoniyatlar',
     featuresTitle: 'Klubingiz uchun barcha zarur vositalar',
     featuresSubtitle:
-      "Prime Billiard kundalik ishlarni avtomatlashtiradi — siz esa mehmonlarga e'tibor qaratasiz.",
+      "Billiard Club kundalik ishlarni avtomatlashtiradi — siz esa mehmonlarga e'tibor qaratasiz.",
     feature1Title: 'Jonli stol taymerlari',
     feature1Desc:
       "Har bir stol uchun aniq taymer: vaqt avtomatik hisoblanadi, pauza va davom ettirish bir bosishda, summa o'zi chiqadi.",
@@ -160,17 +161,17 @@ export default {
     footerTagline: 'Billiard klublari uchun premium boshqaruv tizimi.',
     footerProduct: 'Mahsulot',
     footerAccount: 'Hisob',
-    footerLegal: '© {{year}} Prime Billiard. Barcha huquqlar himoyalangan.',
+    footerLegal: '© {{year}} Billiard Club. Barcha huquqlar himoyalangan.',
   },
   ru: {
     // SEO meta (useDocumentHead)
-    metaTitle: 'Prime Billiard — система управления бильярдным клубом',
+    metaTitle: 'Billiard Club — система управления бильярдным клубом',
     metaDescription:
       'Живые таймеры столов, бар POS, журнал долгов и финансовые отчёты — единая облачная система для вашего бильярдного клуба. Попробуйте 7 дней бесплатно.',
-    metaLoginTitle: 'Вход — Prime Billiard',
+    metaLoginTitle: 'Вход — Billiard Club',
     metaLoginDescription:
-      'Войдите в аккаунт Prime Billiard и управляйте клубом с любого устройства.',
-    metaRegisterTitle: '7 дней бесплатно — Prime Billiard',
+      'Войдите в аккаунт Billiard Club и управляйте клубом с любого устройства.',
+    metaRegisterTitle: '7 дней бесплатно — Billiard Club',
     metaRegisterDescription:
       'Зарегистрируйтесь за 1 минуту и управляйте бильярдным клубом 7 дней бесплатно. Карта не требуется.',
     // Навигация
@@ -189,6 +190,7 @@ export default {
     heroCta: 'Начать 7 дней бесплатно',
     heroSecondary: 'Смотреть возможности',
     heroNote: 'Карта не требуется · запуск за 5 минут',
+    heroTableHint: 'Забейте шар в лузу 🎯',
     // Социальное доказательство — показатели
     stat1Value: 'Реальное время',
     stat1Label: 'живой контроль столов',
@@ -202,7 +204,7 @@ export default {
     featuresOverline: 'Возможности',
     featuresTitle: 'Все необходимые инструменты для клуба',
     featuresSubtitle:
-      'Prime Billiard автоматизирует рутину — а вы сосредоточьтесь на гостях.',
+      'Billiard Club автоматизирует рутину — а вы сосредоточьтесь на гостях.',
     feature1Title: 'Живые таймеры столов',
     feature1Desc:
       'Точный таймер для каждого стола: время считается автоматически, пауза и продолжение в один клик, сумма выводится сама.',
@@ -318,6 +320,6 @@ export default {
     footerTagline: 'Премиальная система управления бильярдными клубами.',
     footerProduct: 'Продукт',
     footerAccount: 'Аккаунт',
-    footerLegal: '© {{year}} Prime Billiard. Все права защищены.',
+    footerLegal: '© {{year}} Billiard Club. Все права защищены.',
   },
 };

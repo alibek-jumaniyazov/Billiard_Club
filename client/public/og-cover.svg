@@ -50,7 +50,7 @@
   </g>
 
   <!-- Sarlavha -->
-  <text x="96" y="286" font-family="Segoe UI, Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="4" fill="#e8ebe9">PRIME <tspan fill="#d4af37">BILLIARD</tspan></text>
+  <text x="96" y="286" font-family="Segoe UI, Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="4" fill="#e8ebe9">BILLIARD <tspan fill="#d4af37">CLUB</tspan></text>
   <text x="96" y="352" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="500" fill="#a9b3ad">Billiard klublari uchun boshqaruv tizimi</text>
   <text x="96" y="400" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="#717c76">Stol taymerlari · Bar POS · Qarzlar · Hisobotlar</text>
 

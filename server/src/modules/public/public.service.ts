@@ -4,6 +4,7 @@ import * as bcrypt from 'bcryptjs';
 import { DataSource, Repository } from 'typeorm';
 import { Club } from '../../entities/club.entity';
 import { ClubStatus, UserRole } from '../../entities/enums';
+import { Plan } from '../../entities/plan.entity';
 import { Settings } from '../../entities/settings.entity';
 import { User } from '../../entities/user.entity';
 import { TelegramService } from '../../telegram/telegram.service';
@@ -20,7 +21,20 @@ export class PublicService {
     private readonly telegram: TelegramService,
     private readonly authService: AuthService,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
   ) {}
+
+  /**
+   * Landing sahifa uchun faol tariflar katalogi — superadmin boshqaradigan
+   * tariflarning aynan o'zi (autentifikatsiyasiz). Tartib SubscriptionService.plans()
+   * bilan bir xil: avval sortOrder, so'ng narx bo'yicha o'sish tartibida.
+   */
+  async plans() {
+    return this.planRepo.find({
+      where: { isActive: true },
+      order: { sortOrder: 'ASC', price: 'ASC' },
+    });
+  }
 
   /**
    * Landing sahifadan ro'yxatdan o'tish:

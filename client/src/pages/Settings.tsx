@@ -189,7 +189,7 @@ const Settings = () => {
                       label={t('settings.clubName')}
                       rules={[{ required: true, message: t('settings.clubNameRequired') }]}
                     >
-                      <Input maxLength={150} placeholder="Prime Billiard Club" />
+                      <Input maxLength={150} placeholder="Billiard Club" />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>

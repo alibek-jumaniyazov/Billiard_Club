@@ -19,9 +19,9 @@ export type TelegramEvent =
   | 'critical_error'
   | 'subscription_expiring';
 
-/** Standart holat: barcha hodisalar YOQILGAN */
+/** Standart holat: 'login'dan tashqari barcha hodisalar YOQILGAN (kirish xabarlari o'chirilgan) */
 export const DEFAULT_TELEGRAM_EVENTS: Record<TelegramEvent, boolean> = {
-  login: true,
+  login: false,
   new_trial: true,
   new_club: true,
   payment: true,
@@ -70,21 +70,6 @@ export class TelegramService {
     }
     if (!(await this.isEventEnabled(eventOrText))) return;
     return this.send(html);
-  }
-
-  /** Tizimga kirish haqida xabar */
-  async notifyLogin(user: User, club: Club | null, ip: string): Promise<void> {
-    await this.notify(
-      'login',
-      [
-        '🔐 <b>Tizimga kirish</b>',
-        '',
-        `👤 Foydalanuvchi: <b>${this.escapeHtml(user.name)}</b> (<code>${this.escapeHtml(user.username)}</code>)`,
-        `🎭 Rol: ${this.escapeHtml(user.role)}`,
-        `🏢 Klub: ${club ? `<b>${this.escapeHtml(club.name)}</b>` : '—'}`,
-        `🌐 IP: <code>${this.escapeHtml(ip || '-')}</code>`,
-      ].join('\n'),
-    );
   }
 
   /** Landing orqali yangi sinov klubi ro'yxatdan o'tdi */

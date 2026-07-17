@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Avatar, Button, Col, Collapse, Drawer, Row, Segmented } from 'antd';
 import {
@@ -32,14 +32,16 @@ import {
 import { useAppSettings } from '../context/AppSettingsContext';
 import { SUPPORT_PHONE, SUPPORT_TELEGRAM } from '../constants';
 import { TOKENS } from '../theme/tokens';
-import { AnimatedBackground, BrandLogo, GlassCard } from '../components/ui';
+import { AnimatedBackground, BilliardTable, BrandLogo, GlassCard } from '../components/ui';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { formatNumber } from '../utils/format';
+import { publicApi } from '../api';
+import type { Plan } from '../types';
 
 const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
 
 /** Aloqa emaili (kontakt bo'limi) — env orqali sozlanadi */
-const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || 'support@primebilliard.uz';
+const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || 'support@billiardclub.uz';
 
 /** Token hexini shaffof rgba() ga aylantiradi — sahifada hex takrorlanmasin */
 const hexToRgba = (hex: string, alpha: number): string => {
@@ -96,12 +98,10 @@ const PLAN_FEATURE_KEYS = ['planFeat1', 'planFeat2', 'planFeat3', 'planFeat4'] a
 const FAQ_COUNT = 7;
 
 /**
- * Tariflar — serverdagi seed qiymatlarining statik nusxasi
- * (server/src/database/seed.ts: monthly 290 000 / semiannual 1 490 000 /
- * yearly 2 490 000 so'm). GET /subscription/plans autentifikatsiya talab
- * qiladi (@Roles(ADMIN)), shuning uchun ommaviy landing tariflari i18n +
- * shu konstantalardan chiziladi. Ochiq @Public endpoint qo'shilsa, shu
- * ro'yxat o'rniga subscriptionApi.plans() dan olish mumkin.
+ * Tariflar — ZAXIRA ro'yxati. Sahifa ochilganda ommaviy GET /public/plans
+ * (superadmin boshqaradigan faol tariflar) so'raladi va shu ro'yxat o'rniga
+ * qo'yiladi. So'rov muvaffaqiyatsiz bo'lsa yoki tarif bo'lmasa — quyidagi
+ * statik nusxa ko'rsatiladi (sahifa hech qachon bo'sh ko'rinmaydi).
  */
 interface PlanTier {
   code: 'monthly' | 'semiannual' | 'yearly';
@@ -140,6 +140,17 @@ const PLAN_TIERS: PlanTier[] = [
     highlighted: true,
   },
 ];
+
+/** Tarif kartasi — jonli (API) yoki zaxira (PLAN_TIERS) uchun yagona ko'rinish shakli */
+interface PlanCard {
+  key: string;
+  name: string;
+  periodLabel: string;
+  price: number;
+  months: number;
+  savePercent: number;
+  highlighted: boolean;
+}
 
 const TESTIMONIALS = [
   { k: 't1', color: gold.base },
@@ -224,90 +235,6 @@ const FloatingBall = ({ ball }: { ball: FloatingBallSpec }) => (
   </motion.div>
 );
 
-/* --------------------------------------------- Billiard stoli illyustratsiyasi */
-
-const POCKETS: CSSProperties[] = [
-  { left: 10, top: 10 },
-  { right: 10, top: 10 },
-  { left: 10, bottom: 10 },
-  { right: 10, bottom: 10 },
-  { left: '50%', top: 6, transform: 'translateX(-50%)' },
-  { left: '50%', bottom: 6, transform: 'translateX(-50%)' },
-];
-
-const TABLE_BALLS = [
-  { color: text.primary, left: '16%', top: '56%', size: 34, delay: 0 },
-  { color: semantic.error, left: '52%', top: '28%', size: 28, delay: 1.1 },
-  { color: gold.base, left: '64%', top: '58%', size: 28, delay: 2.2 },
-  { color: semantic.info, left: '79%', top: '34%', size: 28, delay: 0.6 },
-];
-
-const TableIllustration = () => (
-  <div
-    aria-hidden
-    style={{
-      borderRadius: TOKENS.radius.xl + 4,
-      padding: 'clamp(10px, 2vw, 16px)',
-      background: `linear-gradient(140deg, ${gold.active}, ${gold.dim} 55%, ${gold.active})`,
-      border: `1px solid ${gold.line}`,
-      boxShadow: '0 40px 90px rgba(0, 0, 0, 0.55)',
-    }}
-  >
-    <div
-      style={{
-        position: 'relative',
-        borderRadius: TOKENS.radius.lg,
-        aspectRatio: '16 / 10',
-        overflow: 'hidden',
-        background: `radial-gradient(ellipse at 50% 30%, ${emerald.base} 0%, ${emerald.felt} 55%, ${emerald.deepest} 100%)`,
-        boxShadow: 'inset 0 0 70px rgba(0, 0, 0, 0.55)',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          left: '26%',
-          top: 0,
-          bottom: 0,
-          width: 1,
-          background: 'rgba(255, 255, 255, 0.1)',
-        }}
-      />
-      {POCKETS.map((pos, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            width: 20,
-            height: 20,
-            borderRadius: '50%',
-            background: 'radial-gradient(circle at 40% 35%, rgba(30, 30, 30, 1), rgba(0, 0, 0, 1))',
-            ...pos,
-          }}
-        />
-      ))}
-      {TABLE_BALLS.map((ball, i) => (
-        <motion.span
-          key={i}
-          animate={{ y: [0, -8, 0] }}
-          transition={{ duration: 7.5, repeat: Infinity, ease: 'easeInOut', delay: ball.delay }}
-          style={{
-            position: 'absolute',
-            left: ball.left,
-            top: ball.top,
-            width: ball.size,
-            height: ball.size,
-            borderRadius: '50%',
-            background: `radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.92) 0%, ${ball.color} 38%, ${ball.color} 68%, rgba(0, 0, 0, 0.45) 115%)`,
-            boxShadow: '0 8px 14px rgba(0, 0, 0, 0.45)',
-            willChange: 'transform',
-          }}
-        />
-      ))}
-    </div>
-  </div>
-);
-
 /* ------------------------------------------------- Bo'lim ajratuvchi qatlam */
 
 /** Bo'limlar orasidagi yumshoq gradient o'tish (zumrad → shaffof) —
@@ -387,6 +314,56 @@ const Landing = () => {
   useMotionValueEvent(scrollY, 'change', (y) => setNavScrolled(y > 40));
 
   useDocumentHead('landing.metaTitle', 'landing.metaDescription');
+
+  /* Ommaviy tariflar — superadmin boshqaradigan faol tariflar (GET /public/plans).
+     So'rov muvaffaqiyatsiz bo'lsa yoki bo'sh bo'lsa PLAN_TIERS zaxirasi ishlaydi. */
+  const [livePlans, setLivePlans] = useState<Plan[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    publicApi
+      .plans()
+      .then((res) => {
+        if (alive) setLivePlans(res.data);
+      })
+      .catch(() => {
+        /* zaxira ro'yxati ishlatiladi */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const planCards = useMemo<PlanCard[]>(() => {
+    if (livePlans && livePlans.length > 0) {
+      const sorted = [...livePlans].sort((a, b) => a.durationDays - b.durationDays);
+      const base = sorted[0];
+      const perDayBase = base.price / Math.max(1, base.durationDays);
+      // Faqat bitta karta ajratiladi — eng uzoq muddatlisi (teng bo'lsa oxirgisi)
+      return sorted.map((p, i) => ({
+        key: p.code,
+        name: lang === 'ru' ? p.nameRu : p.nameUz,
+        periodLabel: `${p.durationDays} ${t('common.days')}`,
+        price: p.price,
+        months: Math.max(1, Math.round(p.durationDays / 30)),
+        savePercent: perDayBase
+          ? Math.max(
+              0,
+              Math.round((1 - p.price / Math.max(1, p.durationDays) / perDayBase) * 100),
+            )
+          : 0,
+        highlighted: sorted.length > 1 && i === sorted.length - 1,
+      }));
+    }
+    return PLAN_TIERS.map((p) => ({
+      key: p.code,
+      name: t(`landing.${p.nameKey}`),
+      periodLabel: t(`landing.${p.periodKey}`),
+      price: p.price,
+      months: p.months,
+      savePercent: p.savePercent,
+      highlighted: Boolean(p.highlighted),
+    }));
+  }, [livePlans, lang, t]);
 
   const telegramHandle = SUPPORT_TELEGRAM.replace(/^https?:\/\/t\.me\//, '@');
 
@@ -507,8 +484,39 @@ const Landing = () => {
             from { background-position: 0% 50%; }
             to { background-position: 200% 50%; }
           }
+          /* CTA tugmasi — jonli oltin gradient sekin oqadi (e'tiborni tortish uchun).
+             .ant-btn xususiyligini yengish uchun !important; faqat background-position
+             animatsiya qilinadi (arzon repaint). */
+          .lp-cta-btn.ant-btn {
+            border: none !important;
+            color: ${gold.contrast} !important;
+            font-weight: 700 !important;
+            background-image: linear-gradient(100deg, ${gold.active} 0%, ${gold.hover} 22%, ${gold.base} 45%, ${gold.hover} 68%, ${gold.active} 100%) !important;
+            background-size: 220% 100% !important;
+            box-shadow: 0 6px 22px ${gold.glow};
+            animation: lp-cta-slide 4.5s linear infinite;
+          }
+          .lp-cta-btn.ant-btn:hover { filter: brightness(1.07); }
+          .lp-cta-btn.ant-btn:active { filter: brightness(0.95); }
+          @keyframes lp-cta-slide {
+            from { background-position: 0% 50%; }
+            to { background-position: 220% 50%; }
+          }
+          /* Konturli tugma — "ghost" o'rniga: hoverdan oldin ham aniq ko'rinadi */
+          .lp-outline-btn.ant-btn {
+            color: ${gold.base} !important;
+            border: 1px solid ${gold.line} !important;
+            background: ${gold.subtle} !important;
+            font-weight: 600 !important;
+          }
+          .lp-outline-btn.ant-btn:hover {
+            color: ${gold.hover} !important;
+            border-color: ${gold.base} !important;
+            background: rgba(212, 175, 55, 0.18) !important;
+          }
           @media (prefers-reduced-motion: reduce) {
             .lp-plan-glow::before { animation: none; }
+            .lp-cta-btn.ant-btn { animation: none; }
           }
         `}</style>
 
@@ -537,7 +545,7 @@ const Landing = () => {
               gap: 12,
             }}
           >
-            <Link to="/" aria-label="Prime Billiard">
+            <Link to="/" aria-label="Billiard Club">
               <span className="lp-brand-full">
                 <BrandLogo size={34} withWordmark />
               </span>
@@ -553,10 +561,10 @@ const Landing = () => {
                 </a>
               ))}
               {langSwitcher()}
-              <Button ghost onClick={() => navigate('/login')}>
+              <Button className="lp-outline-btn" onClick={() => navigate('/login')}>
                 {t('landing.navLogin')}
               </Button>
-              <Button type="primary" onClick={() => navigate('/register')}>
+              <Button type="primary" className="lp-cta-btn" onClick={() => navigate('/register')}>
                 {t('landing.navCta')}
               </Button>
             </nav>
@@ -609,6 +617,7 @@ const Landing = () => {
               block
               size="large"
               type="primary"
+              className="lp-cta-btn"
               onClick={() => {
                 setMenuOpen(false);
                 navigate('/register');
@@ -704,14 +713,15 @@ const Landing = () => {
                       <Button
                         type="primary"
                         size="large"
+                        className="lp-cta-btn"
                         style={{ height: 52, padding: '0 32px', fontSize: 16, fontWeight: 600 }}
                         onClick={() => navigate('/register')}
                       >
                         {t('landing.heroCta')} <ArrowRightOutlined />
                       </Button>
                       <Button
-                        ghost
                         size="large"
+                        className="lp-outline-btn"
                         style={{ height: 52, padding: '0 28px', fontSize: 16 }}
                         href="#features"
                       >
@@ -732,7 +742,7 @@ const Landing = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.8, ease: TOKENS.motion.easing.out, delay: 0.25 }}
                   >
-                    <TableIllustration />
+                    <BilliardTable hint={t('landing.heroTableHint')} />
                   </motion.div>
                 </Col>
               </Row>
@@ -942,8 +952,8 @@ const Landing = () => {
                 viewport={{ once: true, amount: 0.1 }}
               >
                 <Row gutter={[24, 32]} align="stretch">
-                  {PLAN_TIERS.map((plan) => (
-                    <Col xs={24} md={8} key={plan.code}>
+                  {planCards.map((plan) => (
+                    <Col xs={24} md={8} key={plan.key}>
                       <motion.div variants={fadeUp} style={{ height: '100%' }}>
                         <div
                           className={plan.highlighted ? 'lp-plan-glow' : undefined}
@@ -994,7 +1004,7 @@ const Landing = () => {
                             }}
                           >
                             <span style={{ fontSize: 17, fontWeight: 700, color: text.primary }}>
-                              {t(`landing.${plan.nameKey}`)}
+                              {plan.name}
                             </span>
                             {plan.savePercent > 0 && (
                               <span
@@ -1026,7 +1036,7 @@ const Landing = () => {
                             </span>
                             <span style={{ fontSize: 15, color: text.secondary, fontWeight: 500 }}>
                               {' '}
-                              {t('common.sum')} / {t(`landing.${plan.periodKey}`)}
+                              {t('common.sum')} / {plan.periodLabel}
                             </span>
                           </div>
                           <div
@@ -1083,6 +1093,7 @@ const Landing = () => {
                             block
                             size="large"
                             type={plan.highlighted ? 'primary' : 'default'}
+                            className={plan.highlighted ? 'lp-cta-btn' : undefined}
                             style={{ marginTop: 24, height: 46, fontWeight: 600 }}
                             onClick={() => navigate('/register')}
                           >
