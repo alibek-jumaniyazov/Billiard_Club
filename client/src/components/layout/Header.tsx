@@ -101,10 +101,15 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
               viewingClub.clear();
               navigate('/admin');
             }}
-            style={{ fontWeight: 600 }}
+            style={{ fontWeight: 600, maxWidth: 160, display: 'inline-flex', alignItems: 'center' }}
             icon={<EyeOutlined />}
           >
-            {viewing.name}
+            {/* Uzun klub nomi header amallarini ekrandan chiqarib yubormasin */}
+            <span
+              style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              {viewing.name}
+            </span>
           </Tag>
         )}
         {daysLeft !== null && daysLeft <= 5 && (

@@ -720,6 +720,7 @@ const Sessions = () => {
                   dataSource={orderItems}
                   size="small"
                   pagination={false}
+                  scroll={{ x: 'max-content' }}
                 />
               ) : (
                 <Text type="secondary">{t('sessions.noBarOrders')}</Text>

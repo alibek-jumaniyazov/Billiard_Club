@@ -418,6 +418,64 @@ body {
   background: var(--gold);
 }
 
+/* ------------------------------------------------------------------ Mobil
+   Butun ilova telefon ekranlariga (360–575px) moslashadi: gorizontal skroll
+   bo'lmasin, jadval katakchalari ixchamroq, modal/drawer ekrandan chiqmasin.
+   Sahifaga xos tuzatishlar komponentlarda (antd Grid xs/sm) qilinadi — bu
+   yerda faqat global "xavfsizlik to'ri" va antd sozlamalari. */
+
+/* Gorizontal toshib ketishga qarshi to'siq — 'clip' skroll-konteyner
+   yaratmaydi, shu bois sticky header/sider buzilmaydi (hidden dan farqli). */
+@media (max-width: 767px) {
+  #root {
+    overflow-x: clip;
+  }
+}
+
+@media (max-width: 575px) {
+  /* Sahifa ichki bo'shlig'i yanada ixcham */
+  .page-container {
+    padding: 10px;
+  }
+
+  /* Jadval katakchalari — ko'proq ustun sig'sin, so'ng ichki gorizontal skroll */
+  .ant-table-wrapper .ant-table-cell,
+  .ant-table-wrapper .ant-table-thead > tr > th,
+  .ant-table-wrapper .ant-table-tbody > tr > td {
+    padding-inline: 8px !important;
+    padding-block: 8px !important;
+    font-size: 13px;
+    word-break: break-word;
+  }
+
+  /* Modal ekrandan chiqmasin (antd standart ~520px kengligi 375px ni yoradi) */
+  .ant-modal {
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px auto !important;
+    top: 8px !important;
+    vertical-align: top;
+  }
+
+  /* Drawer hech qachon ekrandan keng bo'lmasin */
+  .ant-drawer-content-wrapper {
+    max-width: 100vw !important;
+  }
+
+  /* Sahifa sarlavhasi biroz kichikroq */
+  h1.ant-typography,
+  .ant-typography-h1,
+  h2.ant-typography,
+  .ant-typography-h2 {
+    font-size: 22px !important;
+  }
+
+  /* Popover/Dropdown menyular ekran chetiga yopishmasin */
+  .ant-picker-dropdown,
+  .ant-select-dropdown {
+    max-width: calc(100vw - 16px);
+  }
+}
+
 /* Harakat kamaytirilgan rejim — barcha animatsiyalarni o'chirish */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -510,6 +510,7 @@ const Debts = () => {
           columns={paymentColumns}
           dataSource={payments}
           loading={paymentsLoading}
+          scroll={{ x: 'max-content' }}
           locale={{
             emptyText: (
               <EmptyState icon={<HistoryOutlined />} title={t('debts.historyEmpty')} />

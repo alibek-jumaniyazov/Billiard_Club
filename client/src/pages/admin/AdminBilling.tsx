@@ -964,7 +964,7 @@ const AdminBilling = () => {
       >
         <Form form={planForm} layout="vertical">
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="code"
                 label={t('admin.billing.code')}
@@ -976,7 +976,7 @@ const AdminBilling = () => {
                 <Input maxLength={50} placeholder="monthly" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="durationDays"
                 label={t('admin.billing.durationDays')}
@@ -987,7 +987,7 @@ const AdminBilling = () => {
             </Col>
           </Row>
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="nameUz"
                 label={t('admin.billing.nameUz')}
@@ -996,7 +996,7 @@ const AdminBilling = () => {
                 <Input maxLength={100} />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="nameRu"
                 label={t('admin.billing.nameRu')}
@@ -1007,19 +1007,19 @@ const AdminBilling = () => {
             </Col>
           </Row>
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="descriptionUz" label={t('admin.billing.descriptionUz')}>
                 <Input.TextArea rows={2} maxLength={500} />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="descriptionRu" label={t('admin.billing.descriptionRu')}>
                 <Input.TextArea rows={2} maxLength={500} />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="price"
                 label={t('common.price')}
@@ -1034,12 +1034,12 @@ const AdminBilling = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={6}>
+            <Col xs={12} sm={6}>
               <Form.Item name="sortOrder" label={t('admin.billing.sortOrder')}>
                 <InputNumber min={0} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
-            <Col span={6}>
+            <Col xs={12} sm={6}>
               <Form.Item
                 name="isActive"
                 label={t('admin.billing.active')}
@@ -1065,7 +1065,7 @@ const AdminBilling = () => {
       >
         <Form form={couponForm} layout="vertical">
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="code"
                 label={t('admin.billing.couponCode')}
@@ -1077,7 +1077,7 @@ const AdminBilling = () => {
                 <Input maxLength={50} disabled={!!editingCoupon} placeholder="PROMO2026" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="type"
                 label={t('admin.billing.type')}
@@ -1093,7 +1093,7 @@ const AdminBilling = () => {
             </Col>
           </Row>
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="value"
                 label={t('admin.billing.value')}
@@ -1109,7 +1109,7 @@ const AdminBilling = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="maxUses" label={t('admin.billing.maxUses')}>
                 <InputNumber
                   min={1}
@@ -1127,7 +1127,7 @@ const AdminBilling = () => {
             />
           </Form.Item>
           <Row gutter={12}>
-            <Col span={16}>
+            <Col xs={24} sm={16}>
               <Form.Item name="planId" label={t('admin.billing.planOnly')}>
                 <Select
                   allowClear
@@ -1136,7 +1136,7 @@ const AdminBilling = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item
                 name="isActive"
                 label={t('admin.billing.active')}

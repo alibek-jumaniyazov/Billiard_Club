@@ -383,31 +383,56 @@ const BilliardTable = ({ style, className, hint }: BilliardTableProps) => {
         }
       }
 
-      // Soqqalar to'qnashuvi (elastik, teng massa)
+      // Soqqa-soqqa to'qnashuvi — impuls asosidagi PROFESSIONAL javob:
+      //  • restitutsiya REST≈0.95 (haqiqiy bilyard shari; teng massada bosh
+      //    zarbadan keyin zarb sharida nozik "follow" qoladi);
+      //  • impuls FAQAT soqqalar yaqinlashayotgan bo'lsa qo'llanadi — ajralgan
+      //    (yoki tinch, yopishib turgan) soqqalarga energiya qo'shilmaydi, shu
+      //    bois zich piramida titramaydi/portlamaydi;
+      //  • urinma (tangensial) ishqalanish — kesik (glancing) zarbada tabiiy
+      //    "throw" beradi;
+      //  • bir necha iteratsiya — zich pak barqaror ajraladi (impuls guard
+      //    tufayli qayta qo'llanmaydi).
+      const REST = 0.95;
+      const CFRICTION = 0.02;
+      const min = r * 2;
       const live = S.balls.filter((b) => b.active && b.sink >= 1);
-      for (let i = 0; i < live.length; i++) {
-        for (let j = i + 1; j < live.length; j++) {
-          const a = live[i];
-          const c = live[j];
-          const dx = c.x - a.x;
-          const dy = c.y - a.y;
-          const d = Math.hypot(dx, dy) || 0.0001;
-          const min = r * 2;
-          if (d < min) {
+      for (let iter = 0; iter < 2; iter++) {
+        for (let i = 0; i < live.length; i++) {
+          for (let j = i + 1; j < live.length; j++) {
+            const a = live[i];
+            const c = live[j];
+            const dx = c.x - a.x;
+            const dy = c.y - a.y;
+            const d = Math.hypot(dx, dy) || 0.0001;
+            if (d >= min) continue;
             const nx = dx / d;
             const ny = dy / d;
+            // 1) Pozitsion ajratish (o'zaro kirishishni tuzatadi)
             const overlap = (min - d) / 2;
             a.x -= nx * overlap;
             a.y -= ny * overlap;
             c.x += nx * overlap;
             c.y += ny * overlap;
-            const av = a.vx * nx + a.vy * ny;
-            const cv = c.vx * nx + c.vy * ny;
-            const diff = (cv - av) * 0.98;
-            a.vx += diff * nx;
-            a.vy += diff * ny;
-            c.vx -= diff * nx;
-            c.vy -= diff * ny;
+            // 2) Normal bo'ylab nisbiy tezlik — yaqinlashmasa impuls yo'q
+            const rvx = a.vx - c.vx;
+            const rvy = a.vy - c.vy;
+            const vn = rvx * nx + rvy * ny;
+            if (vn <= 0) continue;
+            const jn = ((1 + REST) * vn) / 2; // teng massa uchun impuls
+            a.vx -= jn * nx;
+            a.vy -= jn * ny;
+            c.vx += jn * nx;
+            c.vy += jn * ny;
+            // 3) Urinma ishqalanish (nozik "throw")
+            const tx = -ny;
+            const ty = nx;
+            const vt = rvx * tx + rvy * ty;
+            const jt = vt * CFRICTION;
+            a.vx -= jt * tx;
+            a.vy -= jt * ty;
+            c.vx += jt * tx;
+            c.vy += jt * ty;
           }
         }
       }

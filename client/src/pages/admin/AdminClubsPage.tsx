@@ -730,21 +730,21 @@ const AdminClubsPage = () => {
                 )}
               </Descriptions>
               <Row gutter={[12, 12]}>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.users')}
                     value={formatNumber(detailStats?.users ?? 0)}
                   />
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.tables')}
                     value={formatNumber(detailStats?.tables ?? 0)}
                   />
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.activeSessions')}
@@ -752,7 +752,7 @@ const AdminClubsPage = () => {
                     accent={TOKENS.color.neonGreen}
                   />
                 </Col>
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.totalSessions')}
@@ -1021,7 +1021,7 @@ const AdminClubsPage = () => {
             <Input maxLength={150} />
           </Form.Item>
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="ownerName"
                 label={t('adminClubs.ownerName')}
@@ -1030,14 +1030,14 @@ const AdminClubsPage = () => {
                 <Input maxLength={100} />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="phone" label={t('adminClubs.phone')}>
                 <Input maxLength={20} placeholder="+998" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="adminUsername"
                 label={t('adminClubs.adminUsername')}
@@ -1049,7 +1049,7 @@ const AdminClubsPage = () => {
                 <Input maxLength={50} autoComplete="off" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="adminPassword"
                 label={t('adminClubs.adminPassword')}
@@ -1074,12 +1074,12 @@ const AdminClubsPage = () => {
             </Col>
           </Row>
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="trialDays" label={t('adminClubs.trialDays')}>
                 <InputNumber min={0} max={60} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="notes" label={t('adminClubs.notes')}>
                 <Input maxLength={500} />
               </Form.Item>
