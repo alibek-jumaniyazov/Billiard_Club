@@ -149,10 +149,12 @@ const BilliardTable = ({ style, className, hint }: BilliardTableProps) => {
       const r = Math.max(7, Math.min(w, h) * 0.033);
       S.r = r;
       S.cushion = Math.min(w, h) * 0.05;
-      S.cm = r * 1.7;
-      S.mm = r * 1.45;
-      S.throat = r * 1.5;
-      S.jaw = r * 0.32;
+      // Kengroq, kechirimliroq teshiklar (magnitsiz, lekin osonroq tushadi):
+      // keng og'iz + kattaroq tushish zonasi + kichikroq jag' (kam "rattle")
+      S.cm = r * 2.3; // burchak teshigi og'zi
+      S.mm = r * 2.0; // o'rta teshik og'zi
+      S.throat = r * 2.05; // markaz shunga yetsa tushadi (samarali teshik o'lchami)
+      S.jaw = r * 0.22;
 
       const c = S.cushion;
       // Teshik markazlari — bort tumshug'idan sal tashqarida (charm ichida)
@@ -253,7 +255,7 @@ const BilliardTable = ({ style, className, hint }: BilliardTableProps) => {
           const cg = dist(cue.x, cue.y, gx, gy) || 1;
           const dot =
             ((gx - cue.x) / cg) * ((p.x - t.x) / tp) + ((gy - cue.y) / cg) * ((p.y - t.y) / tp);
-          if (dot < 0.5) continue; // tor teshiklar — faqat yaxshi burchakli potlar
+          if (dot < 0.38) continue; // yetarlicha burchakli potlar (kechirimliroq)
           if (!clearPath(cue.x, cue.y, gx, gy, t)) continue;
           if (!clearPath(t.x, t.y, p.x, p.y, t)) continue;
           const score = tp + cg * 0.5 + (1 - dot) * 220;
