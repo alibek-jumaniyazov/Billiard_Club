@@ -1,0 +1,86 @@
+/* Prime Billiard — global uslublar */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.page-container {
+  padding: 24px;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 12px;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.35);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.55);
+}
+
+/* Faol stol kartasi pulsatsiyasi */
+@keyframes pulse-border {
+  0% {
+    box-shadow: 0 0 0 0 rgba(250, 173, 20, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(250, 173, 20, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(250, 173, 20, 0);
+  }
+}
+
+.table-card-active {
+  animation: pulse-border 2s infinite;
+  border-color: #faad14 !important;
+}
+
+/* Jonli taymer displeyi */
+.timer-display {
+  font-family: 'Consolas', 'SF Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.timer-paused {
+  animation: blink 1.2s step-start infinite;
+}
+
+/* Login sahifasi foni */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(27, 94, 32, 0.5), transparent 55%),
+    radial-gradient(ellipse at 80% 80%, rgba(250, 173, 20, 0.12), transparent 50%),
+    #0a1c14;
+  padding: 16px;
+}

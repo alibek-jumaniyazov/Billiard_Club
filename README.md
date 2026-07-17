@@ -1,75 +1,71 @@
-# React + TypeScript + Vite
+# Prime Billiard — Billiard klublar uchun boshqaruv tizimi (SaaS)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Billiard klublariga **oylik obuna** asosida sotiladigan, ko'p-klubli (multi-tenant) boshqaruv tizimi:
+stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun klublarni boshqarish paneli.
 
-Currently, two official plugins are available:
+## Arxitektura
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Qism | Texnologiya |
+|---|---|
+| `server/` | NestJS 11 · TypeORM · PostgreSQL · JWT · class-validator |
+| `client/` | Vite · React 18 · TypeScript · Ant Design 5 · react-i18next (uz/ru) |
 
-## React Compiler
+### Biznes model
+- **Superadmin** (siz) — klublarni yaratadi, har biriga login/parol beradi, obunani istalgan muddatga
+  (+1/+3/+6/+12 oy yoki aniq sana) uzaytiradi, bloklaydi, statistikasini ko'radi.
+- Har yangi klubga **7 kunlik bepul sinov**; klub qo'shilganda sizga **Telegram** orqali xabar keladi.
+- Muddati tugagan/bloklangan klub foydalanuvchilari tizimga kira oladi, lekin **blok ekranidan** o'ta olmaydi —
+  ma'lumotlari saqlanadi, obuna uzaytirilishi bilan ish davom etadi.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+### Rollar
+`superadmin` (platforma egasi) · `admin` (klub egasi) · `kassir` (hisob-kitob, qarzlar, hisobotlar) · `operator` (o'yin boshlash, bar buyurtma)
 
-Note: This will impact Vite dev & build performances.
+## Ishga tushirish (development)
 
-## Expanding the ESLint configuration
+Talablar: Node.js 20+, PostgreSQL 14+.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+```bash
+# 1. Server
+cd server
+cp .env.example .env        # qiymatlarni to'ldiring (JWT sirlari, DB parol, Telegram)
+npm install
+npm run migration:run       # sxema (yagona manba — migratsiyalar)
+npm run seed                # superadmin (+ SEED_DEMO_CLUB=true bo'lsa demo klub)
+npm run dev                 # http://localhost:5000
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 2. Client (alohida terminal)
+cd client
+npm install
+npm run dev                 # http://localhost:5173 (API /api -> :5000 proxy)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Demo kirishlar (faqat dev, `SEED_DEMO_CLUB=true`): `demo_admin` / `demo123!`, `demo_kassir`, `demo_operator` (parol bir xil).
+Superadmin: `.env` dagi `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Telegram xabarnoma
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. [@BotFather](https://t.me/BotFather) da bot yarating → tokenni `TELEGRAM_BOT_TOKEN` ga qo'ying
+2. Botga `/start` yozing
+3. `https://api.telegram.org/bot<TOKEN>/getUpdates` dan `chat.id` ni oling → `TELEGRAM_CHAT_ID`
+
+Shundan so'ng yangi klub qo'shilganda va obuna uzaytirilganda sizga xabar keladi.
+
+## Muhim texnik qarorlar
+
+- **Tushum** = sessiya yakunida haqiqatda olingan pul (`sales`) + undirilgan qarzlar (`debt_payments`),
+  to'lov sanasi bo'yicha. Qarzga yozilgan summa to'lanmaguncha tushumga kirmaydi.
+- **DB darajasidagi himoya**: bitta stolda bitta faol sessiya, bitta sessiyada bitta ochiq buyurtma
+  (partial unique indekslar), manfiy summalar taqiqi (CHECK). Pul yo'llarida qator qulflari (FOR UPDATE).
+- **Tenant izolyatsiyasi**: har so'rov `clubId` bilan chegaralanadi; superadmin `X-Club-Id` header
+  bilan istalgan klubni ko'ra oladi.
+- **i18n**: klient `X-Lang: uz|ru` header yuboradi — server xabarlari ham shu tilda qaytadi.
+- Sxemani **faqat migratsiyalar** boshqaradi (`synchronize` hech qachon yoqilmaydi).
+
+## Production eslatmalari
+
+- `server/.env` git'ga kirmaydi; kuchli `JWT_SECRET`/`JWT_REFRESH_SECRET` qo'ying:
+  `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
+- Eski git tarixida oldingi dev sirlari bor — ular almashtirilgan, lekin repo ommaviy bo'lsa tarixni tozalash tavsiya etiladi.
+- Reverse proxy (nginx/Caddy) ortida TLS bilan ishga tushiring; `trust proxy` allaqachon sozlangan.
+- `SEED_DEMO_CLUB=false` bo'lsin; superadmin parolini kuchli qiling.
+- PostgreSQL uchun muntazam backup (pg_dump) sozlang — bu klublarning moliyaviy ma'lumotlari.

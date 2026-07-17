@@ -1,0 +1,38 @@
+export default {
+  uz: {
+    title: "O'yinlar tarixi",
+    subtitle: "Barcha o'yin seanslari — yakunlash Stollar sahifasida bajariladi",
+    searchPlaceholder: "Mijoz ismi yoki telefoni bo'yicha qidirish",
+    anonymous: 'Anonim',
+    startTime: 'Boshlanish',
+    endTime: 'Tugash',
+    amount: 'Summa',
+    status: 'Holat',
+    payState: "To'lov holati",
+    // Tafsilotlar draweri
+    detailTitle: "O'yin tafsilotlari",
+    tableAmount: 'Stol summasi',
+    barAmount: 'Bar summasi',
+    totalAmount: 'Jami summa',
+    barOrders: 'Bar buyurtmalari',
+    noBarOrders: "Bar buyurtmalari yo'q",
+  },
+  ru: {
+    title: 'История игр',
+    subtitle: 'Все игровые сессии — завершение выполняется на странице «Столы»',
+    searchPlaceholder: 'Поиск по имени или телефону клиента',
+    anonymous: 'Аноним',
+    startTime: 'Начало',
+    endTime: 'Окончание',
+    amount: 'Сумма',
+    status: 'Статус',
+    payState: 'Оплата',
+    // Детали
+    detailTitle: 'Детали игры',
+    tableAmount: 'Сумма за стол',
+    barAmount: 'Сумма бара',
+    totalAmount: 'Общая сумма',
+    barOrders: 'Заказы бара',
+    noBarOrders: 'Заказов бара нет',
+  },
+};
