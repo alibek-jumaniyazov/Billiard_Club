@@ -1,0 +1,28 @@
+{
+  "name": "Billiard Club — klub boshqaruv tizimi",
+  "short_name": "Billiard Club",
+  "description": "Billiard klublari uchun bulutli boshqaruv tizimi: stol taymerlari, bar POS, hisobotlar.",
+  "lang": "uz",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e1513",
+  "theme_color": "#0e1513",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

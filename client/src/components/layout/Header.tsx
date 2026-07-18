@@ -7,9 +7,11 @@ import {
   Segmented,
   Space,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
+  CrownOutlined,
   EyeOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -57,10 +59,33 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
     navigate('/login');
   };
 
-  /** Obuna tugashiga oz qolganda ogohlantirish */
-  const daysLeft = club?.effectiveEndsAt
-    ? Math.ceil((new Date(club.effectiveEndsAt).getTime() - Date.now()) / 86_400_000)
-    : null;
+  /**
+   * Obuna tugashigacha qolgan vaqt (kun + soat) — headerda profil yonida.
+   * `now` har 30 s da yangilanadi, shu bois hisob jonli ko'rinadi.
+   */
+  const endMs = club?.effectiveEndsAt ? new Date(club.effectiveEndsAt).getTime() : null;
+  const canOpenSub = user?.role === 'admin';
+  const sub = (() => {
+    if (endMs === null || user?.role === 'superadmin') return null;
+    const statusWord = club?.status === 'trial' ? t('club.trial') : t('club.active');
+    const msLeft = endMs - now.valueOf();
+    if (msLeft <= 0) {
+      return { color: 'red', short: t('club.expired'), full: t('club.expired'), statusWord };
+    }
+    const totalHours = Math.floor(msLeft / 3_600_000);
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const mins = Math.floor((msLeft % 3_600_000) / 60_000);
+    const full =
+      days >= 1
+        ? `${days} ${t('common.days')} ${hours} ${t('common.hours')}`
+        : hours >= 1
+          ? `${hours} ${t('common.hours')} ${mins} ${t('common.minutes')}`
+          : `${mins} ${t('common.minutes')}`;
+    const short = days >= 1 ? `${days} ${t('common.days')}` : `${hours} ${t('common.hours')}`;
+    const color = days > 7 ? 'green' : days > 2 ? 'gold' : days >= 1 ? 'orange' : 'red';
+    return { color, short, full, statusWord };
+  })();
 
   return (
     <AntHeader
@@ -112,12 +137,6 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
             </span>
           </Tag>
         )}
-        {daysLeft !== null && daysLeft <= 5 && (
-          <Tag color={daysLeft <= 2 ? 'red' : 'orange'}>
-            {club?.status === 'trial' ? t('club.trial') : t('club.active')}: {daysLeft}{' '}
-            {t('common.days')}
-          </Tag>
-        )}
       </Space>
 
       <Space size="middle">
@@ -130,6 +149,22 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
             { label: 'Ру', value: 'ru' },
           ]}
         />
+        {sub && (
+          <Tooltip title={`${sub.statusWord} · ${sub.full}`}>
+            <Tag
+              color={sub.color}
+              icon={<CrownOutlined />}
+              onClick={canOpenSub ? () => navigate('/subscription') : undefined}
+              style={{
+                margin: 0,
+                fontWeight: 600,
+                cursor: canOpenSub ? 'pointer' : 'default',
+              }}
+            >
+              {screens.md !== false ? sub.full : sub.short}
+            </Tag>
+          </Tooltip>
+        )}
         <NotificationsBell />
         {user && (
           <Dropdown

@@ -23,6 +23,7 @@ import reservations from './pages/reservations';
 import feedback from './pages/feedback';
 import notifications from './pages/notifications';
 import admin from './pages/admin';
+import game from './pages/game';
 
 export type Lang = 'uz' | 'ru';
 
@@ -52,6 +53,7 @@ const pages: Record<string, PageDict> = {
   feedback,
   notifications,
   admin,
+  game,
 };
 
 const buildLocale = (lang: Lang): Record<string, string> => {

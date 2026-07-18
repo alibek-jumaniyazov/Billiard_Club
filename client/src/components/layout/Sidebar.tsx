@@ -16,6 +16,7 @@ import {
   HistoryOutlined,
   NotificationOutlined,
   PieChartOutlined,
+  PlayCircleOutlined,
   SettingOutlined,
   ShopOutlined,
   TableOutlined,
@@ -52,7 +53,7 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
   const isSuperadmin = hasRole('superadmin');
 
   const items = useMemo(() => {
-    // Superadmin: klub ichini ko'rmayotganda — to'liq platforma menyusi
+    // Superadmin: klub ichini ko'rmayotganda — platforma menyusi (2 bo'lim)
     if (isSuperadmin && !viewing) {
       return [
         {
@@ -63,6 +64,13 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
             { key: '/admin', icon: <PieChartOutlined />, label: t('menu.adminDashboard') },
             { key: '/admin/clubs', icon: <ShopOutlined />, label: t('menu.clubs') },
             { key: '/admin/billing', icon: <DollarOutlined />, label: t('menu.adminBilling') },
+          ],
+        },
+        {
+          key: 'g-platform-manage',
+          type: 'group' as const,
+          label: collapsed ? null : t('menu.groupManagement'),
+          children: [
             { key: '/admin/feedback', icon: <CommentOutlined />, label: t('menu.adminFeedback') },
             {
               key: '/admin/notifications',
@@ -76,6 +84,11 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
       ];
     }
 
+    // Klub paneli — rollar
+    const isAdmin = hasRole('admin') || (isSuperadmin && !!viewing);
+    const isAdminKassir = hasRole('admin', 'kassir') || (isSuperadmin && !!viewing);
+    const svBlocked = isSuperadmin && !!viewing; // ko'rish rejimida serverda 403 bo'ladiganlar
+
     const groups = [
       // Superadmin ko'rish rejimida — panelga qaytish bandi eng tepada
       ...(isSuperadmin
@@ -84,21 +97,31 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
               key: 'g-back',
               type: 'group' as const,
               label: null,
-              children: [
-                { key: '/admin', icon: <ShopOutlined />, label: t('menu.clubs') },
-              ],
+              children: [{ key: '/admin', icon: <ShopOutlined />, label: t('menu.clubs') }],
             },
           ]
         : []),
+      {
+        // Asosiy — Bosh sahifa + Hisobotlar (hisobotlar dashboard ostiga ko'chirildi)
+        key: 'g-main',
+        type: 'group' as const,
+        label: collapsed ? null : t('menu.groupMain'),
+        children: [
+          { key: '/dashboard', icon: <DashboardOutlined />, label: t('menu.dashboard') },
+          ...(isAdminKassir
+            ? [{ key: '/reports', icon: <BarChartOutlined />, label: t('menu.reports') }]
+            : []),
+        ],
+      },
       {
         key: 'g-billiard',
         type: 'group' as const,
         label: collapsed ? null : t('menu.groupBilliard'),
         children: [
-          { key: '/dashboard', icon: <DashboardOutlined />, label: t('menu.dashboard') },
           { key: '/tables', icon: <TableOutlined />, label: t('menu.tables') },
           { key: '/sessions', icon: <HistoryOutlined />, label: t('menu.sessions') },
           { key: '/reservations', icon: <CalendarOutlined />, label: t('menu.reservations') },
+          { key: '/game', icon: <PlayCircleOutlined />, label: t('menu.game') },
         ],
       },
       {
@@ -107,11 +130,11 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
         label: collapsed ? null : t('menu.groupCrm'),
         children: [
           { key: '/customers', icon: <ContactsOutlined />, label: t('menu.customers') },
-          // Server superadminni klub /feedback ga kiritmaydi (403) —
-          // ko'rish rejimida bandni yashiramiz
-          ...(isSuperadmin && viewing
-            ? []
-            : [{ key: '/feedback', icon: <CommentOutlined />, label: t('menu.feedback') }]),
+          // Fikr-mulohaza: adminda pastdagi "Boshqaruv"ga (sozlamalar yoniga) ko'chirilgan.
+          // Kassir/operator uchun shu yerda qoladi; superadmin ko'rishida 403 — yashiriladi.
+          ...(!isAdmin && !svBlocked
+            ? [{ key: '/feedback', icon: <CommentOutlined />, label: t('menu.feedback') }]
+            : []),
         ],
       },
       {
@@ -125,32 +148,32 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
       },
     ];
 
-    if (hasRole('admin', 'kassir') || (isSuperadmin && viewing)) {
+    if (isAdminKassir) {
       groups.push({
-        key: 'g-reports',
+        key: 'g-finance',
         type: 'group' as const,
-        label: collapsed ? null : t('menu.groupReports'),
+        label: collapsed ? null : t('menu.groupFinance'),
         children: [
-          { key: '/reports', icon: <BarChartOutlined />, label: t('menu.reports') },
           { key: '/debts', icon: <CreditCardOutlined />, label: t('menu.debts') },
           { key: '/expenses', icon: <WalletOutlined />, label: t('menu.expenses') },
         ],
       });
     }
 
-    if (hasRole('admin') || (isSuperadmin && viewing)) {
+    if (isAdmin) {
       groups.push({
         key: 'g-management',
         type: 'group' as const,
         label: collapsed ? null : t('menu.groupManagement'),
         children: [
           { key: '/staff', icon: <TeamOutlined />, label: t('menu.staff') },
-          // /notifications va /subscription ham superadmin uchun serverda 403
-          ...(isSuperadmin && viewing
+          // /notifications, /subscription, /feedback superadmin ko'rishida serverda 403
+          ...(svBlocked
             ? []
             : [
                 { key: '/notifications', icon: <BellOutlined />, label: t('menu.notifications') },
                 { key: '/subscription', icon: <CrownOutlined />, label: t('menu.subscription') },
+                { key: '/feedback', icon: <CommentOutlined />, label: t('menu.feedback') },
               ]),
           { key: '/settings', icon: <SettingOutlined />, label: t('menu.settings') },
         ],
@@ -179,23 +202,24 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
         ...(inDrawer
           ? { height: '100%' }
           : { position: 'sticky', top: 0, height: '100vh' }),
-        display: 'flex',
-        flexDirection: 'column',
         borderRight: inDrawer ? 'none' : `1px solid ${token.colorBorderSecondary}`,
       }}
     >
       <div
         style={{
+          flexShrink: 0,
           display: 'flex',
           alignItems: 'center',
+          minHeight: 64,
           padding: collapsed && !inDrawer ? '16px 0' : '16px 18px',
           justifyContent: collapsed && !inDrawer ? 'center' : 'flex-start',
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
-        <BrandLogo size={38} withWordmark={!collapsed || inDrawer} />
+        <BrandLogo size={collapsed && !inDrawer ? 34 : 38} withWordmark={!collapsed || inDrawer} />
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 72 }}>
+      <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', paddingTop: 10, paddingBottom: 12 }}>
         <Menu
           mode="inline"
           selectedKeys={[selectedKey]}
@@ -213,10 +237,7 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
       {(!collapsed || inDrawer) && user && (
         <div
           style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
+            flexShrink: 0,
             padding: '10px 16px',
             borderTop: `1px solid ${token.colorBorderSecondary}`,
             background: token.colorBgContainer,
@@ -227,28 +248,40 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
         >
           <div
             style={{
-              width: 30,
-              height: 30,
+              width: 34,
+              height: 34,
               borderRadius: '50%',
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 13,
+              fontSize: 14,
               background: ROLE_COLORS[user.role],
               color: TOKENS.color.gold.contrast,
               fontWeight: 700,
+              boxShadow: `0 0 0 2px ${token.colorBgContainer}, 0 0 0 3px ${ROLE_COLORS[user.role]}44`,
             }}
           >
             {user.name.charAt(0).toUpperCase()}
           </div>
-          <div style={{ minWidth: 0, lineHeight: 1.25 }}>
+          <div style={{ minWidth: 0, lineHeight: 1.3 }}>
             <Text strong ellipsis style={{ display: 'block', fontSize: 12.5 }}>
               {user.name}
             </Text>
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              {t(`role.${user.role}`)}
-            </Text>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: ROLE_COLORS[user.role],
+                  flexShrink: 0,
+                }}
+              />
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t(`role.${user.role}`)}
+              </Text>
+            </span>
           </div>
         </div>
       )}

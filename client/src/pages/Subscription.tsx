@@ -12,6 +12,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import {
   CalendarOutlined,
+  ClockCircleOutlined,
   CrownOutlined,
   ReloadOutlined,
   StopOutlined,
@@ -71,6 +72,13 @@ const Subscription = () => {
   const [cancellingId, setCancellingId] = useState<number | null>(null);
 
   const isAdmin = user?.role === 'admin';
+
+  // Jonli soat — qolgan vaqt (kun/soat/daqiqa) real vaqtda yangilanib turadi
+  const [now, setNow] = useState(() => dayjs());
+  useEffect(() => {
+    const id = setInterval(() => setNow(dayjs()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const fetchStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -180,22 +188,40 @@ const Subscription = () => {
     }
 
     const { club, activePlan } = status;
-    const daysLeft = club.daysLeft;
-    const totalDays =
-      activePlan?.durationDays ?? (club.status === 'trial' ? TRIAL_DAYS : 30);
+    const endMs = club.effectiveEndsAt ? new Date(club.effectiveEndsAt).getTime() : null;
+    const msLeft = endMs === null ? null : endMs - now.valueOf();
+    const expired = msLeft !== null && msLeft <= 0;
+
+    // Aniq qoldiq — kun + soat + daqiqa (serverning yaxlitlangan daysLeft o'rniga)
+    const totalMin = msLeft !== null && msLeft > 0 ? Math.floor(msLeft / 60_000) : 0;
+    const dLeft = Math.floor(totalMin / 1440);
+    const hLeft = Math.floor((totalMin % 1440) / 60);
+    const mLeft = totalMin % 60;
+
+    const totalDays = activePlan?.durationDays ?? (club.status === 'trial' ? TRIAL_DAYS : 30);
     const percent =
-      daysLeft === null ? 100 : Math.max(0, Math.min(100, (daysLeft / totalDays) * 100));
+      endMs === null
+        ? 100
+        : Math.max(0, Math.min(100, (Math.max(0, msLeft ?? 0) / (totalDays * 86_400_000)) * 100));
     const ringColor =
-      daysLeft === null || percent > 50
-        ? emerald.bright
-        : percent > 20
-          ? gold.base
-          : semantic.error;
+      endMs === null || percent > 50 ? emerald.bright : percent > 20 ? gold.base : semantic.error;
     const planLabel = activePlan
       ? lang === 'ru'
         ? activePlan.nameRu
         : activePlan.nameUz
       : t('subscription.trialPlan');
+
+    // Inson o'qiydigan aniq qoldiq matni (eng katta 2 birlik)
+    const remainingText =
+      endMs === null
+        ? t('subscription.unlimited')
+        : expired
+          ? t('club.expired')
+          : dLeft >= 1
+            ? `${dLeft} ${t('common.days')} ${hLeft} ${t('common.hours')}`
+            : hLeft >= 1
+              ? `${hLeft} ${t('common.hours')} ${mLeft} ${t('common.minutes')}`
+              : `${mLeft} ${t('common.minutes')}`;
 
     return (
       <GlassCard style={{ marginBottom: TOKENS.spacing.lg }}>
@@ -218,12 +244,16 @@ const Subscription = () => {
               <div>
                 <div
                   className="tabular-nums"
-                  style={{ fontSize: 26, fontWeight: 700, color: text.primary, lineHeight: 1.1 }}
+                  style={{ fontSize: 28, fontWeight: 700, color: text.primary, lineHeight: 1.05 }}
                 >
-                  {daysLeft === null ? '∞' : daysLeft}
+                  {endMs === null ? '∞' : expired ? 0 : dLeft}
                 </div>
-                <div style={{ fontSize: 12, color: text.tertiary, marginTop: 2 }}>
-                  {daysLeft === null ? t('subscription.unlimited') : t('common.days')}
+                <div style={{ fontSize: 11.5, color: text.tertiary, marginTop: 2 }}>
+                  {endMs === null
+                    ? t('subscription.unlimited')
+                    : expired
+                      ? t('club.expired')
+                      : `${t('common.days')} · ${hLeft} ${t('common.hours')}`}
                 </div>
               </div>
             )}
@@ -235,9 +265,34 @@ const Subscription = () => {
               </Title>
               <StatusTag status={club.status} label={t(`club.${club.status}`)} />
             </div>
+
+            {/* Aniq qoldiq — jonli, urg'uli qator */}
+            {endMs !== null && !expired && (
+              <div
+                style={{
+                  marginTop: 10,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 12px',
+                  borderRadius: TOKENS.radius.pill,
+                  background: bg.bg3,
+                  border: `1px solid ${ringColor}55`,
+                }}
+              >
+                <ClockCircleOutlined style={{ color: ringColor }} />
+                <Text style={{ fontSize: 13, color: text.secondary }}>
+                  {t('subscription.remainingLabel')}:
+                </Text>
+                <Text strong className="tabular-nums" style={{ fontSize: 13.5, color: text.primary }}>
+                  {remainingText}
+                </Text>
+              </div>
+            )}
+
             <div
               style={{
-                marginTop: 12,
+                marginTop: 14,
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                 gap: 12,
@@ -259,18 +314,20 @@ const Subscription = () => {
                 <Text strong style={{ fontSize: 15 }} className="tabular-nums">
                   <CalendarOutlined style={{ color: emerald.bright, marginRight: 6 }} />
                   {club.effectiveEndsAt
-                    ? dayjs(club.effectiveEndsAt).format('DD.MM.YYYY')
+                    ? dayjs(club.effectiveEndsAt).format('DD.MM.YYYY · HH:mm')
                     : t('subscription.unlimited')}
                 </Text>
               </div>
               <div>
                 <Text type="secondary" style={{ fontSize: 12.5, display: 'block' }}>
-                  {t('subscription.daysLeft')}
+                  {t('subscription.timeLeft')}
                 </Text>
-                <Text strong style={{ fontSize: 15 }} className="tabular-nums">
-                  {daysLeft === null
-                    ? t('subscription.unlimited')
-                    : t('subscription.daysValue', { days: daysLeft })}
+                <Text
+                  strong
+                  style={{ fontSize: 15, color: expired ? semantic.error : text.primary }}
+                  className="tabular-nums"
+                >
+                  {remainingText}
                 </Text>
               </div>
             </div>

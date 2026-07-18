@@ -393,6 +393,16 @@ body {
   opacity: 1;
 }
 
+/* Sider ichki o'ram — to'liq balandlikdagi flex ustun. Shu tufayli menyu
+   ro'yxati uzun bo'lsa SIDER ICHIDA skroll bo'ladi (chetiga chiqib ketmaydi):
+   brend sarlavhasi tepada, foydalanuvchi kartasi pastda mahkam turadi. */
+.app-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
 /* Sider — tanlangan menyu bandidagi oltin chap rels */
 .app-sider .ant-menu-item {
   position: relative;

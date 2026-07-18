@@ -24,6 +24,7 @@ const Customers = lazy(() => import('./pages/Customers'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const Reservations = lazy(() => import('./pages/Reservations'));
 const Feedback = lazy(() => import('./pages/Feedback'));
+const BilliardGame = lazy(() => import('./pages/game/BilliardGame'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const Subscription = lazy(() => import('./pages/Subscription'));
 const Profile = lazy(() => import('./pages/Profile'));
@@ -260,6 +261,14 @@ const App = () => {
             element={
               <Protected roles={['admin', 'kassir', 'operator']}>
                 <Reservations />
+              </Protected>
+            }
+          />
+          <Route
+            path="/game"
+            element={
+              <Protected roles={['admin', 'kassir', 'operator']}>
+                <BilliardGame />
               </Protected>
             }
           />
