@@ -1,20 +1,30 @@
 /**
  * BilliardEngine — HAQIQIY fizikali stol dvigateli (canvas 2D).
  *
- * `components/ui/BilliardTable.tsx` dagi sinovdan o'tgan fizikaga asoslanadi
- * (substepli integratsiya, elastik to'qnashuv, bort/jag' sakrashi, teshikka
- * tushish), lekin 2 kishilik HOTSEAT o'yin uchun qayta ishlangan:
- *   • pool-AI yo'q — ikkala o'yinchi ham inson;
- *   • zarba natijasi (potted / scratch / firstContact) yozib boriladi —
- *     qoidalar dvigateli (rules.ts) shu asosda navbat/ochko/fauln hisoblaydi;
- *   • "ingliz" (spin): follow/draw + yon spin — kiy soqqasi egri yo'l oladi;
- *   • sharlarning AYLANISHI: har shar sirt orientatsiyasi (3D vektor) bilan
- *     dumalab boradi — raqam va chiziq (stripe) sirt bo'ylab suriladi.
+ * FIZIKA MODELI (rigid sfera + mato, top-down 2D):
+ *   • Har shar CHIZIQLI tezlik (vx,vy) VA BURCHAK tezlik ω=(wx,wy,wz) bilan yuradi.
+ *     wz — vertikal o'q atrofidagi YON spin (english); wx,wy — dumalash spini.
+ *   • Kontakt nuqta (shar tagi) sirpanish tezligi:
+ *        slip = (vx − R·wy,  vy + R·wx)
+ *     Sirpanishда kinetik ishqalanish slip ni NOLGA olib keladi (sfera uchun
+ *     to'xtatuvchi impuls = 2/7·|slip|) va shu bilan v ↔ ω ni bog'laydi. Bu —
+ *     follow/draw/stun ning HAQIQIY sababi:
+ *        - obyekt sharga urilганда normal impuls markazlar chizig'i bo'ylab
+ *          o'tadi → SPIN o'zgarmaydi, faqat chiziqli tezlik uzatiladi;
+ *        - kiy soqqasi spinni SAQLAB qoladi → mato ishqalanishi qolgan spinni
+ *          yana chiziqli harakatga aylantiradi: oldinga (follow) yoki orqaga (draw).
+ *   • Yon english: zarbada squirt (ozgina og'ish), obyekt sharга throw, va
+ *     bortdan qaytishда burchak o'zgarishi beradi.
  *
- * Rang faqat theme/tokens.ts dan (mato/oltin/kumush) va rules.ts (shar ranglari).
+ * Variantlar (rules.ts GameType):
+ *   • american — Amerika pul (8-ball): keng lyuzalar (og'iz ≈ 1.9·diametr).
+ *   • russian  — Rus piramidasi: JUDA TOR lyuzalar (og'iz ≈ 1.12·diametr) —
+ *     haqiqiy rus bilyardidagidek, deyarli shar kattaligidagi teshiklar.
+ *
+ * Rang faqat theme/tokens.ts (mato/oltin) va rules.ts (shar ranglari) dan.
  */
 import { TOKENS } from '../../theme/tokens';
-import type { BallSpec, ShotResult } from './rules';
+import type { BallSpec, GameType, ShotResult } from './rules';
 
 const { emerald } = TOKENS.color;
 
@@ -41,6 +51,10 @@ export interface Ball {
   y: number;
   vx: number;
   vy: number;
+  /** Burchak tezligi (rad/kadr): wx,wy — dumalash; wz — yon spin (english) */
+  wx: number;
+  wy: number;
+  wz: number;
   active: boolean; // stolda (tushmagan)
   sink: number; // 1 = to'liq; teshikka tushayotganda 0 ga kamayadi
   sinkTo: Pocket | null;
@@ -50,12 +64,82 @@ export interface Ball {
   pole: Vec3;
 }
 
+/** Variantga xos geometriya (o'lchamlar r ga nisbatan multiplikator) */
+interface VariantGeo {
+  /** Shar radiusi = ballRatio · min(w,h) */
+  ballRatio: number;
+  /** Burchak lyuza og'zining yarim kengligi (r birlikda) */
+  cornerMouth: number;
+  /** O'rta lyuza og'zining yarim kengligi (r birlikda) */
+  middleMouth: number;
+  /** Teshikka tushish (capture) masofasi markazdan (r birlikda) */
+  capture: number;
+  /** Jag' (pocket point) radiusi (r birlikda) */
+  jaw: number;
+  /** Bort restitutsiyasi (qaytish elastikligi) */
+  rail: number;
+}
+
+/**
+ * HAQIQIY o'lchamlar asosida (WPA pul + rus piramida federatsiya spetsi;
+ * manba: drdavepoolinfo.com / WPA / russianpyramid):
+ *  • Amerika pul: shar 57.15mm, stol 2540×1270mm (2:1). Burchak lyuza og'zi
+ *    ≈115mm = 2.0·diametr (keng), o'rta ≈129mm = 2.26·diametr.
+ *  • Rus piramida: shar 68mm, stol ~3500×1750mm (2:1). Burchak lyuza og'zi
+ *    ≈72mm = 1.06·DIAMETR — deyarli shar kattaligida (har tomondan ~2mm!),
+ *    o'rta ≈83mm = 1.22·diametr. Bu — rus bilyardini keskin qiyin qiladigan
+ *    asosiy farq. (og'iz to'liq kengligi = 2·cornerMouth·r, shar diametri = 2r,
+ *    shuning uchun cornerMouth = og'iz/diametr.)
+ * Shar/stol nisbati: pul (0.0225) > rus (0.0194) — dimensional to'g'ri; ekranda
+ * ko'rinishi uchun ikkalasi ham bir oz kattalashtirilgan, nisbat saqlangan.
+ *
+ * DIQQAT (burchak geometriyasi): burchak lyuzada shar IKKI jag' orasidagi
+ * DIAGONAL teshikdan o'tadi — jag'lar (c+cm,c) va (c,c+cm) da, ular orasidagi
+ * masofa = cm·√2. Shuning uchun haqiqiy og'iz kengligiga moslash uchun
+ *   cornerMouth = (og'iz/diametr) · √2.
+ *   • pul: 2.0·√2 ≈ 2.83 (keng, kechirimli);
+ *   • rus: ~1.13·√2 ≈ 1.60 (haqiqiy 1.06, ammo sichqoncha bilan o'ynash uchun
+ *     ozgina yumshoq — shundoq ham amerikadan ancha tor).
+ * O'rta lyuza to'g'ri (diagonal emas): mouth = 2·mm, mm/r = og'iz/diametr.
+ */
+const VARIANTS: Record<GameType, VariantGeo> = {
+  american: { ballRatio: 0.027, cornerMouth: 2.83, middleMouth: 2.26, capture: 1.75, jaw: 0.2, rail: 0.82 },
+  russian: { ballRatio: 0.025, cornerMouth: 1.74, middleMouth: 1.4, capture: 1.42, jaw: 0.12, rail: 0.86 },
+};
+
+/* ------------------------------------------------------- Fizika konstantalari
+ * Birliklar: piksel, kadr (1 kadr ≈ 16.67ms). Qiymatlar r (shar radiusi) ga
+ * kalibrlangan, shuning uchun stol o'lchamidan mustaqil.
+ */
+/** Dumalash qarshiligi (px/kadr², r birlikda) — sekin, uzoq yuradi */
+const MU_ROLL = 0.010;
+/** Sirpanish ishqalanishi impuls tezligi (px/kadr, r birlikda) — slip ni tez o'ldiradi */
+const MU_SLIDE = 0.09;
+/** Yon spin (wz) so'nishi (kadr boshiga) */
+const SPIN_DECAY = 0.972;
+/** Shar-shar restitutsiyasi (deyarli elastik) */
+const E_BB = 0.95;
+/** Shar-shar ishqalanishi (throw kuchi) */
+const BB_FRICTION = 0.06;
+/** Yon english → zarbada squirt og'ishi (rad, english.x=1 uchun ≈ 2.6°;
+ *  haqiqiy diapazon ~1–3°, standart shaft ~2.5°) */
+const SQUIRT = 0.045;
+/** Zarbada kiy uchi maksimal ofseti (R birlikda) — 0.4R tabiiy dumalash beradi */
+const TIP_MAX = 0.5;
+/** Yon spin → bortdan qaytishда tangensial tezlik (burchak o'zgarishi) */
+const RAIL_SPIN = 0.55;
+/** Yon spin → yo'lning ozgina egrilishi (masse-lite). Tekis kiyda bu effekt
+ *  KICHIK bo'ladi (asosiy english effektlari — throw va bort qaytishi). */
+const SWERVE = 0.0016;
+/** Tinchlik chegaralari */
+const V_EPS = 0.02;
+const SLIP_EPS = 0.03;
+
 /** Rodrigues: `v` vektorni `k` (birlik o'q) atrofida `a` burchakka aylantirish */
 const rotate = (v: Vec3, k: Vec3, a: number): Vec3 => {
   const c = Math.cos(a);
   const s = Math.sin(a);
   const dot = k.x * v.x + k.y * v.y + k.z * v.z;
-  // k × v
   const cx = k.y * v.z - k.z * v.y;
   const cy = k.z * v.x - k.x * v.z;
   const cz = k.x * v.y - k.y * v.x;
@@ -72,8 +156,9 @@ export class BilliardEngine {
   w = 0;
   h = 0;
   r = 12;
+  private geo: VariantGeo = VARIANTS.russian;
   private cushion = 20;
-  private cm = 22; // burchak teshigi og'zi (bort bo'ylab)
+  private cm = 22; // burchak teshigi og'zi (bort bo'ylab, yarim kenglik)
   private mm = 18; // o'rta teshik og'zi (yarim kenglik)
   private throat = 20; // markaz shunga yetsa — tushadi
   private jaw = 4; // jag' (pocket point) radiusi
@@ -87,23 +172,40 @@ export class BilliardEngine {
   private potted: number[] = [];
   private cueScratched = false;
   private resultReady = false;
-  /** Kiy soqqasi spini (ingliz): side = yon, fwd = follow(+)/draw(−) */
-  private spinSide = 0;
-  private spinFwd = 0;
-  private followApplied = false;
 
   get cue(): Ball | undefined {
     return this.balls.find((b) => b.id === 0);
   }
 
+  /** O'yin variantini o'rnatish (geometriya + fizika farqlari) */
+  setVariant(variant: GameType): void {
+    this.geo = VARIANTS[variant];
+    if (this.w && this.h) this.setSize(this.w, this.h);
+  }
+
+  /** Sharning kontakt-nuqta (tag) sirpanish tezligi */
+  private slipSpeed(b: Ball): number {
+    return Math.hypot(b.vx - this.r * b.wy, b.vy + this.r * b.wx);
+  }
+
   /** Kiy soqqasi tinch va zarbaga tayyormi */
   canAim(): boolean {
     const cue = this.cue;
-    return !this.shooting && !!cue && cue.active && cue.sink >= 1 && Math.hypot(cue.vx, cue.vy) < 0.06;
+    return (
+      !this.shooting &&
+      !!cue &&
+      cue.active &&
+      cue.sink >= 1 &&
+      Math.hypot(cue.vx, cue.vy) < 0.06 &&
+      this.slipSpeed(cue) < 0.06
+    );
   }
 
+  /** Barcha sharlar tinchlanганmi (chiziqli VA spin bo'yicha) */
   allResting(): boolean {
-    return this.balls.every((b) => !b.active || Math.hypot(b.vx, b.vy) < 0.05);
+    return this.balls.every(
+      (b) => !b.active || (Math.hypot(b.vx, b.vy) < V_EPS && this.slipSpeed(b) < SLIP_EPS),
+    );
   }
 
   get isShooting(): boolean {
@@ -123,17 +225,18 @@ export class BilliardEngine {
     };
   }
 
-  /** Ekran o'lchami + stol geometriyasini hisoblash (BilliardTable bilan bir xil nisbatlar) */
+  /** Ekran o'lchami + stol geometriyasini variantga qarab hisoblash */
   setSize(w: number, h: number): void {
     this.w = w;
     this.h = h;
-    const r = Math.max(8, Math.min(w, h) * 0.03);
+    const g = this.geo;
+    const r = Math.max(7, Math.min(w, h) * g.ballRatio);
     this.r = r;
     this.cushion = Math.min(w, h) * 0.05;
-    this.cm = r * 2.3;
-    this.mm = r * 2.0;
-    this.throat = r * 2.05;
-    this.jaw = r * 0.22;
+    this.cm = r * g.cornerMouth;
+    this.mm = r * g.middleMouth;
+    this.throat = r * g.capture;
+    this.jaw = r * g.jaw;
 
     const c = this.cushion;
     this.pockets = [
@@ -191,7 +294,6 @@ export class BilliardEngine {
         const spec = objects[idx];
         if (!spec) break;
         const y = cy + (i - (count - 1) / 2) * gapY;
-        // Zich terishda ozgina siljish — dastlab bir-biriga kirib turmasin
         balls.push(this.makeBall(idx + 1, spec.number, spec.kind, spec.color, x, y));
         idx++;
       }
@@ -209,7 +311,7 @@ export class BilliardEngine {
     x: number,
     y: number,
   ): Ball {
-    // Boshlang'ich orientatsiya har sharda biroz farq qilsin (raqamlar bir xil qaramasin)
+    // Boshlang'ich orientatsiya har sharda biroz farq qilsin
     const seed = (id * 2.399963) % (Math.PI * 2);
     const ori = rotate({ x: 0, y: 0, z: 1 }, { x: 1, y: 0, z: 0 }, seed);
     const pole = rotate({ x: 1, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, seed);
@@ -222,6 +324,9 @@ export class BilliardEngine {
       y,
       vx: 0,
       vy: 0,
+      wx: 0,
+      wy: 0,
+      wz: 0,
       active: true,
       sink: 1,
       sinkTo: null,
@@ -234,9 +339,6 @@ export class BilliardEngine {
     this.firstContact = null;
     this.potted = [];
     this.cueScratched = false;
-    this.followApplied = false;
-    this.spinSide = 0;
-    this.spinFwd = 0;
   }
 
   /** Kiy soqqasini joylashtirish mumkinmi (boshqa shar bilan ustma-ust emas, stol ichida) */
@@ -259,6 +361,9 @@ export class BilliardEngine {
     cue.y = y;
     cue.vx = 0;
     cue.vy = 0;
+    cue.wx = 0;
+    cue.wy = 0;
+    cue.wz = 0;
     cue.active = true;
     cue.sink = 1;
     cue.sinkTo = null;
@@ -267,16 +372,46 @@ export class BilliardEngine {
   /**
    * Zarba boshlash. `power` — piksel/kadr tezligi; `english` — {x,y} ∈ [−1,1]
    * (x = yon spin, y = follow(+)/draw(−)).
+   *
+   * Kiy uchi ofseti ω ga aylantiriladi:
+   *  • vertikal (y): (ẑ×dir) o'qi atrofida dumalash spini. 0.4R ofset (y≈0.8)
+   *    tabiiy dumalash beradi; undan yuqori — follow, past — draw.
+   *  • yon (x): vertikal o'q atrofida wz (english) + squirt (ozgina og'ish).
    */
   beginShot(dirX: number, dirY: number, power: number, english: { x: number; y: number }): void {
     const cue = this.cue;
     if (!cue || !this.canAim()) return;
+    const R = this.r;
     const len = Math.hypot(dirX, dirY) || 1;
-    cue.vx = (dirX / len) * power;
-    cue.vy = (dirY / len) * power;
+    let ux = dirX / len;
+    let uy = dirY / len;
+
+    // Squirt: yon english kiy soqqasini mo'ljal chizig'idan ozgina chetга chiqaradi
+    // (english ga QARAMA-QARSHI). Kichik burchak.
+    const sq = -english.x * SQUIRT;
+    const cs = Math.cos(sq);
+    const sn = Math.sin(sq);
+    const dx2 = ux * cs - uy * sn;
+    const dy2 = ux * sn + uy * cs;
+    ux = dx2;
+    uy = dy2;
+
+    cue.vx = ux * power;
+    cue.vy = uy * power;
+
+    // Vertikal english → dumalash spini, (ẑ × dir) o'qi bo'yicha.
+    // Tabiiy dumalash: ω = v/R (tip 0.4R). ω = 5·b·v/(2R²), b = english.y·TIP_MAX·R.
+    const bV = english.y * TIP_MAX * R;
+    const wPerp = (5 * bV * power) / (2 * R * R);
+    // ẑ × dir = (−uy, ux, 0)
+    cue.wx = wPerp * -uy;
+    cue.wy = wPerp * ux;
+
+    // Yon english → vertikal o'q spini wz (throw va bort qaytishi uchun)
+    const bH = english.x * TIP_MAX * R;
+    cue.wz = (5 * bH * power) / (2 * R * R);
+
     this.resetShotRecord();
-    this.spinSide = english.x * 0.9;
-    this.spinFwd = english.y;
     this.shooting = true;
   }
 
@@ -284,13 +419,23 @@ export class BilliardEngine {
   step(dt: number): void {
     let maxV = 0;
     for (const b of this.balls) {
-      if (b.active && b.sink >= 1) maxV = Math.max(maxV, Math.hypot(b.vx, b.vy));
+      if (b.active && b.sink >= 1) {
+        maxV = Math.max(maxV, Math.hypot(b.vx, b.vy), this.slipSpeed(b));
+      }
     }
-    const sub = Math.min(12, Math.max(1, Math.ceil((maxV * dt) / (this.r * 0.3))));
+    const sub = Math.min(14, Math.max(1, Math.ceil((maxV * dt) / (this.r * 0.28))));
     const sdt = dt / sub;
     for (let s = 0; s < sub; s++) this.integrate(sdt);
 
     if (this.shooting && this.allResting()) {
+      // Qoldiq mayda tezliklarni tozalaymiz (keyingi mo'ljal toza bo'lsin)
+      for (const b of this.balls) {
+        b.vx = 0;
+        b.vy = 0;
+        b.wx = 0;
+        b.wy = 0;
+        b.wz = 0;
+      }
       this.shooting = false;
       this.resultReady = true;
     }
@@ -298,8 +443,7 @@ export class BilliardEngine {
 
   private integrate(dt: number): void {
     const { r, w, h, cushion, cm, mm } = this;
-    const friction = Math.pow(0.985, dt);
-    const rest = 0.82;
+    const R = r;
 
     for (const b of this.balls) {
       if (!b.active) continue;
@@ -315,58 +459,82 @@ export class BilliardEngine {
         continue;
       }
 
-      const speed = Math.hypot(b.vx, b.vy);
-
-      // Yon spin — kiy soqqasi yo'lini ozgina egadi (masse-lite)
-      if (b.id === 0 && this.spinSide !== 0 && speed > 0.05) {
-        const ux = b.vx / speed;
-        const uy = b.vy / speed;
-        const px = -uy;
-        const py = ux;
-        const k = this.spinSide * speed * 0.02;
-        b.vx += px * k;
-        b.vy += py * k;
-        this.spinSide *= Math.pow(0.94, dt);
+      // ---- 1) Dumalash qarshiligi: chiziqli tezlikni ozgina kamaytiradi
+      const sp = Math.hypot(b.vx, b.vy);
+      if (sp > 1e-5) {
+        const ns = Math.max(0, sp - MU_ROLL * R * dt);
+        b.vx *= ns / sp;
+        b.vy *= ns / sp;
       }
 
-      // Dumalash — orientatsiya vektorlarini aylantirish
-      if (speed > 0.02) {
-        const ux = b.vx / speed;
-        const uy = b.vy / speed;
-        const ang = (speed * dt) / r;
-        const axis: Vec3 = { x: -uy, y: ux, z: 0 };
-        b.ori = rotate(b.ori, axis, ang);
-        b.pole = rotate(b.pole, axis, ang);
+      // ---- 2) Kontakt (tag) sirpanish ishqalanishi: slip → 0, v↔ω ni bog'laydi.
+      //         Sfera uchun to'xtatuvchi impuls = (2/7)·slip; kinetik friksiya
+      //         har kadrda impulsni MU_SLIDE·R·dt gача cheklaydi.
+      const sx = b.vx - R * b.wy;
+      const sy = b.vy + R * b.wx;
+      const slip = Math.hypot(sx, sy);
+      if (slip > 1e-5) {
+        const ux = sx / slip;
+        const uy = sy / slip;
+        let dJ = MU_SLIDE * R * dt;
+        const dJstop = (2 / 7) * slip;
+        if (dJ > dJstop) dJ = dJstop;
+        // Chiziqli: Δv = −dJ·u
+        b.vx -= ux * dJ;
+        b.vy -= uy * dJ;
+        // Burchak: Δω = (5·dJ)/(2R)·(−uy, ux, 0)  (tag kontakt impulsining momenti)
+        const k = (5 * dJ) / (2 * R);
+        b.wx += k * -uy;
+        b.wy += k * ux;
       }
 
+      // ---- 3) Yon spin (wz): so'nish + yo'lning ozgina egrilishi (swerve)
+      if (b.wz !== 0) {
+        if (sp > 0.05) {
+          // wz ishorasiga qarab tezlikка perpendikulyar kichik itarish
+          const uxv = b.vx / sp;
+          const uyv = b.vy / sp;
+          const k = b.wz * SWERVE * R * dt;
+          b.vx += -uyv * k;
+          b.vy += uxv * k;
+        }
+        b.wz *= Math.pow(SPIN_DECAY, dt);
+        if (Math.abs(b.wz) < 1e-4) b.wz = 0;
+      }
+
+      // ---- 4) Harakat
       b.x += b.vx * dt;
       b.y += b.vy * dt;
-      b.vx *= friction;
-      b.vy *= friction;
-      if (Math.hypot(b.vx, b.vy) < 0.03) {
-        b.vx = 0;
-        b.vy = 0;
+
+      // ---- 5) Orientatsiya (dumalash + spin) — ω o'qi atrofida aylanish
+      const wMag = Math.hypot(b.wx, b.wy, b.wz);
+      if (wMag > 1e-5) {
+        const axis: Vec3 = { x: b.wx / wMag, y: b.wy / wMag, z: b.wz / wMag };
+        b.ori = rotate(b.ori, axis, wMag * dt);
+        b.pole = rotate(b.pole, axis, wMag * dt);
       }
 
-      // 1) Teshikka tushish (magnitsiz — markaz throat ga yetsa)
+      // To'liq tinchlik — mayda qoldiqlarni nolga
+      if (Math.hypot(b.vx, b.vy) < V_EPS && this.slipSpeed(b) < SLIP_EPS && Math.abs(b.wz) < 0.02) {
+        b.vx = 0;
+        b.vy = 0;
+        b.wx = 0;
+        b.wy = 0;
+        b.wz = 0;
+      }
+
+      // ---- 6) Teshikka tushish (markaz throat ga yetsa)
       let dropped = false;
       for (const p of this.pockets) {
         if (dist(b.x, b.y, p.x, p.y) < this.throat) {
-          b.sinkTo = p;
-          b.sink = 0.999;
-          b.vx *= 0.35;
-          b.vy *= 0.35;
-          if (!this.potted.includes(b.number) || b.id === 0) {
-            if (b.id === 0) this.cueScratched = true;
-            this.potted.push(b.number);
-          }
+          this.sink(b, p);
           dropped = true;
           break;
         }
       }
       if (dropped) continue;
 
-      // 2) Jag' (pocket point) — rattle
+      // ---- 7) Jag' (pocket point) — rattle
       for (const j of this.jaws) {
         const d = dist(b.x, b.y, j.x, j.y);
         const min = r + this.jaw;
@@ -383,29 +551,26 @@ export class BilliardEngine {
         }
       }
 
-      // 3) Bort (cushion) — faqat segment ichida (teshik og'zi bo'shligidan tashqarida)
+      // ---- 8) Bort (cushion) — spin bilan
       const inTopBot =
         (b.x > cushion + cm && b.x < w / 2 - mm) || (b.x > w / 2 + mm && b.x < w - cushion - cm);
       if (b.y < cushion + r && inTopBot) {
         b.y = cushion + r;
-        b.vy = Math.abs(b.vy) * rest;
+        this.railBounce(b, 0, 1);
       } else if (b.y > h - cushion - r && inTopBot) {
         b.y = h - cushion - r;
-        b.vy = -Math.abs(b.vy) * rest;
+        this.railBounce(b, 0, -1);
       }
       const inSides = b.y > cushion + cm && b.y < h - cushion - cm;
       if (b.x < cushion + r && inSides) {
         b.x = cushion + r;
-        b.vx = Math.abs(b.vx) * rest;
+        this.railBounce(b, 1, 0);
       } else if (b.x > w - cushion - r && inSides) {
         b.x = w - cushion - r;
-        b.vx = -Math.abs(b.vx) * rest;
+        this.railBounce(b, -1, 0);
       }
 
-      // 4) Zaxira — kanvasdan chiqib ketsa, eng yaqin teshikka tushiriladi.
-      //    MUHIM: bu ham teshikka tushish — step 1 kabi natijaga yozilishi shart,
-      //    aks holda shar "g'oyib" bo'lib qoladi (rules bilan desinxron: 8-ball
-      //    yutib bo'lmaydigan bo'ladi yoki biток yo'qolib o'yin qotib qoladi).
+      // ---- 9) Zaxira — kanvasdan chiqib ketsa, eng yaqin teshikka tushiriladi
       if (b.x < -r || b.x > w + r || b.y < -r || b.y > h + r) {
         let np = this.pockets[0];
         let nd = Infinity;
@@ -416,20 +581,56 @@ export class BilliardEngine {
             np = p;
           }
         }
-        b.sinkTo = np;
-        b.sink = 0.999;
-        b.vx *= 0.35;
-        b.vy *= 0.35;
-        if (!this.potted.includes(b.number) || b.id === 0) {
-          if (b.id === 0) this.cueScratched = true;
-          this.potted.push(b.number);
-        }
+        this.sink(b, np);
       }
     }
 
-    // Soqqa-soqqa to'qnashuvi (impuls; faqat yaqinlashayotganda) — BilliardTable bilan bir xil
-    const REST = 0.95;
-    const CFRICTION = 0.02;
+    this.collideBalls();
+  }
+
+  /** Sharni teshikka tushirish (natijaga yozish bilan) */
+  private sink(b: Ball, p: Pocket): void {
+    b.sinkTo = p;
+    b.sink = 0.999;
+    b.vx *= 0.35;
+    b.vy *= 0.35;
+    if (!this.potted.includes(b.number) || b.id === 0) {
+      if (b.id === 0) this.cueScratched = true;
+      this.potted.push(b.number);
+    }
+  }
+
+  /**
+   * Bort qaytishi (n = ichkariga qaragan normal, birlik). Normal tezlik
+   * restitutsiya bilan qaytadi; YON spin (wz) tangensial tezlik qo'shadi
+   * (qaytish burchagi o'zgaradi — "bort spini"), bort esa wz ni qisman yeydi.
+   */
+  private railBounce(b: Ball, nx: number, ny: number): void {
+    const rest = this.geo.rail;
+    // Tangensial birlik (n ni 90° aylantirish)
+    const tx = -ny;
+    const ty = nx;
+    let vn = b.vx * nx + b.vy * ny; // ichkariga qarab manfiy
+    let vt = b.vx * tx + b.vy * ty;
+    if (vn < 0) vn = -vn * rest; // qaytadi
+    // Yon spin tangensial tezlik qo'shadi (english bilan bort qaytishi)
+    vt += this.r * b.wz * RAIL_SPIN;
+    // Bort tangensial ishqalanishi (ozgina so'nadi) + spin qisman yeyiladi
+    vt *= 0.9;
+    b.wz *= 0.6;
+    b.vx = nx * vn + tx * vt;
+    b.vy = ny * vn + ty * vt;
+    // Dumalash spini yangi tezlikка moslashsin (bort sharni "aylantiradi")
+    const sp = Math.hypot(b.vx, b.vy);
+    if (sp > 0.05) {
+      b.wx = -b.vy / this.r;
+      b.wy = b.vx / this.r;
+    }
+  }
+
+  /** Soqqa-soqqa to'qnashuvi — normal impuls (spin saqlanadi) + throw */
+  private collideBalls(): void {
+    const r = this.r;
     const min = r * 2;
     const live = this.balls.filter((b) => b.active && b.sink >= 1);
     for (let iter = 0; iter < 2; iter++) {
@@ -448,10 +649,11 @@ export class BilliardEngine {
           a.y -= ny * overlap;
           c.x += nx * overlap;
           c.y += ny * overlap;
+
           const rvx = a.vx - c.vx;
           const rvy = a.vy - c.vy;
           const vn = rvx * nx + rvy * ny;
-          if (vn <= 0) continue;
+          if (vn <= 0) continue; // ajralib ketyapti
 
           // Birinchi kontakt (kiy soqqasi ↔ obyekt shar) — qoidalar uchun
           if (this.firstContact === null && (a.id === 0 || c.id === 0)) {
@@ -459,27 +661,35 @@ export class BilliardEngine {
             this.firstContact = obj.number;
           }
 
-          const jn = ((1 + REST) * vn) / 2;
+          // Normal impuls (teng massa, deyarli elastik). Markazlar chizig'i
+          // bo'ylab → SPIN o'zgarmaydi: follow/draw shu tufayli SAQLANADI.
+          const jn = ((1 + E_BB) * vn) / 2;
           a.vx -= jn * nx;
           a.vy -= jn * ny;
           c.vx += jn * nx;
           c.vy += jn * ny;
+
+          // Throw: kontakt nuqtadagi tangensial sirt tezligi (spin bilan).
+          // a ning kontakti +n·R da, c niki −n·R da.
           const tx = -ny;
           const ty = nx;
-          const vt = rvx * tx + rvy * ty;
-          const jt = vt * CFRICTION;
+          // Sirt tezligi = v + ω × (R·nhat). Vertikal o'q (wz) hissasi:
+          //   (wz ẑ) × (R n) = wz·R·(ẑ×n) = wz·R·(−n.y, n.x) = wz·R·t
+          const surfA = (a.vx * tx + a.vy * ty) + this.r * a.wz;
+          const surfC = (c.vx * tx + c.vy * ty) - this.r * c.wz;
+          const vtRel = surfA - surfC;
+          // Coulomb: throw impulsi normal impulsга cheklanган
+          let jt = vtRel * 0.5;
+          const maxJt = BB_FRICTION * jn;
+          if (jt > maxJt) jt = maxJt;
+          if (jt < -maxJt) jt = -maxJt;
           a.vx -= jt * tx;
           a.vy -= jt * ty;
           c.vx += jt * tx;
           c.vy += jt * ty;
-
-          // Follow / draw — kiy soqqasining birinchi to'qnashuvida
-          if (!this.followApplied && (a.id === 0 || c.id === 0) && this.spinFwd !== 0) {
-            const cueBall = a.id === 0 ? a : c;
-            cueBall.vx += nx * this.spinFwd * 1.4;
-            cueBall.vy += ny * this.spinFwd * 1.4;
-            this.followApplied = true;
-          }
+          // Yon spin qisman uzatiladi/so'nadi
+          a.wz *= 0.85;
+          c.wz = c.wz * 0.85 - (jt / this.r) * 0.5;
         }
       }
     }
@@ -533,7 +743,7 @@ export class BilliardEngine {
     ctx.lineTo(w * 0.28, h - c);
     ctx.stroke();
 
-    // Charm teshiklar
+    // Charm teshiklar (o'lcham variantга bog'liq — throat dan)
     for (const p of this.pockets) {
       const R = this.throat * 1.15;
       ctx.beginPath();
@@ -569,7 +779,7 @@ export class BilliardEngine {
     diamond(c * 0.5, h * 0.5);
     diamond(w - c * 0.5, h * 0.5);
 
-    // Sharlar — tinchlari avval, harakatdagilari ustidan
+    // Sharlar
     for (const b of this.balls) if (b.active) this.drawBall(ctx, b);
   }
 
@@ -605,21 +815,10 @@ export class BilliardEngine {
     const isStripe = b.kind === 'stripe';
     const base = b.kind === 'cue' ? b.color : isStripe ? '#f6f2e8' : b.color;
     const dark =
-      b.kind === 'cue'
-        ? shade(b.color, -0.4)
-        : isStripe
-          ? '#c9c2ad'
-          : shade(b.color, -0.45);
+      b.kind === 'cue' ? shade(b.color, -0.4) : isStripe ? '#c9c2ad' : shade(b.color, -0.45);
 
     // Asos (radial gradient — hajm)
-    const g = ctx.createRadialGradient(
-      b.x - rr * 0.34,
-      b.y - rr * 0.4,
-      rr * 0.12,
-      b.x,
-      b.y,
-      rr,
-    );
+    const g = ctx.createRadialGradient(b.x - rr * 0.34, b.y - rr * 0.4, rr * 0.12, b.x, b.y, rr);
     g.addColorStop(0, shade(base, 0.35));
     g.addColorStop(0.5, base);
     g.addColorStop(1, dark);
@@ -637,7 +836,6 @@ export class BilliardEngine {
       const p = b.pole;
       const pxy = Math.hypot(p.x, p.y);
       const ang = Math.atan2(p.y, p.x);
-      // Ekvatorial band: katta o'q pxy ga tik (rr), kichik o'q pxy bo'ylab (rr*|pz|)
       const major = rr;
       const minor = rr * Math.abs(p.z);
       const grad = ctx.createLinearGradient(b.x, b.y - rr, b.x, b.y + rr);
@@ -646,10 +844,8 @@ export class BilliardEngine {
       grad.addColorStop(1, shade(b.color, -0.3));
       ctx.fillStyle = grad;
       ctx.beginPath();
-      // Bandni ikki ellips yoyi orasidagi soha sifatida — soddaroq: qalin ellips shtrix
       ctx.ellipse(b.x, b.y, Math.max(minor, 0.6), major, ang, 0, Math.PI * 2);
       ctx.fill();
-      // pxy≈0 (qutb kameraga qaragan) — band butun halqa; ozgina qorong'i kontur
       if (pxy < 0.08) {
         ctx.strokeStyle = shade(b.color, -0.2);
         ctx.lineWidth = rr * 0.14;
@@ -665,11 +861,9 @@ export class BilliardEngine {
       const proj = 0.6;
       const nx = b.x + b.ori.x * rr * proj;
       const ny = b.y + b.ori.y * rr * proj;
-      // Chetga yaqinlashganda kichrayadi/so'nadi (dumalash hissi)
       const fade = Math.max(0, Math.min(1, (b.ori.z + 0.15) / 0.5));
       const cr = rr * 0.42 * (0.7 + 0.3 * fade);
       ctx.globalAlpha = 0.35 + 0.65 * fade;
-      // Oq raqam doirasi (pul sharlarida standart)
       if (b.kind !== 'cue') {
         ctx.beginPath();
         ctx.arc(nx, ny, cr, 0, Math.PI * 2);
@@ -740,7 +934,6 @@ export class BilliardEngine {
     ctx.lineTo(cue.x + ux * ghostDist, cue.y + uy * ghostDist);
     ctx.stroke();
     ctx.setLineDash([]);
-    // Ghost soqqa
     ctx.beginPath();
     ctx.arc(cue.x + ux * ghostDist, cue.y + uy * ghostDist, this.r, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.28)';

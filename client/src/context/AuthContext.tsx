@@ -68,13 +68,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     void init();
   }, [refreshMe]);
 
-  // Multi-tab: boshqa oynada accessToken o'chirilsa — bu oynada ham lokal chiqish
+  // Multi-tab sinxronizatsiya (storage hodisasi FAQAT boshqa tablarda ishlaydi)
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
+      // Boshqa oynada accessToken o'chirilsa — bu oynada ham lokal chiqish
       if (e.key === 'accessToken' && e.newValue === null) {
         viewingClub.clear();
         setUser(null);
         setClub(null);
+      }
+      // Superadmin "klubni ko'rish" konteksti boshqa tabda o'zgarsa/tozalansa —
+      // bu tab ham qayta sinxronlanishi shart: aks holda UI bir klubni ko'rsatib,
+      // so'rovlar (X-Club-Id) localStorage dagi boshqa klub kontekstida ketardi.
+      // Eng ishonchli yo'l — sahifani qayta yuklab, kontekstni bir xillashtirish.
+      if (e.key === 'viewingClub') {
+        window.location.reload();
       }
     };
     window.addEventListener('storage', onStorage);

@@ -113,6 +113,8 @@ const BilliardGame = () => {
     if (!ctx) return;
 
     const engine = new BilliardEngine();
+    // Variant geometriyasi (shar/lyuza o'lchamlari) — setSize dan OLDIN
+    engine.setVariant(gameRef.current?.type ?? 'russian');
     engineRef.current = engine;
     const S = interactRef.current;
     S.charging = false;
@@ -456,7 +458,8 @@ const BilliardGame = () => {
                     position: 'relative',
                     flex: 1,
                     borderRadius: TOKENS.radius.lg,
-                    aspectRatio: '16 / 10',
+                    // Haqiqiy bilyard stoli nisbati — uzunlik:kenglik = 2:1
+                    aspectRatio: '2 / 1',
                     overflow: 'hidden',
                     background:
                       'linear-gradient(145deg, #4a331f 0%, #241811 50%, #4a331f 100%)',

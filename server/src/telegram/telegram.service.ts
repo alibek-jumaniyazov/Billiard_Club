@@ -201,10 +201,14 @@ export class TelegramService {
       return;
     }
     try {
+      // Timeout SHART: aks holda Telegram sekin/yetib bo'lmaydigan bo'lsa fetch
+      // uzoq osilib qolardi — bu esa xabarni AWAIT qilgan chaqiruvchilarni
+      // (masalan fikr-mulohaza yuborish) bloklaydi. 5 soniyadan keyin uziladi.
       const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+        signal: AbortSignal.timeout(5000),
       });
       if (!res.ok) {
         this.logger.error(`Telegram API xatosi: ${res.status} ${await res.text()}`);

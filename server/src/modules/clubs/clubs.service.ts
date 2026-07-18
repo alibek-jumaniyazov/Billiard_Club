@@ -38,6 +38,22 @@ const CONTRACT_MONTHS: Record<string, number> = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Sanaga oylar qo'shadi, MANZIL oyning oxirgi kunidan oshib ketmasin:
+ * masalan 31-yanvar + 1 oy = 28/29-fevral. JS ning oddiy setMonth() i
+ * bunday holatda keyingi oyga (masalan 3-martga) sakrab, obunaga bir necha
+ * ortiqcha kun qo'shib yuborardi. Vaqt komponenti saqlanadi.
+ */
+const addMonths = (base: Date, months: number): Date => {
+  const d = new Date(base);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDay));
+  return d;
+};
+
 @Injectable()
 export class ClubsService {
   constructor(
@@ -181,8 +197,7 @@ export class ClubsService {
         currentEnd && new Date(currentEnd).getTime() > Date.now()
           ? new Date(currentEnd)
           : new Date();
-      newEnd = new Date(base);
-      newEnd.setMonth(newEnd.getMonth() + (dto.months ?? 1));
+      newEnd = addMonths(base, dto.months ?? 1);
     }
 
     club.subscriptionEndsAt = newEnd;
@@ -324,8 +339,7 @@ export class ClubsService {
         throw new BadRequestException({ key: 'reports.invalidRange' });
       }
     } else {
-      endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + CONTRACT_MONTHS[dto.type]);
+      endDate = addMonths(startDate, CONTRACT_MONTHS[dto.type]);
     }
 
     const contract = await this.dataSource.transaction(async (manager) =>
@@ -470,11 +484,23 @@ export class ClubsService {
     const club = await this.clubRepo.findOne({ where: { id } });
     if (!club) throw new NotFoundException({ key: 'clubs.notFound' });
 
-    const [sessions, contracts] = await Promise.all([
-      this.dataSource.getRepository(Session).count({ where: { clubId: id } }),
-      this.dataSource.getRepository(Contract).count({ where: { clubId: id } }),
-    ]);
-    if (sessions > 0 || contracts > 0) {
+    // "Bo'sh" tekshiruvi TO'LIQ bo'lishi shart: aks holda o'chirishga urinish
+    // xom FK xatosiga (RESTRICT) uchrab, chalkash umumiy xato qaytarardi.
+    // sessions > 0 — buyurtma/sotuv/qarz/to'lov yozuvlarining hammasini qamraydi
+    // (ular sessiyasiz bo'lmaydi). customers/expenses/reservations esa sessiyasiz
+    // ham mavjud bo'la oladi — ular ham RESTRICT, shuning uchun alohida sanaladi.
+    // contracts CASCADE bo'lsa-da, platforma daromadi yozuvi jimgina o'chmasin
+    // deb ataylab bloklanadi.
+    const [row] = (await this.dataSource.query(
+      `SELECT
+         (SELECT COUNT(*) FROM sessions WHERE "clubId" = $1)
+       + (SELECT COUNT(*) FROM contracts WHERE "clubId" = $1)
+       + (SELECT COUNT(*) FROM customers WHERE "clubId" = $1)
+       + (SELECT COUNT(*) FROM expenses WHERE "clubId" = $1)
+       + (SELECT COUNT(*) FROM reservations WHERE "clubId" = $1) AS cnt`,
+      [id],
+    )) as Array<{ cnt: string }>;
+    if (Number(row?.cnt ?? 0) > 0) {
       throw new BadRequestException({ key: 'clubs.hasData' });
     }
 

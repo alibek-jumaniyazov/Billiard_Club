@@ -137,6 +137,9 @@ export class SubscriptionService {
         number: await nextInvoiceNumber(manager),
         amount,
         discountAmount: discount,
+        // Muddatni MUHRLAYMIZ: tasdiqlashgacha tarif o'zgarsa ham klub aynan
+        // sotib olgan muddatni oladi
+        durationDays: plan.durationDays,
         couponId: coupon?.id ?? null,
         status: InvoiceStatus.PENDING,
       });

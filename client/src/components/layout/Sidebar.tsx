@@ -101,18 +101,22 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
             },
           ]
         : []),
-      {
-        // Asosiy — Bosh sahifa + Hisobotlar (hisobotlar dashboard ostiga ko'chirildi)
-        key: 'g-main',
-        type: 'group' as const,
-        label: collapsed ? null : t('menu.groupMain'),
-        children: [
-          { key: '/dashboard', icon: <DashboardOutlined />, label: t('menu.dashboard') },
-          ...(isAdminKassir
-            ? [{ key: '/reports', icon: <BarChartOutlined />, label: t('menu.reports') }]
-            : []),
-        ],
-      },
+      // Asosiy — Bosh sahifa + Hisobotlar. Operator moliyaviy bosh sahifani
+      // ko'rmaydi (server /dashboard/stats ni operatorga bermaydi), shuning uchun
+      // bu guruh butunlay admin/kassirga (va superadmin ko'rish rejimiga) ko'rinadi.
+      ...(isAdminKassir
+        ? [
+            {
+              key: 'g-main',
+              type: 'group' as const,
+              label: collapsed ? null : t('menu.groupMain'),
+              children: [
+                { key: '/dashboard', icon: <DashboardOutlined />, label: t('menu.dashboard') },
+                { key: '/reports', icon: <BarChartOutlined />, label: t('menu.reports') },
+              ],
+            },
+          ]
+        : []),
       {
         key: 'g-billiard',
         type: 'group' as const,

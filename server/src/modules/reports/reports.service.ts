@@ -205,11 +205,20 @@ export class ReportsService {
              WHERE e."clubId" = $1 AND e."spentAt" >= $2 AND e."spentAt" < $3) AS "expensesTotal"`,
         [clubId, from, to],
       ),
-      // To'lov usullari taqsimoti (sales + qarz to'lovlari birga)
+      // To'lov usullari taqsimoti — session_payments (bo'lib to'lash satrlari)
+      // USTUVOR: Sale.paymentMethod faqat DOMINANT usulni saqlaydi, shuning uchun
+      // aралаш (cash+card) to'lov bitta usulga yozilib qolardi. session_payments
+      // har usul bo'yicha aniq summani saqlaydi (dashboard bilan bir xil manba).
+      // session_payments yozuvi bo'lmagan sotuvlar (masalan 100% qarz — paidNow=0)
+      // NOT EXISTS orqali qo'shiladi, qarz to'lovlari alohida.
       this.dataSource.query(
         `SELECT m.method, COALESCE(SUM(m.total), 0)::float AS total FROM (
-           SELECT sa."paymentMethod"::text AS method, sa."totalAmount" AS total FROM sales sa
+           SELECT sp.method::text AS method, sp.amount AS total FROM session_payments sp
+           WHERE sp."clubId" = $1 AND sp."createdAt" >= $2 AND sp."createdAt" < $3
+           UNION ALL
+           SELECT sa."paymentMethod"::text, sa."totalAmount" FROM sales sa
            WHERE sa."clubId" = $1 AND sa."createdAt" >= $2 AND sa."createdAt" < $3
+             AND NOT EXISTS (SELECT 1 FROM session_payments sp2 WHERE sp2."saleId" = sa.id)
            UNION ALL
            SELECT dp."paymentMethod"::text, dp."amount" FROM debt_payments dp
            WHERE dp."clubId" = $1 AND dp."createdAt" >= $2 AND dp."createdAt" < $3

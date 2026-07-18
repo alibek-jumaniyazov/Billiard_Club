@@ -124,8 +124,10 @@ export class FeedbackService {
       }
     }
 
-    // Platforma egasiga Telegram xabari (xatolar ichkarida yutiladi)
-    await this.telegram.notifyFeedback(saved, club, user);
+    // Platforma egasiga Telegram xabari — fire-and-forget: javob Telegram
+    // aylanishini KUTMAYDI (boshqa barcha chaqiruvchilar kabi). Xatolar
+    // telegram servisi ichida yutiladi; send() da 5s timeout bor.
+    void this.telegram.notifyFeedback(saved, club, user);
 
     return saved;
   }

@@ -671,6 +671,21 @@ export class SessionsService {
       });
     }
 
+    // Chegirma ham audit jurnaliga yoziladi: qo'lda tuzatishdan (adjustment)
+    // farqli ravishda chegirmani KASSIR ham qo'llashi mumkin — kim, qancha
+    // chegirma bergani egaga ko'rinadigan/izlanadigan bo'lishi uchun.
+    if (this.auditService && result.discount > 0) {
+      this.auditService.log({
+        action: 'session.discount',
+        clubId,
+        userId: user.id,
+        actorRole: user.role,
+        entity: 'session',
+        entityId: result.sessionId,
+        meta: { discount: result.discount, totalAmount: result.totalAmount },
+      });
+    }
+
     const session = await this.sessionRepo.findOne({
       where: { id: result.sessionId },
       relations: { table: true },

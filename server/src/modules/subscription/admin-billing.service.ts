@@ -13,7 +13,7 @@ import { Invoice } from '../../entities/invoice.entity';
 import { Plan } from '../../entities/plan.entity';
 import { TelegramService } from '../../telegram/telegram.service';
 import { ClubsService } from '../clubs/clubs.service';
-import { contractTypeFromDays, DAY_MS } from './billing.util';
+import { contractTypeFromDays, DAY_MS, validateCouponForPlan } from './billing.util';
 import {
   ConfirmInvoiceDto,
   CreateCouponDto,
@@ -221,17 +221,21 @@ export class AdminBillingService {
       if (!lockedClub) throw new NotFoundException({ key: 'clubs.notFound' });
 
       // Boshlanish — joriy obuna tugashi (kelajakda bo'lsa) yoki hozir:
-      // muddati tugamagan klub kunlarini yo'qotmaydi
+      // muddati tugamagan klub kunlarini yo'qotmaydi.
+      // Davomiylik XARID PAYTIDA muhrlangan (inv.durationDays) — tasdiqlashgacha
+      // tarif o'zgargan bo'lsa ham klub aynan sotib olgan muddatni oladi.
+      // Eski (snapshotdan avvalgi) fakturalarda null — tarifning joriy qiymati.
+      const durationDays = inv.durationDays ?? plan.durationDays;
       const currentEnd = lockedClub.subscriptionEndsAt ?? lockedClub.trialEndsAt;
       const startDate =
         currentEnd && new Date(currentEnd).getTime() > Date.now()
           ? new Date(currentEnd)
           : new Date();
-      const endDate = new Date(startDate.getTime() + plan.durationDays * DAY_MS);
+      const endDate = new Date(startDate.getTime() + durationDays * DAY_MS);
 
       // Shartnoma + klub obunasini uzaytirish — clubs.service dagi umumiy yo'l
       const contract = await this.clubsService.applyContractInTransaction(manager, inv.clubId, {
-        type: contractTypeFromDays(plan.durationDays),
+        type: contractTypeFromDays(durationDays),
         amount: inv.amount,
         startDate,
         endDate,
@@ -244,12 +248,17 @@ export class AdminBillingService {
       inv.contractId = contract.id;
       await manager.save(Invoice, inv);
 
-      // Kupon ishlatildi — usedCount faqat TASDIQLASHDA oshadi
+      // Kupon ishlatildi — usedCount faqat TASDIQLASHDA oshadi.
       if (inv.couponId) {
-        await manager.findOne(Coupon, {
+        const coupon = await manager.findOne(Coupon, {
           where: { id: inv.couponId },
           lock: { mode: 'pessimistic_write' },
         });
+        // Kupon so'rov va tasdiq oralig'ida tugab/o'chib/limitga yetgan bo'lishi
+        // mumkin. purchase() usedCount ni OSHIRMAYDI, shuning uchun bir xil
+        // maxUses li kupon bir nechta PENDING faktura orqali limitdan oshib
+        // ketishi mumkin edi — qulf ostida qayta tekshiramiz.
+        validateCouponForPlan(coupon, plan);
         await manager.increment(Coupon, { id: inv.couponId }, 'usedCount', 1);
       }
 

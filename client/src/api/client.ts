@@ -147,6 +147,21 @@ client.interceptors.response.use(
       // keyingi so'rov refresh'ni qaytadan uradi
     }
 
+    // TOKEN_EXPIRED BO'LMAGAN 401: token yaroqsiz/bekor qilingan (parol
+    // almashtirilgan, tokenVersion oshgan, xodim faolsizlantirilgan). Refresh
+    // bu holatda yordam bermaydi — foydalanuvchi buzilgan "kirgan" UI da qolib
+    // ketmasin, toza chiqariladi. /auth/* endpointlari (login xatosi, refresh
+    // oqimi) va allaqachon token yo'q holat bundan mustasno.
+    const reqUrl = original?.url ?? '';
+    const isAuthEndpoint = reqUrl.includes('/auth/');
+    if (status === 401 && code !== 'TOKEN_EXPIRED' && !isAuthEndpoint && tokenStore.getAccess()) {
+      tokenStore.clear();
+      viewingClub.clear();
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login');
+      }
+    }
+
     return Promise.reject(error);
   },
 );

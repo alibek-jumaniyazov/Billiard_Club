@@ -49,8 +49,14 @@ const FullScreenSpin = () => (
   </div>
 );
 
-/** Autentifikatsiya qilingan foydalanuvchining "bosh sahifasi" */
-const homeFor = (role: UserRole): string => (role === 'superadmin' ? '/admin' : '/dashboard');
+/**
+ * Autentifikatsiya qilingan foydalanuvchining "bosh sahifasi".
+ * Operator moliyaviy bosh sahifani (tushum/foyda) ko'rmaydi — uning ishi
+ * stollar/bar, shuning uchun uy sahifasi /tables (server ham /dashboard/stats
+ * ni operatorga bermaydi).
+ */
+const homeFor = (role: UserRole): string =>
+  role === 'superadmin' ? '/admin' : role === 'operator' ? '/tables' : '/dashboard';
 
 /**
  * "Klubni ko'rish" rejimidagi superadmin uchun ham YOPIQ sahifalar —
@@ -193,7 +199,7 @@ const App = () => {
           <Route
             path="/dashboard"
             element={
-              <Protected roles={['admin', 'kassir', 'operator']}>
+              <Protected roles={['admin', 'kassir']}>
                 <Dashboard />
               </Protected>
             }

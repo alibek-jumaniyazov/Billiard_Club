@@ -62,6 +62,15 @@ export class Invoice {
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 0, transformer: new NumericTransformer() })
   discountAmount: number;
 
+  /**
+   * Xarid paytida MUHRLANGAN tarif davomiyligi (kun). Tasdiqlash paytida tarif
+   * durationDays i o'zgargan bo'lsa ham, klub aynan o'zi sotib olgan muddatni
+   * oladi. Eski (snapshotdan avvalgi) fakturalarda null — bu holda tasdiqlash
+   * tarifning joriy qiymatiga tayanadi (avvalgi xatti-harakat).
+   */
+  @Column({ type: 'int', nullable: true })
+  durationDays: number | null;
+
   @Index()
   @Column({ type: 'int', nullable: true })
   couponId: number | null;

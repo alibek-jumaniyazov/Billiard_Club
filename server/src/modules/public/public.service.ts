@@ -9,6 +9,7 @@ import { Settings } from '../../entities/settings.entity';
 import { User } from '../../entities/user.entity';
 import { TelegramService } from '../../telegram/telegram.service';
 import { AuthService, RequestContext } from '../auth/auth.service';
+import { normalizePhone } from '../customers/customers.service';
 import { RegisterDto } from './dto/register.dto';
 
 const TRIAL_DAYS = 7;
@@ -52,12 +53,19 @@ export class PublicService {
     const existing = await this.userRepo.findOne({ where: { username: dto.username } });
     if (existing) throw new ConflictException({ key: 'clubs.usernameTaken' });
 
-    // Trial-farming himoyasi: bitta telefon raqamiga bitta sinov klubi
-    const phoneUsed = await this.dataSource.getRepository(Club).findOne({
-      where: { phone: dto.phone.trim() },
-    });
-    if (phoneUsed) {
-      throw new ConflictException({ key: 'public.phoneAlreadyRegistered' });
+    // Trial-farming himoyasi: bitta telefon raqamiga bitta sinov klubi.
+    // Telefon YAGONA ko'rinishga keltiriladi (faqat raqamlar + '+') — aks holda
+    // '+998901234567' va '998 90 123 45 67' turli satr bo'lib, xuddi shu raqam
+    // qayta-qayta bepul sinov ochib olardi. normalizePhone customers moduli bilan
+    // bir xil (yagona manba).
+    const phone = normalizePhone(dto.phone);
+    if (phone) {
+      const phoneUsed = await this.dataSource.getRepository(Club).findOne({
+        where: { phone },
+      });
+      if (phoneUsed) {
+        throw new ConflictException({ key: 'public.phoneAlreadyRegistered' });
+      }
     }
 
     const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * DAY_MS);
@@ -66,7 +74,7 @@ export class PublicService {
       const newClub = await manager.save(Club, {
         name: dto.clubName.trim(),
         ownerName: dto.ownerName.trim(),
-        phone: dto.phone.trim(),
+        phone: phone ?? dto.phone.trim(),
         address: dto.address.trim(),
         status: ClubStatus.TRIAL,
         trialEndsAt,

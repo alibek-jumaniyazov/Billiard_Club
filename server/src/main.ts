@@ -47,6 +47,17 @@ async function bootstrap() {
   // Xotirjam o'chirish: ulanishlar yopilib, DB pool bo'shatiladi
   app.enableShutdownHooks();
 
+  // Xavfsizlik pozitsiyasi NODE_ENV ga bog'liq (fail-loud): production
+  // bo'lmasa refresh cookie Secure EMAS va DB SSL o'chiq — internetga chiqqan
+  // deploy'da bu xavfli. Operator buni darhol ko'rishi uchun baland ogohlantirish.
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '⚠️  NODE_ENV != "production": refresh cookie Secure EMAS va DB SSL o\'chiq. ' +
+        'Internetga chiqqan har qanday deploy uchun NODE_ENV=production qo\'ying.',
+    );
+  }
+
   const port = parseInt(process.env.PORT || '5000', 10);
   await app.listen(port);
   // eslint-disable-next-line no-console
