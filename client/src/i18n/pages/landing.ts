@@ -154,6 +154,9 @@ export default {
     contactPhoneTitle: 'Telefon',
     contactPhoneDesc: "Ish vaqtida qo'ng'iroq qiling",
     contactPhoneCta: "Qo'ng'iroq qilish",
+    contactInstagramTitle: 'Instagram',
+    contactInstagramDesc: 'Yangiliklar va namunalar uchun kuzatib boring',
+    contactInstagramCta: 'Kuzatish',
     contactEmailTitle: 'Email',
     contactEmailDesc: 'Batafsil savollar va takliflar uchun',
     contactEmailCta: 'Xat yozish',
@@ -162,6 +165,7 @@ export default {
     footerProduct: 'Mahsulot',
     footerAccount: 'Hisob',
     footerLegal: '© {{year}} Billiard Club. Barcha huquqlar himoyalangan.',
+    footerBuiltBy: 'Ishlab chiquvchi',
   },
   ru: {
     // SEO meta (useDocumentHead)
@@ -313,6 +317,9 @@ export default {
     contactPhoneTitle: 'Телефон',
     contactPhoneDesc: 'Звоните в рабочее время',
     contactPhoneCta: 'Позвонить',
+    contactInstagramTitle: 'Instagram',
+    contactInstagramDesc: 'Следите за новостями и примерами работ',
+    contactInstagramCta: 'Подписаться',
     contactEmailTitle: 'Email',
     contactEmailDesc: 'Для подробных вопросов и предложений',
     contactEmailCta: 'Написать письмо',
@@ -321,5 +328,6 @@ export default {
     footerProduct: 'Продукт',
     footerAccount: 'Аккаунт',
     footerLegal: '© {{year}} Billiard Club. Все права защищены.',
+    footerBuiltBy: 'Разработчик',
   },
 };

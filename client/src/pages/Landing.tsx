@@ -10,6 +10,7 @@ import {
   CreditCardOutlined,
   DashboardOutlined,
   GlobalOutlined,
+  InstagramOutlined,
   MailOutlined,
   MenuOutlined,
   PhoneOutlined,
@@ -30,7 +31,13 @@ import {
   type Variants,
 } from 'framer-motion';
 import { useAppSettings } from '../context/AppSettingsContext';
-import { SUPPORT_PHONE, SUPPORT_TELEGRAM } from '../constants';
+import {
+  SUPPORT_EMAIL,
+  SUPPORT_INSTAGRAM,
+  SUPPORT_PHONE,
+  SUPPORT_TELEGRAM,
+  VENDOR_NAME,
+} from '../constants';
 import { TOKENS } from '../theme/tokens';
 import { AnimatedBackground, BilliardTable, BrandLogo, GlassCard } from '../components/ui';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -39,9 +46,6 @@ import { publicApi } from '../api';
 import type { Plan } from '../types';
 
 const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
-
-/** Aloqa emaili (kontakt bo'limi) — env orqali sozlanadi */
-const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || 'support@billiardclub.uz';
 
 /** Token hexini shaffof rgba() ga aylantiradi — sahifada hex takrorlanmasin */
 const hexToRgba = (hex: string, alpha: number): string => {
@@ -58,6 +62,14 @@ const CARD_TINT = 'rgba(255, 255, 255, 0.03)';
 
 const container: CSSProperties = { maxWidth: 1180, margin: '0 auto', padding: '0 24px' };
 const sectionPad: CSSProperties = { padding: 'clamp(56px, 9vw, 96px) 0' };
+
+/* Footer aloqa havolasi — matn + ikonka bir qatorda */
+const footerContactLink: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  fontSize: 13.5,
+};
 
 /* Harakat variantlari — faqat transform + opacity (60fps) */
 const fadeUp: Variants = {
@@ -366,6 +378,10 @@ const Landing = () => {
   }, [livePlans, lang, t]);
 
   const telegramHandle = SUPPORT_TELEGRAM.replace(/^https?:\/\/t\.me\//, '@');
+  const instagramHandle = SUPPORT_INSTAGRAM.replace(
+    /^https?:\/\/(www\.)?instagram\.com\//,
+    '@',
+  ).replace(/\/$/, '');
 
   const langSwitcher = (size: 'small' | 'middle' = 'small') => (
     <Segmented
@@ -401,6 +417,17 @@ const Landing = () => {
       href: `tel:${SUPPORT_PHONE.replace(/[^\d+]/g, '')}`,
       external: false,
       show: Boolean(SUPPORT_PHONE),
+    },
+    {
+      key: 'instagram',
+      icon: <InstagramOutlined />,
+      titleKey: 'contactInstagramTitle',
+      descKey: 'contactInstagramDesc',
+      ctaKey: 'contactInstagramCta',
+      value: instagramHandle,
+      href: SUPPORT_INSTAGRAM,
+      external: true,
+      show: true,
     },
     {
       key: 'email',
@@ -1243,7 +1270,7 @@ const Landing = () => {
               >
                 <Row gutter={[24, 24]} justify="center">
                   {contactCards.map((card) => (
-                    <Col xs={24} sm={12} md={8} key={card.key}>
+                    <Col xs={24} sm={12} md={6} key={card.key}>
                       <motion.div variants={fadeUp} style={{ height: '100%' }}>
                         <GlassCard padding={28} style={{ height: '100%', textAlign: 'center' }}>
                           <div
@@ -1330,6 +1357,47 @@ const Landing = () => {
                 >
                   {t('landing.footerTagline')}
                 </p>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    marginTop: 20,
+                  }}
+                >
+                  <a
+                    className="lp-nav-link"
+                    href={SUPPORT_TELEGRAM}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    style={footerContactLink}
+                  >
+                    <SendOutlined /> {telegramHandle}
+                  </a>
+                  <a
+                    className="lp-nav-link"
+                    href={SUPPORT_INSTAGRAM}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    style={footerContactLink}
+                  >
+                    <InstagramOutlined /> {instagramHandle}
+                  </a>
+                  <a
+                    className="lp-nav-link"
+                    href={`tel:${SUPPORT_PHONE.replace(/[^\d+]/g, '')}`}
+                    style={footerContactLink}
+                  >
+                    <PhoneOutlined /> {SUPPORT_PHONE}
+                  </a>
+                  <a
+                    className="lp-nav-link"
+                    href={`mailto:${SUPPORT_EMAIL}`}
+                    style={footerContactLink}
+                  >
+                    <MailOutlined /> {SUPPORT_EMAIL}
+                  </a>
+                </div>
               </Col>
               <Col xs={12} md={7}>
                 <div
@@ -1389,6 +1457,17 @@ const Landing = () => {
             >
               <span style={{ color: text.tertiary, fontSize: 12.5 }}>
                 {t('landing.footerLegal', { year: new Date().getFullYear() })}
+                {' · '}
+                {t('landing.footerBuiltBy')} —{' '}
+                <a
+                  className="lp-nav-link"
+                  href={SUPPORT_TELEGRAM}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  style={{ fontWeight: 600 }}
+                >
+                  {VENDOR_NAME}
+                </a>
               </span>
               {langSwitcher()}
             </div>

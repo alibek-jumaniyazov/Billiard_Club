@@ -190,11 +190,24 @@ export const TELEGRAM_EVENTS = [
 
 export type TelegramEvent = (typeof TELEGRAM_EVENTS)[number];
 
-// ==================== Aloqa ====================
+// ==================== Aloqa (avilab.uz) ====================
+// Yagona manba: barcha aloqa kanallari avilab.uz ga tegishli.
+// Env orqali qayta sozlash mumkin, aks holda quyidagi standart qiymatlar ishlatiladi.
 
-/** Platforma egasining aloqa telefoni (blok ekranida ko'rsatiladi) */
-export const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '';
+/** Aloqa telefoni (blok ekrani va landing kontakt bo'limi) */
+export const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '+998 95 850 08 80';
 
-/** Obuna sotib olish uchun Telegram havolasi (blok ekrani va landing) */
+/** Aloqa uchun Telegram havolasi (blok ekrani va landing) */
 export const SUPPORT_TELEGRAM =
-  import.meta.env.VITE_SUPPORT_TELEGRAM || 'https://t.me/control_billiard_bot';
+  import.meta.env.VITE_SUPPORT_TELEGRAM || 'https://t.me/avilab_uz';
+
+/** Aloqa emaili (landing kontakt bo'limi) */
+export const SUPPORT_EMAIL =
+  import.meta.env.VITE_SUPPORT_EMAIL || 'avilab.com@gmail.com';
+
+/** Instagram sahifasi (footer / kontakt) */
+export const SUPPORT_INSTAGRAM =
+  import.meta.env.VITE_SUPPORT_INSTAGRAM || 'https://www.instagram.com/avilab.uz';
+
+/** Ishlab chiquvchi / operator brendi (footer atribusiyasi) */
+export const VENDOR_NAME = 'avilab.uz';
