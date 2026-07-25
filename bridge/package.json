@@ -1,0 +1,14 @@
+{
+  "name": "billiardclub-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Billiard Club — klub tarmog'ida ishlaydigan chiroq boshqaruvi bridge agenti (npm bog'liqliklarisiz)",
+  "type": "commonjs",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

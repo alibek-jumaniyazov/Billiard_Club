@@ -50,6 +50,20 @@ Superadmin: `.env` dagi `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`.
 
 Shundan so'ng yangi klub qo'shilganda va obuna uzaytirilganda sizga xabar keladi.
 
+## Stol chiroqlarini avtomatik boshqarish
+
+Kassir o'yinni boshlaganda stol chirog'i o'zi yonadi, yakunlanganda o'zi o'chadi — odatda **1 soniyadan kam**
+kechikish bilan. Klubdagi doim yoqiq kompyuterda kichik **bridge agent** ishlaydi: u serverga o'zi chiqadi
+(chiquvchi HTTPS, uzun-polling), shuning uchun port forwarding ham, statik IP ham kerak emas.
+Agent lokal tarmoqdagi Wi-Fi/DIN relelarga (Shelly, Tasmota) HTTP so'rov yuboradi.
+Server bir tarmoqda bo'lsa `DIRECT` rejimi ham bor (faqat xususiy IP lar — SSRF himoyasi).
+
+Funksiya butunlay **ixtiyoriy va standart holatda o'chiq**: yoqilmasa dastur bugungidek ishlaydi,
+yoqilganda ham chiroqdagi har qanday xato sessiya va pul hisobiga **hech qachon** ta'sir qilmaydi.
+
+Apparat variantlari (13–150 $), elektr ulanish sxemalari, o'rnatish chek-listi, nosozliklar va
+xarajat hisobi: **[docs/LIGHT-CONTROL.md](docs/LIGHT-CONTROL.md)**
+
 ## Muhim texnik qarorlar
 
 - **Tushum** = sessiya yakunida haqiqatda olingan pul (`sales`) + undirilgan qarzlar (`debt_payments`),

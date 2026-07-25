@@ -109,6 +109,19 @@ const messages: Record<Language, Record<string, string>> = {
     'settings.updated': 'Sozlamalar yangilandi',
     'settings.invalidTimezone': "Vaqt mintaqasi qo'llab-quvvatlanmaydi",
 
+    // Chiroqlar
+    'lights.updated': 'Chiroq sozlamalari saqlandi',
+    'lights.settingsUpdated': 'Chiroq rejimi yangilandi',
+    'lights.tested': "Sinov buyrug'i yuborildi",
+    'lights.overrideSet': "Qo'lda boshqaruv yoqildi",
+    'lights.overrideCleared': "Qo'lda boshqaruv bekor qilindi",
+    'lights.tokenIssued': 'Yangi bridge tokeni yaratildi',
+    'lights.invalidHost':
+      "Rele manzili noto'g'ri: IP yoki host ko'rsating, http drayveri uchun esa onUrl va offUrl kerak",
+    'lights.notConfigured': "Bu stolda chiroq sozlanmagan yoki boshqaruv o'chirilgan",
+    'lights.bridgeOffline': "Klub agenti ulanmagan — buyruq u ulangach qo'llanadi",
+    'lights.deviceUnreachable': "Relega ulanib bo'lmadi",
+
     // Fikr-mulohaza markazi
     'feedback.created': "Fikr-mulohaza yuborildi. Tez orada ko'rib chiqamiz",
     'feedback.notFound': 'Fikr-mulohaza topilmadi',
@@ -332,6 +345,19 @@ const messages: Record<Language, Record<string, string>> = {
     // Настройки
     'settings.updated': 'Настройки обновлены',
     'settings.invalidTimezone': 'Часовой пояс не поддерживается',
+
+    // Освещение
+    'lights.updated': 'Настройки освещения сохранены',
+    'lights.settingsUpdated': 'Режим освещения обновлён',
+    'lights.tested': 'Тестовая команда отправлена',
+    'lights.overrideSet': 'Ручное управление включено',
+    'lights.overrideCleared': 'Ручное управление отменено',
+    'lights.tokenIssued': 'Новый токен моста создан',
+    'lights.invalidHost':
+      'Неверный адрес реле: укажите IP или хост, а для драйвера http — onUrl и offUrl',
+    'lights.notConfigured': 'На этом столе освещение не настроено или управление отключено',
+    'lights.bridgeOffline': 'Агент клуба не на связи — команда применится после подключения',
+    'lights.deviceUnreachable': 'Не удалось подключиться к реле',
 
     // Центр отзывов
     'feedback.created': 'Отзыв отправлен. Мы рассмотрим его в ближайшее время',

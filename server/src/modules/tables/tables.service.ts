@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Not, Repository } from 'typeorm';
-import { SessionStatus } from '../../entities/enums';
+import { LightDriver, LightMode, SessionStatus } from '../../entities/enums';
 import { Session } from '../../entities/session.entity';
 import { Table } from '../../entities/table.entity';
 import { safeTimezone } from '../settings/timezones';
@@ -15,13 +15,23 @@ export class TablesService {
     @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
   ) {}
 
-  /** Klub vaqt mintaqasi — "bugun" chegarasi shu mintaqada (dashboard bilan bir xil) */
-  private async clubTimezone(clubId: number): Promise<string> {
-    const rows: Array<{ timezone: string | null }> = await this.dataSource.query(
-      `SELECT s.timezone FROM settings s WHERE s."clubId" = $1`,
-      [clubId],
-    );
-    return safeTimezone(rows[0]?.timezone);
+  /**
+   * Klub sozlamalari (bitta so'rovda):
+   *  - timezone — "bugun" chegarasi shu mintaqada (dashboard bilan bir xil);
+   *  - lightMode — chiroq boshqaruvi rejimi; UI stol kartasida lampochka
+   *    tugmasini KO'RSATISH/YASHIRISH uchun ishlatadi (rejim 'off' bo'lsa
+   *    tugma bosilganda hech narsa o'zgarmasdi — shuning uchun ko'rsatilmaydi).
+   */
+  private async clubSettings(clubId: number): Promise<{ timezone: string; lightMode: string }> {
+    const rows: Array<{ timezone: string | null; lightMode: string | null }> =
+      await this.dataSource.query(
+        `SELECT s.timezone, s."lightMode" FROM settings s WHERE s."clubId" = $1`,
+        [clubId],
+      );
+    return {
+      timezone: safeTimezone(rows[0]?.timezone),
+      lightMode: rows[0]?.lightMode ?? LightMode.OFF,
+    };
   }
 
   /** Stollar + joriy faol sessiyalar + bugungi yakunlangan o'yinlar soni (bitta so'rovda, N+1 siz) */
@@ -43,7 +53,8 @@ export class TablesService {
     const activeByTable = new Map(activeSessions.map((s) => [s.tableId, s]));
 
     // "Bugun" — klub vaqt mintaqasida (server-lokal yarim tun EMAS)
-    const tz = await this.clubTimezone(clubId);
+    const { timezone: tz, lightMode } = await this.clubSettings(clubId);
+    const lightsEnabled = lightMode !== LightMode.OFF;
     const counts: Array<{ tableId: number; cnt: string }> = await this.sessionRepo
       .createQueryBuilder('session')
       .select('session.tableId', 'tableId')
@@ -62,6 +73,8 @@ export class TablesService {
       ...table,
       sessions: activeByTable.has(table.id) ? [activeByTable.get(table.id)] : [],
       todayCompletedSessions: countByTable.get(table.id) ?? 0,
+      // Chiroq boshqaruvi shu stolda haqiqatan ishlaydimi (rejim + rele sozlangan)
+      lightControl: lightsEnabled && table.lightDriver !== LightDriver.NONE,
     }));
   }
 

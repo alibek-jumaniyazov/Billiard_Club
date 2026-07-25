@@ -33,6 +33,7 @@ import { PlatformModule } from './modules/platform/platform.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
+import { LightsModule } from './modules/lights/lights.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { ReservationsModule } from './modules/reservations/reservations.module';
     CustomersModule,
     ExpensesModule,
     ReservationsModule,
+    LightsModule,
   ],
   controllers: [AppController],
   providers: [

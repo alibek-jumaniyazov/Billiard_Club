@@ -1,0 +1,33 @@
+[Unit]
+Description=Billiard Club bridge agenti (chiroq boshqaruvi)
+Documentation=https://billiardclub.uz
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Foydalanuvchi va papkani o'zingizdagiga moslang (Raspberry Pi da odatda "pi")
+User=pi
+WorkingDirectory=/opt/billiardclub-bridge
+ExecStart=/usr/bin/node /opt/billiardclub-bridge/agent.js
+
+# Sozlamalar .env fayldan o'qiladi (agent o'zi o'qiydi).
+# Xohlasangiz shu yerdan ham berish mumkin:
+# Environment=SERVER_URL=https://billiardclub.uz
+# Environment=BRIDGE_TOKEN=xxxxxxxx
+
+# Har qanday holatda qayta ishga tushirish
+Restart=always
+RestartSec=5
+
+# Loglar journald ga tushadi: journalctl -u billiardclub-bridge -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=billiardclub-bridge
+
+# Xavfsizlik (ixtiyoriy, lekin tavsiya etiladi)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

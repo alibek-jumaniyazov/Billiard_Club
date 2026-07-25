@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Button, Card, Popconfirm, Tooltip, Typography } from 'antd';
 import {
+  BulbOutlined,
   CaretRightOutlined,
   ClockCircleOutlined,
   CloseCircleOutlined,
@@ -70,6 +71,12 @@ export interface TableCardProps {
   onCheckout: (table: BilliardTable) => void;
   onPauseResume: (session: Session) => void;
   onCancel: (session: Session) => void;
+  /**
+   * Chiroqni qo'lda yoqish/o'chirish (override). Berilmasa — lampochka
+   * indikatori umuman ko'rsatilmaydi (chiroq sozlanmagan klublarda karta
+   * AYNAN hozirgidek qoladi).
+   */
+  onLightToggle?: (table: BilliardTable, on: boolean) => void;
 }
 
 /**
@@ -91,6 +98,7 @@ const TableCard = memo(
     onCheckout,
     onPauseResume,
     onCancel,
+    onLightToggle,
   }: TableCardProps) => {
     const { t } = useTranslation();
     const reduceMotion = useReducedMotion();
@@ -99,6 +107,20 @@ const TableCard = memo(
     const isBusy = table.status === 'busy' && !!session;
     const isPaused = session?.status === 'paused';
     const todayCompleted = table.todayCompletedSessions ?? 0;
+
+    // Chiroq indikatori faqat rele sozlangan VA klub rejimi yoqilgan stolda
+    // ko'rinadi (rejim 'off' bo'lsa tugma bosilishi hech narsani o'zgartirmasdi)
+    const hasLight = !!onLightToggle && table.lightControl === true;
+    const lightOn = table.lightState === true;
+    const lightError = table.lightError ?? null;
+    const lightColor = lightError
+      ? TOKENS.color.semantic.error
+      : lightOn
+        ? TOKENS.color.gold.base
+        : TOKENS.color.text.tertiary;
+    const lightLabel = lightError
+      ? `${t('tables.lightsStateError')}: ${lightError}`
+      : `${lightOn ? t('tables.lightsStateOn') : t('tables.lightsStateOff')} · ${t('tables.lightsToggleHint')}`;
 
     const surface = isBusy
       ? isPaused
@@ -132,6 +154,17 @@ const TableCard = memo(
               </Text>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              {hasLight && (
+                <Tooltip title={lightLabel}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<BulbOutlined style={{ color: lightColor }} />}
+                    onClick={() => onLightToggle?.(table, !lightOn)}
+                    aria-label={lightLabel}
+                  />
+                </Tooltip>
+              )}
               {isBusy ? (
                 <StatusTag
                   status={isPaused ? 'paused' : 'active'}

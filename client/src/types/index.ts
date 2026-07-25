@@ -13,6 +13,10 @@ export type FeedbackPriority = 'low' | 'medium' | 'high';
 export type FeedbackStatus = 'unread' | 'read' | 'resolved' | 'rejected';
 export type ReservationStatus = 'pending' | 'confirmed' | 'seated' | 'cancelled' | 'no_show';
 export type ClubNotificationType = 'info' | 'warning' | 'promo' | 'maintenance';
+/** Stol chirog'ini boshqaruvchi rele turi ('none' — chiroq ulanmagan) */
+export type LightDriver = 'none' | 'shelly_gen1' | 'shelly_gen2' | 'tasmota' | 'http';
+/** Klubning chiroq rejimi: o'chiq / lokal agent orqali / to'g'ridan-to'g'ri */
+export type LightMode = 'off' | 'bridge' | 'direct';
 
 export interface User {
   id: number;
@@ -91,8 +95,100 @@ export interface BilliardTable {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /*
+   * Chiroq boshqaruvi (ixtiyoriy imkoniyat) — standart holatda driver 'none'.
+   * DIQQAT: rele ULANISH ma'lumotlari (parol, manzil, shablon URL lar) bu
+   * javobda YO'Q — ular faqat admin paneliga (GET /lights) chiqadi.
+   */
+  lightDriver?: LightDriver;
+  lightChannel?: number;
+  lightInverted?: boolean;
+  /** Qo'lda boshqaruv (override) qiymati — sessiya holatidan ustun turadi */
+  lightOverrideOn?: boolean | null;
+  lightOverrideUntil?: string | null;
+  /** Oxirgi ma'lum HAQIQIY holat (agent/server hisobotidan) */
+  lightState?: boolean | null;
+  lightSyncedAt?: string | null;
+  lightError?: string | null;
+  /**
+   * Chiroq boshqaruvi shu stolda haqiqatan ishlaydimi: klub rejimi 'off' emas
+   * VA relesi sozlangan. Faqat GET /tables javobida keladi — stol kartasidagi
+   * lampochka tugmasi shunga qarab ko'rsatiladi.
+   */
+  lightControl?: boolean;
   sessions?: Session[];
   todayCompletedSessions?: number;
+}
+
+/**
+ * Stolning rele sozlamalari va oxirgi holati (GET /lights, PUT /lights/tables/:id).
+ * Rele paroli HECH QACHON qaytarilmaydi — faqat `hasAuth` bildiriladi.
+ */
+export interface TableLightConfig {
+  tableId: number;
+  tableNumber: number;
+  tableName: string;
+  isActive: boolean;
+  driver: LightDriver;
+  host: string | null;
+  channel: number;
+  inverted: boolean;
+  hasAuth: boolean;
+  onUrl: string | null;
+  offUrl: string | null;
+  overrideOn: boolean | null;
+  overrideUntil: string | null;
+  state: boolean | null;
+  syncedAt: string | null;
+  error: string | null;
+  /* Quyidagi uchtasi faqat GET /lights javobida bo'ladi */
+  overrideActive?: boolean;
+  sessionStatus?: 'active' | 'paused' | null;
+  /** Kerakli holat (override -> sessiya -> pauza sozlamasi) */
+  desired?: boolean;
+}
+
+/** Klub agentining (bridge) holati — token hech qachon qaytarilmaydi */
+export interface BridgeStatus {
+  exists: boolean;
+  name: string | null;
+  lastSeenAt: string | null;
+  /** Agent so'nggi 60 soniyada murojaat qilgan va faol */
+  online: boolean;
+  agentVersion: string | null;
+}
+
+/** Chiroq paneli uchun to'liq ko'rinish (GET /lights) */
+export interface LightsOverview {
+  mode: LightMode;
+  offOnPause: boolean;
+  serverNow: string;
+  forceSyncMs: number;
+  bridge: BridgeStatus;
+  /** BARCHA stollar (chiroq ulanmaganlari ham) — number bo'yicha tartiblangan */
+  tables: TableLightConfig[];
+}
+
+/** Qurilmani sinash natijasi (POST /lights/tables/:id/test) */
+export interface LightTestResult {
+  ok: boolean;
+  /** BRIDGE rejimida buyruq agentga navbatga qo'yiladi — natija bir necha soniyadan keyin */
+  queued: boolean;
+  error: string | null;
+  bridgeOnline: boolean | null;
+}
+
+/** Yangi bridge tokeni — XOM token FAQAT shu javobda ko'rinadi */
+export interface BridgeTokenResult {
+  token: string;
+  bridge: {
+    id: number;
+    name: string;
+    isActive: boolean;
+    lastSeenAt: string | null;
+    agentVersion: string | null;
+    createdAt: string;
+  };
 }
 
 /** Ro'yxatdagi doimiy mijoz */
@@ -749,6 +845,27 @@ export interface ExpensePayload {
   amount?: number;
   description?: string;
   spentAt?: string;
+}
+
+/** Klubning chiroq rejimi (PUT /lights/settings) */
+export interface LightSettingsPayload {
+  mode: LightMode;
+  offOnPause?: boolean;
+}
+
+/**
+ * Stolning rele sozlamalari (PUT /lights/tables/:id).
+ * Faqat yuborilgan maydonlar yangilanadi; null yoki bo'sh satr — tozalaydi.
+ */
+export interface TableLightPayload {
+  driver?: LightDriver;
+  host?: string | null;
+  channel?: number;
+  inverted?: boolean;
+  /** Basic-auth "user:parol" */
+  auth?: string | null;
+  onUrl?: string | null;
+  offUrl?: string | null;
 }
 
 export interface ReservationPayload {

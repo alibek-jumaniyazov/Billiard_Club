@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App, Button, Card, Col, Row, Tooltip } from 'antd';
 import {
+  BulbOutlined,
   CheckCircleOutlined,
   FireOutlined,
   HistoryOutlined,
@@ -12,7 +13,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { errorMessage, sessionsApi, tablesApi } from '../../api';
+import { errorMessage, lightsApi, sessionsApi, tablesApi } from '../../api';
 import { EmptyState, PageHeader, PageTransition, StatCard } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { TOKENS } from '../../theme/tokens';
@@ -24,6 +25,7 @@ import {
   type SegmentLike,
 } from '../../utils/session';
 import CheckoutDrawer from './CheckoutDrawer';
+import LightSettingsDrawer from './LightSettingsDrawer';
 import ManageTablesDrawer from './ManageTablesDrawer';
 import OrderModal from './OrderModal';
 import StartModal from './StartModal';
@@ -79,6 +81,7 @@ const TablesPage = () => {
   const [checkoutTable, setCheckoutTable] = useState<BilliardTable | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [manageStartCreate, setManageStartCreate] = useState(false);
+  const [lightsOpen, setLightsOpen] = useState(false);
 
   const commitSegments = useCallback((next: Record<number, SegmentLike[]>) => {
     segmentsRef.current = next;
@@ -251,6 +254,23 @@ const TablesPage = () => {
     setManageOpen(true);
   }, []);
 
+  /**
+   * Chiroqni qo'lda yoqish/o'chirish (override, 30 daqiqa).
+   * Butunlay QO'SHIMCHA amal — sessiya oqimiga hech qanday aloqasi yo'q.
+   */
+  const handleLightToggle = useCallback(
+    async (table: BilliardTable, on: boolean) => {
+      try {
+        const res = await lightsApi.override(table.id, on);
+        message.success(res.message);
+        await fetchTables(true);
+      } catch (err) {
+        message.error(errorMessage(err, t('common.error')));
+      }
+    },
+    [fetchTables, message, t],
+  );
+
   /* ---------------------------------------------------------- Statistika */
 
   const busyCount = useMemo(() => tables.filter((tbl) => tbl.status === 'busy').length, [tables]);
@@ -274,9 +294,19 @@ const TablesPage = () => {
         extra={
           <>
             {canManage && (
-              <Button icon={<SettingOutlined />} onClick={() => openManage(false)}>
-                {t('tables.manage')}
-              </Button>
+              <>
+                <Button icon={<SettingOutlined />} onClick={() => openManage(false)}>
+                  {t('tables.manage')}
+                </Button>
+                {/* Chiroq boshqaruvi — ixtiyoriy imkoniyat, faqat admin uchun */}
+                <Tooltip title={t('tables.lightsTitle')}>
+                  <Button
+                    icon={<BulbOutlined />}
+                    onClick={() => setLightsOpen(true)}
+                    aria-label={t('tables.lightsTitle')}
+                  />
+                </Tooltip>
+              </>
             )}
             <Tooltip title={t('btn.refresh')}>
               <Button
@@ -379,6 +409,7 @@ const TablesPage = () => {
                   onCheckout={openCheckout}
                   onPauseResume={handlePauseResume}
                   onCancel={handleCancel}
+                  onLightToggle={handleLightToggle}
                 />
               </Col>
             );
@@ -418,6 +449,15 @@ const TablesPage = () => {
         onClose={() => setManageOpen(false)}
         onChanged={silentRefresh}
       />
+
+      {/* Chiroq boshqaruvi (admin, ixtiyoriy imkoniyat) */}
+      {canManage && (
+        <LightSettingsDrawer
+          open={lightsOpen}
+          onClose={() => setLightsOpen(false)}
+          onChanged={silentRefresh}
+        />
+      )}
     </PageTransition>
   );
 };

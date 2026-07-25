@@ -25,6 +25,7 @@ import { SessionPayment } from '../../entities/session-payment.entity';
 import { SessionSegment } from '../../entities/session-segment.entity';
 import { Table } from '../../entities/table.entity';
 import { User } from '../../entities/user.entity';
+import { LightsService } from '../lights/lights.service';
 import {
   EndSessionDto,
   ListSessionsQueryDto,
@@ -73,6 +74,8 @@ export class SessionsService {
     private readonly segmentRepo: Repository<SessionSegment>,
     // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
     @Optional() private readonly auditService?: AuditService,
+    // Chiroq moduli ixtiyoriy: ulanmagan bo'lsa sessiya oqimi aynan avvalgidek ishlaydi
+    @Optional() private readonly lights?: LightsService,
   ) {}
 
   async findAll(clubId: number, query: ListSessionsQueryDto) {
@@ -236,7 +239,7 @@ export class SessionsService {
    * Poyga holatlaridan stol qatori qulfi + DB partial unique indeks himoya qiladi.
    */
   async start(clubId: number, user: User, dto: StartSessionDto) {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const table = await manager.findOne(Table, {
         where: { id: dto.tableId, clubId, isActive: true },
         lock: { mode: 'pessimistic_write' },
@@ -292,10 +295,14 @@ export class SessionsService {
       });
       return { ...fresh!, serverNow: new Date().toISOString() };
     });
+
+    // Chiroq — fire-and-forget; xato sessiyani buzmaydi
+    void this.lights?.onSessionChanged(clubId, result.tableId).catch(() => undefined);
+    return result;
   }
 
   async pause(clubId: number, id: number) {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status !== SessionStatus.ACTIVE) {
         throw new BadRequestException({ key: 'sessions.onlyActivePausable' });
@@ -307,10 +314,14 @@ export class SessionsService {
       const fresh = await manager.findOne(Session, { where: { id }, relations: { table: true } });
       return { ...fresh!, serverNow: new Date().toISOString() };
     });
+
+    // Chiroq — fire-and-forget; xato sessiyani buzmaydi
+    void this.lights?.onSessionChanged(clubId, result.tableId).catch(() => undefined);
+    return result;
   }
 
   async resume(clubId: number, id: number) {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status !== SessionStatus.PAUSED || !session.pausedAt) {
         throw new BadRequestException({ key: 'sessions.notPaused' });
@@ -335,6 +346,10 @@ export class SessionsService {
       const fresh = await manager.findOne(Session, { where: { id }, relations: { table: true } });
       return { ...fresh!, serverNow: new Date().toISOString() };
     });
+
+    // Chiroq — fire-and-forget; xato sessiyani buzmaydi
+    void this.lights?.onSessionChanged(clubId, result.tableId).catch(() => undefined);
+    return result;
   }
 
   /**
@@ -345,7 +360,7 @@ export class SessionsService {
    * yangi stolning JORIY narxida yangi segment ochiladi.
    */
   async transfer(clubId: number, id: number, dto: TransferSessionDto) {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status === SessionStatus.PAUSED) {
         throw new BadRequestException({ key: 'sessions.transferWhilePaused' });
@@ -431,6 +446,17 @@ export class SessionsService {
       });
       return { ...fresh!, serverNow: new Date().toISOString() };
     });
+
+    // Chiroq — fire-and-forget; xato sessiyani buzmaydi. Transferda IKKALA stol
+    // moslashtiriladi: eskisi endigina yopilgan segmentdan olinadi (oxirgidan
+    // oldingi segment), yangisi — result.tableId
+    const segments = result.segments ?? [];
+    const previousTableId = segments.length > 1 ? segments[segments.length - 2].tableId : null;
+    if (previousTableId !== null && previousTableId !== result.tableId) {
+      void this.lights?.onSessionChanged(clubId, previousTableId).catch(() => undefined);
+    }
+    void this.lights?.onSessionChanged(clubId, result.tableId).catch(() => undefined);
+    return result;
   }
 
   /**
@@ -690,6 +716,10 @@ export class SessionsService {
       where: { id: result.sessionId },
       relations: { table: true },
     });
+
+    // Chiroq — fire-and-forget; xato sessiyani buzmaydi
+    if (session) void this.lights?.onSessionChanged(clubId, session.tableId).catch(() => undefined);
+
     return { ...result, session, serverNow: new Date().toISOString() };
   }
 
@@ -699,7 +729,7 @@ export class SessionsService {
    * Ochiq segment ham yopiladi — jadval izchil qoladi.
    */
   async cancel(clubId: number, id: number) {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status !== SessionStatus.ACTIVE && session.status !== SessionStatus.PAUSED) {
         throw new BadRequestException({ key: 'sessions.onlyActiveCancellable' });
@@ -759,6 +789,10 @@ export class SessionsService {
       const fresh = await manager.findOne(Session, { where: { id }, relations: { table: true } });
       return { ...fresh!, serverNow: new Date().toISOString() };
     });
+
+    // Chiroq — fire-and-forget; xato sessiyani buzmaydi
+    void this.lights?.onSessionChanged(clubId, result.tableId).catch(() => undefined);
+    return result;
   }
 
   /**

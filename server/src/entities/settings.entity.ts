@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { NumericTransformer } from '../common/transformers/numeric.transformer';
+import { LightMode } from './enums';
 import { Club } from './club.entity';
 
 /** Har bir klub uchun bitta sozlamalar yozuvi (clubId unique) */
@@ -55,6 +56,14 @@ export class Settings {
 
   @Column({ type: 'text', nullable: true })
   logo: string | null;
+
+  /** Chiroq boshqaruv rejimi — standart 'off' (butunlay o'chiq, opt-in imkoniyat) */
+  @Column({ type: 'enum', enum: LightMode, enumName: 'light_mode', default: LightMode.OFF })
+  lightMode: LightMode;
+
+  /** Sessiya pauzada bo'lganda chiroq o'chirilsinmi (standart: yoniq qoladi) */
+  @Column({ type: 'boolean', default: false })
+  lightOffOnPause: boolean;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

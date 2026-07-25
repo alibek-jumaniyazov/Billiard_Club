@@ -5,6 +5,7 @@ import type {
   AuthData,
   AuthDeviceSession,
   BilliardTable,
+  BridgeTokenResult,
   Category,
   ChangePasswordPayload,
   Club,
@@ -31,6 +32,10 @@ import type {
   FeedbackType,
   Invoice,
   InvoiceStatus,
+  LightMode,
+  LightSettingsPayload,
+  LightsOverview,
+  LightTestResult,
   Order,
   PaymentMethod,
   Plan,
@@ -50,6 +55,8 @@ import type {
   Settings,
   StartSessionPayload,
   SubscriptionStatus,
+  TableLightConfig,
+  TableLightPayload,
   TelegramSettings,
   TokenPair,
   User,
@@ -90,6 +97,31 @@ export const tablesApi = {
   create: (body: object) => post<BilliardTable>('/tables', body),
   update: (id: number, body: object) => put<BilliardTable>(`/tables/${id}`, body),
   remove: (id: number) => del<void>(`/tables/${id}`),
+};
+
+/**
+ * Stol chiroqlari — butunlay ixtiyoriy imkoniyat (standart rejim 'off').
+ * Sozlash amallari admin/superadmin uchun, override kassir va operatorga ham ochiq.
+ */
+export const lightsApi = {
+  /** Klub rejimi + agent holati + BARCHA stollarning chiroq sozlamalari */
+  overview: () => get<LightsOverview>('/lights'),
+  updateSettings: (body: LightSettingsPayload) =>
+    put<{ mode: LightMode; offOnPause: boolean }>('/lights/settings', body),
+  /** Faqat yuborilgan maydonlar yangilanadi; bo'sh satr — qiymatni tozalaydi */
+  updateTable: (id: number, body: TableLightPayload) =>
+    put<TableLightConfig>(`/lights/tables/${id}`, body),
+  /** Relega sinov buyrug'i; BRIDGE rejimida javobda queued: true */
+  test: (id: number, on: boolean) => post<LightTestResult>(`/lights/tables/${id}/test`, { on }),
+  /** Qo'lda yoqish/o'chirish; on=null — override bekor qilinadi */
+  override: (id: number, on: boolean | null, minutes?: number) =>
+    post<TableLightConfig>(`/lights/tables/${id}/override`, {
+      on,
+      ...(minutes !== undefined ? { minutes } : {}),
+    }),
+  /** XOM token faqat shu javobda qaytadi — eski token darhol kuchini yo'qotadi */
+  issueBridgeToken: (name?: string) =>
+    post<BridgeTokenResult>('/lights/bridge/token', name ? { name } : {}),
 };
 
 export const sessionsApi = {

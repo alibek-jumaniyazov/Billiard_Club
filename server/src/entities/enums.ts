@@ -79,3 +79,19 @@ export enum ReservationStatus {
   CANCELLED = 'cancelled',
   NO_SHOW = 'no_show',
 }
+
+/** Stol chirog'ini boshqaruvchi rele turi ('none' — chiroq ulanmagan) */
+export enum LightDriver {
+  NONE = 'none',
+  SHELLY_GEN1 = 'shelly_gen1',
+  SHELLY_GEN2 = 'shelly_gen2',
+  TASMOTA = 'tasmota',
+  HTTP = 'http',
+}
+
+/** Klubning chiroq boshqaruv rejimi: o'chiq / lokal agent orqali / to'g'ridan-to'g'ri */
+export enum LightMode {
+  OFF = 'off',
+  BRIDGE = 'bridge',
+  DIRECT = 'direct',
+}

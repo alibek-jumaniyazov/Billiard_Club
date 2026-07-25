@@ -10,7 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { NumericTransformer } from '../common/transformers/numeric.transformer';
-import { TableStatus } from './enums';
+import { LightDriver, TableStatus } from './enums';
 import { Club } from './club.entity';
 import { Session } from './session.entity';
 
@@ -45,6 +45,64 @@ export class Table {
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
+
+  /** Chiroq relesi turi — 'none' bo'lsa bu stolda chiroq boshqarilmaydi */
+  @Column({ type: 'enum', enum: LightDriver, enumName: 'light_driver', default: LightDriver.NONE })
+  lightDriver: LightDriver;
+
+  /**
+   * Rele manzili — "192.168.1.51" yoki "192.168.1.51:8080".
+   * `select: false` — klubning lokal tarmoq manzillari oddiy stol/sessiya
+   * javoblariga chiqmasin (panelda GET /lights orqali ko'rsatiladi).
+   */
+  @Column({ type: 'varchar', length: 120, nullable: true, select: false })
+  lightHost: string | null;
+
+  /** Rele kanali (0 dan boshlanadi) */
+  @Column({ type: 'int', default: 0 })
+  lightChannel: number;
+
+  /** NC (normally closed) rele uchun — buyruq teskari yuboriladi */
+  @Column({ type: 'boolean', default: false })
+  lightInverted: boolean;
+
+  /**
+   * Rele uchun basic-auth ma'lumoti "user:parol" ko'rinishida.
+   * `select: false` — bu MAXFIY qiymat: oddiy `find`/`findOne` javoblariga
+   * (GET /tables, GET /sessions dagi `relations: { table: true }` va h.k.)
+   * HECH QACHON tushmaydi. Kerak bo'lganda faqat ATAYLAB o'qiladi:
+   * `createQueryBuilder('t').addSelect('t.lightAuth')` yoki xom SQL orqali.
+   */
+  @Column({ type: 'varchar', length: 200, nullable: true, select: false })
+  lightAuth: string | null;
+
+  /** driver='http' uchun yoqish shablon URL i (`select: false` — lightHost bilan bir xil sabab) */
+  @Column({ type: 'text', nullable: true, select: false })
+  lightOnUrl: string | null;
+
+  /** driver='http' uchun o'chirish shablon URL i (`select: false` — lightHost bilan bir xil sabab) */
+  @Column({ type: 'text', nullable: true, select: false })
+  lightOffUrl: string | null;
+
+  /** Qo'lda boshqaruv (override) qiymati — sessiya holatidan ustun turadi */
+  @Column({ type: 'boolean', nullable: true })
+  lightOverrideOn: boolean | null;
+
+  /** Qo'lda boshqaruv shu vaqtgacha kuchda (o'tgach avtomatik holatga qaytadi) */
+  @Column({ type: 'timestamptz', nullable: true })
+  lightOverrideUntil: Date | null;
+
+  /** Oxirgi ma'lum HAQIQIY holat (agent/server hisobotidan) */
+  @Column({ type: 'boolean', nullable: true })
+  lightState: boolean | null;
+
+  /** Holat oxirgi marta muvaffaqiyatli qo'llangan vaqt */
+  @Column({ type: 'timestamptz', nullable: true })
+  lightSyncedAt: Date | null;
+
+  /** Oxirgi xato matni (muvaffaqiyatda tozalanadi) */
+  @Column({ type: 'varchar', length: 300, nullable: true })
+  lightError: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

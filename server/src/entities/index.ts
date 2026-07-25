@@ -25,6 +25,7 @@ export * from './session-segment.entity';
 export * from './session-payment.entity';
 export * from './club-notification.entity';
 export * from './platform-setting.entity';
+export * from './club-bridge.entity';
 
 import { Club } from './club.entity';
 import { User } from './user.entity';
@@ -52,6 +53,7 @@ import { SessionSegment } from './session-segment.entity';
 import { SessionPayment } from './session-payment.entity';
 import { ClubNotification } from './club-notification.entity';
 import { PlatformSetting } from './platform-setting.entity';
+import { ClubBridge } from './club-bridge.entity';
 
 export const ALL_ENTITIES = [
   Club,
@@ -80,4 +82,5 @@ export const ALL_ENTITIES = [
   SessionPayment,
   ClubNotification,
   PlatformSetting,
+  ClubBridge,
 ];
