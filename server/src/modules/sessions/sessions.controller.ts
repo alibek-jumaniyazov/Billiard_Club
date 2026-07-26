@@ -17,6 +17,7 @@ import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
 import {
+  CancelSessionDto,
   EndSessionDto,
   ListSessionsQueryDto,
   StartSessionDto,
@@ -116,15 +117,22 @@ export class SessionsController {
     return { success: true, message: t(lang, 'sessions.transferred'), data };
   }
 
+  /**
+   * Bekor qilish — hisobni nolga tushiradi, shuning uchun HAR DOIM audit
+   * jurnaliga yoziladi; kassir faqat qisqa va barsiz sessiyani bekor qila oladi
+   * (servis ichida tekshiriladi).
+   */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
   @HttpCode(200)
   @Put(':id/cancel')
   async cancel(
     @ClubId() clubId: number,
+    @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CancelSessionDto,
     @Lang() lang: Language,
   ) {
-    const data = await this.sessionsService.cancel(clubId, id);
+    const data = await this.sessionsService.cancel(clubId, user, id, dto);
     return { success: true, message: t(lang, 'sessions.cancelled'), data };
   }
 }

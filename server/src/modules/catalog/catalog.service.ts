@@ -3,12 +3,16 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Not, Repository } from 'typeorm';
+import { DataSource, ILike, Not, Repository } from 'typeorm';
+import { AuditService } from '../../common/audit/audit.service';
 import { Category } from '../../entities/category.entity';
 import { Product } from '../../entities/product.entity';
+import { User } from '../../entities/user.entity';
 import {
+  AdjustStockDto,
   CreateCategoryDto,
   CreateProductDto,
   ListProductsQueryDto,
@@ -20,8 +24,11 @@ import {
 @Injectable()
 export class CatalogService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(Category) private readonly categoryRepo: Repository<Category>,
     @InjectRepository(Product) private readonly productRepo: Repository<Product>,
+    // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   // ==================== Kategoriyalar ====================
@@ -125,6 +132,11 @@ export class CatalogService {
     });
   }
 
+  /**
+   * Mahsulot kartochkasini tahrirlash — ombor qoldig'iga TEGMAYDI.
+   * Narxni tahrirlagan admin sahifa ochilgandan beri bo'lgan bar sotuvlarini
+   * jimgina qaytarib yubormasligi uchun qoldiq faqat adjustStock() orqali.
+   */
   async updateProduct(clubId: number, id: number, dto: UpdateProductDto) {
     const product = await this.productRepo.findOne({ where: { id, clubId, isActive: true } });
     if (!product) throw new NotFoundException({ key: 'products.notFound' });
@@ -140,11 +152,50 @@ export class CatalogService {
       ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
       ...(dto.name !== undefined ? { name: dto.name } : {}),
       ...(dto.price !== undefined ? { price: dto.price } : {}),
-      ...(dto.stock !== undefined ? { stock: dto.stock } : {}),
       ...(dto.unit !== undefined ? { unit: dto.unit } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
     });
     return this.productRepo.save(product);
+  }
+
+  /**
+   * Ombor qoldig'ini ATOMAR to'g'irlash (delta bo'yicha, mutlaq qiymat emas):
+   * - Mahsulot qatori qulflanadi — parallel bar buyurtmasi bilan poyga bo'lmaydi
+   * - Natija manfiy chiqsa — XATO (ombor minusga tushmaydi)
+   * - Kim, qancha va nima sababdan o'zgartirgani audit jurnaliga yoziladi
+   */
+  async adjustStock(clubId: number, id: number, user: User, dto: AdjustStockDto) {
+    const { before, after } = await this.dataSource.transaction(async (manager) => {
+      const product = await manager.findOne(Product, {
+        where: { id, clubId, isActive: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!product) throw new NotFoundException({ key: 'products.notFound' });
+
+      const currentStock = product.stock;
+      const nextStock = currentStock + dto.delta;
+      if (nextStock < 0) {
+        throw new BadRequestException({
+          key: 'products.stockNegative',
+          args: { name: product.name, stock: currentStock },
+        });
+      }
+
+      await manager.update(Product, product.id, { stock: nextStock });
+      return { before: currentStock, after: nextStock };
+    });
+
+    this.auditService?.log({
+      action: 'product.stock',
+      clubId,
+      userId: user.id,
+      actorRole: user.role,
+      entity: 'product',
+      entityId: id,
+      meta: { delta: dto.delta, before, after, reason: dto.reason ?? null },
+    });
+
+    return this.productRepo.findOne({ where: { id, clubId }, relations: { category: true } });
   }
 
   async removeProduct(clubId: number, id: number) {

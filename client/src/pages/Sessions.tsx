@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Alert,
   App,
@@ -29,6 +29,7 @@ import {
   PageTransition,
   StatusTag,
 } from '../components/ui';
+import { useCurrency } from '../context/AppSettingsContext';
 import { TOKENS } from '../theme/tokens';
 import type {
   OrderItem,
@@ -56,6 +57,11 @@ interface FetchParams {
 const isLive = (s: Pick<Session, 'status'>): boolean =>
   s.status === 'active' || s.status === 'paused';
 
+/** Chek jadvalidagi pozitsiya: bekor qilingan buyurtmadan kelganligi belgisi bilan */
+interface ReceiptItem extends OrderItem {
+  cancelled: boolean;
+}
+
 /** Segmentning faol (pauzasiz) davomiyligi, ms */
 const segmentActiveMs = (seg: SessionSegment, session: Session): number => {
   const endMs = seg.endedAt
@@ -70,6 +76,7 @@ const segmentActiveMs = (seg: SessionSegment, session: Session): number => {
 const Sessions = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
+  const currency = useCurrency();
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +95,11 @@ const Sessions = () => {
   // Server soat siljishi: jonli taymerlar Date.now() + offsetMs bilan yuritiladi
   const [offsetMs, setOffsetMs] = useState(0);
 
+  // `t` yuklash callbackining bog'liqligi EMAS: til almashganda ro'yxat
+  // standart filtrlar bilan jimgina qayta yuklanib ketmasin
+  const tRef = useRef(t);
+  tRef.current = t;
+
   // Filtr qiymatlari to'g'ridan-to'g'ri uzatiladi (eski stale-closure xatosi takrorlanmasin)
   const fetchSessions = useCallback(
     async ({ page: p, pageSize: ps, status: st, search: q }: FetchParams) => {
@@ -104,13 +116,13 @@ const Sessions = () => {
         setTotal(res.pagination?.total ?? 0);
         if (res.serverNow) setOffsetMs(clockOffsetMs(res.serverNow));
       } catch (err) {
-        message.error(errorMessage(err, t('common.error')));
+        message.error(errorMessage(err, tRef.current('common.error')));
       } finally {
         setLoading(false);
         setLoaded(true);
       }
     },
-    [message, t],
+    [message],
   );
 
   useEffect(() => {
@@ -255,7 +267,7 @@ const Sessions = () => {
       width: 200,
       render: (_, s) => (
         <Space direction="vertical" size={0}>
-          <MoneyText amount={s.totalAmount} currency={t('common.sum')} />
+          <MoneyText amount={s.totalAmount} currency={currency} />
           <Text type="secondary" style={{ fontSize: 12 }}>
             {t('common.table')}: {formatNumber(s.tableAmount)} · {t('common.bar')}:{' '}
             {formatNumber(s.barAmount)}
@@ -296,7 +308,7 @@ const Sessions = () => {
       dataIndex: 'pricePerHour',
       width: 150,
       align: 'right',
-      render: (v: number) => <MoneyText amount={v} currency={t('common.sum')} size="sm" />,
+      render: (v: number) => <MoneyText amount={v} currency={currency} size="sm" />,
     },
     {
       title: t('sessions.segmentPeriod'),
@@ -368,33 +380,56 @@ const Sessions = () => {
   const drawerDetail = drawerId != null ? (details[drawerId] ?? null) : null;
   const drawerLive = !!drawerDetail && isLive(drawerDetail);
 
-  const orderItems: OrderItem[] = (drawerDetail?.orders ?? []).flatMap((o) => o.items ?? []);
+  // Bekor qilingan buyurtma pozitsiyalari bar summasiga KIRMAYDI (ombor ham
+  // qaytarilgan) — ular ro'yxatda ustidan chizilgan holda, alohida belgi bilan
+  // ko'rsatiladi, shunda chekdagi "Bar summasi" bilan ziddiyat qolmaydi
+  const orderItems: ReceiptItem[] = (drawerDetail?.orders ?? []).flatMap((o) =>
+    (o.items ?? []).map((item) => ({ ...item, cancelled: o.status === 'cancelled' })),
+  );
 
-  const itemColumns: ColumnsType<OrderItem> = [
+  /** Bekor qilingan pozitsiya uchun ustidan chizilgan, so'ngan uslub */
+  const cancelledStyle = (cancelled: boolean) =>
+    cancelled ? { textDecoration: 'line-through', opacity: 0.55 } : undefined;
+
+  const itemColumns: ColumnsType<ReceiptItem> = [
     {
       title: t('common.name'),
       key: 'product',
-      render: (_, item) => item.product?.name ?? '—',
+      render: (_, item) => (
+        <Space size={6} wrap>
+          <span style={cancelledStyle(item.cancelled)}>{item.product?.name ?? '—'}</span>
+          {item.cancelled && <StatusTag status="cancelled" label={t('status.cancelled')} />}
+        </Space>
+      ),
     },
     {
       title: t('common.quantity'),
       dataIndex: 'quantity',
       width: 70,
       align: 'right',
+      render: (v: number, item) => <span style={cancelledStyle(item.cancelled)}>{v}</span>,
     },
     {
       title: t('common.price'),
       dataIndex: 'price',
       width: 100,
       align: 'right',
-      render: (v: number) => <span className="tabular-nums">{formatNumber(v)}</span>,
+      render: (v: number, item) => (
+        <span className="tabular-nums" style={cancelledStyle(item.cancelled)}>
+          {formatNumber(v)}
+        </span>
+      ),
     },
     {
       title: t('common.total'),
       dataIndex: 'subtotal',
       width: 110,
       align: 'right',
-      render: (v: number) => <span className="tabular-nums">{formatNumber(v)}</span>,
+      render: (v: number, item) => (
+        <span className="tabular-nums" style={cancelledStyle(item.cancelled)}>
+          {formatNumber(v)}
+        </span>
+      ),
     },
   ];
 
@@ -450,26 +485,26 @@ const Sessions = () => {
               t('sessions.tableAmount'),
               <MoneyText
                 amount={drawerLive ? (liveTable ?? 0) : detail.tableAmount}
-                currency={t('common.sum')}
+                currency={currency}
               />,
             )}
             {receiptRow(
               t('sessions.barAmount'),
               <MoneyText
                 amount={drawerLive ? liveBar : detail.barAmount}
-                currency={t('common.sum')}
+                currency={currency}
               />,
             )}
             {!drawerLive && (sale?.discount ?? 0) > 0 &&
               receiptRow(
                 t('common.discount'),
-                <MoneyText amount={-(sale?.discount ?? 0)} currency={t('common.sum')} signed />,
+                <MoneyText amount={-(sale?.discount ?? 0)} currency={currency} signed />,
               )}
             {!drawerLive && detail.adjustmentAmount !== 0 && (
               <>
                 {receiptRow(
                   t('sessions.adjustment'),
-                  <MoneyText amount={detail.adjustmentAmount} currency={t('common.sum')} signed />,
+                  <MoneyText amount={detail.adjustmentAmount} currency={currency} signed />,
                 )}
                 {detail.adjustmentReason && (
                   <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
@@ -485,7 +520,7 @@ const Sessions = () => {
               drawerLive ? t('sessions.grossAmount') : t('sessions.totalAmount'),
               <MoneyText
                 amount={drawerLive ? (liveReceipt?.grossAmount ?? 0) : detail.totalAmount}
-                currency={t('common.sum')}
+                currency={currency}
                 size="lg"
                 color={TOKENS.color.gold.base}
               />,
@@ -504,7 +539,7 @@ const Sessions = () => {
                 {(payments.length > 0 ? payments : fallbackPayments).map((p, idx) =>
                   receiptRow(
                     t(`payment.${p.method}`),
-                    <MoneyText amount={p.amount} currency={t('common.sum')} size="sm" />,
+                    <MoneyText amount={p.amount} currency={currency} size="sm" />,
                     `pay-${idx}`,
                   ),
                 )}
@@ -512,7 +547,7 @@ const Sessions = () => {
                   t('sessions.paidNow'),
                   <MoneyText
                     amount={paidNow}
-                    currency={t('common.sum')}
+                    currency={currency}
                     color={TOKENS.color.semantic.success}
                   />,
                 )}
@@ -521,7 +556,7 @@ const Sessions = () => {
                     t('sessions.debtAmount'),
                     <MoneyText
                       amount={debtAmount}
-                      currency={t('common.sum')}
+                      currency={currency}
                       color={TOKENS.color.semantic.error}
                     />,
                   )}

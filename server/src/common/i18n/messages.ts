@@ -39,6 +39,8 @@ const messages: Record<Language, Record<string, string>> = {
     'tables.deleted': "Stol o'chirildi",
     'tables.hasActiveSession': "Stolda faol o'yin bor, o'chirib bo'lmaydi",
     'tables.numberTaken': 'Bu raqamli stol allaqachon mavjud',
+    'tables.priceChangeWhileBusy':
+      "Stolda ochiq o'yin bor — narxni o'zgartirib bo'lmaydi. Avval o'yinni yakunlang",
 
     // Sessiyalar
     'sessions.notFound': 'Sessiya topilmadi',
@@ -61,6 +63,10 @@ const messages: Record<Language, Record<string, string>> = {
     'sessions.transferSameTable': "Sessiya allaqachon shu stolda",
     'sessions.paymentsMismatch': "To'lovlar yig'indisi to'lanishi kerak bo'lgan summaga teng emas",
     'sessions.adjustmentForbidden': "Qo'lda tuzatish faqat administratorga ruxsat etilgan",
+    'sessions.barChanged':
+      "Bar summasi o'zgardi ({expected} → {actual}). Chek yangilandi — yangi summani tekshirib, qaytadan tasdiqlang",
+    'sessions.cancelNeedsAdmin':
+      "Bar buyurtmasi bo'lgan yoki uzoq davom etgan o'yinni bekor qilish faqat administratorga ruxsat etilgan. Hisobni yakunlang yoki administratorga murojaat qiling",
 
     // Buyurtmalar
     'orders.itemsRequired': 'Buyurtma elementlari talab qilinadi',
@@ -95,6 +101,8 @@ const messages: Record<Language, Record<string, string>> = {
     'products.updated': 'Mahsulot yangilandi',
     'products.deleted': "Mahsulot o'chirildi",
     'products.nameTaken': 'Bu nomli mahsulot allaqachon mavjud',
+    'products.stockAdjusted': "Ombor qoldig'i yangilandi",
+    'products.stockNegative': "«{name}» qoldig'i manfiy bo'lib qoladi (joriy qoldiq: {stock})",
 
     // Xodimlar
     'staff.notFound': 'Xodim topilmadi',
@@ -129,6 +137,7 @@ const messages: Record<Language, Record<string, string>> = {
     'feedback.attachmentTooLarge': 'Har bir fayl hajmi {max} KB dan oshmasligi kerak',
     'feedback.invalidAttachment':
       "Fayl formati noto'g'ri — faqat PNG, JPEG yoki WebP rasm qabul qilinadi",
+    'feedback.attachmentNotFound': 'Biriktirilgan fayl topilmadi',
     'feedback.statusUpdated': 'Fikr-mulohaza holati yangilandi',
     'feedback.replied': 'Javob yuborildi',
     'feedback.replyNotificationTitle': 'Fikringizga javob berildi: {subject}',
@@ -158,7 +167,10 @@ const messages: Record<Language, Record<string, string>> = {
     'reports.colDuration': 'Davomiylik (daq)',
     'reports.colTableAmount': 'Stol summasi',
     'reports.colBarAmount': 'Bar summasi',
+    'reports.colDiscount': 'Chegirma',
+    'reports.colAdjustment': 'Tuzatish',
     'reports.colTotal': 'Jami',
+    'reports.periodLabel': 'Davr',
     'reports.colMethod': "To'lov usuli",
     'reports.colPaid': "To'langan",
     'reports.totalRow': 'JAMI:',
@@ -177,6 +189,9 @@ const messages: Record<Language, Record<string, string>> = {
     'clubs.adminNotFound': 'Klub administratori topilmadi',
     'clubs.hasData': "Klubda ma'lumotlar bor, o'chirib bo'lmaydi. Bloklang",
     'clubs.deleted': "Klub o'chirildi",
+    'clubs.extendChoiceRequired': "Uzaytirish uchun yo oylar sonini, yo aniq sanani bering (aynan bittasini)",
+    'clubs.wouldShortenSubscription':
+      "Yangi sana joriy obuna muddatidan oldin — to'langan kunlar yo'qoladi. Qisqartirishni aniq tasdiqlang",
 
     // Obuna savdosi (tariflar, hisob-fakturalar, kuponlar)
     'subscription.pendingExists':
@@ -201,6 +216,8 @@ const messages: Record<Language, Record<string, string>> = {
     'subscription.invalidCouponWindow': "Kupon amal qilish oralig'i noto'g'ri",
     'subscription.invoiceNotFound': 'Hisob-faktura topilmadi',
     'subscription.invoiceNotPending': 'Bu hisob-faktura kutish holatida emas',
+    'subscription.staleInvoice':
+      "Bu eski hisob-faktura tasdiqlanmaydi: shu klub uchun keyinroq berilgan to'lov allaqachon qabul qilingan",
     'subscription.purchaseCreated':
       "To'lov so'rovi yuborildi. Tasdiqlangach obuna avtomatik uzaytiriladi",
     'subscription.invoiceCancelled': "To'lov so'rovi bekor qilindi",
@@ -210,10 +227,13 @@ const messages: Record<Language, Record<string, string>> = {
     // Shartnomalar
     'contracts.created': 'Shartnoma tuzildi va obuna uzaytirildi',
     'contracts.deleted': "Shartnoma o'chirildi",
+    'contracts.hasPaidInvoice':
+      "Bu shartnomaga to'langan hisob-faktura bog'langan — o'chirib bo'lmaydi",
 
     // Ommaviy ro'yxatdan o'tish
     'public.phoneAlreadyRegistered':
       "Bu telefon raqam allaqachon ro'yxatdan o'tgan. Yordam uchun biz bilan bog'laning",
+    'public.invalidPhone': "Telefon raqam noto'g'ri — kamida bitta raqam bo'lishi kerak",
 
     // Umumiy
     'common.validationError': 'Validatsiya xatosi',
@@ -276,6 +296,8 @@ const messages: Record<Language, Record<string, string>> = {
     'tables.deleted': 'Стол удалён',
     'tables.hasActiveSession': 'На столе идёт игра, удалить нельзя',
     'tables.numberTaken': 'Стол с таким номером уже существует',
+    'tables.priceChangeWhileBusy':
+      'На столе идёт игра — изменить цену нельзя. Сначала завершите игру',
 
     // Сессии
     'sessions.notFound': 'Сессия не найдена',
@@ -298,6 +320,10 @@ const messages: Record<Language, Record<string, string>> = {
     'sessions.transferSameTable': 'Сессия уже на этом столе',
     'sessions.paymentsMismatch': 'Сумма платежей не совпадает с суммой к оплате',
     'sessions.adjustmentForbidden': 'Ручная корректировка доступна только администратору',
+    'sessions.barChanged':
+      'Сумма бара изменилась ({expected} → {actual}). Счёт обновлён — проверьте новую сумму и подтвердите заново',
+    'sessions.cancelNeedsAdmin':
+      'Отменить длительную игру или игру с заказами бара может только администратор. Завершите расчёт или обратитесь к администратору',
 
     // Заказы
     'orders.itemsRequired': 'Требуются позиции заказа',
@@ -332,6 +358,8 @@ const messages: Record<Language, Record<string, string>> = {
     'products.updated': 'Товар обновлён',
     'products.deleted': 'Товар удалён',
     'products.nameTaken': 'Товар с таким названием уже существует',
+    'products.stockAdjusted': 'Остаток на складе обновлён',
+    'products.stockNegative': 'Остаток «{name}» станет отрицательным (текущий остаток: {stock})',
 
     // Сотрудники
     'staff.notFound': 'Сотрудник не найден',
@@ -366,6 +394,7 @@ const messages: Record<Language, Record<string, string>> = {
     'feedback.attachmentTooLarge': 'Размер каждого файла не должен превышать {max} КБ',
     'feedback.invalidAttachment':
       'Неверный формат файла — принимаются только изображения PNG, JPEG или WebP',
+    'feedback.attachmentNotFound': 'Вложение не найдено',
     'feedback.statusUpdated': 'Статус отзыва обновлён',
     'feedback.replied': 'Ответ отправлен',
     'feedback.replyNotificationTitle': 'На ваш отзыв дан ответ: {subject}',
@@ -395,7 +424,10 @@ const messages: Record<Language, Record<string, string>> = {
     'reports.colDuration': 'Длительность (мин)',
     'reports.colTableAmount': 'Сумма стола',
     'reports.colBarAmount': 'Сумма бара',
+    'reports.colDiscount': 'Скидка',
+    'reports.colAdjustment': 'Корректировка',
     'reports.colTotal': 'Итого',
+    'reports.periodLabel': 'Период',
     'reports.colMethod': 'Способ оплаты',
     'reports.colPaid': 'Оплачено',
     'reports.totalRow': 'ИТОГО:',
@@ -414,6 +446,9 @@ const messages: Record<Language, Record<string, string>> = {
     'clubs.adminNotFound': 'Администратор клуба не найден',
     'clubs.hasData': 'В клубе есть данные, удалить нельзя. Заблокируйте',
     'clubs.deleted': 'Клуб удалён',
+    'clubs.extendChoiceRequired': 'Укажите либо количество месяцев, либо точную дату (ровно одно)',
+    'clubs.wouldShortenSubscription':
+      'Новая дата раньше текущего срока подписки — оплаченные дни будут потеряны. Подтвердите сокращение явно',
 
     // Продажа подписок (тарифы, счета, купоны)
     'subscription.pendingExists':
@@ -438,6 +473,8 @@ const messages: Record<Language, Record<string, string>> = {
     'subscription.invalidCouponWindow': 'Неверный период действия купона',
     'subscription.invoiceNotFound': 'Счёт не найден',
     'subscription.invoiceNotPending': 'Этот счёт не находится в статусе ожидания',
+    'subscription.staleInvoice':
+      'Этот устаревший счёт нельзя подтвердить: по данному клубу уже принята более поздняя оплата',
     'subscription.purchaseCreated':
       'Заявка на оплату отправлена. После подтверждения подписка продлится автоматически',
     'subscription.invoiceCancelled': 'Заявка на оплату отменена',
@@ -447,10 +484,12 @@ const messages: Record<Language, Record<string, string>> = {
     // Договоры
     'contracts.created': 'Договор заключён, подписка продлена',
     'contracts.deleted': 'Договор удалён',
+    'contracts.hasPaidInvoice': 'К этому договору привязан оплаченный счёт — удалить нельзя',
 
     // Публичная регистрация
     'public.phoneAlreadyRegistered':
       'Этот номер телефона уже зарегистрирован. Свяжитесь с нами для помощи',
+    'public.invalidPhone': 'Неверный номер телефона — нужна хотя бы одна цифра',
 
     // Общее
     'common.validationError': 'Ошибка валидации',

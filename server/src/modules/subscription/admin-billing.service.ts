@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Not, Repository } from 'typeorm';
+import { DataSource, MoreThan, Not, Repository } from 'typeorm';
 import { Club } from '../../entities/club.entity';
 import { Coupon } from '../../entities/coupon.entity';
 import { CouponType, InvoiceStatus } from '../../entities/enums';
@@ -13,7 +13,7 @@ import { Invoice } from '../../entities/invoice.entity';
 import { Plan } from '../../entities/plan.entity';
 import { TelegramService } from '../../telegram/telegram.service';
 import { ClubsService } from '../clubs/clubs.service';
-import { contractTypeFromDays, DAY_MS, validateCouponForPlan } from './billing.util';
+import { contractTypeFromDays } from './billing.util';
 import {
   ConfirmInvoiceDto,
   CreateCouponDto,
@@ -134,21 +134,30 @@ export class AdminBillingService {
     const value = dto.value ?? coupon.value;
     this.assertCouponValue(type, value);
 
-    const validFrom = dto.validFrom !== undefined ? dto.validFrom : coupon.validFrom;
-    const validTo = dto.validTo !== undefined ? dto.validTo : coupon.validTo;
+    // null — maydonni TOZALASH, undefined — tegilmaydi.
+    // (avval null uchun `new Date(null)` = 1970-01-01 yozilib qolardi)
+    const validFrom =
+      dto.validFrom === undefined ? coupon.validFrom : this.parseCouponDate(dto.validFrom);
+    const validTo =
+      dto.validTo === undefined ? coupon.validTo : this.parseCouponDate(dto.validTo);
     this.assertCouponWindow(validFrom, validTo);
 
     if (dto.planId !== undefined) {
-      const plan = await this.planRepo.findOne({ where: { id: dto.planId } });
-      if (!plan) throw new NotFoundException({ key: 'subscription.planNotFound' });
-      coupon.planId = dto.planId;
+      if (dto.planId === null) {
+        // Tarif cheklovini olib tashlash — kupon barcha tariflarga ishlaydi
+        coupon.planId = null;
+      } else {
+        const plan = await this.planRepo.findOne({ where: { id: dto.planId } });
+        if (!plan) throw new NotFoundException({ key: 'subscription.planNotFound' });
+        coupon.planId = dto.planId;
+      }
     }
 
     coupon.type = type;
     coupon.value = value;
     if (dto.maxUses !== undefined) coupon.maxUses = dto.maxUses;
-    if (dto.validFrom !== undefined) coupon.validFrom = new Date(dto.validFrom);
-    if (dto.validTo !== undefined) coupon.validTo = new Date(dto.validTo);
+    if (dto.validFrom !== undefined) coupon.validFrom = validFrom;
+    if (dto.validTo !== undefined) coupon.validTo = validTo;
     if (dto.isActive !== undefined) coupon.isActive = dto.isActive;
 
     return this.couponRepo.save(coupon);
@@ -194,9 +203,12 @@ export class AdminBillingService {
    * To'lovni tasdiqlash — bitta tranzaksiyada:
    *  faktura -> PAID (paidAt), shartnoma yaratiladi (boshlanish —
    *  joriy obuna tugashi yoki hozir), klub obunasi uzaytiriladi
-   *  (status ACTIVE), kupon ishlatilgan bo'lsa usedCount +1.
+   *  (bloklanmagan bo'lsa status ACTIVE), kupon ishlatilgan bo'lsa
+   *  usedCount +1.
    * SubscriptionGuard klubni HAR so'rovda DB dan qayta o'qiydi —
    * shu tufayli tasdiqlash klubni darhol ochadi (instant unlock).
+   * Tasdiqlash HECH QACHON kupon sababli rad etilmaydi: pul allaqachon
+   * kelgan, xarid paytidagi snapshot — shartnoma.
    */
   async confirmInvoice(id: number, dto: ConfirmInvoiceDto) {
     const { invoice, club } = await this.dataSource.transaction(async (manager) => {
@@ -205,8 +217,22 @@ export class AdminBillingService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!inv) throw new NotFoundException({ key: 'subscription.invoiceNotFound' });
-      if (inv.status !== InvoiceStatus.PENDING) {
+      // EXPIRED ham qabul qilinadi: cron eski PENDING fakturani yopadi, lekin
+      // bank o'tkazmasi kechikib kelishi mumkin — superadmin kech kelgan
+      // to'lovni baribir tasdiqlay olishi shart (aks holda faktura muzlab qolardi).
+      if (![InvoiceStatus.PENDING, InvoiceStatus.EXPIRED].includes(inv.status)) {
         throw new BadRequestException({ key: 'subscription.invoiceNotPending' });
+      }
+      // Bir to'lov IKKI marta yozilmasin: muddati o'tgan faktura muzlab qolganda
+      // klub qayta xarid qilib, o'sha to'lov yangi faktura bilan tasdiqlangan
+      // bo'lishi mumkin. Shu klubda KEYINROQ berilgan faktura allaqachon to'langan
+      // bo'lsa — eski fakturani tasdiqlash ikkinchi davr va ikki karra daromad
+      // beradi, shuning uchun rad etiladi (uni Rad etish tugmasi bilan yopiladi).
+      if (inv.status === InvoiceStatus.EXPIRED) {
+        const newerPaid = await manager.findOne(Invoice, {
+          where: { clubId: inv.clubId, status: InvoiceStatus.PAID, id: MoreThan(inv.id) },
+        });
+        if (newerPaid) throw new BadRequestException({ key: 'subscription.staleInvoice' });
       }
 
       const plan = inv.planId
@@ -220,27 +246,40 @@ export class AdminBillingService {
       });
       if (!lockedClub) throw new NotFoundException({ key: 'clubs.notFound' });
 
-      // Boshlanish — joriy obuna tugashi (kelajakda bo'lsa) yoki hozir:
-      // muddati tugamagan klub kunlarini yo'qotmaydi.
       // Davomiylik XARID PAYTIDA muhrlangan (inv.durationDays) — tasdiqlashgacha
       // tarif o'zgargan bo'lsa ham klub aynan sotib olgan muddatni oladi.
       // Eski (snapshotdan avvalgi) fakturalarda null — tarifning joriy qiymati.
       const durationDays = inv.durationDays ?? plan.durationDays;
-      const currentEnd = lockedClub.subscriptionEndsAt ?? lockedClub.trialEndsAt;
-      const startDate =
-        currentEnd && new Date(currentEnd).getTime() > Date.now()
-          ? new Date(currentEnd)
-          : new Date();
-      const endDate = new Date(startDate.getTime() + durationDays * DAY_MS);
 
-      // Shartnoma + klub obunasini uzaytirish — clubs.service dagi umumiy yo'l
+      // Shartnoma + klub obunasini uzaytirish — clubs.service dagi umumiy yo'l.
+      // Boshlanish sanasi o'sha yerda, klub qatori qulfi ostida hisoblanadi.
       const contract = await this.clubsService.applyContractInTransaction(manager, inv.clubId, {
         type: contractTypeFromDays(durationDays),
         amount: inv.amount,
-        startDate,
-        endDate,
+        durationDays,
         notes: `Hisob-faktura ${inv.number}`,
       });
+
+      // Kupon ishlatildi — usedCount faqat TASDIQLASHDA oshadi.
+      if (inv.couponId) {
+        await manager.findOne(Coupon, {
+          where: { id: inv.couponId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        // Kupon so'rov va tasdiq oralig'ida tugab/o'chib/limitga yetgan bo'lishi
+        // mumkin — lekin bu TO'LOVNI bekor qilmaydi. Limit shartning O'ZIDA:
+        // usedCount faqat bo'sh joy bo'lsa oshadi, aks holda faqat izoh yoziladi.
+        const bumped = await manager
+          .createQueryBuilder()
+          .update(Coupon)
+          .set({ usedCount: () => '"usedCount" + 1' })
+          .where('id = :id', { id: inv.couponId })
+          .andWhere('("maxUses" IS NULL OR "usedCount" < "maxUses")')
+          .execute();
+        if (!bumped.affected) {
+          inv.notes = [inv.notes, 'kupon limiti oshib ketgan'].filter(Boolean).join(' · ');
+        }
+      }
 
       inv.status = InvoiceStatus.PAID;
       inv.paidAt = new Date();
@@ -248,21 +287,7 @@ export class AdminBillingService {
       inv.contractId = contract.id;
       await manager.save(Invoice, inv);
 
-      // Kupon ishlatildi — usedCount faqat TASDIQLASHDA oshadi.
-      if (inv.couponId) {
-        const coupon = await manager.findOne(Coupon, {
-          where: { id: inv.couponId },
-          lock: { mode: 'pessimistic_write' },
-        });
-        // Kupon so'rov va tasdiq oralig'ida tugab/o'chib/limitga yetgan bo'lishi
-        // mumkin. purchase() usedCount ni OSHIRMAYDI, shuning uchun bir xil
-        // maxUses li kupon bir nechta PENDING faktura orqali limitdan oshib
-        // ketishi mumkin edi — qulf ostida qayta tekshiramiz.
-        validateCouponForPlan(coupon, plan);
-        await manager.increment(Coupon, { id: inv.couponId }, 'usedCount', 1);
-      }
-
-      lockedClub.subscriptionEndsAt = endDate;
+      lockedClub.subscriptionEndsAt = contract.endDate;
       inv.contract = contract;
       return { invoice: inv, club: lockedClub };
     });
@@ -273,7 +298,12 @@ export class AdminBillingService {
     return invoice;
   }
 
-  /** To'lov so'rovini rad etish — faktura CANCELLED holatiga o'tadi */
+  /**
+   * To'lov so'rovini rad etish — faktura CANCELLED holatiga o'tadi.
+   * Tasdiqlash bilan BIR XIL shart: PENDING ham, EXPIRED ham rad etiladi —
+   * aks holda muddati o'tgan faktura abadiy "tasdiqlash mumkin, yopish
+   * mumkin emas" holatida osilib qolardi.
+   */
   async rejectInvoice(id: number, dto: RejectInvoiceDto) {
     return this.dataSource.transaction(async (manager) => {
       const invoice = await manager.findOne(Invoice, {
@@ -281,7 +311,7 @@ export class AdminBillingService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!invoice) throw new NotFoundException({ key: 'subscription.invoiceNotFound' });
-      if (invoice.status !== InvoiceStatus.PENDING) {
+      if (![InvoiceStatus.PENDING, InvoiceStatus.EXPIRED].includes(invoice.status)) {
         throw new BadRequestException({ key: 'subscription.invoiceNotPending' });
       }
       invoice.status = InvoiceStatus.CANCELLED;
@@ -297,6 +327,16 @@ export class AdminBillingService {
     if (type === CouponType.PERCENT && value > 100) {
       throw new BadRequestException({ key: 'subscription.invalidCouponValue' });
     }
+  }
+
+  /** ISO sana -> Date; null — maydonni tozalash; o'qib bo'lmaydigan sana rad etiladi */
+  private parseCouponDate(value: string | null): Date | null {
+    if (value === null) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException({ key: 'subscription.invalidCouponWindow' });
+    }
+    return d;
   }
 
   /** validFrom < validTo bo'lishi shart (ikkalasi ham berilgan bo'lsa) */

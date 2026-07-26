@@ -51,11 +51,17 @@ const INVOICE_TAG: Record<InvoiceStatus, string> = {
 /** Sinov davri odatda 7 kun — halqa foizini shu bazadan hisoblaymiz */
 const TRIAL_DAYS = 7;
 
+const DAY_MS = 86_400_000;
+
 const Subscription = () => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { message } = App.useApp();
   const lang = i18n.language;
+
+  // Fakturalar PLATFORMA hisob-kitobi (Plan.price global, valyuta ustuni yo'q) —
+  // klub sozlamasidagi useCurrency() bu yerda ISHLATILMAYDI
+  const platformCurrency = t('common.sum');
 
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -189,10 +195,29 @@ const Subscription = () => {
 
     const { club, activePlan } = status;
     const endMs = club.effectiveEndsAt ? new Date(club.effectiveEndsAt).getTime() : null;
-    const msLeft = endMs === null ? null : endMs - now.valueOf();
-    const expired = msLeft !== null && msLeft <= 0;
 
-    // Aniq qoldiq — kun + soat + daqiqa (serverning yaxlitlangan daysLeft o'rniga)
+    // Holat SERVER qarori bo'yicha: noto'g'ri qurilma soati "tugagan"/"faol"
+    // ko'rinishini buzmasin (server isExpired va daysLeft ni o'zi hisoblaydi)
+    const expired = club.isExpired;
+    const serverDaysLeft = club.daysLeft;
+
+    // Brauzer soati server qoldig'i bilan mos kelsa — soat/daqiqagacha jonli
+    // ko'rsatamiz; mos kelmasa faqat serverning kunlari ishlatiladi
+    const browserMsLeft = endMs === null ? null : endMs - now.valueOf();
+    const clockTrusted =
+      browserMsLeft !== null &&
+      serverDaysLeft !== null &&
+      Math.abs(browserMsLeft - serverDaysLeft * DAY_MS) <= DAY_MS;
+    const msLeft =
+      endMs === null
+        ? null
+        : expired
+          ? 0
+          : clockTrusted
+            ? Math.max(0, browserMsLeft ?? 0)
+            : (serverDaysLeft ?? 0) * DAY_MS;
+
+    // Aniq qoldiq — kun + soat + daqiqa
     const totalMin = msLeft !== null && msLeft > 0 ? Math.floor(msLeft / 60_000) : 0;
     const dLeft = Math.floor(totalMin / 1440);
     const hLeft = Math.floor((totalMin % 1440) / 60);
@@ -202,7 +227,7 @@ const Subscription = () => {
     const percent =
       endMs === null
         ? 100
-        : Math.max(0, Math.min(100, (Math.max(0, msLeft ?? 0) / (totalDays * 86_400_000)) * 100));
+        : Math.max(0, Math.min(100, (Math.max(0, msLeft ?? 0) / (totalDays * DAY_MS)) * 100));
     const ringColor =
       endMs === null || percent > 50 ? emerald.bright : percent > 20 ? gold.base : semantic.error;
     const planLabel = activePlan
@@ -368,7 +393,7 @@ const Subscription = () => {
       align: 'right',
       render: (_, inv) => (
         <div>
-          <MoneyText amount={inv.amount} currency={t('common.sum')} />
+          <MoneyText amount={inv.amount} currency={platformCurrency} />
           {inv.discountAmount > 0 && (
             <div className="tabular-nums" style={{ fontSize: 12, color: semantic.success }}>
               {t('subscription.discountLabel')}: −{formatNumber(inv.discountAmount)}

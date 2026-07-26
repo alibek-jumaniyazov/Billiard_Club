@@ -200,6 +200,12 @@ export class CreateCouponDto {
   isActive?: boolean;
 }
 
+/**
+ * Kuponni tahrirlash. Nullable maydonlarda: undefined — tegilmaydi,
+ * null — maydon TOZALANADI (limitsiz / muddatsiz / barcha tariflar uchun).
+ * @IsOptional() null ni ham o'tkazib yuboradi, shuning uchun qo'shimcha
+ * shart kerak emas.
+ */
 export class UpdateCouponDto {
   @IsOptional()
   @IsEnum(CouponType)
@@ -210,23 +216,27 @@ export class UpdateCouponDto {
   @Min(0)
   value?: number;
 
+  /** null — limitni olib tashlash (cheksiz) */
   @IsOptional()
   @IsInt()
   @Min(1)
-  maxUses?: number;
+  maxUses?: number | null;
 
+  /** null — boshlanish chegarasini olib tashlash */
   @IsOptional()
   @IsDateString()
-  validFrom?: string;
+  validFrom?: string | null;
 
+  /** null — tugash chegarasini olib tashlash */
   @IsOptional()
   @IsDateString()
-  validTo?: string;
+  validTo?: string | null;
 
+  /** null — tarif cheklovini olib tashlash (barcha tariflar) */
   @IsOptional()
   @IsInt()
   @IsPositive()
-  planId?: number;
+  planId?: number | null;
 
   @IsOptional()
   @IsBoolean()

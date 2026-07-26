@@ -1,6 +1,8 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
+  ArrayNotEmpty,
   IsArray,
   IsEnum,
   IsInt,
@@ -29,8 +31,11 @@ export class CreateOrderDto {
   @Type(() => Number)
   sessionId: number;
 
+  /** Bo'sh yoki cheksiz uzun ro'yxat qabul qilinmaydi (bitta so'rovda 50 pozitsiya) */
   @IsArray()
+  @ArrayNotEmpty()
   @ArrayMinSize(1)
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items: OrderItemDto[];

@@ -16,6 +16,7 @@ import {
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ElapsedTime, MoneyText, StatusTag, useNow } from '../../components/ui';
+import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable, Session } from '../../types';
 import { formatClock, formatNumber } from '../../utils/format';
@@ -65,6 +66,8 @@ export interface TableCardProps {
   pending: boolean;
   /** Hisob-kitob va bekor qilish huquqi (admin/kassir) */
   canCheckout: boolean;
+  /** Admin/superadmin — uzoq davom etgan yoki barli o'yinni bekor qila oladi */
+  canManage: boolean;
   onStart: (table: BilliardTable) => void;
   onOrder: (table: BilliardTable) => void;
   onTransfer: (table: BilliardTable) => void;
@@ -92,6 +95,7 @@ const TableCard = memo(
     offsetMs,
     pending,
     canCheckout,
+    canManage,
     onStart,
     onOrder,
     onTransfer,
@@ -102,11 +106,24 @@ const TableCard = memo(
   }: TableCardProps) => {
     const { t } = useTranslation();
     const reduceMotion = useReducedMotion();
-    const currency = t('common.sum');
+    // Jonli summa bargi (LiveAmount) belgini PROP orqali oladi — hook shu yerda
+    // bir marta chaqiriladi
+    const currency = useCurrency();
 
     const isBusy = table.status === 'busy' && !!session;
     const isPaused = session?.status === 'paused';
     const todayCompleted = table.todayCompletedSessions ?? 0;
+
+    /**
+     * Bekor qilish huquqi — SERVERDAGI qoidaning aynan nusxasi
+     * (sessions.service.ts CASHIER_CANCEL_MAX_SECONDS): kassir faqat adashib
+     * boshlangan (qisqa va bar buyurtmasiz) o'yinni bekor qila oladi.
+     */
+    const canCancel =
+      canManage ||
+      (!!session &&
+        (session.barAmount ?? 0) <= 0 &&
+        sessionElapsedMs(session, Date.now() + offsetMs) <= 600_000);
 
     // Chiroq indikatori faqat rele sozlangan VA klub rejimi yoqilgan stolda
     // ko'rinadi (rejim 'off' bo'lsa tugma bosilishi hech narsani o'zgartirmasdi)
@@ -173,27 +190,43 @@ const TableCard = memo(
               ) : (
                 <StatusTag status="free" label={t('status.free')} />
               )}
-              {isBusy && canCheckout && (
-                <Popconfirm
-                  title={t('tables.cancelConfirmTitle')}
-                  description={t('tables.cancelConfirmDesc')}
-                  okText={t('common.yes')}
-                  cancelText={t('common.no')}
-                  okButtonProps={{ danger: true }}
-                  onConfirm={() => onCancel(session)}
-                >
-                  <Tooltip title={t('tables.cancelTooltip')}>
+              {isBusy &&
+                canCheckout &&
+                (canCancel ? (
+                  <Popconfirm
+                    title={t('tables.cancelConfirmTitle')}
+                    description={t('tables.cancelConfirmDesc')}
+                    okText={t('common.yes')}
+                    cancelText={t('common.no')}
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => onCancel(session)}
+                  >
+                    <Tooltip title={t('tables.cancelTooltip')}>
+                      <Button
+                        type="text"
+                        danger
+                        size="small"
+                        loading={pending}
+                        icon={<CloseCircleOutlined />}
+                        aria-label={t('tables.cancelTooltip')}
+                      />
+                    </Tooltip>
+                  </Popconfirm>
+                ) : (
+                  /* Serverdagi qoida bilan bir xil: kassir uzoq davom etgan yoki
+                     bar buyurtmasi bor o'yinni bekor qila olmaydi — tugma bosilib
+                     xato chiqarish o'rniga sababi bilan o'chirilgan holda turadi */
+                  <Tooltip title={t('tables.cancelNeedsAdmin')}>
                     <Button
                       type="text"
                       danger
                       size="small"
-                      loading={pending}
+                      disabled
                       icon={<CloseCircleOutlined />}
-                      aria-label={t('tables.cancelTooltip')}
+                      aria-label={t('tables.cancelNeedsAdmin')}
                     />
                   </Tooltip>
-                </Popconfirm>
-              )}
+                ))}
             </div>
           </div>
 

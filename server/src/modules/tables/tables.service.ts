@@ -1,9 +1,17 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Not, Repository } from 'typeorm';
+import { AuditService } from '../../common/audit/audit.service';
 import { LightDriver, LightMode, SessionStatus } from '../../entities/enums';
 import { Session } from '../../entities/session.entity';
 import { Table } from '../../entities/table.entity';
+import { User } from '../../entities/user.entity';
 import { safeTimezone } from '../settings/timezones';
 import { CreateTableDto, UpdateTableDto } from './dto/tables.dto';
 
@@ -13,6 +21,8 @@ export class TablesService {
     private readonly dataSource: DataSource,
     @InjectRepository(Table) private readonly tableRepo: Repository<Table>,
     @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
+    // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   /**
@@ -98,32 +108,91 @@ export class TablesService {
     });
   }
 
-  async update(clubId: number, id: number, dto: UpdateTableDto) {
-    const table = await this.tableRepo.findOne({ where: { id, clubId, isActive: true } });
-    if (!table) throw new NotFoundException({ key: 'tables.notFound' });
-    if (dto.number !== undefined && dto.number !== table.number) {
-      await this.ensureNumberFree(clubId, dto.number, id);
-    }
-    Object.assign(table, {
-      ...(dto.name !== undefined ? { name: dto.name } : {}),
-      ...(dto.number !== undefined ? { number: dto.number } : {}),
-      ...(dto.pricePerHour !== undefined ? { pricePerHour: dto.pricePerHour } : {}),
-      ...(dto.description !== undefined ? { description: dto.description } : {}),
+  /**
+   * Stolni yangilash. NARX alohida muomalada:
+   *  - stolda ochiq (active/paused) sessiya turgan bo'lsa narx O'ZGARTIRILMAYDI —
+   *    sessiya narxni boshlanishida MUHRLAB oladi, shuning uchun "narxni tushir →
+   *    sessiya boshla → narxni tikla" ketma-ketligi izsiz pul o'g'irlash yo'li edi;
+   *  - har qanday narx o'zgarishi audit jurnaliga (eski/yangi qiymat bilan) tushadi.
+   *
+   * Tekshiruv va yozuv remove() dagi kabi BITTA tranzaksiyada, QULFLASH TARTIBI
+   * ham o'sha: avval stol, keyin sessiya (sessions.start()/transfer() bilan mos).
+   */
+  async update(clubId: number, id: number, dto: UpdateTableDto, user?: User) {
+    const { saved, oldPrice, priceChanged } = await this.dataSource.transaction(async (manager) => {
+      const table = await manager.findOne(Table, {
+        where: { id, clubId, isActive: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!table) throw new NotFoundException({ key: 'tables.notFound' });
+      if (dto.number != null && dto.number !== table.number) {
+        await this.ensureNumberFree(clubId, dto.number, id);
+      }
+
+      const previousPrice = table.pricePerHour;
+      const changed = dto.pricePerHour != null && dto.pricePerHour !== previousPrice;
+      if (changed) {
+        const busySession = await manager.findOne(Session, {
+          where: { tableId: id, status: In([SessionStatus.ACTIVE, SessionStatus.PAUSED]) },
+        });
+        if (busySession) throw new BadRequestException({ key: 'tables.priceChangeWhileBusy' });
+      }
+
+      // NOT NULL ustunlar `!= null` bilan: @IsOptional() literal `null` ni ham
+      // o'tkazadi, description esa nullable — u ataylab tozalanishi mumkin
+      Object.assign(table, {
+        ...(dto.name != null ? { name: dto.name } : {}),
+        ...(dto.number != null ? { number: dto.number } : {}),
+        ...(dto.pricePerHour != null ? { pricePerHour: dto.pricePerHour } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+      });
+      return {
+        saved: await manager.save(Table, table),
+        oldPrice: previousPrice,
+        priceChanged: changed,
+      };
     });
-    return this.tableRepo.save(table);
+
+    // Audit tranzaksiya muvaffaqiyatli yakunlangach (sessions.service dagi kabi)
+    if (priceChanged && this.auditService) {
+      this.auditService.log({
+        action: 'table.price',
+        clubId,
+        userId: user?.id ?? null,
+        actorRole: user?.role ?? null,
+        entity: 'table',
+        entityId: id,
+        meta: { oldPrice, newPrice: saved.pricePerHour },
+      });
+    }
+
+    return saved;
   }
 
+  /**
+   * Stolni o'chirish (soft-delete). Tekshiruv va yozuv BITTA tranzaksiyada:
+   * aks holda sessions.start() bilan poyga bo'lardi — tekshiruv "bo'sh" deb
+   * ko'rsatib, shu orada sessiya yaratilib, stol faol o'yin ustida o'chib ketardi.
+   *
+   * QULFLASH TARTIBI: avval stol, keyin sessiya — sessions.service dagi
+   * start()/transfer() bilan bir xil, aks holda deadlock bo'lardi.
+   */
   async remove(clubId: number, id: number) {
-    const table = await this.tableRepo.findOne({ where: { id, clubId, isActive: true } });
-    if (!table) throw new NotFoundException({ key: 'tables.notFound' });
+    return this.dataSource.transaction(async (manager) => {
+      const table = await manager.findOne(Table, {
+        where: { id, clubId, isActive: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!table) throw new NotFoundException({ key: 'tables.notFound' });
 
-    const activeSession = await this.sessionRepo.findOne({
-      where: { tableId: id, status: In([SessionStatus.ACTIVE, SessionStatus.PAUSED]) },
+      const activeSession = await manager.findOne(Session, {
+        where: { tableId: id, status: In([SessionStatus.ACTIVE, SessionStatus.PAUSED]) },
+      });
+      if (activeSession) throw new BadRequestException({ key: 'tables.hasActiveSession' });
+
+      await manager.update(Table, id, { isActive: false });
+      return true;
     });
-    if (activeSession) throw new BadRequestException({ key: 'tables.hasActiveSession' });
-
-    await this.tableRepo.update(id, { isActive: false });
-    return true;
   }
 
   private async ensureNumberFree(clubId: number, number: number, excludeId?: number) {

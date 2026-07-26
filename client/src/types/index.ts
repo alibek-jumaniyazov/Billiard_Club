@@ -774,6 +774,12 @@ export interface EndSessionPayload {
   /** Qo'lda tuzatish: musbat — ustama, manfiy — chegirma; sabab majburiy */
   adjustment?: { amount: number; reason: string };
   discount?: number;
+  /**
+   * Kassir ekranida ko'rsatilgan bar summasi. Server o'zi hisoblagani bilan
+   * mos kelmasa 409 qaytaradi — kassa oynasi ochiq turganda boshqa terminaldan
+   * qo'shilgan ichimlik tufayli noto'g'ri pul olinib ketmasligi uchun.
+   */
+  expectedBarAmount?: number;
   notes?: string;
   isDebt?: boolean;
   isTableDebt?: boolean;
@@ -805,14 +811,15 @@ export interface PlanPayload {
   features?: Record<string, unknown>;
 }
 
+/** Kupon yaratish/tahrirlash. Tahrirlashda null — maydonni TOZALASH */
 export interface CouponPayload {
   code?: string;
   type?: CouponType;
   value?: number;
-  maxUses?: number;
-  validFrom?: string;
-  validTo?: string;
-  planId?: number;
+  maxUses?: number | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  planId?: number | null;
   isActive?: boolean;
 }
 

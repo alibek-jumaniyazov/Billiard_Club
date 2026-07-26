@@ -31,7 +31,12 @@ interface TableRow {
 
 const BAR_COLOR = TOKENS.color.gold.base;
 
-/** Maxsus tooltip — o'yinlar soni + tushum birga ko'rinadi */
+/**
+ * Maxsus tooltip — o'yinlar soni + stol bo'yicha HISOBLANGAN summa birga ko'rinadi.
+ * Bu yerdagi summa SUM(session.totalAmount) — ya'ni hisoblangan (billed) summa,
+ * KPI kartochkalaridagi "Tushum" esa haqiqatda OLINGAN pul (sales + qarz to'lovlari).
+ * Ikkalasi bir sahifada bir xil so'z bilan atalmasligi uchun alohida nomlanadi.
+ */
 const TableTooltip = ({
   active,
   payload,
@@ -113,7 +118,7 @@ const TopTablesChart = memo(({ mostUsedTables, currency, loading }: TopTablesCha
               <TableTooltip
                 currency={currency}
                 sessionsLabel={t('dashboard.sessionsLabel')}
-                revenueLabel={t('dashboard.income')}
+                revenueLabel={t('dashboard.billedRevenue')}
               />
             }
           />

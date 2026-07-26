@@ -25,10 +25,17 @@ import {
   UpdateFeedbackStatusDto,
 } from './dto/feedback.dto';
 
-/** Biriktirma cheklovlari */
+/**
+ * Biriktirma cheklovlari — diskka yoziladigan BAYT hajmi shu yerda qat'iy
+ * chegaralanadi. DTO dagi ArrayMaxSize/MaxLength faqat base64 SATR uzunligini
+ * cheklaydi; haqiqiy chegara dekodlangan bufer bo'yicha shu yerda qo'yiladi.
+ */
 const MAX_ATTACHMENTS = 3;
 const MAX_ATTACHMENT_KB = 500;
 const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_KB * 1024;
+
+/** Bitta fikrga yoziladigan umumiy hajm chegarasi (3 x 500KB) */
+const MAX_TOTAL_ATTACHMENT_BYTES = MAX_ATTACHMENTS * MAX_ATTACHMENT_BYTES;
 
 /** Ruxsat etilgan rasm turlari: mime -> fayl kengaytmasi */
 const ALLOWED_IMAGE_EXT: Record<string, string> = {
@@ -315,6 +322,7 @@ export class FeedbackService {
       });
     }
 
+    let totalBytes = 0;
     return attachments.map((dataUrl) => {
       const match = DATA_URL_RE.exec(dataUrl);
       if (!match) throw new BadRequestException({ key: 'feedback.invalidAttachment' });
@@ -325,6 +333,15 @@ export class FeedbackService {
         throw new BadRequestException({ key: 'feedback.invalidAttachment' });
       }
       if (buffer.length > MAX_ATTACHMENT_BYTES) {
+        throw new BadRequestException({
+          key: 'feedback.attachmentTooLarge',
+          args: { max: MAX_ATTACHMENT_KB },
+        });
+      }
+      // Umumiy hajm ham cheklanadi — bitta so'rovda diskka yoziladigan
+      // baytlar miqdori har doim oldindan ma'lum bo'lsin
+      totalBytes += buffer.length;
+      if (totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
         throw new BadRequestException({
           key: 'feedback.attachmentTooLarge',
           args: { max: MAX_ATTACHMENT_KB },

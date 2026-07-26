@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -69,7 +70,7 @@ export class CreateClubDto {
   adminUsername: string;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
   @MaxLength(100)
   adminPassword: string;
 
@@ -112,22 +113,32 @@ export class UpdateClubDto {
 }
 
 export class ExtendSubscriptionDto {
-  /** Necha oyga uzaytirish (1-36) — yoki `until` bering */
-  @ValidateIf((o) => o.until === undefined)
+  /**
+   * Necha oyga uzaytirish (1-36) — yoki `until` bering (aynan bittasi).
+   * Ilgari o'zaro @ValidateIf ishlatilardi: ikkala maydon birga yuborilganda
+   * ikkalasining ham validatsiyasi o'tkazib yuborilardi (@Max(36) chetlab
+   * o'tilardi). Endi validatorlar shartsiz, tanlov servisda tekshiriladi.
+   */
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(36)
   months?: number;
 
-  /** Aniq sana (ISO) — yoki `months` bering */
-  @ValidateIf((o) => o.months === undefined)
+  /** Aniq sana (ISO) — yoki `months` bering (aynan bittasi) */
+  @IsOptional()
   @IsDateString()
   until?: string;
+
+  /** `until` joriy muddatdan oldin bo'lsa ham roziman (to'langan kunlar yo'qoladi) */
+  @IsOptional()
+  @IsBoolean()
+  allowShorten?: boolean;
 }
 
 export class ResetClubPasswordDto {
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
   @MaxLength(100)
   password: string;
 }

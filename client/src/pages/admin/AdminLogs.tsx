@@ -70,6 +70,11 @@ const AdminLogs = () => {
   const [dateRange, setDateRange] = useState<DateRange>(null);
   const actionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // `t` yuklash callbackining bog'liqligi EMAS: til almashganda jurnal
+  // standart filtrlar bilan jimgina qayta yuklanib ketmasin
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const fetchLogs = useCallback(
     async (params: {
       page: number;
@@ -93,12 +98,12 @@ const AdminLogs = () => {
         setLogs(res.data);
         setTotal(res.pagination?.total ?? res.data.length);
       } catch (err) {
-        setError(errorMessage(err, t('common.error')));
+        setError(errorMessage(err, tRef.current('common.error')));
       } finally {
         setLoading(false);
       }
     },
-    [t],
+    [],
   );
 
   useEffect(() => {

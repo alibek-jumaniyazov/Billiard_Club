@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
+import { localDateParts, localDayKey, zonedMidnight } from '../../common/time/club-day';
 import { SessionStatus } from '../../entities/enums';
 import { Session } from '../../entities/session.entity';
 import { safeTimezone } from '../settings/timezones';
 
-const DAY_MS = 86_400_000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
@@ -192,14 +192,16 @@ export class DashboardService {
     weekRevenue = round2(weekRevenue);
     monthRevenue = round2(monthRevenue);
 
-    // Xarajat yig'indilari — avvalgi FILTER semantikasi saqlanadi (>= chegara)
-    let todayExpense = 0;
+    // Xarajat yig'indilari — tushum sikli bilan bir xil: YUQORI chegara ham bor.
+    // Avval yuqori chegara yo'q edi: kelajakdagi sanaga yozilgan xarajat
+    // (iyulda kiritilgan avgust ijarasi) o'sha kun kelguncha HAR KUNI bugungi/
+    // haftalik/oylik chiqimga qo'shilib turardi.
+    const todayExpense = expenseByDay.get(todayKey) ?? 0;
     let weekExpense = 0;
     let monthExpense = 0;
     for (const [day, amount] of expenseByDay) {
-      if (day >= todayKey) todayExpense += amount;
-      if (day >= weekStartKey) weekExpense += amount;
-      if (day >= monthStartKey) monthExpense += amount;
+      if (day >= weekStartKey && day <= todayKey) weekExpense += amount;
+      if (day >= monthStartKey && day <= todayKey) monthExpense += amount;
     }
 
     // 30 kunlik grafik (tushum + xarajat) — bo'sh kunlar 0 bilan to'ldiriladi;
@@ -277,19 +279,18 @@ export class DashboardService {
 
   /**
    * Klub vaqt mintaqasidagi so'nggi N kunning 'YYYY-MM-DD' kalitlari (eski -> yangi).
-   * Har bir onni Intl orqali formatlaymiz — DST bo'lgan mintaqalarda ham
-   * har bir nuqta o'z lokal sanasiga to'g'ri tushadi.
+   *
+   * Kalendar kuni bo'yicha orqaga qadam tashlanadi (zonedMidnight sana oshib
+   * ketishini o'zi normallaydi). Avval qat'iy 24 soatlik ayirish ishlatilardi —
+   * DST o'tish kunida bir lokal sana tushib qolar yoki ikki marta takrorlanar,
+   * natijada 30 kunlik grafik bir kunni yo'qotar, weekRevenue esa jimgina
+   * 8 kunni qamrab olardi.
    */
   private lastLocalDays(now: Date, tz: string, days: number): string[] {
-    const fmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
+    const today = localDateParts(tz, now);
     const keys: string[] = [];
     for (let i = days - 1; i >= 0; i--) {
-      keys.push(fmt.format(new Date(now.getTime() - i * DAY_MS)));
+      keys.push(localDayKey(tz, zonedMidnight(tz, today.year, today.month, today.day - i)));
     }
     return keys;
   }

@@ -26,6 +26,8 @@ export default {
     // Eng band stollar
     topTablesTitle: 'Eng band stollar (30 kun)',
     topTablesEmptyHint: "Yakunlangan o'yinlar bo'yicha stollar reytingi shu yerda chiqadi",
+    // Stol bo'yicha HISOBLANGAN summa (olingan tushum emas — ta'riflar aralashmasin)
+    billedRevenue: 'Hisoblangan tushum',
     // Grafik bo'sh holati
     chartEmpty: "Hozircha ma'lumot yo'q",
     chartEmptyHint: "Birinchi o'yinlar yakunlangach grafik shakllanadi",
@@ -76,6 +78,8 @@ export default {
     // Самые загруженные столы
     topTablesTitle: 'Самые загруженные столы (30 дней)',
     topTablesEmptyHint: 'Рейтинг столов по завершённым играм появится здесь',
+    // НАЧИСЛЕННАЯ сумма по столу (не полученная выручка — определения не смешиваем)
+    billedRevenue: 'Начисленная выручка',
     // Пустое состояние графиков
     chartEmpty: 'Пока нет данных',
     chartEmptyHint: 'График сформируется после первых завершённых игр',

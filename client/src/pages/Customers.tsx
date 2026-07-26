@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   App,
@@ -32,10 +32,12 @@ import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { customersApi, errorMessage } from '../api';
 import { EmptyState, MoneyText, PageHeader, PageTransition, StatCard, StatusTag } from '../components/ui';
+import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { Customer, CustomerProfile, Session } from '../types';
 import { formatDuration } from '../utils/format';
+import { isFormValidationError } from '../utils/formErrors';
 
 const { Text } = Typography;
 
@@ -55,6 +57,7 @@ const Customers = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { hasRole } = useAuth();
+  const currency = useCurrency();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +82,11 @@ const Customers = () => {
   const canEdit = hasRole('superadmin', 'admin', 'kassir');
   const canDelete = hasRole('superadmin', 'admin');
 
+  // `t` yuklash callbacklarining bog'liqligi EMAS: til almashganda ro'yxat
+  // standart filtrlar bilan jimgina qayta yuklanib ketmasin
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const fetchCustomers = useCallback(
     async (params: FetchParams) => {
       setLoading(true);
@@ -98,12 +106,12 @@ const Customers = () => {
         setTotal(res.pagination?.total ?? 0);
       } catch (err) {
         setLoadError(true);
-        message.error(errorMessage(err, t('common.error')));
+        message.error(errorMessage(err, tRef.current('common.error')));
       } finally {
         setLoading(false);
       }
     },
-    [message, t],
+    [message],
   );
 
   useEffect(() => {
@@ -142,9 +150,10 @@ const Customers = () => {
   };
 
   const handleSave = async () => {
-    const values = await form.validateFields();
-    setSaving(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await form.validateFields();
+      setSaving(true);
       const body = {
         name: values.name,
         phone: values.phone || undefined,
@@ -157,7 +166,8 @@ const Customers = () => {
       closeForm();
       refresh();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setSaving(false);
     }
@@ -284,7 +294,7 @@ const Customers = () => {
       title: t('common.total'),
       dataIndex: 'totalAmount',
       width: 130,
-      render: (value: number) => <MoneyText amount={value} currency={t('common.sum')} size="sm" />,
+      render: (value: number) => <MoneyText amount={value} currency={currency} size="sm" />,
     },
     {
       title: t('customers.statusCol'),
@@ -462,7 +472,7 @@ const Customers = () => {
               <Col xs={24} sm={8}>
                 <StatCard
                   label={t('customers.statSpent')}
-                  value={<MoneyText amount={profile.stats.totalSpent} currency={t('common.sum')} size="lg" />}
+                  value={<MoneyText amount={profile.stats.totalSpent} currency={currency} size="lg" />}
                   icon={<DollarOutlined />}
                 />
               </Col>
@@ -472,7 +482,7 @@ const Customers = () => {
                   value={
                     <MoneyText
                       amount={profile.stats.openDebt}
-                      currency={t('common.sum')}
+                      currency={currency}
                       size="lg"
                       color={
                         profile.stats.openDebt > 0

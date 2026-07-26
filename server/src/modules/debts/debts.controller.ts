@@ -17,7 +17,7 @@ import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
 import { DebtsService } from './debts.service';
-import { ListDebtsQueryDto, PayDebtDto } from './dto/debts.dto';
+import { ListDebtsQueryDto, PayDebtDto, WriteOffDebtDto } from './dto/debts.dto';
 
 // Qarzlar mijoz PII si va summalarini o'z ichiga oladi — OPERATOR ko'rmaydi.
 // O'zgartiruvchi endpointlar (pay/remove) o'z @Roles i bilan bu class-darajani
@@ -54,14 +54,17 @@ export class DebtsController {
     return { success: true, message: t(lang, 'debts.paymentAccepted'), data };
   }
 
+  /** Undirilmagan qarzni hisobdan chiqarish — har doim audit jurnaliga yoziladi */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
   @Delete(':id')
   async remove(
     @ClubId() clubId: number,
+    @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
+    @Query() dto: WriteOffDebtDto,
     @Lang() lang: Language,
   ) {
-    await this.debtsService.remove(clubId, id);
+    await this.debtsService.remove(clubId, user, id, dto);
     return { success: true, message: t(lang, 'debts.deleted') };
   }
 }

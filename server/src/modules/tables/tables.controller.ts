@@ -9,10 +9,12 @@ import {
   Put,
 } from '@nestjs/common';
 import { ClubId } from '../../common/decorators/club-id.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
+import { User } from '../../entities/user.entity';
 import { CreateTableDto, UpdateTableDto } from './dto/tables.dto';
 import { TablesService } from './tables.service';
 
@@ -40,15 +42,23 @@ export class TablesController {
     return { success: true, message: t(lang, 'tables.created'), data };
   }
 
-  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
+  /**
+   * Stol sozlamalari (nom/raqam/NARX) — faqat egaga/superadminga, POST va DELETE
+   * bilan bir xil. Kassirga ochiq turgani pul teshigi edi: narxni 1000 ga
+   * tushirib, sessiya boshlab (narx sessiyaga MUHRLANADI), keyin narxni
+   * tiklab qo'yish mumkin edi. Kassirning qonuniy amali — chiroqni qo'lda
+   * yoqish/o'chirish — lights.controller da va o'z rollarini saqlab qoladi.
+   */
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
   @Put(':id')
   async update(
     @ClubId() clubId: number,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateTableDto,
     @Lang() lang: Language,
+    @CurrentUser() user: User,
   ) {
-    const data = await this.tablesService.update(clubId, id, dto);
+    const data = await this.tablesService.update(clubId, id, dto, user);
     return { success: true, message: t(lang, 'tables.updated'), data };
   }
 

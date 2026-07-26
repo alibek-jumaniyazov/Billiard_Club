@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { OrderStatus, SessionStatus } from '../../entities/enums';
 import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
@@ -23,18 +23,25 @@ export class OrdersService {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 100);
 
-    const where: Record<string, unknown> = { clubId };
-    if (query.sessionId) where.sessionId = query.sessionId;
-    if (query.tableId) where.tableId = query.tableId;
-    if (query.status) where.status = query.status;
+    const qb = this.orderRepo
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.table', 'table')
+      .leftJoin('order.user', 'user')
+      // Xodimning faqat kerakli maydonlari (tokenVersion, parol va h.k. sizmasin)
+      .addSelect(['user.id', 'user.name'])
+      .leftJoinAndSelect('order.items', 'item')
+      .leftJoinAndSelect('item.product', 'product')
+      .where('order.clubId = :clubId', { clubId });
 
-    const [rows, total] = await this.orderRepo.findAndCount({
-      where,
-      relations: { table: true, user: true, items: { product: true } },
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    if (query.sessionId) qb.andWhere('order.sessionId = :sessionId', { sessionId: query.sessionId });
+    if (query.tableId) qb.andWhere('order.tableId = :tableId', { tableId: query.tableId });
+    if (query.status) qb.andWhere('order.status = :status', { status: query.status });
+
+    const [rows, total] = await qb
+      .orderBy('order.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
     return {
       data: rows,
@@ -43,8 +50,13 @@ export class OrdersService {
   }
 
   /**
-   * Bugungi bar savdosi — TO'LIQ ma'lumot bo'yicha (sahifadagi 10 ta yozib emas).
+   * Bugungi bar savdosi — TO'LIQ ma'lumot bo'yicha (sahifadagi 10 ta yozuv emas).
    * "Bugun" chegarasi klub vaqt mintaqasida (dashboard/hisobotlar bilan bir xil).
+   *
+   * Hisob HAQIQIY pozitsiyalar (order_items) bo'yicha yuritiladi, buyurtma
+   * qatorlari bo'yicha emas: tarixda pozitsiyasiz (0 so'mlik) buyurtmalar bor
+   * va ular sonni sun'iy oshirib yuborardi. Pozitsiya vaqti ham o'zinikidan
+   * olinadi — kechagi buyurtmaga bugun qo'shilgan pozitsiya bugunga tushadi.
    */
   async todayStats(clubId: number) {
     const tzRows: Array<{ timezone: string | null }> = await this.dataSource.query(
@@ -59,22 +71,21 @@ export class OrdersService {
     const today = new Date(dayRows[0].start);
     const now = new Date();
 
-    const [amount, count] = await Promise.all([
-      this.orderRepo.sum('totalAmount', {
-        clubId,
-        createdAt: Between(today, now),
-        status: In([OrderStatus.OPEN, OrderStatus.CLOSED]),
-      }),
-      this.orderRepo.count({
-        where: {
-          clubId,
-          createdAt: Between(today, now),
-          status: In([OrderStatus.OPEN, OrderStatus.CLOSED]),
-        },
-      }),
-    ]);
+    const statRows: Array<{ amount: number; count: number }> = await this.dataSource.query(
+      `SELECT COALESCE(SUM(oi.subtotal), 0)::float AS amount,
+              COUNT(DISTINCT oi."orderId")::int AS count
+         FROM order_items oi
+         JOIN orders o ON o.id = oi."orderId"
+        WHERE o."clubId" = $1
+          AND o.status <> 'cancelled'
+          AND oi."createdAt" >= $2 AND oi."createdAt" <= $3`,
+      [clubId, today, now],
+    );
 
-    return { todayAmount: amount ?? 0, todayCount: count };
+    return {
+      todayAmount: round2(statRows[0]?.amount ?? 0),
+      todayCount: statRows[0]?.count ?? 0,
+    };
   }
 
   /**
@@ -112,38 +123,50 @@ export class OrdersService {
         });
       }
 
+      // Bir mahsulot bir necha qatorda kelishi mumkin — AVVAL mahsulot bo'yicha
+      // yig'amiz: shunda qator bir marta qulflanadi va omborning yetishmasligi
+      // haqidagi xabar HAQIQIY qoldiqni ko'rsatadi (avval ikkinchi qatorda
+      // allaqachon kamaytirilgan oraliq qiymat chiqib qolardi).
       // Mahsulot qatorlari HAR DOIM o'sish tartibida qulflanadi —
       // parallel tranzaksiyalar orasida deadlock bo'lmasligi uchun
-      const sortedItems = [...dto.items].sort((a, b) => a.productId - b.productId);
+      const quantityByProduct = new Map<number, number>();
+      for (const item of dto.items) {
+        quantityByProduct.set(
+          item.productId,
+          (quantityByProduct.get(item.productId) ?? 0) + item.quantity,
+        );
+      }
+      const productIds = [...quantityByProduct.keys()].sort((a, b) => a - b);
 
       let addedAmount = 0;
-      for (const item of sortedItems) {
+      for (const productId of productIds) {
+        const quantity = quantityByProduct.get(productId)!;
         const product = await manager.findOne(Product, {
-          where: { id: item.productId, clubId, isActive: true },
+          where: { id: productId, clubId, isActive: true },
           lock: { mode: 'pessimistic_write' },
         });
         if (!product) {
           throw new BadRequestException({
             key: 'orders.productNotFound',
-            args: { name: `#${item.productId}` },
+            args: { name: `#${productId}` },
           });
         }
-        if (product.stock < item.quantity) {
+        if (product.stock < quantity) {
           throw new BadRequestException({
             key: 'orders.insufficientStock',
             args: { name: product.name, stock: product.stock },
           });
         }
 
-        const subtotal = round2(product.price * item.quantity);
+        const subtotal = round2(product.price * quantity);
         await manager.save(OrderItem, {
           orderId: order.id,
           productId: product.id,
-          quantity: item.quantity,
+          quantity,
           price: product.price,
           subtotal,
         });
-        await manager.update(Product, product.id, { stock: product.stock - item.quantity });
+        await manager.update(Product, product.id, { stock: product.stock - quantity });
         addedAmount += subtotal;
       }
 

@@ -43,6 +43,9 @@ export class OrderItem {
   @Column({ type: 'decimal', precision: 14, scale: 2, transformer: new NumericTransformer() })
   subtotal: number;
 
+  // Indeks entity darajasida ham e'lon qilinadi — aks holda keyingi
+  // `migration:generate` uni "ortiqcha" deb hisoblab DROP qilib yuborardi
+  @Index('IDX_order_items_createdAt')
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

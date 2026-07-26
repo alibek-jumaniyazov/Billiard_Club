@@ -14,7 +14,11 @@ const SIZE_MAP: Record<MoneySize, { fontSize: number; fontWeight: number }> = {
 interface MoneyTextProps {
   /** Summa (raqam) */
   amount: number | null | undefined;
-  /** Valyuta yorlig'i — i18n dan keladi (masalan t('common.sum')) */
+  /**
+   * Valyuta yorlig'i — useCurrency() dan olinadi (klub sozlamasidagi belgi,
+   * u bo'lmasa t('common.sum')). ATAYLAB majburiy emas: berilmasa belgi
+   * umuman chizilmaydi (yakun qatorlarida takrorlanmasligi uchun).
+   */
   currency?: string;
   /** O'lcham (standart: md) */
   size?: MoneySize;

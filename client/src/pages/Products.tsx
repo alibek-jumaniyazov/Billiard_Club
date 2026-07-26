@@ -16,6 +16,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
@@ -23,6 +24,7 @@ import {
   CoffeeOutlined,
   DeleteOutlined,
   EditOutlined,
+  InboxOutlined,
   PlusOutlined,
   ReloadOutlined,
   TagsOutlined,
@@ -37,6 +39,7 @@ import {
   PageTransition,
   StatusTag,
 } from '../components/ui';
+import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import type { Category, Product } from '../types';
 import { formatNumber } from '../utils/format';
@@ -54,9 +57,16 @@ interface ProductFormValues {
   categoryId: number;
   name: string;
   price: number;
-  stock: number;
+  /** Faqat YARATISHDA so'raladi — tahrirlashda qoldiq umuman yuborilmaydi */
+  stock?: number;
   unit: string;
   description?: string;
+}
+
+/** Ombor to'g'irlash formasi: delta (musbat — kirim, manfiy — chiqim) */
+interface StockFormValues {
+  delta: number;
+  reason?: string;
 }
 
 interface CategoryFormValues {
@@ -68,7 +78,11 @@ const Products = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { hasRole } = useAuth();
+  const currency = useCurrency();
   const canManage = hasRole('admin', 'superadmin');
+  /** Ombor to'g'irlash kassirga ham ochiq — server POST /products/:id/stock ni
+      shu rollarga ruxsat beradi (noto'g'ri sanoqni kassir o'zi tuzatadi) */
+  const canAdjustStock = hasRole('admin', 'superadmin', 'kassir');
 
   // Mahsulotlar (server pagination)
   const [products, setProducts] = useState<Product[]>([]);
@@ -89,6 +103,12 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm] = Form.useForm<ProductFormValues>();
   const [savingProduct, setSavingProduct] = useState(false);
+
+  // Ombor to'g'irlash (delta) — mahsulot tanlangan bo'lsa modal ochiq
+  const [stockProduct, setStockProduct] = useState<Product | null>(null);
+  const [stockForm] = Form.useForm<StockFormValues>();
+  const [savingStock, setSavingStock] = useState(false);
+  const stockDelta = Form.useWatch('delta', stockForm);
 
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -138,6 +158,9 @@ const Products = () => {
   const unitLabel = (unit: string): string =>
     (UNITS as readonly string[]).includes(unit) ? t(`products.unit_${unit}`) : unit;
 
+  /** Ombor to'g'irlash modalidagi jonli natija (server ham manfiyni rad etadi) */
+  const nextStock = (stockProduct?.stock ?? 0) + (stockDelta ?? 0);
+
   // ---------- Mahsulot ----------
   const openCreateProduct = () => {
     setEditingProduct(null);
@@ -151,7 +174,6 @@ const Products = () => {
       categoryId: product.categoryId,
       name: product.name,
       price: product.price,
-      stock: product.stock,
       unit: product.unit,
       description: product.description ?? undefined,
     });
@@ -162,9 +184,18 @@ const Products = () => {
     const values = await productForm.validateFields();
     setSavingProduct(true);
     try {
+      // Tahrirlashda QOLDIQ yuborilmaydi: sahifa ochilgandan beri bo'lgan bar
+      // sotuvlarini eski suratdagi qiymat bilan qaytarib yubormaslik uchun
+      const payload = {
+        categoryId: values.categoryId,
+        name: values.name,
+        price: values.price,
+        unit: values.unit,
+        description: values.description,
+      };
       const res = editingProduct
-        ? await productsApi.update(editingProduct.id, values)
-        : await productsApi.create(values);
+        ? await productsApi.update(editingProduct.id, payload)
+        : await productsApi.create({ ...payload, stock: values.stock ?? 0 });
       message.success(res.message);
       setProductModalOpen(false);
       void fetchProducts();
@@ -173,6 +204,32 @@ const Products = () => {
       message.error(errorMessage(err, t('common.error')));
     } finally {
       setSavingProduct(false);
+    }
+  };
+
+  // ---------- Ombor to'g'irlash ----------
+  const openAdjustStock = (product: Product) => {
+    setStockProduct(product);
+    stockForm.resetFields();
+  };
+
+  const handleAdjustStock = async () => {
+    if (!stockProduct) return;
+    const values = await stockForm.validateFields();
+    setSavingStock(true);
+    try {
+      const res = await productsApi.adjustStock(
+        stockProduct.id,
+        values.delta,
+        values.reason?.trim() || undefined,
+      );
+      message.success(res.message);
+      setStockProduct(null);
+      void fetchProducts();
+    } catch (err) {
+      message.error(errorMessage(err, t('common.error')));
+    } finally {
+      setSavingStock(false);
     }
   };
 
@@ -259,7 +316,7 @@ const Products = () => {
       dataIndex: 'price',
       width: 160,
       align: 'right',
-      render: (price: number) => <MoneyText amount={price} currency={t('common.sum')} />,
+      render: (price: number) => <MoneyText amount={price} currency={currency} />,
     },
     {
       title: t('products.stock'),
@@ -273,22 +330,37 @@ const Products = () => {
       ),
     },
   ];
-  if (canManage) {
+  // Amallar ustuni: tahrirlash/o'chirish — faqat admin, ombor to'g'irlash — kassir ham
+  if (canManage || canAdjustStock) {
     productColumns.push({
       title: t('common.actions'),
       key: 'actions',
-      width: 110,
+      width: canManage ? 150 : 80,
       render: (_, product) => (
         <Space size={4}>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEditProduct(product)} />
-          <Popconfirm
-            title={t('common.confirmDelete')}
-            okText={t('common.yes')}
-            cancelText={t('common.no')}
-            onConfirm={() => void handleDeleteProduct(product)}
-          >
-            <Button size="small" danger type="text" icon={<DeleteOutlined />} />
-          </Popconfirm>
+          {canManage && (
+            <Button size="small" icon={<EditOutlined />} onClick={() => openEditProduct(product)} />
+          )}
+          {canAdjustStock && (
+            <Tooltip title={t('products.adjustStock')}>
+              <Button
+                size="small"
+                icon={<InboxOutlined />}
+                aria-label={t('products.adjustStock')}
+                onClick={() => openAdjustStock(product)}
+              />
+            </Tooltip>
+          )}
+          {canManage && (
+            <Popconfirm
+              title={t('common.confirmDelete')}
+              okText={t('common.yes')}
+              cancelText={t('common.no')}
+              onConfirm={() => void handleDeleteProduct(product)}
+            >
+              <Button size="small" danger type="text" icon={<DeleteOutlined />} />
+            </Popconfirm>
+          )}
         </Space>
       ),
     });
@@ -539,30 +611,87 @@ const Products = () => {
             />
           </Form.Item>
           <Row gutter={12}>
-            <Col span={12}>
+            <Col span={editingProduct ? 24 : 12}>
               <Form.Item
                 name="price"
-                label={`${t('common.price')} (${t('common.sum')})`}
+                label={`${t('common.price')} (${currency})`}
                 rules={[{ required: true, message: t('products.priceRequired') }]}
               >
                 <InputNumber style={{ width: '100%' }} min={0} step={1000} />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item
-                name="stock"
-                label={t('products.stock')}
-                rules={[{ required: true, message: t('products.stockRequired') }]}
-              >
-                <InputNumber style={{ width: '100%' }} min={0} />
-              </Form.Item>
-            </Col>
+            {/* Qoldiq faqat YARATISHDA kiritiladi — tahrirlashda u eski suratdagi
+                qiymat bilan qaytib yozilib, bar sotuvlarini bekor qilib yubordi */}
+            {!editingProduct && (
+              <Col span={12}>
+                <Form.Item
+                  name="stock"
+                  label={t('products.stock')}
+                  rules={[{ required: true, message: t('products.stockRequired') }]}
+                >
+                  <InputNumber style={{ width: '100%' }} min={0} precision={0} step={1} />
+                </Form.Item>
+              </Col>
+            )}
           </Row>
+          {editingProduct && (
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 16 }}>
+              {t('products.stockEditHint')}
+            </Text>
+          )}
           <Form.Item name="unit" label={t('products.unit')}>
             <Select options={UNITS.map((u) => ({ value: u, label: t(`products.unit_${u}`) }))} />
           </Form.Item>
           <Form.Item name="description" label={t('products.description')}>
             <Input.TextArea rows={2} maxLength={500} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Ombor to'g'irlash — server delta ni atomar qo'llaydi (qator qulflanadi) */}
+      <Modal
+        title={t('products.adjustStockTitle', { name: stockProduct?.name ?? '' })}
+        open={stockProduct !== null}
+        onCancel={() => setStockProduct(null)}
+        onOk={() => void handleAdjustStock()}
+        confirmLoading={savingStock}
+        okText={t('btn.save')}
+        cancelText={t('btn.cancel')}
+      >
+        <Form form={stockForm} layout="vertical">
+          <Space size={20} wrap style={{ marginBottom: 12 }}>
+            <Text type="secondary">
+              {t('products.adjustStockCurrent')}:{' '}
+              <Text strong>
+                {formatNumber(stockProduct?.stock ?? 0)}{' '}
+                {stockProduct ? unitLabel(stockProduct.unit) : ''}
+              </Text>
+            </Text>
+            <Text type="secondary">
+              {t('products.adjustStockNew')}:{' '}
+              <Text strong type={nextStock < 0 ? 'danger' : undefined}>
+                {formatNumber(nextStock)}
+              </Text>
+            </Text>
+          </Space>
+          <Form.Item
+            name="delta"
+            label={t('products.adjustStockDelta')}
+            extra={t('products.adjustStockDeltaHint')}
+            rules={[
+              { required: true, message: t('products.adjustStockDeltaRequired') },
+              {
+                validator: (_, value: number | null) =>
+                  value === 0
+                    ? Promise.reject(new Error(t('products.adjustStockZero')))
+                    : Promise.resolve(),
+              },
+            ]}
+          >
+            <InputNumber style={{ width: '100%' }} step={1} precision={0} />
+          </Form.Item>
+          <Form.Item name="reason" label={t('products.adjustStockReason')}>
+            <Input maxLength={200} />
           </Form.Item>
         </Form>
       </Modal>

@@ -97,6 +97,10 @@ export const segmentsMatchSession = (
  * invarianti bo'yicha pauza segment chegarasidan oshmaydi va resume ikkala
  * qiymatni birga oshiradi, shu tufayli eskirgan segment keshida ham hisob
  * aniq qoladi. Joriy tugallanmagan pauza ham ochiq segmentga qo'shiladi.
+ *
+ * KUMULYATIV YAXLITLASH (server billSegments bilan lockstep): soniyalar
+ * yig'indi millisekunddan chiqariladi, aks holda har transferda bir soniyagacha
+ * yo'qolar va chekdagi segment satrlari umumiy davomiylikka teng bo'lmasdi.
  */
 export const sessionSegmentBilling = (
   session: SessionTiming,
@@ -110,13 +114,16 @@ export const sessionSegmentBilling = (
   const openPausedMs =
     Math.max(0, (session.totalPausedMs || 0) - closedPausedMs) + currentPauseMs(session, now);
 
+  let cumulativeMs = 0;
+  let previousSeconds = 0;
   const items: SegmentBillingLine[] = segments.map((seg) => {
     const endMs = seg.endedAt ? Math.min(new Date(seg.endedAt).getTime(), now) : now;
     const pausedMs = seg.endedAt ? seg.pausedMs || 0 : openPausedMs;
-    const billedSeconds = Math.max(
-      0,
-      Math.floor((endMs - new Date(seg.startedAt).getTime() - pausedMs) / 1000),
-    );
+    const activeMs = Math.max(0, endMs - new Date(seg.startedAt).getTime() - pausedMs);
+    cumulativeMs += activeMs;
+    const cumulativeSeconds = Math.floor(cumulativeMs / 1000);
+    const billedSeconds = Math.max(0, cumulativeSeconds - previousSeconds);
+    previousSeconds = cumulativeSeconds;
     return {
       ...seg,
       pausedMs,

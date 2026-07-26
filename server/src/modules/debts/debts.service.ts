@@ -1,11 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
+import { AuditService } from '../../common/audit/audit.service';
 import { Debt } from '../../entities/debt.entity';
 import { DebtPayment } from '../../entities/debt-payment.entity';
 import { PaymentMethod } from '../../entities/enums';
+import { Session } from '../../entities/session.entity';
 import { User } from '../../entities/user.entity';
-import { ListDebtsQueryDto, PayDebtDto } from './dto/debts.dto';
+import { ListDebtsQueryDto, PayDebtDto, WriteOffDebtDto } from './dto/debts.dto';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -14,6 +16,8 @@ export class DebtsService {
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(Debt) private readonly debtRepo: Repository<Debt>,
+    // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   async findAll(clubId: number, query: ListDebtsQueryDto) {
@@ -37,6 +41,10 @@ export class DebtsService {
             'debt.customerPhone ILIKE :search',
             { search: `%${query.search}%` },
           );
+          // Telefon kanonik saqlanadi — kassir yozgan formatdan raqamlarni ajratib
+          // ham qidiramiz ('+998 90 123 45 67' -> '998901234567')
+          const digits = (query.search ?? '').replace(/\D/g, '');
+          if (digits) b.orWhere('debt.customerPhone ILIKE :digits', { digits: `%${digits}%` });
         }),
       );
     }
@@ -62,6 +70,10 @@ export class DebtsService {
             'debt.customerPhone ILIKE :search',
             { search: `%${query.search}%` },
           );
+          // Telefon kanonik saqlanadi — kassir yozgan formatdan raqamlarni ajratib
+          // ham qidiramiz ('+998 90 123 45 67' -> '998901234567')
+          const digits = (query.search ?? '').replace(/\D/g, '');
+          if (digits) b.orWhere('debt.customerPhone ILIKE :digits', { digits: `%${digits}%` });
         }),
       );
     }
@@ -127,6 +139,19 @@ export class DebtsService {
         paidAt: isPaid ? new Date() : null,
       });
 
+      // Qarz to'liq undirilgach sessiya ham "to'langan" bo'ladi: aks holda
+      // Excel hisobotidagi "To'langan" ustuni undirilgan sessiyani abadiy
+      // "yo'q" deb ko'rsatib turardi. Sessiyada boshqa yopilmagan qarz
+      // qolmaganda belgilanadi.
+      if (isPaid && debt.sessionId) {
+        const stillOpen = await manager.count(Debt, {
+          where: { sessionId: debt.sessionId, isPaid: false },
+        });
+        if (stillOpen === 0) {
+          await manager.update(Session, { id: debt.sessionId, clubId }, { isPaid: true });
+        }
+      }
+
       await manager.save(DebtPayment, {
         debtId: debt.id,
         clubId,
@@ -140,11 +165,17 @@ export class DebtsService {
   }
 
   /**
-   * Qarzni o'chirish (faqat admin, faqat to'lovsiz qarzlar).
-   * To'lov tarixi bor qarz o'chirilmaydi — moliyaviy iz yo'qolmasligi uchun.
+   * Qarzni o'chirish = UNDIRILMAGAN qarzni hisobdan chiqarish (faqat admin,
+   * faqat to'lovsiz qarzlar). To'lov tarixi bor qarz o'chirilmaydi — moliyaviy
+   * iz yo'qolmasligi uchun.
+   *
+   * PUL NAZORATI: bu amal klubning haqiqiy debitor qarzini yo'q qiladi va
+   * hisobotlardagi "yaratilgan qarzlar" summasini kamaytiradi, shuning uchun
+   * kim, qaysi mijozning qancha qarzini, nima sababdan o'chirgani HAR DOIM
+   * audit jurnaliga yoziladi.
    */
-  async remove(clubId: number, debtId: number) {
-    return this.dataSource.transaction(async (manager) => {
+  async remove(clubId: number, user: User, debtId: number, dto: WriteOffDebtDto = {}) {
+    const removed = await this.dataSource.transaction(async (manager) => {
       const debt = await manager.findOne(Debt, {
         where: { id: debtId, clubId },
         lock: { mode: 'pessimistic_write' },
@@ -157,7 +188,27 @@ export class DebtsService {
       }
 
       await manager.delete(Debt, debt.id);
-      return true;
+      return {
+        totalDebt: debt.totalDebt,
+        remainingDebt: debt.remainingDebt,
+        customerName: debt.customerName,
+        customerPhone: debt.customerPhone,
+        sessionId: debt.sessionId,
+      };
     });
+
+    // Tranzaksiya muvaffaqiyatli yakunlangach yoziladi (orqaga qaytgan
+    // tranzaksiya soxta "hisobdan chiqarildi" yozuvini qoldirmasligi uchun)
+    this.auditService?.log({
+      action: 'debt.writeoff',
+      clubId,
+      userId: user.id,
+      actorRole: user.role,
+      entity: 'debt',
+      entityId: debtId,
+      meta: { ...removed, reason: dto.reason?.trim() || null },
+    });
+
+    return true;
   }
 }

@@ -58,6 +58,19 @@ async function bootstrap() {
     );
   }
 
+  // Hujjatlarda tavsiya etilgan tarqatish sxemasi — nginx/Caddy ortida.
+  // TRUST_PROXY qo'yilmasa Express BARCHA so'rovlarni proxy IP si bilan ko'radi,
+  // ya'ni rate-limit (throttler) butun internet uchun BITTA kalitga tushadi:
+  // bitta bot limitni tugatib, qolgan hamma foydalanuvchini bloklab qo'yadi.
+  if (process.env.NODE_ENV === 'production' && !config.get<boolean>('TRUST_PROXY')) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '⚠️  TRUST_PROXY qo\'yilmagan: reverse proxy (nginx/Caddy) ortida ishlayotgan ' +
+        'bo\'lsangiz barcha so\'rovlar bitta IP deb hisoblanadi va rate-limit ' +
+        'umumiy bo\'lib qoladi. Proxy ortida TRUST_PROXY=true qo\'ying.',
+    );
+  }
+
   const port = parseInt(process.env.PORT || '5000', 10);
   await app.listen(port);
   // eslint-disable-next-line no-console

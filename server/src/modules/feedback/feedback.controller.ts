@@ -7,11 +7,14 @@ import {
   Post,
   Query,
   StreamableFile,
+  UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SkipSubscription } from '../../common/decorators/skip-subscription.decorator';
+import { USER_THROTTLER, UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
@@ -30,6 +33,20 @@ import { FeedbackService } from './feedback.service';
 export class FeedbackController {
   constructor(private readonly feedbackService: FeedbackService) {}
 
+  /**
+   * Yangi fikr yuborish — HAR FOYDALANUVCHI uchun soatiga 10 tadan ko'p emas.
+   * Limit SHART: @SkipSubscription tufayli bu yo'l bloklangan yoki muddati
+   * tugagan klubga ham ochiq, biriktirmalar esa server DISKIGA yoziladi.
+   * Limitsiz bo'lsa bitta hisob bilan diskni to'ldirib qo'yish mumkin edi.
+   *
+   * DIQQAT: limit IP emas, foydalanuvchi bo'yicha sanaladi (UserThrottlerGuard).
+   * Global ThrottlerGuard auth'dan oldin ishlaydi va reverse proxy ortida
+   * hamma so'rovni bitta IP deb ko'radi — u yerda 10/soat butun platformaga
+   * umumiy bo'lib qolardi. Marshrut guard'i esa JwtAuthGuard'dan keyin
+   * ishlaydi, shu bois req.user bo'yicha kalitlash mumkin.
+   */
+  @Throttle({ [USER_THROTTLER]: { limit: 10, ttl: 60 * 60 * 1000 } })
+  @UseGuards(UserThrottlerGuard)
   @Post()
   async create(
     @CurrentUser() user: User,

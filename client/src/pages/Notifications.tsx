@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Badge, Button, Card, List, Tooltip, Typography } from 'antd';
 import { BellOutlined, CheckOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -38,6 +38,11 @@ const Notifications = () => {
   const [readingAll, setReadingAll] = useState(false);
   const pageSize = 15;
 
+  // `t` yuklash callbackining bog'liqligi EMAS: til almashganda ro'yxat
+  // 1-sahifaga jimgina qaytib ketmasin
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const fetchList = useCallback(
     async (nextPage: number) => {
       setLoading(true);
@@ -49,12 +54,12 @@ const Notifications = () => {
         setTotal(res.pagination?.total ?? 0);
       } catch (err) {
         setLoadError(true);
-        message.error(errorMessage(err, t('common.error')));
+        message.error(errorMessage(err, tRef.current('common.error')));
       } finally {
         setLoading(false);
       }
     },
-    [message, t],
+    [message],
   );
 
   useEffect(() => {

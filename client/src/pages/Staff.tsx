@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   App,
@@ -43,6 +43,7 @@ import { ROLE_COLORS, ROLE_TAG_COLORS } from '../constants';
 import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { User, UserRole } from '../types';
+import { isFormValidationError } from '../utils/formErrors';
 
 const { Text } = Typography;
 
@@ -96,6 +97,11 @@ const Staff = () => {
   const [editForm] = Form.useForm<EditFormValues>();
   const [saving, setSaving] = useState(false);
 
+  // `t` yuklash callbacklarining bog'liqligi EMAS: til almashganda ro'yxat
+  // qayta so'ralib ketmasin (xabar chaqirilgan paytda ref orqali o'qiladi)
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const fetchStaff = useCallback(async () => {
     setLoading(true);
     try {
@@ -108,22 +114,31 @@ const Staff = () => {
       setStaff(res.data);
       setTotal(res.pagination?.total ?? res.data.length);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(errorMessage(err, tRef.current('common.error')));
     } finally {
       setLoading(false);
       setLoaded(true);
     }
-  }, [page, pageSize, search, roleFilter, message, t]);
+  }, [page, pageSize, search, roleFilter, message]);
 
-  /** Rol bo'yicha to'liq sonlar — jadval sahifasidan qat'i nazar */
+  /**
+   * Rol bo'yicha to'liq sonlar. Server limitni 100 ga qisqartiradi, shuning
+   * uchun sanoq sahifa kesimidan emas — har bir rol uchun alohida
+   * pagination.total dan olinadi (limit=1, ya'ni faqat metama'lumot).
+   */
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const res = await staffApi.list({ page: 1, limit: 500 });
+      const [all, ...perRole] = await Promise.all([
+        staffApi.list({ page: 1, limit: 1 }),
+        ...STAFF_ROLES.map((role) => staffApi.list({ page: 1, limit: 1, role })),
+      ]);
       const counts = emptyCounts();
-      for (const u of res.data) counts[u.role] += 1;
+      STAFF_ROLES.forEach((role, index) => {
+        counts[role] = perRole[index].pagination?.total ?? 0;
+      });
       setRoleCounts(counts);
-      setStaffTotal(res.pagination?.total ?? res.data.length);
+      setStaffTotal(all.pagination?.total ?? all.data.length);
     } catch {
       // Ikkilamchi vidjet — asosiy jadval xatosi allaqachon ko'rsatiladi
     } finally {
@@ -146,16 +161,18 @@ const Staff = () => {
 
   // ---------- Yaratish ----------
   const handleCreate = async () => {
-    const values = await createForm.validateFields();
-    setCreating(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await createForm.validateFields();
+      setCreating(true);
       const res = await staffApi.create(values);
       message.success(res.message);
       setCreateOpen(false);
       createForm.resetFields();
       refetchAll();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setCreating(false);
     }
@@ -174,21 +191,21 @@ const Staff = () => {
 
   const handleEdit = async () => {
     if (!editingStaff) return;
-    const values = await editForm.validateFields();
-    const body: { name: string; role: UserRole; isActive: boolean; password?: string } = {
-      name: values.name,
-      role: values.role,
-      isActive: values.isActive,
-    };
-    if (values.password) body.password = values.password;
-    setSaving(true);
     try {
+      const values = await editForm.validateFields();
+      const body: { name: string; role: UserRole; isActive: boolean; password?: string } = {
+        name: values.name,
+        role: values.role,
+        isActive: values.isActive,
+      };
+      if (values.password) body.password = values.password;
+      setSaving(true);
       const res = await staffApi.update(editingStaff.id, body);
       message.success(res.message);
       setEditingStaff(null);
       refetchAll();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setSaving(false);
     }
@@ -449,7 +466,7 @@ const Staff = () => {
           <Form.Item
             name="password"
             label={t('staff.password')}
-            rules={[{ required: true, min: 6, message: t('staff.passwordRequired') }]}
+            rules={[{ required: true, min: 8, message: t('staff.passwordRequired') }]}
           >
             <Input.Password maxLength={100} autoComplete="new-password" />
           </Form.Item>
@@ -507,7 +524,7 @@ const Staff = () => {
             name="password"
             label={t('staff.newPassword')}
             extra={t('staff.passwordHint')}
-            rules={[{ min: 6, message: t('staff.passwordMin') }]}
+            rules={[{ min: 8, message: t('staff.passwordMin') }]}
           >
             <Input.Password maxLength={100} autoComplete="new-password" />
           </Form.Item>

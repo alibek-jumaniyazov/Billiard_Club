@@ -7,7 +7,13 @@ import { ClubBridge } from '../../entities/club-bridge.entity';
 import { LightDriver, LightMode } from '../../entities/enums';
 import { Settings } from '../../entities/settings.entity';
 import { Table } from '../../entities/table.entity';
-import { applyLight, isPrivateHost, isValidHost, LightTarget } from './drivers/light-driver';
+import {
+  applyLight,
+  isPrivateHost,
+  isValidHost,
+  LightHttpError,
+  LightTarget,
+} from './drivers/light-driver';
 import { UpdateLightSettingsDto, UpdateTableLightDto } from './dto/lights.dto';
 
 /** Bitta stol chirog'ining kerakli holati + rele ulanish ma'lumotlari */
@@ -393,7 +399,9 @@ export class LightsService {
     }
 
     settings.lightMode = dto.mode;
-    if (dto.offOnPause !== undefined) settings.lightOffOnPause = dto.offOnPause;
+    // NOT NULL ustun: @IsOptional() literal `null` ni ham o'tkazib yuboradi,
+    // shuning uchun `!= null` (undefined ham, null ham e'tiborsiz qoldiriladi)
+    if (dto.offOnPause != null) settings.lightOffOnPause = dto.offOnPause;
     const saved = await this.settingsRepo.save(settings);
 
     // Kesh darhol bekor qilinadi, so'ng fon rejimida moslashtirish (kutilmaydi)
@@ -421,11 +429,14 @@ export class LightsService {
     const table = await this.findTableWithAuth(clubId, tableId);
     if (!table) throw new NotFoundException({ key: 'tables.notFound' });
 
+    // `channel`/`inverted` — NOT NULL ustunlar: `!= null` (undefined ham, null
+    // ham eski qiymatni qoldiradi). Qolganlari nullable — ular `!== undefined`
+    // bo'yicha tozalanishi mumkin (normalizeText null ni ham qabul qiladi).
     const next = {
       driver: dto.driver ?? table.lightDriver,
       host: dto.host !== undefined ? normalizeText(dto.host) : table.lightHost,
-      channel: dto.channel !== undefined ? dto.channel : table.lightChannel,
-      inverted: dto.inverted !== undefined ? dto.inverted : table.lightInverted,
+      channel: dto.channel != null ? dto.channel : table.lightChannel,
+      inverted: dto.inverted != null ? dto.inverted : table.lightInverted,
       auth: dto.auth !== undefined ? normalizeText(dto.auth) : table.lightAuth,
       onUrl: dto.onUrl !== undefined ? normalizeText(dto.onUrl) : table.lightOnUrl,
       offUrl: dto.offUrl !== undefined ? normalizeText(dto.offUrl) : table.lightOffUrl,
@@ -847,6 +858,11 @@ export class LightsService {
       await this.recordResult(null, device.tableId, true, device.desired, null);
       return null;
     } catch (err) {
+      // Qurilma javobining TANASI faqat serverning logiga tushadi — u
+      // tables."lightError" orqali panelga chiqib ketmasligi kerak
+      if (err instanceof LightHttpError && err.body) {
+        this.logger.warn(`Rele javobi (table=${device.tableId}): ${err.body}`);
+      }
       return this.fail(device.tableId, (err as Error).message);
     }
   }

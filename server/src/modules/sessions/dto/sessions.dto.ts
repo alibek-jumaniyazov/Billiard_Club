@@ -9,11 +9,15 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
 import { PaymentMethod, SessionStatus } from '../../../entities/enums';
+
+/** Pul ustunlari numeric(14,2) — bitta yozuvdagi eng katta mumkin summa */
+const MAX_MONEY = 999_999_999_999;
 
 export class StartSessionDto {
   @IsInt()
@@ -43,13 +47,20 @@ export class SessionPaymentDto {
 
   @IsNumber()
   @Min(0)
+  @Max(MAX_MONEY)
   @Type(() => Number)
   amount: number;
 }
 
-/** Qo'lda tuzatish: musbat — ustama, manfiy — chegirma; sabab MAJBURIY */
+/**
+ * Qo'lda tuzatish: musbat — ustama, manfiy — chegirma; sabab MAJBURIY.
+ * Chegara numeric(14,2) ustuni sig'imidan kelib chiqadi — chegarasiz qiymat
+ * hisob-kitobni tushunarsiz 500 xatosi bilan orqaga qaytarardi.
+ */
 export class SessionAdjustmentDto {
   @IsNumber()
+  @Min(-MAX_MONEY)
+  @Max(MAX_MONEY)
   @Type(() => Number)
   amount: number;
 
@@ -57,6 +68,14 @@ export class SessionAdjustmentDto {
   @IsNotEmpty()
   @MaxLength(200)
   reason: string;
+}
+
+/** Sessiyani bekor qilish — sabab ixtiyoriy, lekin audit jurnaliga yoziladi */
+export class CancelSessionDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  reason?: string;
 }
 
 /** Sessiyani boshqa stolga ko'chirish */
@@ -91,8 +110,22 @@ export class EndSessionDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(MAX_MONEY)
   @Type(() => Number)
   discount?: number;
+
+  /**
+   * Kassir ekranida KO'RSATILGAN bar summasi. Berilsa, server o'zi hisoblagan
+   * bar summasi bilan solishtiradi va farq bo'lsa 409 qaytaradi: kassa oynasi
+   * ochiq turganda boshqa terminaldan qo'shilgan ichimlik tufayli noto'g'ri
+   * pul olinib ketmasligi uchun. Stol vaqti tekshirilmaydi (u doim o'sadi).
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(MAX_MONEY)
+  @Type(() => Number)
+  expectedBarAmount?: number;
 
   @IsOptional()
   @IsString()

@@ -38,8 +38,8 @@ export default {
     nameRequired: 'Ismni kiriting',
     usernameRequired: 'Login kiriting (kamida 3 belgi)',
     usernamePattern: 'Faqat lotin harflari, raqamlar va _ . - belgilari',
-    passwordRequired: 'Parol kiriting (kamida 6 belgi)',
-    passwordMin: 'Parol kamida 6 belgidan iborat bo\'lishi kerak',
+    passwordRequired: 'Parol kiriting (kamida 8 belgi)',
+    passwordMin: 'Parol kamida 8 belgidan iborat bo\'lishi kerak',
     roleRequired: 'Lavozimni tanlang',
     // Bo'sh holat
     emptyTitle: 'Xodimlar topilmadi',
@@ -84,8 +84,8 @@ export default {
     nameRequired: 'Введите имя',
     usernameRequired: 'Введите логин (мин. 3 символа)',
     usernamePattern: 'Только латинские буквы, цифры и _ . -',
-    passwordRequired: 'Введите пароль (мин. 6 символов)',
-    passwordMin: 'Пароль должен содержать минимум 6 символов',
+    passwordRequired: 'Введите пароль (мин. 8 символов)',
+    passwordMin: 'Пароль должен содержать минимум 8 символов',
     roleRequired: 'Выберите должность',
     // Пустое состояние
     emptyTitle: 'Сотрудники не найдены',

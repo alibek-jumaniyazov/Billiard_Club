@@ -15,6 +15,7 @@ import {
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { EmptyState, PageHeader, PageTransition, StatCard } from '../../components/ui';
+import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
 import { formatMoney } from '../../utils/format';
 import ActiveSessionsList from './ActiveSessionsList';
@@ -52,7 +53,9 @@ const DashboardPage = () => {
   const { stats, loading, error, refreshing, clockOffset, refresh, retry } = useDashboardStats();
   const reduceMotion = useReducedMotion();
 
-  const currency = t('common.sum');
+  // Klub puli — belgi klub sozlamasidan (barcha bolalarga shu qiymat uzatiladi,
+  // shunda bitta klubda ikki xil belgi ko'rinmaydi)
+  const currency = useCurrency();
 
   // Bugungi tushum trendi — kechagi kunga nisbatan (last7Days dan)
   const todayTrend = useMemo(() => {

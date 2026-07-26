@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   App,
   Alert,
@@ -62,6 +62,11 @@ const AdminNotifications = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
+  // `t` yuklash callbackining bog'liqligi EMAS: til almashganda tarix
+  // 1-sahifaga jimgina qaytib ketmasin
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const fetchHistory = useCallback(
     async (params: { page: number; pageSize: number }) => {
       setHistoryLoading(true);
@@ -74,12 +79,12 @@ const AdminNotifications = () => {
         setHistory(res.data);
         setTotal(res.pagination?.total ?? res.data.length);
       } catch (err) {
-        setHistoryError(errorMessage(err, t('common.error')));
+        setHistoryError(errorMessage(err, tRef.current('common.error')));
       } finally {
         setHistoryLoading(false);
       }
     },
-    [t],
+    [],
   );
 
   useEffect(() => {

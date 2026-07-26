@@ -4,11 +4,20 @@ import { CoffeeOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next';
 import { errorMessage, ordersApi, productsApi } from '../../api';
 import { MoneyText } from '../../components/ui';
+import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable, Product } from '../../types';
 import { formatMoney } from '../../utils/format';
 
 const { Text } = Typography;
+
+/**
+ * Bitta so'rovdagi pozitsiyalar chegarasi — server CreateOrderDto dagi
+ * @ArrayMaxSize(50) bilan bir xil. Haqiqiy nazorat serverda: bu yerda faqat
+ * foydalanuvchi butun buyurtmani yozib bo'lib, umumiy validatsiya xatosiga
+ * urilib qolmasligi uchun oldindan to'xtatamiz.
+ */
+const MAX_ITEMS = 50;
 
 interface OrderRow {
   productId?: number;
@@ -38,7 +47,7 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
 
   const session = table?.sessions?.[0] ?? null;
   const items = Form.useWatch('items', form);
-  const currency = t('common.sum');
+  const currency = useCurrency();
 
   useEffect(() => {
     if (!table) return;
@@ -89,7 +98,9 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
       .filter((row): row is { productId: number; quantity: number } =>
         Boolean(row?.productId && row?.quantity),
       )
-      .map((row) => ({ productId: row.productId, quantity: row.quantity }));
+      // Miqdor har doim butun son (DTO @IsInt) — kasr qiymat kesib tashlanadi
+      .map((row) => ({ productId: row.productId, quantity: Math.trunc(row.quantity) }))
+      .filter((row) => row.quantity >= 1);
     if (rows.length === 0) {
       message.warning(t('tables.noItems'));
       return;
@@ -157,7 +168,20 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
                       rules={[{ required: true, message: t('tables.quantityRequired') }]}
                       style={{ margin: 0 }}
                     >
-                      <InputNumber min={1} style={{ width: '100%' }} placeholder={t('common.quantity')} />
+                      {/*
+                        Server @IsInt talab qiladi — precision={0} kasr qismini
+                        o'zi kesadi. DIQQAT: bu yerda maxsus parser QO'YILMAYDI —
+                        kasr ajratkichini olib tashlaydigan parser "1.5" ni "15"
+                        ga aylantirib, mijozdan 10 barobar ko'p pul olardi.
+                      */}
+                      <InputNumber
+                        min={1}
+                        max={1000}
+                        step={1}
+                        precision={0}
+                        style={{ width: '100%' }}
+                        placeholder={t('common.quantity')}
+                      />
                     </Form.Item>
                   </Col>
                   <Col flex="40px">
@@ -172,9 +196,20 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
                 </Row>
               ))}
               <Form.Item style={{ marginBottom: 0 }}>
-                <Button type="dashed" block icon={<PlusOutlined />} onClick={() => add({ quantity: 1 })}>
+                <Button
+                  type="dashed"
+                  block
+                  icon={<PlusOutlined />}
+                  disabled={fields.length >= MAX_ITEMS}
+                  onClick={() => add({ quantity: 1 })}
+                >
                   {t('tables.addRow')}
                 </Button>
+                {fields.length >= MAX_ITEMS && (
+                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
+                    {t('tables.maxItemsHint', { max: MAX_ITEMS })}
+                  </Text>
+                )}
               </Form.Item>
             </>
           )}

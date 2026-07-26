@@ -39,6 +39,7 @@ import {
   StatusTag,
 } from '../components/ui';
 import { PAYMENT_METHODS } from '../constants';
+import { useCurrency } from '../context/AppSettingsContext';
 import { TOKENS } from '../theme/tokens';
 import type { ProductSalesRow, ProductsReport, Report, Session } from '../types';
 import { formatDuration, formatElapsed, formatNumber } from '../utils/format';
@@ -51,6 +52,7 @@ type ReportType = 'daily' | 'weekly' | 'monthly' | 'custom';
 const Reports = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
+  const currency = useCurrency();
 
   const [reportType, setReportType] = useState<ReportType>('daily');
   const [dailyDate, setDailyDate] = useState<Dayjs>(dayjs());
@@ -198,7 +200,7 @@ const Reports = () => {
       dataIndex: 'tableAmount',
       align: 'right',
       render: (v: number) => (
-        <MoneyText amount={v} currency={t('common.sum')} color={TOKENS.color.gold.base} />
+        <MoneyText amount={v} currency={currency} color={TOKENS.color.gold.base} />
       ),
     },
     {
@@ -206,14 +208,14 @@ const Reports = () => {
       dataIndex: 'barAmount',
       align: 'right',
       render: (v: number) => (
-        <MoneyText amount={v} currency={t('common.sum')} color={TOKENS.color.emerald.bright} />
+        <MoneyText amount={v} currency={currency} color={TOKENS.color.emerald.bright} />
       ),
     },
     {
       title: t('common.total'),
       dataIndex: 'totalAmount',
       align: 'right',
-      render: (v: number) => <MoneyText amount={v} currency={t('common.sum')} />,
+      render: (v: number) => <MoneyText amount={v} currency={currency} />,
     },
     {
       title: t('payment.method'),
@@ -258,7 +260,7 @@ const Reports = () => {
       dataIndex: 'revenue',
       width: 180,
       align: 'right',
-      render: (v: number) => <MoneyText amount={v} currency={t('common.sum')} />,
+      render: (v: number) => <MoneyText amount={v} currency={currency} />,
     },
   ];
 
@@ -266,7 +268,7 @@ const Reports = () => {
   const money = (amount: number | undefined, color?: string) => (
     <MoneyText
       amount={amount}
-      currency={t('common.sum')}
+      currency={currency}
       color={color}
       style={{ fontSize: 'inherit', fontWeight: 'inherit' }}
     />
@@ -455,7 +457,7 @@ const Reports = () => {
                 </Text>
                 <MoneyText
                   amount={summary?.paymentBreakdown?.[m]}
-                  currency={t('common.sum')}
+                  currency={currency}
                   size="lg"
                 />
               </Col>

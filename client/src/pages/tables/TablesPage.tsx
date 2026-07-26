@@ -403,6 +403,7 @@ const TablesPage = () => {
                   offsetMs={offsetMs}
                   pending={!!session && pendingIds.has(session.id)}
                   canCheckout={canCheckout}
+                  canManage={canManage}
                   onStart={openStart}
                   onOrder={openOrder}
                   onTransfer={openTransfer}
@@ -437,7 +438,6 @@ const TablesPage = () => {
         isAdmin={canManage}
         clubName={club?.name ?? ''}
         onClose={() => setCheckoutTable(null)}
-        onSessionMutated={silentRefresh}
         onSettled={silentRefresh}
       />
 

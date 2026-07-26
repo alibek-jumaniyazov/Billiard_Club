@@ -41,6 +41,7 @@ export default {
     'billing.invoicesEmpty': "Hisob-fakturalar yo'q",
     'billing.invoiceNumber': 'Raqam',
     'billing.club': 'Klub',
+    'billing.clubStatus': 'Klub holati',
     'billing.plan': 'Tarif',
     'billing.amount': 'Summa',
     'billing.status': 'Holat',
@@ -51,6 +52,10 @@ export default {
     'billing.confirmTitle': "To'lovni tasdiqlash",
     'billing.confirmHint':
       "Tasdiqlangach faktura to'langan bo'ladi, shartnoma tuziladi va klub obunasi darhol uzaytiriladi.",
+    'billing.confirmExpiredWarn':
+      "Bu faktura muddati tugagan (kech kelgan to'lov). Tasdiqlash baribir ishlaydi — obuna hozirdan uzaytiriladi.",
+    'billing.confirmBlockedWarn':
+      "Klub BLOKLANGAN. Tasdiqlash blokni ochmaydi — kerak bo'lsa klubni alohida blokdan chiqaring.",
     'billing.paymentMethod': "To'lov usuli (ixtiyoriy)",
     'billing.methodPlaceholder': 'click / payme / naqd / bank',
     'billing.rejectTitle': "To'lovni rad etish",
@@ -253,6 +258,7 @@ export default {
     'billing.invoicesEmpty': 'Счетов нет',
     'billing.invoiceNumber': 'Номер',
     'billing.club': 'Клуб',
+    'billing.clubStatus': 'Статус клуба',
     'billing.plan': 'Тариф',
     'billing.amount': 'Сумма',
     'billing.status': 'Статус',
@@ -263,6 +269,10 @@ export default {
     'billing.confirmTitle': 'Подтверждение оплаты',
     'billing.confirmHint':
       'После подтверждения счёт станет оплаченным, будет создан контракт, а подписка клуба продлится мгновенно.',
+    'billing.confirmExpiredWarn':
+      'Срок этого счёта истёк (платёж пришёл с опозданием). Подтверждение всё равно сработает — подписка продлится с текущего момента.',
+    'billing.confirmBlockedWarn':
+      'Клуб ЗАБЛОКИРОВАН. Подтверждение оплаты не снимает блокировку — при необходимости разблокируйте клуб отдельно.',
     'billing.paymentMethod': 'Способ оплаты (необязательно)',
     'billing.methodPlaceholder': 'click / payme / наличные / банк',
     'billing.rejectTitle': 'Отклонение оплаты',

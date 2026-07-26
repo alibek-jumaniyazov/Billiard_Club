@@ -32,6 +32,7 @@ import {
   StatCard,
   StatusTag,
 } from '../components/ui';
+import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { Order, OrderStatus } from '../types';
@@ -54,6 +55,7 @@ const Orders = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { hasRole } = useAuth();
+  const currency = useCurrency();
   // Server bilan bir xil: bekor qilish kassir/admin/superadmin uchun
   const canCancel = hasRole('superadmin', 'admin', 'kassir');
 
@@ -160,7 +162,7 @@ const Orders = () => {
       dataIndex: 'totalAmount',
       width: 150,
       align: 'right',
-      render: (amount: number) => <MoneyText amount={amount} currency={t('common.sum')} />,
+      render: (amount: number) => <MoneyText amount={amount} currency={currency} />,
     },
     {
       title: t('orders.status'),
@@ -247,7 +249,7 @@ const Orders = () => {
                 value={
                   <MoneyText
                     amount={stats?.todayAmount}
-                    currency={t('common.sum')}
+                    currency={currency}
                     style={{ fontSize: 'inherit', fontWeight: 'inherit' }}
                   />
                 }

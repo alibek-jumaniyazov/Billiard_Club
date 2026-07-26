@@ -14,6 +14,21 @@ const client = axios.create({ baseURL: '/api', withCredentials: true });
 
 const LEGACY_REFRESH_KEY = 'refreshToken';
 
+/**
+ * Access token shu tabda o'zgarganda (kirish/refresh/chiqish) xabar beriladi.
+ * storage hodisasi FAQAT boshqa tablarda ishlaydi, shuning uchun klub
+ * kontekstiga bog'liq sozlamalar (masalan valyuta belgisi) shu signalga
+ * obuna bo'ladi va sahifani qayta yuklamasdan yangilanadi.
+ */
+const TOKEN_EVENT = 'auth:token';
+
+export const onAccessTokenChange = (listener: () => void): (() => void) => {
+  window.addEventListener(TOKEN_EVENT, listener);
+  return () => window.removeEventListener(TOKEN_EVENT, listener);
+};
+
+const emitTokenChange = () => window.dispatchEvent(new Event(TOKEN_EVENT));
+
 export const tokenStore = {
   getAccess: () => localStorage.getItem('accessToken'),
   /**
@@ -24,10 +39,12 @@ export const tokenStore = {
     localStorage.setItem('accessToken', accessToken);
     // Yangi token olindi — eski legacy refresh endi keraksiz
     localStorage.removeItem(LEGACY_REFRESH_KEY);
+    emitTokenChange();
   },
   clear: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem(LEGACY_REFRESH_KEY);
+    emitTokenChange();
   },
 };
 
@@ -119,7 +136,25 @@ client.interceptors.response.use(
   async (error: AxiosError<{ code?: string; message?: string }>) => {
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
-    const code = error.response?.data?.code;
+
+    // responseType:'blob' so'rovlarida (Excel eksport, biriktirilgan fayllar)
+    // axios xato tanasini JSON qilib ochmaydi — `data` Blob bo'lib qoladi va
+    // `code` topilmaydi. Shuning uchun avval tanani normallashtiramiz: JSON
+    // bo'lsa o'rniga qo'yiladi (errorMessage ham xabarni ko'radi), binar
+    // bo'lsa o'z holida qoladi.
+    let code: string | undefined;
+    const raw = error.response?.data as unknown;
+    if (raw instanceof Blob) {
+      try {
+        const parsed = JSON.parse(await raw.text()) as { code?: string; message?: string };
+        code = parsed.code;
+        if (error.response) error.response.data = parsed;
+      } catch {
+        // binar tana — kod yo'q, xabar zaxira matndan olinadi
+      }
+    } else {
+      code = (raw as { code?: string } | undefined)?.code;
+    }
 
     // Obuna tugagan / klub bloklangan — blok ekraniga
     if (status === 403 && (code === 'SUBSCRIPTION_EXPIRED' || code === 'CLUB_BLOCKED')) {

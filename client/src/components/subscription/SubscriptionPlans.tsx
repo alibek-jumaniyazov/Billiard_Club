@@ -79,6 +79,11 @@ const SubscriptionPlans = ({
   const reduceMotion = useReducedMotion();
   const lang = i18n.language;
 
+  // PLATFORMA hisob-kitobi: Plan.price global qator, hamma klub uchun bir xil
+  // va valyuta ustuni yo'q. Shuning uchun bu yerda klub sozlamasidagi
+  // useCurrency() ISHLATILMAYDI — faqat tilga bog'liq t('common.sum')
+  const platformCurrency = t('common.sum');
+
   const [selected, setSelected] = useState<Plan | null>(null);
   const [coupon, setCoupon] = useState('');
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -202,7 +207,7 @@ const SubscriptionPlans = ({
               {dayjs(pendingInvoice.createdAt).format('DD.MM.YYYY HH:mm')}
             </Text>
             <div style={{ marginTop: 6, display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-              <MoneyText amount={pendingInvoice.amount} currency={t('common.sum')} size="lg" />
+              <MoneyText amount={pendingInvoice.amount} currency={platformCurrency} size="lg" />
               {pendingInvoice.discountAmount > 0 && (
                 <Text style={{ color: semantic.success, fontSize: 13 }} className="tabular-nums">
                   {t('subscription.discountLabel')}: −{formatNumber(pendingInvoice.discountAmount)}
@@ -297,7 +302,12 @@ const SubscriptionPlans = ({
             </Text>
 
             <div style={{ margin: '14px 0 2px' }}>
-              <MoneyText amount={plan.price} currency={t('common.sum')} size="xl" color={gold.hover} />
+              <MoneyText
+                amount={plan.price}
+                currency={platformCurrency}
+                size="xl"
+                color={gold.hover}
+              />
             </div>
             <Text type="secondary" className="tabular-nums" style={{ fontSize: 12.5 }}>
               {t('subscription.perDay', { amount: formatNumber(perDay) })}
@@ -426,7 +436,12 @@ const SubscriptionPlans = ({
                   {t('subscription.durationDays', { days: selected.durationDays })}
                 </Text>
               </div>
-              <MoneyText amount={selected.price} currency={t('common.sum')} size="lg" color={gold.hover} />
+              <MoneyText
+                amount={selected.price}
+                currency={platformCurrency}
+                size="lg"
+                color={gold.hover}
+              />
             </div>
 
             <div>

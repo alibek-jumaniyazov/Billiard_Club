@@ -28,25 +28,25 @@ export class SettingsService {
   async update(clubId: number, dto: UpdateSettingsDto) {
     // Vaqt mintaqasi faqat ruxsat etilgan ro'yxatdan — noto'g'ri qiymat
     // dashboard/hisobot SQL "AT TIME ZONE" so'rovlarini buzadi
-    if (
-      dto.timezone !== undefined &&
-      !(SUPPORTED_TIMEZONES as readonly string[]).includes(dto.timezone)
-    ) {
+    if (dto.timezone != null && !(SUPPORTED_TIMEZONES as readonly string[]).includes(dto.timezone)) {
       throw new BadRequestException({ key: 'settings.invalidTimezone' });
     }
 
     const settings = await this.get(clubId);
     if (!settings) throw new NotFoundException({ key: 'subscription.clubNotFound' });
+    // NOT NULL ustunlar `!= null` bilan tekshiriladi: @IsOptional() literal
+    // `null` ni ham o'tkazadi va u ustunga yozilsa 23502 (not_null_violation)
+    // bo'lardi. phone/address esa nullable — ular ataylab tozalanishi mumkin.
     Object.assign(settings, {
-      ...(dto.clubName !== undefined ? { clubName: dto.clubName } : {}),
+      ...(dto.clubName != null ? { clubName: dto.clubName } : {}),
       ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
       ...(dto.address !== undefined ? { address: dto.address } : {}),
-      ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
-      ...(dto.currencySymbol !== undefined ? { currencySymbol: dto.currencySymbol } : {}),
-      ...(dto.defaultTablePrice !== undefined ? { defaultTablePrice: dto.defaultTablePrice } : {}),
-      ...(dto.workingHoursStart !== undefined ? { workingHoursStart: dto.workingHoursStart } : {}),
-      ...(dto.workingHoursEnd !== undefined ? { workingHoursEnd: dto.workingHoursEnd } : {}),
-      ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
+      ...(dto.currency != null ? { currency: dto.currency } : {}),
+      ...(dto.currencySymbol != null ? { currencySymbol: dto.currencySymbol } : {}),
+      ...(dto.defaultTablePrice != null ? { defaultTablePrice: dto.defaultTablePrice } : {}),
+      ...(dto.workingHoursStart != null ? { workingHoursStart: dto.workingHoursStart } : {}),
+      ...(dto.workingHoursEnd != null ? { workingHoursEnd: dto.workingHoursEnd } : {}),
+      ...(dto.timezone != null ? { timezone: dto.timezone } : {}),
     });
     return this.settingsRepo.save(settings);
   }

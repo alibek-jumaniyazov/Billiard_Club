@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseIntPipe,
   Post,
@@ -10,12 +11,15 @@ import {
   Query,
 } from '@nestjs/common';
 import { ClubId } from '../../common/decorators/club-id.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
+import { User } from '../../entities/user.entity';
 import { CatalogService } from './catalog.service';
 import {
+  AdjustStockDto,
   CreateCategoryDto,
   CreateProductDto,
   ListProductsQueryDto,
@@ -91,6 +95,21 @@ export class ProductsController {
   ) {
     const data = await this.catalogService.updateProduct(clubId, id, dto);
     return { success: true, message: t(lang, 'products.updated'), data };
+  }
+
+  /** Ombor qoldig'ini delta bo'yicha to'g'irlash — kassir ham qila oladi */
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
+  @HttpCode(200)
+  @Post(':id/stock')
+  async adjustStock(
+    @ClubId() clubId: number,
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AdjustStockDto,
+    @Lang() lang: Language,
+  ) {
+    const data = await this.catalogService.adjustStock(clubId, id, user, dto);
+    return { success: true, message: t(lang, 'products.stockAdjusted'), data };
   }
 
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)

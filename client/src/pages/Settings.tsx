@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Alert,
   App,
@@ -28,6 +28,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, settingsApi } from '../api';
 import { PageHeader, PageTransition } from '../components/ui';
+import { useAppSettings } from '../context/AppSettingsContext';
 import { TOKENS } from '../theme/tokens';
 import type { Settings as ClubSettings } from '../types';
 
@@ -106,11 +107,18 @@ const cardTitle = (icon: ReactNode, label: string) => (
 const Settings = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
+  const { setCurrencySymbol } = useAppSettings();
   const [form] = Form.useForm<SettingsFormValues>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [initialValues, setInitialValues] = useState<SettingsFormValues | null>(null);
   const [timezones, setTimezones] = useState<readonly string[]>(FALLBACK_TIMEZONES);
+
+  // `t` yuklash callbackining bog'liqligi EMAS: til almashganda forma qayta
+  // yaratilib, saqlanmagan o'zgarishlar yo'qolib ketmasin (xabar chaqirilgan
+  // paytda ref orqali o'qiladi)
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -118,11 +126,11 @@ const Settings = () => {
       const res = await settingsApi.get();
       setInitialValues(toFormValues(res.data));
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(errorMessage(err, tRef.current('common.error')));
     } finally {
       setLoading(false);
     }
-  }, [message, t]);
+  }, [message]);
 
   // Ro'yxatni serverdan olamiz (validatsiya bilan bir manba); xatoda zaxira qoladi
   const fetchTimezones = useCallback(async () => {
@@ -144,14 +152,20 @@ const Settings = () => {
     try {
       const res = await settingsApi.update({
         ...values,
-        // dayjs -> 'HH:mm' (server satr kutadi)
-        workingHoursStart: values.workingHoursStart
+        // dayjs -> 'HH:mm' (server satr kutadi). Serverda "ish vaqti yo'q"
+        // holati YO'Q (ustun NOT NULL) — bo'sh maydon null emas, undefined
+        // bo'lib ketadi, ya'ni qiymat umuman o'zgartirilmaydi.
+        workingHoursStart: values.workingHoursStart?.isValid()
           ? values.workingHoursStart.format('HH:mm')
-          : null,
-        workingHoursEnd: values.workingHoursEnd ? values.workingHoursEnd.format('HH:mm') : null,
+          : undefined,
+        workingHoursEnd: values.workingHoursEnd?.isValid()
+          ? values.workingHoursEnd.format('HH:mm')
+          : undefined,
       });
       message.success(res.message);
       form.setFieldsValue(toFormValues(res.data));
+      // Valyuta belgisi butun ilovada darhol yangilanadi
+      setCurrencySymbol(res.data.currencySymbol);
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
     } finally {
@@ -270,7 +284,12 @@ const Settings = () => {
                       label={t('settings.openTime')}
                       style={{ marginBottom: 0 }}
                     >
-                      <TimePicker format="HH:mm" style={{ width: '100%' }} placeholder="09:00" />
+                      <TimePicker
+                        format="HH:mm"
+                        style={{ width: '100%' }}
+                        placeholder="09:00"
+                        allowClear={false}
+                      />
                     </Form.Item>
                   </Col>
                   <Col xs={12} md={8}>
@@ -279,7 +298,12 @@ const Settings = () => {
                       label={t('settings.closeTime')}
                       style={{ marginBottom: 0 }}
                     >
-                      <TimePicker format="HH:mm" style={{ width: '100%' }} placeholder="23:00" />
+                      <TimePicker
+                        format="HH:mm"
+                        style={{ width: '100%' }}
+                        placeholder="23:00"
+                        allowClear={false}
+                      />
                     </Form.Item>
                   </Col>
                 </Row>

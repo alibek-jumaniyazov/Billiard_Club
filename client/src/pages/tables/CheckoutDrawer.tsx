@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import {
   Alert,
   App,
@@ -27,13 +35,13 @@ import { useTranslation } from 'react-i18next';
 import { errorMessage, sessionsApi } from '../../api';
 import { MoneyText, useNow } from '../../components/ui';
 import { PAYMENT_METHODS } from '../../constants';
+import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
 import type {
   BilliardTable,
   EndSessionPayload,
   EndSessionResult,
   PaymentMethod,
-  Session,
   SessionReceipt,
 } from '../../types';
 import { formatDateTime, formatNumber, formatSeconds } from '../../utils/format';
@@ -50,6 +58,35 @@ import {
 import { moneyFormatter, moneyParser } from './money';
 
 const { Text, Title } = Typography;
+
+/** Kassa oynasi ochiq turganda chek fonda shu davr bilan yangilanadi (ms) */
+const RECEIPT_POLL_MS = 10_000;
+
+/**
+ * Bo'lib to'lashda yo'l qo'yiladigan farq — SERVERDAGI PAYMENT_DRIFT_SECONDS
+ * bilan BIR XIL qiymat bo'lishi shart: kassir summani ko'rgan on bilan server
+ * yakuni orasida stol taymeri ishlab turadi. Shu oynadagi farqni server eng
+ * yirik to'lov satriga singdiradi, shuning uchun "Yakunlash" bloklanmaydi.
+ */
+const PAYMENT_DRIFT_SECONDS = 900;
+
+/** Server 409 (bar summasi o'zgardi) qaytardimi */
+const isConflict = (err: unknown): boolean =>
+  typeof err === 'object' &&
+  err !== null &&
+  (err as { response?: { status?: number } }).response?.status === 409;
+
+const splitTolerance = (
+  receipt: SessionReceipt | null,
+  segments: SegmentLike[],
+): number => {
+  const price = Math.max(
+    receipt?.pricePerHour ?? 0,
+    ...segments.map((s) => s.pricePerHour ?? 0),
+    0,
+  );
+  return round2((price * PAYMENT_DRIFT_SECONDS) / 3600 + 0.01);
+};
 
 /* ------------------------------------------------------------------ Hisob */
 
@@ -115,6 +152,8 @@ interface LiveReceiptProps {
   adjustment: number;
   flags: DebtFlags;
   offsetMs: number;
+  /** Klub valyuta belgisi — memo bargida hook ikkinchi marta chaqirilmasin */
+  currency: string;
 }
 
 const rowStyle: CSSProperties = {
@@ -129,11 +168,20 @@ const rowStyle: CSSProperties = {
  * Pauzada formulaning o'zi qiymatlarni muzlatadi (joriy pauza ayiriladi).
  */
 const LiveReceipt = memo(
-  ({ timing, segments, barAmount, fallbackPrice, discount, adjustment, flags, offsetMs }: LiveReceiptProps) => {
+  ({
+    timing,
+    segments,
+    barAmount,
+    fallbackPrice,
+    discount,
+    adjustment,
+    flags,
+    offsetMs,
+    currency,
+  }: LiveReceiptProps) => {
     const { t } = useTranslation();
     const now = useNow();
     const shifted = now + offsetMs;
-    const currency = t('common.sum');
 
     const totals = computeTotals(
       timing,
@@ -324,8 +372,6 @@ interface CheckoutDrawerProps {
   /** Klub nomi (chop etiladigan chek sarlavhasi) */
   clubName: string;
   onClose: () => void;
-  /** Sessiya holati o'zgardi (pauza/davom) — sahifa jimgina yangilansin */
-  onSessionMutated: () => void;
   /** Muvaffaqiyatli yakun — sahifa stollarni yangilasin */
   onSettled: () => void;
 }
@@ -335,7 +381,6 @@ const CheckoutDrawer = ({
   isAdmin,
   clubName,
   onClose,
-  onSessionMutated,
   onSettled,
 }: CheckoutDrawerProps) => {
   const { t } = useTranslation();
@@ -345,7 +390,7 @@ const CheckoutDrawer = ({
   const session = table?.sessions?.[0] ?? null;
   const sessionId = session?.id ?? null;
   const fallbackPrice = table?.pricePerHour ?? 0;
-  const currency = t('common.sum');
+  const currency = useCurrency();
 
   const [receipt, setReceipt] = useState<SessionReceipt | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
@@ -353,10 +398,18 @@ const CheckoutDrawer = ({
   const [timing, setTiming] = useState<SessionTiming | null>(null);
   const [segments, setSegments] = useState<SegmentLike[]>([]);
   const [offsetMs, setOffsetMs] = useState(0);
-  const [frozeForSplit, setFrozeForSplit] = useState(false);
-  const [freezing, setFreezing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<EndSessionResult | null>(null);
+  /** Bar summasi drawer ochiq turganda o'zgardi — kassir tasdiqlashi kerak */
+  const [barChanged, setBarChanged] = useState<{ from: number; to: number } | null>(null);
+
+  /**
+   * Ochiq sessiya "avlodi": eski (sekin) chek javobi yangi ochilgan sessiya
+   * ustiga yozilib qolmasligi uchun. Har javob yozishdan oldin tekshiriladi.
+   */
+  const openSessionRef = useRef<number | null>(null);
+  /** Ekranda oxirgi KO'RSATILGAN bar summasi — fon yangilanishi bilan taqqoslash uchun */
+  const shownBarRef = useRef<number | null>(null);
 
   const discount = Form.useWatch('discount', form) ?? 0;
   const watchedAdjustment = Form.useWatch('adjustmentAmount', form) ?? 0;
@@ -372,33 +425,56 @@ const CheckoutDrawer = ({
     [isDebt, isTableDebt, isBarDebt],
   );
 
-  const loadReceipt = useCallback(async () => {
-    if (!sessionId) return;
-    setReceiptLoading(true);
-    setReceiptError(false);
-    try {
-      const res = await sessionsApi.receipt(sessionId);
-      const r = res.data;
-      setReceipt(r);
-      setOffsetMs(clockOffsetMs(r.serverNow));
-      setTiming(timingFromReceipt(r));
-      setSegments((r.segments ?? []) as SegmentLike[]);
-      form.setFieldsValue({ isBarDebt: r.barAmount > 0 });
-    } catch {
-      setReceiptError(true);
-    } finally {
-      setReceiptLoading(false);
-    }
-  }, [sessionId, form]);
+  /**
+   * Chekni yuklash. `silent` — fon yangilanishi (skeleton ko'rsatilmaydi,
+   * xato bo'lsa ekrandagi summa saqlanadi).
+   *
+   * Javob YOZILISHIDAN OLDIN openSessionRef tekshiriladi: sekin javob boshqa
+   * stolning kassa oynasiga tushib qolmasligi kerak (pul ekrani!).
+   */
+  const loadReceipt = useCallback(
+    async (silent = false): Promise<SessionReceipt | null> => {
+      if (!sessionId) return null;
+      const reqId = sessionId;
+      if (!silent) {
+        setReceiptLoading(true);
+        setReceiptError(false);
+      }
+      try {
+        const res = await sessionsApi.receipt(reqId);
+        if (openSessionRef.current !== reqId) return null;
+        const r = res.data;
+        const previousBar = shownBarRef.current;
+        if (previousBar !== null && Math.abs(previousBar - r.barAmount) > 0.01) {
+          setBarChanged({ from: previousBar, to: r.barAmount });
+        }
+        shownBarRef.current = r.barAmount;
+        setReceipt(r);
+        setOffsetMs(clockOffsetMs(r.serverNow));
+        setTiming(timingFromReceipt(r));
+        setSegments((r.segments ?? []) as SegmentLike[]);
+        if (!silent) form.setFieldsValue({ isBarDebt: r.barAmount > 0 });
+        return r;
+      } catch {
+        if (openSessionRef.current === reqId && !silent) setReceiptError(true);
+        return null;
+      } finally {
+        if (openSessionRef.current === reqId && !silent) setReceiptLoading(false);
+      }
+    },
+    [sessionId, form],
+  );
 
   // Ochilganda: holatni tozalash + chekni yuklash
   useEffect(() => {
     if (!table) return;
+    openSessionRef.current = sessionId;
+    shownBarRef.current = null;
     setReceipt(null);
     setTiming(null);
     setSegments([]);
     setResult(null);
-    setFrozeForSplit(false);
+    setBarChanged(null);
     form.resetFields();
     form.setFieldsValue({
       discount: 0,
@@ -415,19 +491,23 @@ const CheckoutDrawer = ({
       notes: '',
     });
     void loadReceipt();
+    return () => {
+      openSessionRef.current = null;
+    };
     // table sahifadan olingan SNAPSHOT — drawer ochiq payt identligi o'zgarmaydi,
     // shuning uchun bu effekt faqat yangi ochilishda ishlaydi
-  }, [table, session, form, loadReceipt]);
+  }, [table, session, sessionId, form, loadReceipt]);
 
-  const applySession = useCallback((s: Session) => {
-    setTiming({
-      startTime: s.startTime,
-      status: s.status,
-      pausedAt: s.pausedAt,
-      totalPausedMs: s.totalPausedMs,
-      pricePerHour: s.pricePerHour,
-    });
-  }, []);
+  /**
+   * Chek FON REJIMIDA yangilanib turadi: kassa oynasi ochiq turganda ofitsiant
+   * boshqa terminaldan ichimlik qo'shsa, kassir eski summani ko'rib turmasin.
+   * Bar summasi o'zgarsa ekranda ogohlantirish chiqadi.
+   */
+  useEffect(() => {
+    if (!sessionId || result) return;
+    const poll = setInterval(() => void loadReceipt(true), RECEIPT_POLL_MS);
+    return () => clearInterval(poll);
+  }, [sessionId, result, loadReceipt]);
 
   /** Muzlatilgan (pauzadagi) holatda statik yakuniy summalar */
   const staticTotals = useMemo(() => {
@@ -447,63 +527,48 @@ const CheckoutDrawer = ({
   const paymentsSum = round2(
     (payments ?? []).reduce((acc, r) => acc + (r?.amount || 0), 0),
   );
-  const splitTarget = staticTotals?.toPay ?? 0;
+  /**
+   * Bo'lib to'lash NISHONI — kalitni yoqqan ondagi summa MUHRLANADI.
+   * Jonli qiymatga bog'lab qo'yilsa, kassir naqd pulni sanab yoki terminal
+   * javobini kutib turganda nishon o'sib ketar va "Yakunlash" tugmasi o'zidan
+   * o'zi bloklanib qolardi. Chegirma/tuzatish/qarz o'zgarganda qayta muhrlanadi.
+   */
+  const [splitTargetSnapshot, setSplitTargetSnapshot] = useState<number | null>(null);
+  const splitTarget = splitTargetSnapshot ?? staticTotals?.toPay ?? 0;
   const splitRemaining = round2(splitTarget - paymentsSum);
-  const splitOk = Math.abs(splitRemaining) <= 0.01;
+  // Kichik farq (stol taymeri to'lov satrlari to'ldirilgunicha ishlab ketgani)
+  // serverda eng yirik satrga singdiriladi — kassirni bir so'm uchun bloklamaymiz
+  const splitOk = Math.abs(splitRemaining) <= splitTolerance(receipt, segments);
 
-  /** Bo'lib to'lash yoqilganda vaqt muzlatiladi (server bilan aniq tenglik) */
-  const handleSplitToggle = async (checked: boolean) => {
-    if (!sessionId || !timing) return;
-    if (checked) {
-      let frozenTiming = timing;
-      if (timing.status === 'active') {
-        setFreezing(true);
-        try {
-          const res = await sessionsApi.pause(sessionId);
-          applySession(res.data);
-          frozenTiming = {
-            startTime: res.data.startTime,
-            status: res.data.status,
-            pausedAt: res.data.pausedAt,
-            totalPausedMs: res.data.totalPausedMs,
-            pricePerHour: res.data.pricePerHour,
-          };
-          setFrozeForSplit(true);
-          onSessionMutated();
-        } catch (err) {
-          message.error(errorMessage(err, t('common.error')));
-          form.setFieldsValue({ split: false });
-          setFreezing(false);
-          return;
-        }
-        setFreezing(false);
-      }
-      // Bitta qator bilan boshlaymiz — qoldiqni to'liq qoplaydi
-      const target = computeTotals(
-        frozenTiming,
-        segments,
-        receipt?.barAmount ?? 0,
-        fallbackPrice,
-        discount,
-        adjustmentAmount,
-        flags,
-        Date.now() + offsetMs,
-      );
-      form.setFieldsValue({ payments: [{ method: 'cash', amount: target.toPay }] });
-    } else if (frozeForSplit && timing.status === 'paused') {
-      setFreezing(true);
-      try {
-        const res = await sessionsApi.resume(sessionId);
-        applySession(res.data);
-        setFrozeForSplit(false);
-        onSessionMutated();
-      } catch (err) {
-        message.error(errorMessage(err, t('common.error')));
-        form.setFieldsValue({ split: true });
-      } finally {
-        setFreezing(false);
-      }
+  // Chegirma / qo'lda tuzatish / qarz belgilari YOKI BAR SUMMASI o'zgarsa nishon
+  // qayta muhrlanadi. Bar summasi ro'yxatda bo'lishi SHART: aks holda kassa
+  // oynasi ochiq turganda ofitsiant qo'shgan ichimlikdan keyin ekranda "qoldiq 0"
+  // yozilib turar, server esa farqni eng yirik to'lov satriga singdirib,
+  // OLINMAGAN pulni olingan deb yozardi.
+  useEffect(() => {
+    if (!split) return;
+    setSplitTargetSnapshot(staticTotals?.toPay ?? 0);
+    // staticTotals har tikda emas, faqat shu kiritmalar o'zgarganda qayta muhrlaymiz
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [split, discount, adjustmentAmount, isDebt, isTableDebt, isBarDebt, receipt?.barAmount]);
+
+  /**
+   * Bo'lib to'lash yoqilganda birinchi qator qoldiq bilan to'ldiriladi.
+   *
+   * MUHIM: bu yerda sessiya PAUZAGA OLINMAYDI. Avval "summani muzlatish"
+   * uchun server tomonda pauza qo'yilardi — agar kassirning brauzeri yopilsa
+   * yoki sahifa yangilansa, sessiya ABADIY pauzada qolib, mijoz o'ynayotgan
+   * bo'lsa ham hisob to'xtab turardi. Endi server yakuniy summani o'zi
+   * hisoblaydi va kichik vaqt farqini eng yirik to'lov satriga singdiradi.
+   */
+  const handleSplitToggle = (checked: boolean) => {
+    if (!checked) {
+      setSplitTargetSnapshot(null);
+      return;
     }
+    const target = staticTotals?.toPay ?? 0;
+    setSplitTargetSnapshot(target);
+    form.setFieldsValue({ payments: [{ method: 'cash', amount: target }] });
   };
 
   /** Oxirgi to'lov qatoriga qoldiqni qo'yish */
@@ -519,12 +584,29 @@ const CheckoutDrawer = ({
 
   const handleEnd = async () => {
     if (!sessionId || !timing || !receipt) return;
-    const values = await form.validateFields();
+    let values: EndFormValues;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return; // maydon xatolari formaning o'zida ko'rsatiladi
+    }
 
     if (values.isDebt && !values.isTableDebt && !values.isBarDebt) {
       message.warning(t('tables.debtNeedsComponent'));
       return;
     }
+
+    // Yuborishdan OLDIN chekni oxirgi marta tekshiramiz: bar summasi
+    // o'zgargan bo'lsa kassir noto'g'ri pul olib qo'ymasligi uchun to'xtatamiz
+    setSubmitting(true);
+    const fresh = await loadReceipt(true);
+    if (fresh && Math.abs(fresh.barAmount - receipt.barAmount) > 0.01) {
+      setSubmitting(false);
+      setBarChanged({ from: receipt.barAmount, to: fresh.barAmount });
+      message.warning(t('tables.barChangedWarning'));
+      return;
+    }
+    setSubmitting(false);
 
     const adjustment =
       isAdmin && values.adjustmentAmount ? round2(values.adjustmentAmount) : 0;
@@ -545,6 +627,8 @@ const CheckoutDrawer = ({
 
     const payload: EndSessionPayload = {
       discount: totals.discount,
+      // Server o'zi hisoblagan bar summasi bilan solishtiradi (409 himoyasi)
+      expectedBarAmount: receipt.barAmount,
       notes: values.notes?.trim() || undefined,
       isDebt: values.isDebt || undefined,
       isTableDebt: values.isDebt ? values.isTableDebt : undefined,
@@ -562,7 +646,9 @@ const CheckoutDrawer = ({
         )
         .map((r) => ({ method: r.method, amount: round2(r.amount) }));
       const sum = round2(rows.reduce((acc, r) => acc + r.amount, 0));
-      if (Math.abs(sum - totals.toPay) > 0.01) {
+      // Kichik vaqt farqini server eng yirik satrga singdiradi; kattarog'ini
+      // shu yerda ushlaymiz (server ham qayta tekshiradi)
+      if (Math.abs(sum - totals.toPay) > splitTolerance(receipt, segments)) {
         message.error(t('tables.splitMismatch'));
         return;
       }
@@ -579,20 +665,20 @@ const CheckoutDrawer = ({
       setResult(res.data);
       onSettled();
     } catch (err) {
+      // 409 = bar summasi o'zgardi: chekni yangilab, kassirdan qayta tasdiq so'raymiz
+      if (isConflict(err)) {
+        const updated = await loadReceipt(true);
+        if (updated) setBarChanged({ from: receipt.barAmount, to: updated.barAmount });
+      }
       message.error(errorMessage(err, t('common.error')));
     } finally {
       setSubmitting(false);
     }
   };
 
-  /** Yopish: yakunlanmagan bo'lsa va biz muzlatgan bo'lsak — vaqt davom etadi */
+  /** Yopish — yuborish davom etayotganda bloklanadi (yarim holat qolmasin) */
   const handleClose = () => {
-    if (!result && frozeForSplit && timing?.status === 'paused' && sessionId) {
-      void sessionsApi
-        .resume(sessionId)
-        .then(() => onSessionMutated())
-        .catch(() => undefined);
-    }
+    if (submitting) return;
     onClose();
   };
 
@@ -604,7 +690,7 @@ const CheckoutDrawer = ({
 
     lines.push(`<h1>${escapeHtml(clubName || 'Billiard Club')}</h1>`);
     lines.push(
-      `<div class="c">${escapeHtml(`${t('common.table')} ${table?.number ?? ''} — ${table?.name ?? ''}`)}<br>${escapeHtml(formatDateTime(new Date()))}</div>`,
+      `<div class="c">${escapeHtml(`${t('common.table')} ${table?.number ?? ''} — ${table?.name ?? ''}`)}<br>${escapeHtml(formatDateTime(result.serverNow ?? new Date()))}</div>`,
     );
     lines.push('<hr>');
     row(t('common.duration'), formatSeconds(result.durationSeconds));
@@ -760,6 +846,8 @@ const CheckoutDrawer = ({
       width="min(480px, 100vw)"
       destroyOnHidden
       maskClosable={!submitting}
+      closable={!submitting}
+      keyboard={!submitting}
       footer={
         !result && live && timing ? (
           <Row gutter={8}>
@@ -775,7 +863,7 @@ const CheckoutDrawer = ({
                 danger={!isDebt}
                 icon={<DollarOutlined />}
                 loading={submitting}
-                disabled={freezing || (split && !splitOk)}
+                disabled={!!barChanged || (split && !splitOk)}
                 onClick={() => void handleEnd()}
               >
                 {isDebt ? t('tables.endDebt') : t('tables.endPay')}
@@ -804,12 +892,28 @@ const CheckoutDrawer = ({
         <Alert type="warning" showIcon message={t('tables.alreadyEnded')} />
       ) : timing && receipt ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Bar summasi drawer ochiq turganda o'zgardi — kassir yangi
+              summani ko'rib, ATAYLAB qayta tasdiqlashi shart */}
+          {barChanged && (
+            <Alert
+              type="warning"
+              showIcon
+              message={t('tables.barChangedTitle')}
+              description={`${formatNumber(barChanged.from)} → ${formatNumber(barChanged.to)} ${currency}`}
+              action={
+                <Button size="small" type="primary" onClick={() => setBarChanged(null)}>
+                  {t('tables.barChangedAck')}
+                </Button>
+              }
+            />
+          )}
+
           {isPausedNow && (
             <Alert
               type="warning"
               showIcon
               icon={<PauseCircleOutlined />}
-              message={frozeForSplit ? t('tables.splitFrozen') : t('tables.pausedBanner')}
+              message={t('tables.pausedBanner')}
             />
           )}
 
@@ -822,6 +926,7 @@ const CheckoutDrawer = ({
             adjustment={adjustmentAmount}
             flags={flags}
             offsetMs={offsetMs}
+            currency={currency}
           />
 
           <Form form={form} layout="vertical" requiredMark={false}>
@@ -895,7 +1000,7 @@ const CheckoutDrawer = ({
               label={t('tables.splitPayment')}
               style={{ marginBottom: split ? 8 : 12 }}
             >
-              <Switch loading={freezing} onChange={(checked) => void handleSplitToggle(checked)} />
+              <Switch onChange={handleSplitToggle} />
             </Form.Item>
 
             {split && (

@@ -37,6 +37,9 @@ export default {
     extend12: '+1 yil',
     extendCustom: 'Aniq sana...',
     extendUntil: 'Qaysi sanagacha',
+    shortenTitle: 'Obuna QISQARTIRILADI',
+    shortenWarn:
+      "Tanlangan sana joriy muddatdan ({{date}}) oldin — klub {{days}} kunlik to'langan obunani yo'qotadi. Davom etasizmi?",
     block: 'Bloklash',
     unblock: 'Blokdan chiqarish',
     blockConfirm: 'Klubni bloklamoqchimisiz? Foydalanuvchilari tizimga kira olmaydi.',
@@ -92,7 +95,7 @@ export default {
     nameRequired: 'Klub nomini kiriting',
     ownerRequired: 'Egasining ismini kiriting',
     usernameRequired: 'Login kiriting (kamida 3 belgi)',
-    passwordRequired: 'Parol kiriting (kamida 6 belgi)',
+    passwordRequired: 'Parol kiriting (kamida 8 belgi)',
     // Ro'yxat: qidiruv/filtr/bo'sh holat
     searchPlaceholder: 'Nomi, egasi yoki telefon...',
     statusFilter: "Holat bo'yicha",
@@ -148,6 +151,9 @@ export default {
     extend12: '+1 год',
     extendCustom: 'Точная дата...',
     extendUntil: 'До какой даты',
+    shortenTitle: 'Подписка БУДЕТ СОКРАЩЕНА',
+    shortenWarn:
+      'Выбранная дата раньше текущего срока ({{date}}) — клуб потеряет {{days}} оплаченных дней. Продолжить?',
     block: 'Заблокировать',
     unblock: 'Разблокировать',
     blockConfirm: 'Заблокировать клуб? Его пользователи не смогут войти.',
@@ -203,7 +209,7 @@ export default {
     nameRequired: 'Введите название клуба',
     ownerRequired: 'Введите имя владельца',
     usernameRequired: 'Введите логин (мин. 3 символа)',
-    passwordRequired: 'Введите пароль (мин. 6 символов)',
+    passwordRequired: 'Введите пароль (мин. 8 символов)',
     // Список: поиск/фильтр/пустое состояние
     searchPlaceholder: 'Название, владелец или телефон...',
     statusFilter: 'По статусу',

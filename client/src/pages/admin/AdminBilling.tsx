@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   App,
   Alert,
@@ -91,6 +91,11 @@ const AdminBilling = () => {
   const { t, i18n } = useTranslation();
   const { message, modal } = App.useApp();
 
+  // `t` yuklash callbacklarining bog'liqligi EMAS: til almashganda fakturalar
+  // ro'yxati standart filtrlar bilan jimgina 1-sahifaga qaytib ketmasin
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const planName = useCallback(
     (plan: Plan | null | undefined): string =>
       plan ? (i18n.language === 'ru' ? plan.nameRu : plan.nameUz) : '—',
@@ -128,11 +133,11 @@ const AdminBilling = () => {
       const res = await adminBillingApi.invoices({ status: 'pending', limit: 50 });
       setPending(res.data);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(errorMessage(err, tRef.current('common.error')));
     } finally {
       setPendingLoading(false);
     }
-  }, [message, t]);
+  }, [message]);
 
   const fetchInvoices = useCallback(
     async (params: {
@@ -153,18 +158,23 @@ const AdminBilling = () => {
         setInvoices(res.data);
         setInvTotal(res.pagination?.total ?? res.data.length);
       } catch (err) {
-        setInvoicesError(errorMessage(err, t('common.error')));
+        setInvoicesError(errorMessage(err, tRef.current('common.error')));
       } finally {
         setInvoicesLoading(false);
       }
     },
-    [t],
+    [],
   );
 
   const refreshInvoices = useCallback(() => {
     void fetchPending();
     void fetchInvoices({ page: invPage, pageSize: invPageSize, status: invStatus, clubId: invClubId });
   }, [fetchPending, fetchInvoices, invPage, invPageSize, invStatus, invClubId]);
+
+  const openConfirm = (inv: Invoice) => {
+    setConfirmMethod(inv.paymentMethod ?? '');
+    setConfirmInvoice(inv);
+  };
 
   const handleConfirmInvoice = async () => {
     if (!confirmInvoice) return;
@@ -218,11 +228,11 @@ const AdminBilling = () => {
       const res = await adminBillingApi.plans();
       setPlans(res.data);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(errorMessage(err, tRef.current('common.error')));
     } finally {
       setPlansLoading(false);
     }
-  }, [message, t]);
+  }, [message]);
 
   const openPlanModal = (plan: Plan | null) => {
     setEditingPlan(plan);
@@ -306,11 +316,11 @@ const AdminBilling = () => {
       const res = await adminBillingApi.coupons();
       setCoupons(res.data);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(errorMessage(err, tRef.current('common.error')));
     } finally {
       setCouponsLoading(false);
     }
-  }, [message, t]);
+  }, [message]);
 
   const openCouponModal = (coupon: Coupon | null) => {
     setEditingCoupon(coupon);
@@ -342,18 +352,31 @@ const AdminBilling = () => {
     setCouponSaving(true);
     try {
       const [from, to] = values.validRange ?? [null, null];
-      const body = {
-        type: values.type,
-        value: values.value,
-        maxUses: values.maxUses ?? undefined,
-        validFrom: from ? from.startOf('day').toISOString() : undefined,
-        validTo: to ? to.endOf('day').toISOString() : undefined,
-        planId: values.planId ?? undefined,
-        isActive: values.isActive ?? true,
-      };
+      const validFrom = from ? from.startOf('day').toISOString() : null;
+      const validTo = to ? to.endOf('day').toISOString() : null;
+      // TAHRIRLASHDA bo'shatilgan maydonlar null bo'lib ketadi — server ularni
+      // TOZALAYDI. undefined "tegilmasin" degani edi, shu sababli kupon
+      // muddati/tarifi/limitini olib tashlash umuman saqlanmasdi.
       const res = editingCoupon
-        ? await adminBillingApi.updateCoupon(editingCoupon.id, body)
-        : await adminBillingApi.createCoupon({ ...body, code: values.code });
+        ? await adminBillingApi.updateCoupon(editingCoupon.id, {
+            type: values.type,
+            value: values.value,
+            maxUses: values.maxUses ?? null,
+            validFrom,
+            validTo,
+            planId: values.planId ?? null,
+            isActive: values.isActive ?? true,
+          })
+        : await adminBillingApi.createCoupon({
+            code: values.code,
+            type: values.type,
+            value: values.value,
+            maxUses: values.maxUses ?? undefined,
+            validFrom: validFrom ?? undefined,
+            validTo: validTo ?? undefined,
+            planId: values.planId ?? undefined,
+            isActive: values.isActive ?? true,
+          });
       message.success(res.message);
       setCouponModalOpen(false);
       void fetchCoupons();
@@ -435,8 +458,22 @@ const AdminBilling = () => {
     },
   ];
 
+  /** Klub holati ustuni — bloklangan klub tasdiqlashdan OLDIN ko'rinib tursin */
+  const clubStatusColumn: ColumnsType<Invoice>[number] = {
+    title: t('admin.billing.clubStatus'),
+    key: 'clubStatus',
+    width: 130,
+    render: (_, inv) =>
+      inv.club ? (
+        <StatusTag status={inv.club.status} label={t(`club.${inv.club.status}`)} />
+      ) : (
+        '—'
+      ),
+  };
+
   const pendingColumns: ColumnsType<Invoice> = [
     ...invoiceBaseColumns,
+    clubStatusColumn,
     {
       title: t('common.actions'),
       key: 'actions',
@@ -447,10 +484,7 @@ const AdminBilling = () => {
             size="small"
             type="primary"
             icon={<CheckOutlined />}
-            onClick={() => {
-              setConfirmMethod(inv.paymentMethod ?? '');
-              setConfirmInvoice(inv);
-            }}
+            onClick={() => openConfirm(inv)}
           >
             {t('admin.billing.confirm')}
           </Button>
@@ -480,6 +514,7 @@ const AdminBilling = () => {
         <StatusTag status={INVOICE_TAG_STATUS[s]} label={t(`admin.billing.st_${s}`)} />
       ),
     },
+    clubStatusColumn,
     {
       title: t('admin.billing.method'),
       dataIndex: 'paymentMethod',
@@ -491,6 +526,41 @@ const AdminBilling = () => {
       dataIndex: 'paidAt',
       width: 130,
       render: (d: string | null) => (d ? dayjs(d).format('DD.MM.YYYY HH:mm') : '—'),
+    },
+    {
+      title: t('common.actions'),
+      key: 'actions',
+      width: 210,
+      // Muddati tugagan faktura ham tasdiqlanadi: bank o'tkazmasi kech
+      // kelganda superadmin to'lovni baribir qabul qila olishi kerak.
+      // Rad etish AYNAN shu shartda ko'rsatiladi — aks holda eski faktura
+      // faqat "tasdiqlanadigan" bo'lib qolib, uni yopishning iloji bo'lmasdi.
+      render: (_, inv) =>
+        inv.status === 'pending' || inv.status === 'expired' ? (
+          <Space size={6}>
+            <Button
+              size="small"
+              type="primary"
+              icon={<CheckOutlined />}
+              onClick={() => openConfirm(inv)}
+            >
+              {t('admin.billing.confirm')}
+            </Button>
+            <Button
+              size="small"
+              danger
+              icon={<CloseOutlined />}
+              onClick={() => {
+                setRejectReason('');
+                setRejectInvoice(inv);
+              }}
+            >
+              {t('admin.billing.reject')}
+            </Button>
+          </Space>
+        ) : (
+          '—'
+        ),
     },
   ];
 
@@ -688,7 +758,7 @@ const AdminBilling = () => {
           dataSource={pending}
           loading={pendingLoading}
           pagination={false}
-          scroll={{ x: 900 }}
+          scroll={{ x: 1030 }}
           locale={{
             emptyText: (
               <EmptyState
@@ -767,7 +837,7 @@ const AdminBilling = () => {
               });
             },
           }}
-          scroll={{ x: 1050 }}
+          scroll={{ x: 1390 }}
           locale={{
             emptyText: (
               <EmptyState
@@ -907,6 +977,12 @@ const AdminBilling = () => {
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Alert type="info" showIcon message={t('admin.billing.confirmHint')} />
+          {confirmInvoice?.status === 'expired' && (
+            <Alert type="warning" showIcon message={t('admin.billing.confirmExpiredWarn')} />
+          )}
+          {confirmInvoice?.club?.status === 'blocked' && (
+            <Alert type="error" showIcon message={t('admin.billing.confirmBlockedWarn')} />
+          )}
           {confirmInvoice && (
             <Text>
               {confirmInvoice.club?.name ?? `#${confirmInvoice.clubId}`} ·{' '}

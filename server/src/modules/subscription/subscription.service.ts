@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Club } from '../../entities/club.entity';
 import { Coupon } from '../../entities/coupon.entity';
-import { InvoiceStatus } from '../../entities/enums';
+import { ClubStatus, InvoiceStatus } from '../../entities/enums';
 import { Invoice } from '../../entities/invoice.entity';
 import { Plan } from '../../entities/plan.entity';
 import { TelegramService } from '../../telegram/telegram.service';
@@ -152,6 +152,21 @@ export class SubscriptionService {
 
     // Telegram xabarnoma (asosiy oqimni to'xtatmaydi)
     void this.telegram.notifyPurchaseRequest(invoice, club);
+    // Bloklangan klub ham to'lay oladi (to'lamagani uchun bloklangan bo'lishi
+    // mumkin), lekin to'lovni tasdiqlash blokni OCHMAYDI — blok tasdiqlashdan
+    // oldin ko'rinib tursin.
+    if (club.status === ClubStatus.BLOCKED) {
+      void this.telegram.notify(
+        'purchase_request',
+        [
+          '⛔️ <b>Diqqat: klub BLOKLANGAN</b>',
+          '',
+          `🏢 Klub: <b>${this.escapeHtml(club.name)}</b>`,
+          `🧾 Hisob-faktura: <code>${this.escapeHtml(invoice.number)}</code>`,
+          "To'lovni tasdiqlash blokni ochmaydi — kerak bo'lsa klubni alohida blokdan chiqaring.",
+        ].join('\n'),
+      );
+    }
 
     return invoice;
   }
@@ -175,7 +190,11 @@ export class SubscriptionService {
     };
   }
 
-  /** O'zining PENDING fakturasini bekor qilish */
+  /**
+   * O'zining fakturasini bekor qilish — PENDING yoki muddati o'tgan (EXPIRED).
+   * EXPIRED ham yopiladi: superadmin kech kelgan to'lovni hali ham tasdiqlay
+   * oladi, shuning uchun to'lamagan klub eski so'rovini o'zi yopa olishi kerak.
+   */
   async cancelMyInvoice(clubId: number, id: number) {
     return this.dataSource.transaction(async (manager) => {
       const invoice = await manager.findOne(Invoice, {
@@ -183,11 +202,15 @@ export class SubscriptionService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!invoice) throw new NotFoundException({ key: 'subscription.invoiceNotFound' });
-      if (invoice.status !== InvoiceStatus.PENDING) {
+      if (![InvoiceStatus.PENDING, InvoiceStatus.EXPIRED].includes(invoice.status)) {
         throw new BadRequestException({ key: 'subscription.invoiceNotPending' });
       }
       invoice.status = InvoiceStatus.CANCELLED;
       return manager.save(Invoice, invoice);
     });
+  }
+
+  private escapeHtml(text: string): string {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 }

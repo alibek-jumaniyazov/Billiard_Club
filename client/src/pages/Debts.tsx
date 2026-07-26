@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   App,
   Button,
@@ -40,9 +40,11 @@ import {
   StatusTag,
 } from '../components/ui';
 import { PAYMENT_METHODS } from '../constants';
+import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { Debt, DebtPayment, PaymentMethod } from '../types';
+import { isFormValidationError } from '../utils/formErrors';
 
 const { Text } = Typography;
 
@@ -59,6 +61,7 @@ const Debts = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { hasRole } = useAuth();
+  const currency = useCurrency();
 
   const [debts, setDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +84,11 @@ const Debts = () => {
   const canPay = hasRole('admin', 'kassir');
   const isAdmin = hasRole('admin');
 
+  // `t` yuklash callbackining bog'liqligi EMAS: til almashganda ro'yxat
+  // standart filtrlar bilan jimgina qayta yuklanib ketmasin
+  const tRef = useRef(t);
+  tRef.current = t;
+
   // Qiymatlar to'g'ridan-to'g'ri parametr sifatida uzatiladi (eski stale-closure xatosining oldini oladi)
   const fetchDebts = useCallback(
     async (params: FetchParams) => {
@@ -102,13 +110,13 @@ const Debts = () => {
         setTotal(res.pagination?.total ?? 0);
         setTotals(res.totals ?? null);
       } catch (err) {
-        message.error(errorMessage(err, t('common.error')));
+        message.error(errorMessage(err, tRef.current('common.error')));
       } finally {
         setLoading(false);
         setLoaded(true);
       }
     },
-    [message, t],
+    [message],
   );
 
   useEffect(() => {
@@ -135,16 +143,18 @@ const Debts = () => {
 
   const handlePay = async () => {
     if (!payDebt) return;
-    const values = await payForm.validateFields();
-    setPaying(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await payForm.validateFields();
+      setPaying(true);
       const res = await debtsApi.pay(payDebt.id, values.amount, values.paymentMethod);
       message.success(res.message);
       setPayDebt(null);
       payForm.resetFields();
       void fetchDebts({ page, limit: pageSize, search, status });
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setPaying(false);
     }
@@ -201,7 +211,7 @@ const Debts = () => {
       dataIndex: 'totalDebt',
       width: 140,
       align: 'right',
-      render: (value: number) => <MoneyText amount={value} currency={t('common.sum')} />,
+      render: (value: number) => <MoneyText amount={value} currency={currency} />,
     },
     {
       title: t('debts.paidAmountCol'),
@@ -211,7 +221,7 @@ const Debts = () => {
       render: (value: number) => (
         <MoneyText
           amount={value}
-          currency={t('common.sum')}
+          currency={currency}
           color={TOKENS.color.semantic.success}
         />
       ),
@@ -224,7 +234,7 @@ const Debts = () => {
       render: (value: number) => (
         <MoneyText
           amount={value}
-          currency={t('common.sum')}
+          currency={currency}
           color={value > 0 ? TOKENS.color.gold.base : undefined}
         />
       ),
@@ -287,7 +297,7 @@ const Debts = () => {
     {
       title: t('debts.amount'),
       dataIndex: 'amount',
-      render: (value: number) => <MoneyText amount={value} currency={t('common.sum')} />,
+      render: (value: number) => <MoneyText amount={value} currency={currency} />,
     },
     {
       title: t('payment.method'),
@@ -341,7 +351,7 @@ const Debts = () => {
                 value={
                   <MoneyText
                     amount={totals?.totalRemaining}
-                    currency={t('common.sum')}
+                    currency={currency}
                     color={(totals?.totalRemaining ?? 0) > 0 ? TOKENS.color.gold.base : undefined}
                     style={{ fontSize: 'inherit', fontWeight: 'inherit' }}
                   />
@@ -356,7 +366,7 @@ const Debts = () => {
                 value={
                   <MoneyText
                     amount={totals?.totalDebt}
-                    currency={t('common.sum')}
+                    currency={currency}
                     style={{ fontSize: 'inherit', fontWeight: 'inherit' }}
                   />
                 }
@@ -444,7 +454,7 @@ const Debts = () => {
           </Text>
           <MoneyText
             amount={payDebt?.remainingDebt}
-            currency={t('common.sum')}
+            currency={currency}
             size="lg"
             color={TOKENS.color.gold.base}
           />
@@ -472,7 +482,7 @@ const Debts = () => {
               style={{ width: '100%' }}
               min={0}
               max={payDebt?.remainingDebt}
-              addonAfter={t('common.sum')}
+              addonAfter={currency}
               formatter={(value) => `${value ?? ''}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
               parser={(value) => Number((value ?? '').replace(/\s/g, ''))}
             />

@@ -32,11 +32,44 @@ export interface LightTarget {
 /** Standart so'rov timeouti (ms) — lokal tarmoq uchun 3 soniya yetarli */
 const DEFAULT_TIMEOUT_MS = 3000;
 
-/** IPv4 (portsiz) shakli — oktetlar qiymati alohida tekshiriladi */
-const IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+/**
+ * Rele HTTP xatosi. `message` FOYDALANUVCHIGA ko'rinadi (tables."lightError"),
+ * shuning uchun unga faqat status yoziladi. Qurilma javobining TANASI esa
+ * alohida `body` maydonida — uni faqat server logiga chiqarish mumkin,
+ * aks holda so'rov javobi panel orqali o'qib olinadigan bo'lib qolardi.
+ */
+export class LightHttpError extends Error {
+  constructor(
+    message: string,
+    readonly body: string | null,
+  ) {
+    super(message);
+    this.name = 'LightHttpError';
+  }
+}
+
+/**
+ * IPv4 (portsiz) shakli — oktetlar qiymati alohida tekshiriladi.
+ *
+ * DIQQAT: boshida nol turgan oktet ATAYLAB rad etiladi ('010.010.010.010').
+ * Sababi: JS `Number('010')` = 10 (o'nlik), lekin Node ning WHATWG `URL` i
+ * xuddi shu oktetni SAKKIZLIK deb o'qiydi — '010.010.010.010' fetch paytida
+ * 8.8.8.8 ga aylanadi. Ya'ni tekshirilgan manzil bilan so'rov ketadigan manzil
+ * boshqa-boshqa bo'lib qolardi va lokal-IP filtri (SSRF himoyasi) chetlab
+ * o'tilardi. Shaklni faqat O'NLIK ko'rinish bilan cheklash bu farqni yo'q qiladi.
+ */
+const IPV4_RE = /^(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})$/;
 
 /** Hostname (portsiz): harf/raqam bilan boshlanadigan, nuqta bilan ajratilgan bo'laklar */
 const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
+
+/**
+ * Barcha bo'laklari raqamli manzil ('010.010.010.010', '8.8.8', '2130706433').
+ * Bunday satr HOSTNAME_RE ga ham to'g'ri keladi — shuning uchun uni alohida
+ * ushlab, IPv4 sifatida BAHOLAB rad etamiz: bu haqiqiy nom emas, IP yozishga
+ * urinish, va uni "nom" deb qabul qilsak sakkizlik/o'nlik farqi qaytadi.
+ */
+const ALL_NUMERIC_HOST_RE = /^\d+(\.\d+)*$/;
 
 /**
  * Relega yoqish/o'chirish buyrug'ini yuboradi.
@@ -54,12 +87,18 @@ export async function applyLight(
 
   const res = await fetch(url, {
     headers: buildHeaders(target),
+    // Yo'naltirish KUZATILMAYDI: ruxsat etilgan lokal manzil 302 bilan serverni
+    // boshqa (tashqi) manzilga jo'natib yuborishi mumkin edi — 3xx xato hisoblanadi
+    redirect: 'manual',
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) {
+    // Javob TANASI xato matniga qo'shilmaydi (u panelga chiqadi) — faqat log uchun
     const body = await res.text().catch(() => '');
-    const tail = body ? ` — ${body.slice(0, 150)}` : '';
-    throw new Error(`HTTP ${res.status} ${res.statusText}${tail}`);
+    throw new LightHttpError(
+      `HTTP ${res.status} ${res.statusText}`,
+      body ? body.slice(0, 300) : null,
+    );
   }
 }
 
@@ -163,6 +202,9 @@ export function isValidHost(host: string): boolean {
     const octets = [match[1], match[2], match[3], match[4]].map((part) => Number(part));
     return octets.every((n) => Number.isInteger(n) && n >= 0 && n <= 255);
   }
+  // Butunlay raqamli manzil qat'iy IPv4 shaklidan o'tmadi — nom sifatida ham
+  // qabul qilinmaydi (aks holda '010.010.010.010' saqlanib qolardi)
+  if (ALL_NUMERIC_HOST_RE.test(name)) return false;
   return HOSTNAME_RE.test(name);
 }
 
@@ -217,6 +259,8 @@ async function fetchJson(
 ): Promise<Record<string, unknown> | null> {
   const res = await fetch(url, {
     headers: buildHeaders(target),
+    // applyLight bilan bir xil: yo'naltirish kuzatilmaydi, 3xx ham muvaffaqiyatsizlik
+    redirect: 'manual',
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) return null;

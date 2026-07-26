@@ -6,9 +6,24 @@ const numberFormat = new Intl.NumberFormat('ru-RU');
 export const formatNumber = (amount: number | null | undefined): string =>
   numberFormat.format(Math.round(amount ?? 0));
 
+/**
+ * Standart valyuta belgisi — AppSettingsContext klub sozlamasidan (yoki
+ * t('common.sum') zaxirasidan) o'rnatadi. React'dan tashqaridagi formatlash
+ * ham bir xil belgini ishlatishi uchun modul darajasida saqlanadi.
+ */
+let defaultCurrencySymbol = "so'm";
+
+/** Klub valyuta belgisini o'rnatadi (bo'sh qiymat e'tiborsiz qoldiriladi) */
+export const setDefaultCurrencySymbol = (symbol: string): void => {
+  const next = symbol.trim();
+  if (next) defaultCurrencySymbol = next;
+};
+
 /** 150000 -> "150 000 so'm" */
-export const formatMoney = (amount: number | null | undefined, symbol = "so'm"): string =>
-  `${formatNumber(amount)} ${symbol}`;
+export const formatMoney = (
+  amount: number | null | undefined,
+  symbol = defaultCurrencySymbol,
+): string => `${formatNumber(amount)} ${symbol}`;
 
 /** 95 (daqiqa) -> "1 s 35 daq" */
 export const formatDuration = (

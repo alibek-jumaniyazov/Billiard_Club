@@ -46,6 +46,7 @@ export default {
     productRequired: 'Mahsulot tanlang',
     quantityRequired: 'Miqdor kiriting',
     addRow: "Qator qo'shish",
+    maxItemsHint: "Bitta buyurtmada ko'pi bilan {{max}} ta pozitsiya — qolganini alohida buyurtma qiling",
     orderTotal: 'Buyurtma summasi',
     submitOrder: "Hisobga qo'shish",
     noItems: 'Kamida bitta mahsulot tanlang',
@@ -68,7 +69,6 @@ export default {
     reasonRequired: 'Sababni kiriting',
     // Bo'lib to'lash
     splitPayment: "Bo'lib to'lash",
-    splitFrozen: "Aniq bo'lib to'lash uchun vaqt to'xtatildi — bekor qilsangiz davom etadi",
     splitAdd: "To'lov qo'shish",
     splitSum: "To'lovlar yig'indisi",
     splitRemaining: 'Qoldiq',
@@ -76,6 +76,13 @@ export default {
     splitFillRemaining: "Qoldiqni qo'yish",
     splitMethodRequired: 'Usulni tanlang',
     splitAmountRequired: 'Summani kiriting',
+    // Bar summasi kassa oynasi ochiq turganda o'zgardi
+    barChangedTitle: "Bar summasi o'zgardi — hisobni qayta tekshiring",
+    barChangedAck: 'Tushunarli',
+    barChangedWarning: "Bar summasi o'zgardi. Yangi summani tekshirib, qaytadan yakunlang",
+    cancelNeedsAdmin:
+      "Bar buyurtmasi bor yoki uzoq davom etgan o'yinni faqat administrator bekor qila oladi — hisobni yakunlang",
+    tablePriceInvalid: "Soatlik narxni raqam bilan kiriting (masalan: 50000)",
     paymentRequired: "To'lov usulini tanlang",
     // Qarz
     debtQuestion: 'Qarzga yozilsinmi?',
@@ -214,6 +221,7 @@ export default {
     productRequired: 'Выберите товар',
     quantityRequired: 'Укажите количество',
     addRow: 'Добавить строку',
+    maxItemsHint: 'В одном заказе не более {{max}} позиций — остальное оформите отдельным заказом',
     orderTotal: 'Сумма заказа',
     submitOrder: 'Добавить к счёту',
     noItems: 'Выберите хотя бы один товар',
@@ -236,7 +244,6 @@ export default {
     reasonRequired: 'Укажите причину',
     // Раздельная оплата
     splitPayment: 'Раздельная оплата',
-    splitFrozen: 'Время остановлено для точного разделения — при отмене счёт продолжится',
     splitAdd: 'Добавить оплату',
     splitSum: 'Сумма оплат',
     splitRemaining: 'Остаток',
@@ -244,6 +251,13 @@ export default {
     splitFillRemaining: 'Подставить остаток',
     splitMethodRequired: 'Выберите способ',
     splitAmountRequired: 'Введите сумму',
+    // Сумма бара изменилась пока окно расчёта было открыто
+    barChangedTitle: 'Сумма бара изменилась — проверьте счёт заново',
+    barChangedAck: 'Понятно',
+    barChangedWarning: 'Сумма бара изменилась. Проверьте новую сумму и завершите заново',
+    cancelNeedsAdmin:
+      'Игру с заказами бара или длительную игру может отменить только администратор — завершите расчёт',
+    tablePriceInvalid: 'Введите цену за час числом (например: 50000)',
     paymentRequired: 'Выберите способ оплаты',
     // Долг
     debtQuestion: 'Записать в долг?',

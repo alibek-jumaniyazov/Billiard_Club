@@ -20,6 +20,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { errorMessage, tablesApi } from '../../api';
 import { EmptyState, MoneyText, StatusTag } from '../../components/ui';
+import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable } from '../../types';
 import { moneyFormatter, moneyParser } from './money';
@@ -61,7 +62,7 @@ const ManageTablesDrawer = ({
   const [form] = Form.useForm<TableFormValues>();
   const [mode, setMode] = useState<Mode>({ kind: 'list' });
   const [submitting, setSubmitting] = useState(false);
-  const currency = t('common.sum');
+  const currency = useCurrency();
 
   useEffect(() => {
     if (!open) return;
@@ -93,7 +94,12 @@ const ManageTablesDrawer = ({
   };
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    let values: TableFormValues;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return; // maydon xatolari formaning o'zida ko'rsatiladi
+    }
     setSubmitting(true);
     try {
       const body = {
@@ -188,7 +194,19 @@ const ManageTablesDrawer = ({
           <Form.Item
             name="pricePerHour"
             label={`${t('tables.tablePrice')} (${currency})`}
-            rules={[{ required: true, message: t('tables.tablePriceRequired') }]}
+            rules={[
+              { required: true, message: t('tables.tablePriceRequired') },
+              // Noto'g'ri kiritilgan matn (masalan "150.000,00") parserdan NaN
+              // bo'lib chiqadi — u sessiyaga muhrlanib ketmasligi kerak.
+              // 0 narx ATAYLAB ruxsat etilgan (bepul/aksiya stollari bor va
+              // server ham @Min(0) bilan qabul qiladi).
+              {
+                validator: (_, value: number | null) =>
+                  typeof value === 'number' && Number.isFinite(value) && value >= 0
+                    ? Promise.resolve()
+                    : Promise.reject(new Error(t('tables.tablePriceInvalid'))),
+              },
+            ]}
           >
             <InputNumber
               min={0}

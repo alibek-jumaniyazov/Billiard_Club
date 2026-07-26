@@ -9,19 +9,38 @@ import { PlatformSetting } from '../../entities/platform-setting.entity';
 import { TelegramService } from '../../telegram/telegram.service';
 import { DAY_MS } from './billing.util';
 
-/** Eslatma yuborilgan klublar xaritasi kaliti: clubId -> 'YYYY-MM-DD' */
+/**
+ * Eslatma yuborilgan klublar xaritasi.
+ * Kalit: `clubId:YYYY-MM-DD:threshold` — o'rtadagi sana OBUNA DAVRINING
+ * tugash sanasi (bugungi sana emas!), threshold — qaysi chegara uchun
+ * yuborilgani. Shu tufayli har bir obuna davri uchun har bir chegara
+ * bo'yicha aynan BITTA xabar ketadi (cron kunini o'tkazib yuborsa ham).
+ * Qiymat: xabar yuborilgan sana (faqat tozalash/diagnostika uchun).
+ */
 export const EXPIRY_NOTIFIED_SETTING_KEY = 'expiry_notified';
 
-/** PENDING faktura shuncha kundan keyin avtomatik EXPIRED bo'ladi */
-const PENDING_INVOICE_TTL_DAYS = 7;
+/**
+ * PENDING faktura shuncha kundan keyin avtomatik EXPIRED bo'ladi.
+ * 7 kun kam edi: bank o'tkazmasi + superadminning yo'qligi bemalol
+ * undan uzoq cho'zilardi va pul kelgan faktura navbatdan yo'qolardi.
+ * (EXPIRED faktura ham tasdiqlanaveradi — confirmInvoice ga qarang.)
+ */
+const PENDING_INVOICE_TTL_DAYS = 30;
+
+/**
+ * Eslatma chegaralari (kun), O'SISH tartibida — eng yaqin chegara tanlanadi.
+ * `daysLeft <= chegara` shakli aniq tenglikdan farqli o'laroq bitta
+ * o'tkazib yuborilgan 03:00 ishida eslatmani butunlay yo'qotmaydi.
+ */
+const EXPIRY_THRESHOLDS = [1, 3];
 
 /**
  * Obuna bo'yicha rejalashtirilgan ishlar (har kuni 03:00):
  *  1. Muddati tugagan klublarni EXPIRED holatiga o'tkazish (BLOCKED tegilmaydi) —
  *     hech kim kirmagan "uxlab yotgan" klublar ham to'g'ri hisoblansin;
- *  2. 7 kundan eski PENDING fakturalarni EXPIRED qilish;
- *  3. Obunasi 3 kun va 1 kun qolgan klublar haqida Telegram eslatma
- *     (platform_settings('expiry_notified') orqali kuniga bir marta).
+ *  2. 30 kundan eski PENDING fakturalarni EXPIRED qilish;
+ *  3. Obunasi 3 kun va 1 kun ichida tugaydigan klublar haqida Telegram eslatma
+ *     (platform_settings('expiry_notified') orqali davr+chegara bo'yicha bir marta).
  */
 @Injectable()
 export class SubscriptionCronService {
@@ -72,7 +91,7 @@ export class SubscriptionCronService {
     }
   }
 
-  /** 7 kundan eski PENDING fakturalar -> EXPIRED */
+  /** PENDING_INVOICE_TTL_DAYS kundan eski PENDING fakturalar -> EXPIRED */
   private async expireStaleInvoices(): Promise<void> {
     const cutoff = new Date(Date.now() - PENDING_INVOICE_TTL_DAYS * DAY_MS);
     const result = await this.invoiceRepo
@@ -88,9 +107,12 @@ export class SubscriptionCronService {
   }
 
   /**
-   * Obunasi 3 yoki 1 kun qolgan klublarga Telegram eslatma.
-   * Deduplikatsiya: platform_settings('expiry_notified') da
-   * clubId -> oxirgi yuborilgan sana; kuniga bitta xabar.
+   * Obunasi 3 kun yoki 1 kun ichida tugaydigan klublarga Telegram eslatma.
+   * Deduplikatsiya OBUNA DAVRIGA bog'langan: `clubId:tugashSanasi:chegara`.
+   * Bugungi sanaga bog'lansa eslatma har kuni qayta ketardi; aniq
+   * tenglikka (daysLeft === 3) bog'lansa bitta o'tkazib yuborilgan ish
+   * eslatmani butunlay yo'qotardi. Obuna uzaytirilsa tugash sanasi
+   * o'zgaradi — yangi davr uchun eslatmalar qaytadan ishlaydi.
    */
   private async notifyExpiringClubs(): Promise<void> {
     const clubs = await this.clubRepo
@@ -111,19 +133,24 @@ export class SubscriptionCronService {
     for (const club of clubs) {
       const end = club.subscriptionEndsAt ?? club.trialEndsAt;
       if (!end) continue;
-      const daysLeft = Math.ceil((new Date(end).getTime() - Date.now()) / DAY_MS);
-      // Faqat 3 kun va 1 kun qolganda eslatiladi
-      if (daysLeft !== 3 && daysLeft !== 1) continue;
-      // Bugun allaqachon yuborilgan bo'lsa — o'tkazib yuboriladi
-      if (notified[String(club.id)] === today) continue;
+      const effectiveEnd = new Date(end);
+      const daysLeft = Math.ceil((effectiveEnd.getTime() - Date.now()) / DAY_MS);
+      // Eng yaqin (eng kichik) mos chegara: 1 kun qolganda 3 kunlik emas,
+      // 1 kunlik eslatma ketadi
+      const threshold = EXPIRY_THRESHOLDS.find((limit) => daysLeft <= limit);
+      if (threshold === undefined) continue;
+
+      // Shu davr + shu chegara bo'yicha allaqachon yuborilgan bo'lsa — o'tkazib yuboriladi
+      const key = `${club.id}:${this.dateStr(effectiveEnd)}:${threshold}`;
+      if (notified[key]) continue;
 
       await this.telegram.notifySubscriptionExpiringSoon(club, daysLeft);
-      notified[String(club.id)] = today;
+      notified[key] = today;
       changed = true;
     }
 
     if (changed) {
-      await this.saveNotifiedMap(this.pruneNotifiedMap(notified, today));
+      await this.saveNotifiedMap(this.pruneNotifiedMap(notified));
     }
   }
 
@@ -141,15 +168,21 @@ export class SubscriptionCronService {
     await this.platformSettingRepo.save({ key: EXPIRY_NOTIFIED_SETTING_KEY, value: map });
   }
 
-  /** Xarita cheksiz o'smasin — 7 kundan eski yozuvlar tozalanadi */
-  private pruneNotifiedMap(
-    map: Record<string, string>,
-    today: string,
-  ): Record<string, string> {
+  /**
+   * Xarita cheksiz o'smasin — obuna davri 7 kundan ko'proq oldin tugagan
+   * yozuvlar tozalanadi. Kalitdagi O'RTA bo'lak (davr tugash sanasi) bo'yicha
+   * baholanadi. Eski format (faqat clubId) da sana yo'q — ular shu yerda
+   * o'z-o'zidan tozalanib ketadi.
+   */
+  private pruneNotifiedMap(map: Record<string, string>): Record<string, string> {
     const cutoff = this.dateStr(new Date(Date.now() - 7 * DAY_MS));
     const pruned: Record<string, string> = {};
-    for (const [clubId, dateStr] of Object.entries(map)) {
-      if (dateStr >= cutoff || dateStr === today) pruned[clubId] = dateStr;
+    for (const [key, sentAt] of Object.entries(map)) {
+      const parts = key.split(':');
+      const endDate = parts.length === 3 ? parts[1] : null;
+      if (endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && endDate >= cutoff) {
+        pruned[key] = sentAt;
+      }
     }
     return pruned;
   }

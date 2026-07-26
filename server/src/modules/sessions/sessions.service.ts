@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { Customer } from '../../entities/customer.entity';
 import { Debt } from '../../entities/debt.entity';
 import {
   OrderStatus,
@@ -25,8 +27,10 @@ import { SessionPayment } from '../../entities/session-payment.entity';
 import { SessionSegment } from '../../entities/session-segment.entity';
 import { Table } from '../../entities/table.entity';
 import { User } from '../../entities/user.entity';
+import { normalizePhone } from '../customers/customers.service';
 import { LightsService } from '../lights/lights.service';
 import {
+  CancelSessionDto,
   EndSessionDto,
   ListSessionsQueryDto,
   StartSessionDto,
@@ -34,6 +38,25 @@ import {
 } from './dto/sessions.dto';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Bo'lib to'lashda kassir summani KO'RGAN oni bilan server yakunni YOZGAN oni
+ * orasida stol taymeri ishlab turadi (pul sanash, terminal javobi, tarmoq).
+ * Shu oynadagi farq eng yirik to'lov satriga singdiriladi — bu real kassa
+ * xatti-harakati: qoldiq karta/naqd satriga tushadi. Oynadan kattasi RAD
+ * ETILADI: demak kassir juda eskirgan summani ko'rib turibdi.
+ *
+ * DIQQAT: singdirish faqat BIR TOMONLAMA — hisob o'sgan holat uchun. Kassir
+ * hisobdan KO'PROQ summa kiritsa (ortiqcha to'lov) hech qachon qabul qilinmaydi.
+ */
+const PAYMENT_DRIFT_SECONDS = 900;
+
+/**
+ * Kassir (KASSIR roli) admin ruxsatisiz bekor qila oladigan sessiya chegarasi.
+ * Undan uzunroq yoki bar buyurtmasi bor sessiyani bekor qilish — pulni yo'q
+ * qilish demakdir, shuning uchun admin/superadmin talab qilinadi.
+ */
+const CASHIER_CANCEL_MAX_SECONDS = 600;
 
 /** Segment bo'yicha hisoblangan bandning ko'rinishi (chek/receipt uchun) */
 interface SegmentBillingItem {
@@ -96,12 +119,19 @@ export class SessionsService {
     }
     if (query.tableId) qb.andWhere('session.tableId = :tableId', { tableId: query.tableId });
     if (query.search) {
+      // Telefonlar KANONIK ko'rinishda saqlanadi ('+998901234567'), lekin kassir
+      // ularni odam yozadigan shaklda ('+998 90 123 45 67', '90-123-45-67')
+      // qidiradi — shuning uchun raqamlar bo'yicha ham solishtiramiz
+      const digits = query.search.replace(/\D/g, '');
       qb.andWhere(
         new Brackets((b) => {
           b.where('session.customerName ILIKE :search', { search: `%${query.search}%` }).orWhere(
             'session.customerPhone ILIKE :search',
             { search: `%${query.search}%` },
           );
+          if (digits) {
+            b.orWhere('session.customerPhone ILIKE :digits', { digits: `%${digits}%` });
+          }
         }),
       );
     }
@@ -254,12 +284,17 @@ export class SessionsService {
       });
       if (existing) throw new BadRequestException({ key: 'sessions.tableBusy' });
 
+      // Telefon KANONIK ko'rinishda saqlanadi (customers bilan bir xil kalit) —
+      // aks holda mijoz profili sessiyani/qarzni topa olmaydi
+      const customerName = dto.customerName?.trim() || null;
+      const customerPhone = normalizePhone(dto.customerPhone);
+
       const session = await manager.save(Session, {
         clubId,
         tableId: table.id,
         userId: user.id,
-        customerName: dto.customerName?.trim() || null,
-        customerPhone: dto.customerPhone?.trim() || null,
+        customerName,
+        customerPhone,
         startTime: new Date(),
         status: SessionStatus.ACTIVE,
         totalPausedMs: 0,
@@ -278,14 +313,15 @@ export class SessionsService {
         pausedMs: 0,
       });
 
-      await manager.save(Order, {
-        clubId,
-        sessionId: session.id,
-        tableId: table.id,
-        userId: user.id,
-        status: OrderStatus.OPEN,
-        totalAmount: 0,
-      });
+      // DIQQAT: bu yerda BO'SH buyurtma YARATILMAYDI. Avval har sessiyaga
+      // 0 so'mlik OPEN buyurtma yozilardi — u bar statistikasini shishirar,
+      // buyurtmalar ro'yxatini axlat qatorlar bilan to'ldirar va orders.createdAt
+      // ni "sessiya boshlanishi"ga bog'lab hisobotlarni chalg'itardi.
+      // orders.create() kerak bo'lganda ochiq buyurtmani o'zi yaratadi.
+
+      // Ro'yxatdagi mijozga bog'lash (telefon bo'yicha) — statistika uchun
+      const linked = await this.linkCustomer(manager, clubId, customerName, customerPhone);
+      if (linked) await manager.update(Session, session.id, { customerId: linked });
 
       await manager.update(Table, table.id, { status: TableStatus.BUSY });
 
@@ -439,6 +475,15 @@ export class SessionsService {
         pricePerHour: newTable.pricePerHour,
       });
 
+      // Ochiq buyurtma ham yangi stolga ko'chadi: aks holda ko'chirilgandan
+      // keyin buyurtilgan ichimliklar buyurtmalar ro'yxatida va stol bo'yicha
+      // bar hisobotida ESKI stol nomi bilan ko'rinardi
+      await manager.update(
+        Order,
+        { sessionId: session.id, status: OrderStatus.OPEN },
+        { tableId: newTable.id },
+      );
+
       const fresh = await manager.findOne(Session, {
         where: { id: session.id },
         relations: { table: true, segments: true },
@@ -542,6 +587,22 @@ export class SessionsService {
       }
       barAmount = round2(barAmount);
 
+      // TO'LOV HIMOYASI: kassir ko'rgan bar summasi bilan server hisoblaganini
+      // solishtiramiz. Kassa oynasi ochiq turganda ofitsiant boshqa terminaldan
+      // ichimlik qo'shsa (yoki buyurtmani bekor qilsa), kassir ESKI summani
+      // ko'rib turgan bo'ladi — jimgina noto'g'ri pul olinmasligi uchun 409
+      // qaytaramiz, klient chekni yangilab, yangi summani qayta tasdiqlaydi.
+      // Stol vaqti tekshirilmaydi: u har soniyada o'sadi (soxta rad etish bo'lardi).
+      if (
+        dto.expectedBarAmount !== undefined &&
+        Math.abs(round2(dto.expectedBarAmount) - barAmount) > 0.01
+      ) {
+        throw new ConflictException({
+          key: 'sessions.barChanged',
+          args: { expected: round2(dto.expectedBarAmount), actual: barAmount },
+        });
+      }
+
       const gross = round2(tableAmount + barAmount);
       const discount = round2(dto.discount ?? 0);
       if (discount < 0 || discount > gross) {
@@ -558,7 +619,10 @@ export class SessionsService {
       let totalDebt = 0;
       let debtRecord: Debt | null = null;
       const customerName = dto.customerName?.trim() || session.customerName;
-      const customerPhone = dto.customerPhone?.trim() || session.customerPhone;
+      // Telefon KANONIK ko'rinishda: customers jadvalidagi kalit bilan bir xil
+      // bo'lmasa mijoz profilidagi "sarflagan puli"/"ochiq qarzi" 0 bo'lib qolardi
+      const customerPhone = normalizePhone(dto.customerPhone) ?? normalizePhone(session.customerPhone);
+      const customerId = await this.linkCustomer(manager, clubId, customerName, customerPhone);
 
       if (isDebt) {
         if (!customerName) {
@@ -579,6 +643,7 @@ export class SessionsService {
             userId: user.id,
             customerName,
             customerPhone: customerPhone ?? null,
+            customerId,
             tableAmount: round2(Math.min(tDebt, totalDebt)),
             barAmount: round2(Math.max(0, totalDebt - Math.min(tDebt, totalDebt))),
             totalDebt,
@@ -599,8 +664,27 @@ export class SessionsService {
       if (dto.payments && dto.payments.length > 0) {
         payments = dto.payments.map((p) => ({ method: p.method, amount: round2(p.amount) }));
         const paymentsSum = round2(payments.reduce((sum, p) => sum + p.amount, 0));
-        if (Math.abs(paymentsSum - paidNow) > 0.01) {
+        const diff = round2(paidNow - paymentsSum);
+        // Hisob O'SGAN holat (diff > 0): farq oynadan kichik bo'lsa eng yirik
+        // to'lov satriga SINGDIRILADI — natijada sum(session_payments) HAR DOIM
+        // sales.totalAmount ga TENG bo'ladi (avvalgi 0.01 chidamlilik ikkalasini
+        // bir-biridan uzib qo'yar, hisobotdagi to'lov taqsimoti to'g'ri kelmasdi).
+        // Hisobdan KO'P kiritilgan bo'lsa (diff < 0) — bu kassirning xatosi,
+        // singdirilmaydi, darhol rad etiladi.
+        const driftAllowance = round2(
+          (this.maxPricePerHour(segments, session) * PAYMENT_DRIFT_SECONDS) / 3600 + 0.01,
+        );
+        if (diff < -0.01 || diff > driftAllowance) {
           throw new BadRequestException({ key: 'sessions.paymentsMismatch' });
+        }
+        if (diff !== 0) {
+          let largest = 0;
+          for (let i = 1; i < payments.length; i++) {
+            if (payments[i].amount > payments[largest].amount) largest = i;
+          }
+          const adjusted = round2(payments[largest].amount + diff);
+          if (adjusted < 0) throw new BadRequestException({ key: 'sessions.paymentsMismatch' });
+          payments[largest] = { ...payments[largest], amount: adjusted };
         }
         // Orqaga moslik: Sale.paymentMethod = eng katta ulushli usul
         const sumByMethod = new Map<PaymentMethod, number>();
@@ -628,6 +712,7 @@ export class SessionsService {
         adjustmentReason,
         customerName,
         customerPhone: customerPhone ?? null,
+        ...(customerId !== null ? { customerId } : {}),
         notes: dto.notes ?? session.notes,
         pausedAt: null,
       });
@@ -727,8 +812,17 @@ export class SessionsService {
    * Bekor qilish: buyurtmalar bekor bo'ladi va OMBOR QAYTARILADI
    * (avval bekor qilingan sessiyalar omborni "yeb ketardi").
    * Ochiq segment ham yopiladi — jadval izchil qoladi.
+   *
+   * PUL NAZORATI: bekor qilish — hisobni NOLGA tushirish demak, ya'ni eng oson
+   * "pulni yo'q qilish" yo'li. Shuning uchun:
+   *  - yig'ilib qolgan summa (stol + bar) bekor qilishdan AVVAL hisoblanadi va
+   *    audit jurnaliga kim/qancha/nima sababdan deb yoziladi;
+   *  - kassir faqat ADASHIB boshlangan sessiyani bekor qila oladi (bar
+   *    buyurtmasi yo'q va {CASHIER_CANCEL_MAX_SECONDS} soniyadan qisqa),
+   *    undan kattasi uchun admin/superadmin talab qilinadi.
    */
-  async cancel(clubId: number, id: number) {
+  async cancel(clubId: number, user: User, id: number, dto: CancelSessionDto = {}) {
+    const isManager = user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN;
     const result = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status !== SessionStatus.ACTIVE && session.status !== SessionStatus.PAUSED) {
@@ -739,6 +833,34 @@ export class SessionsService {
         where: { sessionId: session.id, status: OrderStatus.OPEN },
         lock: { mode: 'pessimistic_write' },
       });
+
+      const endTime = new Date();
+      const currentPauseMs =
+        session.status === SessionStatus.PAUSED && session.pausedAt
+          ? Math.max(0, endTime.getTime() - new Date(session.pausedAt).getTime())
+          : 0;
+
+      // NOLGA TUSHIRILAYOTGAN summani AVVAL hisoblaymiz — audit jurnaliga
+      // "qancha pul o'chirildi" deb yozish va rol chegarasini tekshirish uchun
+      const segments = await manager.find(SessionSegment, {
+        where: { sessionId: session.id },
+        order: { startedAt: 'ASC', id: 'ASC' },
+      });
+      const totalPausedMs = session.totalPausedMs + currentPauseMs;
+      const voidedSeconds = Math.floor(
+        Math.max(0, endTime.getTime() - new Date(session.startTime).getTime() - totalPausedMs) /
+          1000,
+      );
+      const voidedTableAmount =
+        segments.length > 0
+          ? this.billSegments(segments, endTime, currentPauseMs).tableAmount
+          : round2(((session.pricePerHour ?? 0) * voidedSeconds) / 3600);
+      const voidedBarAmount = round2(orders.reduce((sum, o) => sum + o.totalAmount, 0));
+
+      // Kassir faqat adashib boshlangan (qisqa va barsiz) sessiyani bekor qiladi
+      if (!isManager && (voidedBarAmount > 0 || voidedSeconds > CASHIER_CANCEL_MAX_SECONDS)) {
+        throw new ForbiddenException({ key: 'sessions.cancelNeedsAdmin' });
+      }
 
       // Ombor qaytarish: mahsulot bo'yicha yig'ib, o'sish tartibida qulflaymiz
       // (createOrder bilan bir xil tartib — deadlock oldini oladi)
@@ -758,12 +880,6 @@ export class SessionsService {
         await manager.increment(Product, { id: productId }, 'stock', restoreByProduct.get(productId)!);
       }
 
-      const endTime = new Date();
-      const currentPauseMs =
-        session.status === SessionStatus.PAUSED && session.pausedAt
-          ? Math.max(0, endTime.getTime() - new Date(session.pausedAt).getTime())
-          : 0;
-
       // Ochiq segmentni yopamiz (joriy pauza ham unga yoziladi)
       const openSegment = await manager.findOne(SessionSegment, {
         where: { sessionId: session.id, endedAt: IsNull() },
@@ -778,16 +894,41 @@ export class SessionsService {
       await manager.update(Session, session.id, {
         status: SessionStatus.CANCELLED,
         endTime,
-        totalPausedMs: session.totalPausedMs + currentPauseMs,
+        totalPausedMs,
         tableAmount: 0,
         barAmount: 0,
         totalAmount: 0,
+        notes: dto.reason?.trim() || session.notes,
         pausedAt: null,
       });
       await manager.update(Table, session.tableId, { status: TableStatus.FREE });
 
       const fresh = await manager.findOne(Session, { where: { id }, relations: { table: true } });
-      return { ...fresh!, serverNow: new Date().toISOString() };
+      return {
+        ...fresh!,
+        serverNow: new Date().toISOString(),
+        voided: {
+          tableAmount: voidedTableAmount,
+          barAmount: voidedBarAmount,
+          durationSeconds: voidedSeconds,
+          restoredProducts: [...restoreByProduct.entries()].map(([productId, quantity]) => ({
+            productId,
+            quantity,
+          })),
+        },
+      };
+    });
+
+    // Bekor qilish HAR DOIM audit jurnaliga tushadi: kim, qaysi sessiyani,
+    // qancha summani va nima sababdan o'chirgani egaga ko'rinadigan bo'lsin
+    this.auditService?.log({
+      action: 'session.cancel',
+      clubId,
+      userId: user.id,
+      actorRole: user.role,
+      entity: 'session',
+      entityId: id,
+      meta: { ...result.voided, reason: dto.reason?.trim() || null },
     });
 
     // Chiroq — fire-and-forget; xato sessiyani buzmaydi
@@ -799,6 +940,12 @@ export class SessionsService {
    * Segmentlar bo'yicha sekundlik hisob.
    * openExtraPausedMs — hali resume/yakun bo'lmagan JORIY pauza (faqat ochiq segmentga
    * virtual qo'shiladi; oldindan ko'rishda ishlatiladi, yozuvlar o'zgarmaydi).
+   *
+   * KUMULYATIV YAXLITLASH: har segment ALOHIDA floor qilinsa, har transferda
+   * bir soniyagacha hisoblanmay qolardi va chekdagi segment satrlari umumiy
+   * davomiylikka teng bo'lmasdi. Shuning uchun soniyalar YIG'INDI millisekunddan
+   * chiqariladi: segment_i = floor(cum_i/1000) - floor(cum_{i-1}/1000).
+   * Natijada sum(billedSeconds) === floor(jami faol ms / 1000) === durationSeconds.
    */
   private billSegments(
     segments: SessionSegment[],
@@ -806,13 +953,16 @@ export class SessionsService {
     openExtraPausedMs = 0,
   ): { items: SegmentBillingItem[]; tableAmount: number } {
     const atMs = at.getTime();
+    let cumulativeMs = 0;
+    let previousSeconds = 0;
     const items: SegmentBillingItem[] = segments.map((seg) => {
       const endMs = seg.endedAt ? Math.min(new Date(seg.endedAt).getTime(), atMs) : atMs;
       const pausedMs = seg.pausedMs + (seg.endedAt ? 0 : openExtraPausedMs);
-      const billedSeconds = Math.max(
-        0,
-        Math.floor((endMs - new Date(seg.startedAt).getTime() - pausedMs) / 1000),
-      );
+      const activeMs = Math.max(0, endMs - new Date(seg.startedAt).getTime() - pausedMs);
+      cumulativeMs += activeMs;
+      const cumulativeSeconds = Math.floor(cumulativeMs / 1000);
+      const billedSeconds = Math.max(0, cumulativeSeconds - previousSeconds);
+      previousSeconds = cumulativeSeconds;
       return {
         id: seg.id,
         tableId: seg.tableId,
@@ -826,6 +976,36 @@ export class SessionsService {
     });
     const tableAmount = round2(items.reduce((sum, i) => sum + i.amount, 0));
     return { items, tableAmount };
+  }
+
+  /**
+   * Sessiyaning eng qimmat soatlik narxi — bo'lib to'lashdagi vaqt driftiga
+   * beriladigan chidamlilikni hisoblash uchun (eng yomon holatdan kelib chiqamiz).
+   */
+  private maxPricePerHour(segments: SessionSegment[], session: Session): number {
+    const fromSegments = segments.reduce((max, seg) => Math.max(max, seg.pricePerHour), 0);
+    return Math.max(fromSegments, session.pricePerHour ?? 0);
+  }
+
+  /**
+   * Telefon bo'yicha RO'YXATDAGI mijozni topib, customerId ni bog'laydi.
+   * Faqat O'QISH: yangi mijoz YARATILMAYDI. Sabab — kassa tranzaksiyasi ichida
+   * INSERT urinishi unique-violation bilan tushsa, PostgreSQL butun
+   * tranzaksiyani "aborted" holatiga o'tkazadi va hisob-kitob yiqilardi.
+   * Bog'lanmasa null qaytadi va oqim aynan avvalgidek davom etadi.
+   */
+  private async linkCustomer(
+    manager: EntityManager,
+    clubId: number,
+    _name: string | null,
+    phone: string | null,
+  ): Promise<number | null> {
+    if (!phone) return null;
+    const customer = await manager.findOne(Customer, {
+      where: { clubId, phone },
+      select: { id: true },
+    });
+    return customer?.id ?? null;
   }
 
   private async lockSession(manager: EntityManager, clubId: number, id: number): Promise<Session> {

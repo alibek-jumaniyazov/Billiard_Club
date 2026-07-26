@@ -78,11 +78,21 @@ export class ClubsService {
       qb.andWhere('club.status = :status', { status: query.status });
     }
     if (query.search) {
+      // Telefon HAR XIL ko'rinishda saqlangan: landing orqali ro'yxatdan o'tgan
+      // klubda kanonik '998901234567', superadmin qo'lda kiritganda esa
+      // '+998 90 123-45-67'. Shu sababli telefon FAQAT raqamlari bo'yicha
+      // solishtiriladi — operator qaysi ko'rinishda yozsa ham topiladi.
+      const digits = query.search.replace(/\D/g, '');
       qb.andWhere(
         new Brackets((b) => {
           b.where('club.name ILIKE :search', { search: `%${query.search}%` })
             .orWhere('club.ownerName ILIKE :search', { search: `%${query.search}%` })
             .orWhere('club.phone ILIKE :search', { search: `%${query.search}%` });
+          if (digits) {
+            b.orWhere(`regexp_replace(club.phone, '[^0-9]', '', 'g') LIKE :searchDigits`, {
+              searchDigits: `%${digits}%`,
+            });
+          }
         }),
       );
     }
@@ -147,18 +157,10 @@ export class ClubsService {
       return newClub;
     });
 
-    // Telegram xabarnoma (asosiy oqimni to'xtatmaydi)
-    void this.telegram.notify(
-      [
-        '🎱 <b>Yangi klub qo\'shildi — 7 kunlik bepul sinov!</b>',
-        '',
-        `🏢 Klub: <b>${this.escapeHtml(club.name)}</b>`,
-        `👤 Egasi: ${this.escapeHtml(club.ownerName ?? '-')}`,
-        `📞 Telefon: ${this.escapeHtml(club.phone ?? '-')}`,
-        `🔑 Login: <code>${this.escapeHtml(dto.adminUsername)}</code>`,
-        `⏳ Sinov tugaydi: ${trialEndsAt.toLocaleDateString('uz-UZ')}`,
-      ].join('\n'),
-    );
+    // Telegram xabarnoma (asosiy oqimni to'xtatmaydi).
+    // notifyNewClub() 'new_club' hodisasi orqali o'tadi — superadmin
+    // sozlamalaridagi o'chirgich shu xabarga ham ta'sir qiladi.
+    void this.telegram.notifyNewClub(club, dto.adminUsername);
 
     return this.withMeta(club);
   }
@@ -180,36 +182,68 @@ export class ClubsService {
   /**
    * Obunani uzaytirish: joriy muddat tugamagan bo'lsa uning ustiga,
    * tugagan bo'lsa bugundan boshlab qo'shiladi. Status -> active.
+   * Butun o'qish-o'zgartirish-yozish TRANZAKSIYA ichida, klub qatori
+   * qulfi ostida bajariladi — ikki marta bosilgan uzaytirish yoki
+   * bir vaqtda tasdiqlangan faktura to'langan davrni yutib yubormaydi.
    */
   async extend(id: number, dto: ExtendSubscriptionDto) {
-    const club = await this.clubRepo.findOne({ where: { id } });
-    if (!club) throw new NotFoundException({ key: 'clubs.notFound' });
-
-    let newEnd: Date;
-    if (dto.until) {
-      newEnd = new Date(dto.until);
-      if (newEnd.getTime() <= Date.now()) {
-        throw new BadRequestException({ key: 'reports.invalidRange' });
-      }
-    } else {
-      const currentEnd = club.effectiveEndsAt;
-      const base =
-        currentEnd && new Date(currentEnd).getTime() > Date.now()
-          ? new Date(currentEnd)
-          : new Date();
-      newEnd = addMonths(base, dto.months ?? 1);
+    // months va until AYNAN bittasi berilishi shart. DTO da ikkalasi ham
+    // ixtiyoriy (avvalgi o'zaro @ValidateIf ikkalasini birga yuborganda
+    // validatsiyani butunlay o'tkazib yuborardi) — tanlov shu yerda tekshiriladi.
+    const hasMonths = dto.months !== undefined;
+    const hasUntil = dto.until !== undefined;
+    if (hasMonths === hasUntil) {
+      throw new BadRequestException({ key: 'clubs.extendChoiceRequired' });
     }
 
-    club.subscriptionEndsAt = newEnd;
-    club.status = ClubStatus.ACTIVE;
-    await this.clubRepo.save(club);
+    const club = await this.dataSource.transaction(async (manager) => {
+      const locked = await manager.findOne(Club, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked) throw new NotFoundException({ key: 'clubs.notFound' });
+
+      const currentEnd = locked.subscriptionEndsAt ?? locked.trialEndsAt;
+      let newEnd: Date;
+      if (hasUntil) {
+        newEnd = new Date(dto.until as string);
+        if (Number.isNaN(newEnd.getTime()) || newEnd.getTime() <= Date.now()) {
+          throw new BadRequestException({ key: 'reports.invalidRange' });
+        }
+        // To'langan kunlar JIMGINA yo'qolmasin: yangi sana joriy muddatdan
+        // oldin bo'lsa faqat aniq rozilik (allowShorten) bilan qisqartiriladi.
+        if (
+          !dto.allowShorten &&
+          currentEnd &&
+          newEnd.getTime() < new Date(currentEnd).getTime()
+        ) {
+          throw new BadRequestException({ key: 'clubs.wouldShortenSubscription' });
+        }
+      } else {
+        const base =
+          currentEnd && new Date(currentEnd).getTime() > Date.now()
+            ? new Date(currentEnd)
+            : new Date();
+        newEnd = addMonths(base, dto.months ?? 1);
+      }
+
+      locked.subscriptionEndsAt = newEnd;
+      // Superadmin bloki JIMGINA ochilmasin — uzaytirish obunani beradi, lekin
+      // blok alohida qaror bo'lib qoladi (faqat setBlocked(false) ochadi).
+      if (locked.status !== ClubStatus.BLOCKED) {
+        locked.status = ClubStatus.ACTIVE;
+      }
+      await manager.save(Club, locked);
+      return locked;
+    });
 
     void this.telegram.notify(
+      'payment',
       [
         '✅ <b>Obuna uzaytirildi</b>',
         '',
         `🏢 Klub: <b>${this.escapeHtml(club.name)}</b>`,
-        `📅 Yangi muddat: ${newEnd.toLocaleDateString('uz-UZ')}`,
+        `📅 Yangi muddat: ${(club.subscriptionEndsAt as Date).toLocaleDateString('uz-UZ')}`,
       ].join('\n'),
     );
 
@@ -326,40 +360,28 @@ export class ClubsService {
     const club = await this.clubRepo.findOne({ where: { id: clubId } });
     if (!club) throw new NotFoundException({ key: 'clubs.notFound' });
 
-    const currentEnd = club.subscriptionEndsAt ?? club.trialEndsAt;
-    const startDate =
-      currentEnd && new Date(currentEnd).getTime() > Date.now()
-        ? new Date(currentEnd)
-        : new Date();
-
-    let endDate: Date;
-    if (dto.type === 'custom') {
-      endDate = new Date(dto.endDate!);
-      if (Number.isNaN(endDate.getTime()) || endDate <= startDate) {
-        throw new BadRequestException({ key: 'reports.invalidRange' });
-      }
-    } else {
-      endDate = addMonths(startDate, CONTRACT_MONTHS[dto.type]);
-    }
-
+    // Boshlanish/tugash sanalari applyContractInTransaction ichida, klub
+    // qatori qulfi ostida hisoblanadi — bu yerda faqat davomiylik beriladi.
     const contract = await this.dataSource.transaction(async (manager) =>
       this.applyContractInTransaction(manager, clubId, {
         type: dto.type as ContractType,
         amount: dto.amount,
-        startDate,
-        endDate,
+        ...(dto.type === 'custom'
+          ? { endDate: new Date(dto.endDate!) }
+          : { durationMonths: CONTRACT_MONTHS[dto.type] }),
         notes: dto.notes ?? null,
       }),
     );
 
     void this.telegram.notify(
+      'payment',
       [
         '💰 <b>Yangi shartnoma tuzildi</b>',
         '',
         `🏢 Klub: <b>${this.escapeHtml(club.name)}</b>`,
         `📄 Turi: ${dto.type}`,
         `💵 Summa: ${dto.amount.toLocaleString('ru-RU')} so'm`,
-        `📅 Muddat: ${startDate.toLocaleDateString('uz-UZ')} — ${endDate.toLocaleDateString('uz-UZ')}`,
+        `📅 Muddat: ${contract.startDate.toLocaleDateString('uz-UZ')} — ${contract.endDate.toLocaleDateString('uz-UZ')}`,
       ].join('\n'),
     );
 
@@ -370,6 +392,13 @@ export class ClubsService {
    * Shartnoma yozuvi + klub obunasini uzaytirish — chaqiruvchining
    * tranzaksiyasi ichida. addContract() va obuna to'lovini tasdiqlash
    * (SubscriptionModule confirm) ikkalasi ham shu yagona yo'ldan o'tadi.
+   *
+   * Klub qatori BIRINCHI bo'lib qulflanadi va boshlanish sanasi aynan
+   * shu qulflangan qatordan hisoblanadi — qulfsiz o'qish-o'zgartirish-yozish
+   * ikki parallel shartnomada bitta to'langan davrni yutib yuborardi.
+   * Davomiylik uchta ko'rinishda beriladi: durationDays (obuna tarifi),
+   * durationMonths (oylik shartnoma — oy oxiri chegaralanadi) yoki
+   * endDate (maxsus muddat).
    */
   async applyContractInTransaction(
     manager: EntityManager,
@@ -377,22 +406,51 @@ export class ClubsService {
     data: {
       type: ContractType;
       amount: number;
-      startDate: Date;
-      endDate: Date;
+      durationDays?: number;
+      durationMonths?: number;
+      endDate?: Date;
       notes: string | null;
     },
   ): Promise<Contract> {
+    const locked = await manager.findOne(Club, {
+      where: { id: clubId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!locked) throw new NotFoundException({ key: 'clubs.notFound' });
+
+    // Boshlanish — joriy obuna tugashi (kelajakda bo'lsa) yoki hozir:
+    // muddati tugamagan klub kunlarini yo'qotmaydi.
+    const currentEnd = locked.subscriptionEndsAt ?? locked.trialEndsAt;
+    const startDate =
+      currentEnd && new Date(currentEnd).getTime() > Date.now()
+        ? new Date(currentEnd)
+        : new Date();
+
+    let endDate: Date;
+    if (data.durationDays !== undefined) {
+      endDate = new Date(startDate.getTime() + data.durationDays * DAY_MS);
+    } else if (data.durationMonths !== undefined) {
+      endDate = addMonths(startDate, data.durationMonths);
+    } else {
+      endDate = new Date(data.endDate as Date);
+    }
+    if (Number.isNaN(endDate.getTime()) || endDate.getTime() <= startDate.getTime()) {
+      throw new BadRequestException({ key: 'reports.invalidRange' });
+    }
+
     const contract = await manager.save(Contract, {
       clubId,
       type: data.type,
       amount: data.amount,
-      startDate: data.startDate,
-      endDate: data.endDate,
+      startDate,
+      endDate,
       notes: data.notes,
     });
+    // Superadmin bloki to'lov bilan JIMGINA ochilmasin — blok alohida
+    // qaror, faktura tasdiqlash uni bekor qilmaydi (obuna baribir uzayadi).
     await manager.update(Club, clubId, {
-      subscriptionEndsAt: data.endDate,
-      status: ClubStatus.ACTIVE,
+      subscriptionEndsAt: endDate,
+      ...(locked.status !== ClubStatus.BLOCKED ? { status: ClubStatus.ACTIVE } : {}),
     });
     return contract;
   }
@@ -403,6 +461,18 @@ export class ClubsService {
       .getRepository(Contract)
       .findOne({ where: { id: contractId, clubId } });
     if (!contract) throw new NotFoundException({ key: 'clubs.notFound' });
+
+    // To'langan faktura ishora qilib turgan shartnoma o'chirilmaydi:
+    // FK ON DELETE SET NULL tasdiqlangan to'lovni "osilib qolgan" holatga
+    // o'tkazib, platforma daromadini ikki marta sanaladigan qilib qo'yardi.
+    const paidRows = (await this.dataSource.query(
+      `SELECT 1 FROM invoices WHERE "contractId" = $1 AND status = 'paid' LIMIT 1`,
+      [contractId],
+    )) as unknown[];
+    if (paidRows.length > 0) {
+      throw new BadRequestException({ key: 'contracts.hasPaidInvoice' });
+    }
+
     await this.dataSource.getRepository(Contract).delete(contractId);
     return true;
   }
@@ -477,8 +547,9 @@ export class ClubsService {
 
   /**
    * Faqat bo'sh klubni o'chirish mumkin — aks holda bloklanadi.
-   * "Bo'sh" = sessiyalar HAM, shartnomalar HAM yo'q (shartnomalar platforma
-   * daromadi yozuvlari — cascade bilan jimgina o'chib ketmasligi kerak).
+   * "Bo'sh" = sessiyalar HAM, shartnomalar HAM, TO'LANGAN fakturalar HAM yo'q
+   * (shartnomalar va to'langan fakturalar platforma daromadi yozuvlari —
+   * cascade bilan jimgina o'chib ketmasligi kerak).
    */
   async remove(id: number) {
     const club = await this.clubRepo.findOne({ where: { id } });
@@ -489,15 +560,23 @@ export class ClubsService {
     // sessions > 0 — buyurtma/sotuv/qarz/to'lov yozuvlarining hammasini qamraydi
     // (ular sessiyasiz bo'lmaydi). customers/expenses/reservations esa sessiyasiz
     // ham mavjud bo'la oladi — ular ham RESTRICT, shuning uchun alohida sanaladi.
-    // contracts CASCADE bo'lsa-da, platforma daromadi yozuvi jimgina o'chmasin
-    // deb ataylab bloklanadi.
+    // contracts va invoices CASCADE bo'lsa-da, platforma to'lov yozuvlari
+    // jimgina o'chmasin (va faktura raqamlari qayta ishlatilmasin) deb ataylab
+    // bloklanadi. Fakturalarda FAQAT 'paid' sanaladi: bekor qilingan/muddati
+    // o'tgan so'rov daromad yozuvi emas — u tufayli klub abadiy o'chmaydigan
+    // bo'lib qolmasin (removeContract dagi shart bilan bir xil).
+    // club_bridges (clubId RESTRICT) va feedbacks (userId RESTRICT —
+    // klub foydalanuvchilari shu yerda o'chiriladi) ham xom FK xatosini beradi.
     const [row] = (await this.dataSource.query(
       `SELECT
          (SELECT COUNT(*) FROM sessions WHERE "clubId" = $1)
        + (SELECT COUNT(*) FROM contracts WHERE "clubId" = $1)
+       + (SELECT COUNT(*) FROM invoices WHERE "clubId" = $1 AND status = 'paid')
        + (SELECT COUNT(*) FROM customers WHERE "clubId" = $1)
        + (SELECT COUNT(*) FROM expenses WHERE "clubId" = $1)
-       + (SELECT COUNT(*) FROM reservations WHERE "clubId" = $1) AS cnt`,
+       + (SELECT COUNT(*) FROM reservations WHERE "clubId" = $1)
+       + (SELECT COUNT(*) FROM club_bridges WHERE "clubId" = $1)
+       + (SELECT COUNT(*) FROM feedbacks WHERE "clubId" = $1) AS cnt`,
       [id],
     )) as Array<{ cnt: string }>;
     if (Number(row?.cnt ?? 0) > 0) {

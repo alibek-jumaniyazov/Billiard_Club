@@ -5,9 +5,15 @@ import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
 import { Language } from '../../common/decorators/lang.decorator';
 import { t } from '../../common/i18n/messages';
+import {
+  clubTimezone,
+  localDateParts,
+  parseDateParts,
+  zonedMidnight,
+} from '../../common/time/club-day';
 import { PaymentMethod, SessionStatus } from '../../entities/enums';
 import { Session } from '../../entities/session.entity';
-import { DEFAULT_TIMEZONE, safeTimezone } from '../settings/timezones';
+import { DEFAULT_TIMEZONE } from '../settings/timezones';
 import { ReportQueryDto } from './dto/reports.dto';
 
 export type ReportType = 'daily' | 'weekly' | 'monthly' | 'custom';
@@ -23,77 +29,6 @@ export class ReportsService {
     private readonly dataSource: DataSource,
     @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
   ) {}
-
-  /**
-   * 'YYYY-MM-DD' ni sana komponentlariga (yil/oy/kun) o'qiydi.
-   * new Date('YYYY-MM-DD') UTC yarim tun deb o'qiydi — kun surilib ketardi;
-   * komponentlab o'qib, chegara KLUB vaqt mintaqasida hisoblanadi.
-   */
-  private parseDateParts(value: string): { year: number; month: number; day: number } {
-    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-    if (!match) throw new BadRequestException({ key: 'reports.invalidRange' });
-    return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
-  }
-
-  /** Klub vaqt mintaqasi (settings.timezone) — kun chegaralari shu mintaqada hisoblanadi */
-  private async clubTimezone(clubId: number): Promise<string> {
-    const rows = await this.dataSource.query(
-      `SELECT s.timezone FROM settings s WHERE s."clubId" = $1`,
-      [clubId],
-    );
-    return safeTimezone(rows[0]?.timezone);
-  }
-
-  /** tz mintaqasining berilgan ondagi UTC ofseti (ms) — Intl orqali, DST ham hisobga olinadi */
-  private tzOffsetMs(tz: string, at: Date): number {
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-    const parts: Record<string, string> = {};
-    for (const p of fmt.formatToParts(at)) parts[p.type] = p.value;
-    const asUtc = Date.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      Number(parts.day),
-      Number(parts.hour) % 24,
-      Number(parts.minute),
-      Number(parts.second),
-    );
-    return asUtc - at.getTime();
-  }
-
-  /**
-   * Klub mintaqasidagi (year, month 1-12, day) YARIM TUNining UTC onini qaytaradi.
-   * Date.UTC oy/kun oshib ketishini o'zi normallaydi (13-oy -> keyingi yil yanvari);
-   * ikkinchi iteratsiya DST o'tish kunlarida ham to'g'ri ofset beradi.
-   */
-  private zonedMidnight(tz: string, year: number, month: number, day: number): Date {
-    const wallClock = Date.UTC(year, month - 1, day);
-    let ts = wallClock;
-    for (let i = 0; i < 2; i++) {
-      ts = wallClock - this.tzOffsetMs(tz, new Date(ts));
-    }
-    return new Date(ts);
-  }
-
-  /** Hozirgi onning klub mintaqasidagi sana komponentlari */
-  private localDateParts(tz: string, at: Date): { year: number; month: number; day: number } {
-    const fmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const [year, month, day] = fmt.format(at).split('-').map(Number);
-    return { year, month, day };
-  }
 
   /**
    * Sana oralig'i — YARIM OCHIQ [from, to): 'to' keyingi davr boshlanishi.
@@ -115,31 +50,31 @@ export class ReportsService {
     let to: Date;
 
     if (type === 'daily') {
-      const day = query.date ? this.parseDateParts(query.date) : this.localDateParts(tz, now);
-      from = this.zonedMidnight(tz, day.year, day.month, day.day);
-      to = this.zonedMidnight(tz, day.year, day.month, day.day + 1);
+      const day = query.date ? parseDateParts(query.date) : localDateParts(tz, now);
+      from = zonedMidnight(tz, day.year, day.month, day.day);
+      to = zonedMidnight(tz, day.year, day.month, day.day + 1);
     } else if (type === 'weekly') {
       to = new Date(now);
-      const today = this.localDateParts(tz, now);
-      from = this.zonedMidnight(tz, today.year, today.month, today.day - 6);
+      const today = localDateParts(tz, now);
+      from = zonedMidnight(tz, today.year, today.month, today.day - 6);
     } else if (type === 'monthly') {
-      const today = this.localDateParts(tz, now);
+      const today = localDateParts(tz, now);
       const month = query.month ?? today.month;
       const year = query.year ?? today.year;
-      from = this.zonedMidnight(tz, year, month, 1);
-      to = this.zonedMidnight(tz, year, month + 1, 1);
+      from = zonedMidnight(tz, year, month, 1);
+      to = zonedMidnight(tz, year, month + 1, 1);
     } else {
       if (!query.from || !query.to) {
         throw new BadRequestException({ key: 'reports.invalidRange' });
       }
-      const fromParts = this.parseDateParts(query.from);
-      const toParts = this.parseDateParts(query.to);
-      from = this.zonedMidnight(tz, fromParts.year, fromParts.month, fromParts.day);
-      const toStart = this.zonedMidnight(tz, toParts.year, toParts.month, toParts.day);
+      const fromParts = parseDateParts(query.from);
+      const toParts = parseDateParts(query.to);
+      from = zonedMidnight(tz, fromParts.year, fromParts.month, fromParts.day);
+      const toStart = zonedMidnight(tz, toParts.year, toParts.month, toParts.day);
       if (from > toStart) {
         throw new BadRequestException({ key: 'reports.invalidRange' });
       }
-      to = this.zonedMidnight(tz, toParts.year, toParts.month, toParts.day + 1);
+      to = zonedMidnight(tz, toParts.year, toParts.month, toParts.day + 1);
     }
 
     return { from, to };
@@ -164,7 +99,7 @@ export class ReportsService {
    *  - expensesTotal/profit: davr xarajatlari va foyda (tushum - xarajat)
    */
   async getReport(clubId: number, type: ReportType, query: ReportQueryDto) {
-    const tz = await this.clubTimezone(clubId);
+    const tz = await clubTimezone(this.dataSource, clubId);
     const { from, to } = this.getDateRange(type, query, tz);
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 50, 100);
@@ -267,9 +202,18 @@ export class ReportsService {
   /**
    * Bar/mahsulot savdosi hisoboti — order_items ni mahsulot bo'yicha agregatlaydi
    * (soni + tushumi). Bekor qilingan buyurtmalar chiqarilmaydi (ombor qaytarilgan).
+   *
+   * KUN BIRIKTIRISH: buyurtma o'yin BOSHIDA bir marta ochiladi va butun sessiya
+   * davomida qayta ishlatiladi — shuning uchun o."createdAt" sessiya BOSHLANISH
+   * vaqti bo'lib qoladi. Hisobotning qolgan qismi (barRevenue) esa pulni
+   * session."endTime" bo'yicha sanaydi. Ikkalasi bir xil tayanch nuqtadan
+   * hisoblanishi uchun bu yerda ham COALESCE(s."endTime", o."createdAt") olinadi
+   * (yarim tundan keyingi ichimliklar oldingi kunga tushib qolmaydi).
+   * Faqat 'closed' buyurtmalar — hali hisob-kitob qilinmagan OCHIQ buyurtmalar
+   * (davom etayotgan o'yin) hisobotga kirmaydi, xuddi barRevenue kabi.
    */
   async productsReport(clubId: number, type: ReportType, query: ReportQueryDto) {
-    const tz = await this.clubTimezone(clubId);
+    const tz = await clubTimezone(this.dataSource, clubId);
     const { from, to } = this.getDateRange(type, query, tz);
 
     const products = (await this.dataSource.query(
@@ -278,10 +222,13 @@ export class ReportsService {
               COALESCE(SUM(oi.subtotal), 0)::float AS revenue
        FROM order_items oi
        JOIN orders o ON o.id = oi."orderId"
+       LEFT JOIN sessions s ON s.id = o."sessionId"
        JOIN products p ON p.id = oi."productId"
        LEFT JOIN categories c ON c.id = p."categoryId"
-       WHERE o."clubId" = $1 AND o."createdAt" >= $2 AND o."createdAt" < $3
-         AND o.status <> 'cancelled'
+       WHERE o."clubId" = $1 AND o.status = 'closed'
+         AND (s.id IS NULL OR s.status = 'completed')
+         AND COALESCE(s."endTime", o."createdAt") >= $2
+         AND COALESCE(s."endTime", o."createdAt") < $3
        GROUP BY p.id, p.name, c.name
        ORDER BY revenue DESC`,
       [clubId, from, to],
@@ -307,6 +254,14 @@ export class ReportsService {
   /**
    * Excel eksport — OQIMLI WorkbookWriter (butun kitob xotirada yig'ilmaydi),
    * sessiyalar 500 talik bo'laklar bilan o'qiladi; sarlavhalar uz/ru lokalizatsiyalangan.
+   *
+   * - KEYSET sahifalash: OFFSET o'rniga (endTime, id) juftligi bo'yicha oldinga
+   *   siljiymiz. OFFSET bilan eksport davomida yangi sessiya yakunlansa oyna
+   *   surilib, bir sessiya ikki marta yozilishi yoki umuman tushib qolishi mumkin edi.
+   * - JAMI qator alohida agregat so'rovdan emas, yozilgan qatorlardan yig'iladi —
+   *   shu sababli u har doim ro'yxatga TENG (avval ikki so'rov orasida sessiya
+   *   yakunlansa jami satr ro'yxat bilan mos kelmasdi).
+   * - Vaqtlar KLUB vaqt mintaqasida formatlanadi (server UTC da ishlasa ham).
    */
   async exportExcel(
     clubId: number,
@@ -315,15 +270,8 @@ export class ReportsService {
     lang: Language,
     res: Response,
   ) {
-    const tz = await this.clubTimezone(clubId);
+    const tz = await clubTimezone(this.dataSource, clubId);
     const { from, to } = this.getDateRange(type, query, tz);
-
-    // Jami qator uchun agregatlar (ro'yxatni yuklamasdan)
-    const agg = await this.completedSessionsQb(clubId, from, to)
-      .select('COALESCE(SUM(session.totalAmount), 0)::float', 'billedRevenue')
-      .addSelect('COALESCE(SUM(session.tableAmount), 0)::float', 'tableRevenue')
-      .addSelect('COALESCE(SUM(session.barAmount), 0)::float', 'barRevenue')
-      .getRawOne<{ billedRevenue: number; tableRevenue: number; barRevenue: number }>();
 
     const fileName = `${t(lang, 'reports.fileName')}_${type}_${new Date().toISOString().slice(0, 10)}.xlsx`;
     res.setHeader(
@@ -336,7 +284,14 @@ export class ReportsService {
     const sheet = workbook.addWorksheet(t(lang, 'reports.sheet'));
 
     const money = { style: { numFmt: '#,##0' } };
-    sheet.columns = [
+    // Ustunlar ta'rifi: sarlavhalar QO'LDA yoziladi (yuqorida davr satri turadi),
+    // shuning uchun sheet.columns ga 'header' berilmaydi
+    const columns: Array<{
+      header: string;
+      key: string;
+      width: number;
+      style?: Partial<ExcelJS.Style>;
+    }> = [
       { header: t(lang, 'reports.colNo'), key: 'idx', width: 6 },
       { header: t(lang, 'reports.colTable'), key: 'table', width: 18 },
       { header: t(lang, 'reports.colCustomer'), key: 'customer', width: 22 },
@@ -345,54 +300,112 @@ export class ReportsService {
       { header: t(lang, 'reports.colDuration'), key: 'duration', width: 16 },
       { header: t(lang, 'reports.colTableAmount'), key: 'tableAmount', width: 16, ...money },
       { header: t(lang, 'reports.colBarAmount'), key: 'barAmount', width: 16, ...money },
+      { header: t(lang, 'reports.colDiscount'), key: 'discount', width: 16, ...money },
+      { header: t(lang, 'reports.colAdjustment'), key: 'adjustment', width: 16, ...money },
       { header: t(lang, 'reports.colTotal'), key: 'total', width: 16, ...money },
       { header: t(lang, 'reports.colMethod'), key: 'method', width: 14 },
       { header: t(lang, 'reports.colPaid'), key: 'paid', width: 14 },
     ];
+    sheet.columns = columns.map((column) => ({
+      key: column.key,
+      width: column.width,
+      style: column.style,
+    }));
 
-    const headerRow = sheet.getRow(1);
+    // Vaqt formatlagichi — KLUB mintaqasida (toLocaleString server mintaqasini olardi)
+    const dateLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+    const fmt = new Intl.DateTimeFormat(dateLocale, {
+      timeZone: tz,
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+
+    // 1-satr: hisobot davri (klub mintaqasida). 'to' yarim ochiq — 1 ms ayirib ko'rsatamiz
+    const periodRow = sheet.addRow([
+      `${t(lang, 'reports.periodLabel')}: ${fmt.format(from)} — ${fmt.format(new Date(to.getTime() - 1))} (${tz})`,
+    ]);
+    periodRow.font = { bold: true };
+    periodRow.commit();
+
+    // 2-satr: ustun sarlavhalari
+    const headerRow = sheet.addRow(columns.map((column) => column.header));
     headerRow.font = { bold: true };
     headerRow.alignment = { horizontal: 'center' };
+    headerRow.commit();
 
-    const dateLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
     let idx = 0;
+    let totalTableAmount = 0;
+    let totalBarAmount = 0;
+    let totalDiscount = 0;
+    let totalAdjustment = 0;
+    let totalAmount = 0;
+    // Keyset kursori — oxirgi yozilgan satrning (endTime, id) juftligi
+    let lastEndTime: Date | null = null;
+    let lastId = 0;
+
     // Bo'laklab o'qish — katta davr hisobotlari ham xotirani to'ldirmaydi
-    for (let chunkPage = 0; ; chunkPage++) {
-      const rows = await this.completedSessionsQb(clubId, from, to)
+    for (;;) {
+      const qb = this.completedSessionsQb(clubId, from, to)
         .leftJoinAndSelect('session.table', 'table')
         .orderBy('session.endTime', 'DESC')
-        .skip(chunkPage * EXPORT_CHUNK)
-        .take(EXPORT_CHUNK)
-        .getMany();
+        .addOrderBy('session.id', 'DESC')
+        .take(EXPORT_CHUNK);
+      if (lastEndTime) {
+        qb.andWhere('(session.endTime, session.id) < (:lastEndTime, :lastId)', {
+          lastEndTime,
+          lastId,
+        });
+      }
+      const rows = await qb.getMany();
 
       for (const session of rows) {
         idx += 1;
+        // Chegirma sessiyada saqlanmaydi (u sales satrida) — qatorlar yig'indisi
+        // jami bilan mos tushishi uchun chetlashuvdan hisoblab chiqariladi.
+        // DIQQAT: totalAmount = max(0, oraliq - chegirma + tuzatish) — ya'ni katta
+        // MANFIY tuzatishda nolga qisiladi. Shu holatda chetlashuv chegirmadan
+        // katta chiqib, ustunga MANFIY qiymat yozilardi; [0, oraliq] ga qisamiz.
+        const grossAmount = round2(session.tableAmount + session.barAmount);
+        const derived = round2(grossAmount + session.adjustmentAmount - session.totalAmount);
+        const discount = Math.max(0, Math.min(derived, grossAmount));
+        totalTableAmount = round2(totalTableAmount + session.tableAmount);
+        totalBarAmount = round2(totalBarAmount + session.barAmount);
+        totalDiscount = round2(totalDiscount + discount);
+        totalAdjustment = round2(totalAdjustment + session.adjustmentAmount);
+        totalAmount = round2(totalAmount + session.totalAmount);
+
         sheet
           .addRow({
             idx,
             table: session.table ? `${session.table.name} (#${session.table.number})` : '-',
             customer: session.customerName ?? '-',
-            start: session.startTime
-              ? new Date(session.startTime).toLocaleString(dateLocale)
-              : '-',
-            end: session.endTime ? new Date(session.endTime).toLocaleString(dateLocale) : '-',
+            start: session.startTime ? fmt.format(new Date(session.startTime)) : '-',
+            end: session.endTime ? fmt.format(new Date(session.endTime)) : '-',
             duration: session.durationMinutes ?? 0,
             tableAmount: session.tableAmount,
             barAmount: session.barAmount,
+            discount,
+            adjustment: session.adjustmentAmount,
             total: session.totalAmount,
             method: session.paymentMethod ?? '-',
             paid: session.isPaid ? t(lang, 'reports.paidYes') : t(lang, 'reports.paidNo'),
           })
           .commit();
+
+        // Kursorni oxirgi satrga suramiz (endTime completed sessiyada NOT NULL)
+        lastEndTime = session.endTime;
+        lastId = session.id;
       }
       if (rows.length < EXPORT_CHUNK) break;
     }
 
     const totalRow = sheet.addRow({
       customer: t(lang, 'reports.totalRow'),
-      tableAmount: agg?.tableRevenue ?? 0,
-      barAmount: agg?.barRevenue ?? 0,
-      total: agg?.billedRevenue ?? 0,
+      tableAmount: totalTableAmount,
+      barAmount: totalBarAmount,
+      discount: totalDiscount,
+      adjustment: totalAdjustment,
+      total: totalAmount,
     });
     totalRow.font = { bold: true };
     totalRow.commit();

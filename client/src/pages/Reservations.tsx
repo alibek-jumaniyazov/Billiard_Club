@@ -36,6 +36,7 @@ import { EmptyState, PageHeader, PageTransition, StatusTag } from '../components
 import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { BilliardTable, Reservation, ReservationStatus } from '../types';
+import { isFormValidationError } from '../utils/formErrors';
 
 const { Text } = Typography;
 
@@ -50,6 +51,22 @@ const STATUS_TAG_KEY: Record<ReservationStatus, string> = {
 
 /** Davomiylik ko'rsatilmagan bronda serverdagi standart oyna (daqiqa) */
 const DEFAULT_DURATION_MIN = 60;
+
+/** Serverdagi eng katta sahifa hajmi (undan kattasi 100 ga qisqartiriladi) */
+const PAGE_LIMIT = 100;
+/** Kun ko'rinishi sahifalanmaydi — barchasi yig'iladi, lekin xavfsizlik chegarasi bilan */
+const MAX_PAGES = 20;
+
+/**
+ * ID bo'yicha takrorlarni olib tashlaydi: sahifalar ketma-ket so'ralayotganda
+ * orada yangi bron qo'shilsa, saralash siljib bitta yozuv ikki sahifaga tushishi
+ * mumkin — bu holda React'da "duplicate key" va ikki marta ko'rinish chiqardi.
+ */
+const dedupeById = (rows: Reservation[]): Reservation[] => {
+  const byId = new Map<number, Reservation>();
+  for (const row of rows) if (!byId.has(row.id)) byId.set(row.id, row);
+  return [...byId.values()];
+};
 
 interface FetchParams {
   day: Dayjs;
@@ -78,6 +95,8 @@ const Reservations = () => {
   const reduceMotion = useReducedMotion();
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  /** Kun bo'yicha JAMI bronlar (serverning pagination.total i) */
+  const [dayTotal, setDayTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [day, setDay] = useState<Dayjs>(() => dayjs());
@@ -98,27 +117,53 @@ const Reservations = () => {
 
   const canManage = hasRole('superadmin', 'admin', 'kassir', 'operator');
 
+  // `t` yuklash callbackining bog'liqligi EMAS: til almashganda ro'yxat
+  // standart filtrlar bilan jimgina qayta yuklanib ketmasin
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  /**
+   * So'rov navbati tokeni: kun/holat almashganda eski (sekinroq) yig'ish
+   * oqimi oxirida tugab, yangi kunning ro'yxatini bosib ketmasin — har bir
+   * holat yozuvi shu token tengligi bilan qo'riqlanadi.
+   */
+  const requestIdRef = useRef(0);
+
   const fetchReservations = useCallback(
     async (params: FetchParams) => {
+      const requestId = (requestIdRef.current += 1);
+      const isStale = () => requestIdRef.current !== requestId;
       setLoading(true);
       setLoadError(false);
       try {
         const dayStr = params.day.format('YYYY-MM-DD');
-        const res = await reservationsApi.list({
-          from: dayStr,
-          to: dayStr,
-          status: params.status ?? undefined,
-          limit: 100,
-        });
-        setReservations(res.data);
+        const query = { from: dayStr, to: dayStr, status: params.status ?? undefined };
+        // Kun ko'rinishi to'liq bo'lishi shart — barcha sahifalar yig'iladi,
+        // aks holda band kunda bronlarning bir qismi ko'rinmay qolardi
+        const first = await reservationsApi.list({ ...query, page: 1, limit: PAGE_LIMIT });
+        if (isStale()) return;
+        const total = first.pagination?.total ?? first.data.length;
+        const rows = [...first.data];
+        const pages = Math.min(first.pagination?.pages ?? 1, MAX_PAGES);
+        for (let page = 2; page <= pages && rows.length < total; page += 1) {
+          const next = await reservationsApi.list({ ...query, page, limit: PAGE_LIMIT });
+          // Keyingi sahifani kutish paytida yangi so'rov boshlangan bo'lishi mumkin
+          if (isStale()) return;
+          if (next.data.length === 0) break;
+          rows.push(...next.data);
+        }
+        setReservations(dedupeById(rows));
+        setDayTotal(total);
       } catch (err) {
+        if (isStale()) return;
         setLoadError(true);
-        message.error(errorMessage(err, t('common.error')));
+        message.error(errorMessage(err, tRef.current('common.error')));
       } finally {
-        setLoading(false);
+        // Eskirgan oqim yangi so'rovning yuklanish holatini o'chirmasin
+        if (!isStale()) setLoading(false);
       }
     },
-    [message, t],
+    [message],
   );
 
   useEffect(() => {
@@ -219,9 +264,10 @@ const Reservations = () => {
   );
 
   const handleCreate = async () => {
-    const values = await form.validateFields();
-    setSaving(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await form.validateFields();
+      setSaving(true);
       const res = await reservationsApi.create({
         tableId: values.tableId,
         customerId: values.customerId,
@@ -249,7 +295,8 @@ const Reservations = () => {
         refresh();
       }
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setSaving(false);
     }
@@ -429,7 +476,7 @@ const Reservations = () => {
           />
           <Text type="secondary" style={{ fontSize: 13, marginInlineStart: 'auto' }}>
             {t('reservations.totalForDay')}:{' '}
-            <span className="tabular-nums">{reservations.length}</span>
+            <span className="tabular-nums">{dayTotal}</span>
           </Text>
         </div>
       </Card>

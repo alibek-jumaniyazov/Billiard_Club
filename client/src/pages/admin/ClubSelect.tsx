@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Select } from 'antd';
 import { adminApi } from '../../api';
@@ -18,6 +18,8 @@ interface ClubSelectProps {
  */
 const ClubSelect = ({ value, onChange, placeholder, allowClear = true, style }: ClubSelectProps) => {
   const [options, setOptions] = useState<Club[]>([]);
+  /** Tanlangan klub — qidiruv natijalaridan tushib qolsa ham nomi saqlanadi */
+  const [selected, setSelected] = useState<Club | null>(null);
   const [loading, setLoading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -40,6 +42,28 @@ const ClubSelect = ({ value, onChange, placeholder, allowClear = true, style }: 
     };
   }, [search]);
 
+  // Tanlangan klub ro'yxatda uchrasa — eslab qolamiz; tanlov tozalansa — unutamiz
+  useEffect(() => {
+    if (value === undefined) {
+      setSelected(null);
+      return;
+    }
+    const found = options.find((c) => c.id === value);
+    if (found) setSelected(found);
+  }, [value, options]);
+
+  /**
+   * Tanlangan klub qidiruv natijalarida bo'lmasa ham ro'yxatga qo'shiladi —
+   * aks holda Select xom raqamli ID ni ko'rsatib qolardi.
+   */
+  const selectOptions = useMemo(() => {
+    const list = options.map((c) => ({ value: c.id, label: c.name }));
+    if (selected && value === selected.id && !options.some((c) => c.id === selected.id)) {
+      list.unshift({ value: selected.id, label: selected.name });
+    }
+    return list;
+  }, [options, selected, value]);
+
   return (
     <Select
       showSearch
@@ -54,7 +78,7 @@ const ClubSelect = ({ value, onChange, placeholder, allowClear = true, style }: 
       allowClear={allowClear}
       placeholder={placeholder}
       style={style}
-      options={options.map((c) => ({ value: c.id, label: c.name }))}
+      options={selectOptions}
     />
   );
 };

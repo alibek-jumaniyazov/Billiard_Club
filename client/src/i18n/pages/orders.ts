@@ -2,7 +2,10 @@ export default {
   uz: {
     title: 'Bar buyurtmalari',
     subtitle: "Bar buyurtmalari ro'yxati va bugungi savdo",
-    todayAmount: 'Bugungi bar savdosi',
+    // DIQQAT: bu ko'rsatkich BUYURTILGAN pozitsiyalarni sanaydi (davom etayotgan
+    // o'yinlarniki ham). Hisobotdagi "Bar tushumi" esa faqat YAKUNLANGAN
+    // o'yinlarni oladi — nomlar ataylab farqli, ikkalasi bir xil son emas.
+    todayAmount: 'Bugun buyurtilgan (bar)',
     todayCount: 'Bugungi buyurtmalar',
     orderId: '№',
     items: 'Mahsulotlar',
@@ -20,7 +23,7 @@ export default {
   ru: {
     title: 'Заказы бара',
     subtitle: 'Список заказов бара и продажи за сегодня',
-    todayAmount: 'Продажи бара за сегодня',
+    todayAmount: 'Заказано сегодня (бар)',
     todayCount: 'Заказов за сегодня',
     orderId: '№',
     items: 'Товары',

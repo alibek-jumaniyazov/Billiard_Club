@@ -77,8 +77,13 @@ export class ReservationsService {
       qb.andWhere('reservation.startsAt < :to', { to: parseDateParam(query.to, true) });
     }
 
+    // startsAt UNIKAL EMAS (bronlar 19:00 kabi butun soatlarga to'planadi).
+    // Klient kun ko'rinishini bir nechta OFFSET sahifasidan yig'adi, shu bois
+    // saralash aniq bo'lishi shart: aks holda sahifa chegarasidagi bron
+    // takrorlanib yoki tushib qolishi mumkin.
     const [rows, total] = await qb
       .orderBy('reservation.startsAt', 'ASC')
+      .addOrderBy('reservation.id', 'ASC')
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
@@ -151,7 +156,7 @@ export class ReservationsService {
     const reservation = await this.reservationRepo.findOne({ where: { id, clubId } });
     if (!reservation) throw new NotFoundException({ key: 'reservations.notFound' });
 
-    if (dto.status !== undefined && dto.status !== reservation.status) {
+    if (dto.status != null && dto.status !== reservation.status) {
       const allowed = ALLOWED_TRANSITIONS[reservation.status] ?? [];
       if (!allowed.includes(dto.status)) {
         throw new BadRequestException({ key: 'reservations.invalidTransition' });
@@ -173,14 +178,19 @@ export class ReservationsService {
       throw new BadRequestException({ key: 'reservations.invalidTransition' });
     }
 
-    if (dto.tableId !== undefined && dto.tableId !== reservation.tableId) {
+    // DIQQAT: @IsOptional() literal `null` ni ham o'tkazib yuboradi. NOT NULL
+    // ustunlar (tableId/startsAt/status) uchun `!= null` ishlatiladi — aks holda
+    // {"startsAt": null} bronni 1970-yilga ko'chirib qo'yardi. Nullable maydonlar
+    // (customerName/customerPhone/notes/durationMinutes) `!== undefined` bo'yicha
+    // qoladi — ular ataylab tozalanishi mumkin, faqat trim null-xavfsiz qilindi.
+    if (dto.tableId != null && dto.tableId !== reservation.tableId) {
       const table = await this.dataSource
         .getRepository(Table)
         .findOne({ where: { id: dto.tableId, clubId, isActive: true } });
       if (!table) throw new NotFoundException({ key: 'tables.notFound' });
       reservation.tableId = dto.tableId;
     }
-    if (dto.customerId !== undefined) {
+    if (dto.customerId != null) {
       const customer = await this.dataSource
         .getRepository(Customer)
         .findOne({ where: { id: dto.customerId, clubId } });
@@ -190,13 +200,13 @@ export class ReservationsService {
         reservation.customerName = customer.name;
       }
     }
-    if (dto.startsAt !== undefined) reservation.startsAt = new Date(dto.startsAt);
-    if (dto.durationMinutes !== undefined) reservation.durationMinutes = dto.durationMinutes;
-    if (dto.customerName !== undefined) reservation.customerName = dto.customerName.trim() || null;
+    if (dto.startsAt != null) reservation.startsAt = new Date(dto.startsAt);
+    if (dto.durationMinutes !== undefined) reservation.durationMinutes = dto.durationMinutes ?? null;
+    if (dto.customerName !== undefined) reservation.customerName = dto.customerName?.trim() || null;
     if (dto.customerPhone !== undefined)
-      reservation.customerPhone = dto.customerPhone.trim() || null;
-    if (dto.notes !== undefined) reservation.notes = dto.notes.trim() || null;
-    if (dto.status !== undefined) reservation.status = dto.status;
+      reservation.customerPhone = dto.customerPhone?.trim() || null;
+    if (dto.notes !== undefined) reservation.notes = dto.notes?.trim() || null;
+    if (dto.status != null) reservation.status = dto.status;
 
     await this.reservationRepo.save(reservation);
 

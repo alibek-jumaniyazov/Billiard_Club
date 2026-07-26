@@ -125,6 +125,9 @@ const AdminClubsPage = () => {
 
   const [extendClub, setExtendClub] = useState<Club | null>(null);
   const [extendDate, setExtendDate] = useState<Dayjs | null>(null);
+  const [extending, setExtending] = useState(false);
+  // Bosishlar orasida qayta render bo'lishini kutmaydigan qat'iy qulf
+  const extendingRef = useRef(false);
 
   // ---------- Batafsil drawer ----------
   const [detailClub, setDetailClub] = useState<Club | null>(null);
@@ -260,7 +263,14 @@ const AdminClubsPage = () => {
   };
 
   // ---------- Uzaytirish ----------
-  const doExtend = async (club: Club, body: { months?: number; until?: string }) => {
+  const doExtend = async (
+    club: Club,
+    body: { months?: number; until?: string; allowShorten?: boolean },
+  ) => {
+    // Ikki marta bosilgan menyu bandi ikkita uzaytirish so'rovi yubormasin
+    if (extendingRef.current) return;
+    extendingRef.current = true;
+    setExtending(true);
     try {
       const res = await adminApi.extend(club.id, body);
       message.success(res.message);
@@ -268,7 +278,36 @@ const AdminClubsPage = () => {
       if (detailClub?.id === club.id) setDetailClub(res.data);
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
+    } finally {
+      extendingRef.current = false;
+      setExtending(false);
     }
+  };
+
+  /**
+   * Aniq sanagacha uzaytirish. Yangi sana joriy muddatdan OLDIN bo'lsa —
+   * to'langan kunlar yo'qoladi, shuning uchun avval aniq ogohlantiriladi
+   * va faqat rozilikdan keyin allowShorten bilan yuboriladi.
+   */
+  const requestExtendUntil = (club: Club, until: Dayjs) => {
+    const target = until.endOf('day');
+    const currentEnd = club.effectiveEndsAt ? dayjs(club.effectiveEndsAt) : null;
+    if (currentEnd && target.isBefore(currentEnd)) {
+      const lostDays = Math.max(1, currentEnd.diff(target, 'day'));
+      modal.confirm({
+        title: t('adminClubs.shortenTitle'),
+        content: t('adminClubs.shortenWarn', {
+          days: lostDays,
+          date: currentEnd.format('DD.MM.YYYY'),
+        }),
+        okText: t('common.yes'),
+        cancelText: t('common.no'),
+        okButtonProps: { danger: true },
+        onOk: () => doExtend(club, { until: target.toISOString(), allowShorten: true }),
+      });
+      return;
+    }
+    void doExtend(club, { until: target.toISOString() });
   };
 
   const extendMenuItems = (club: Club) => [
@@ -512,7 +551,7 @@ const AdminClubsPage = () => {
             {t('adminClubs.view')}
           </Button>
           <Dropdown menu={{ items: extendMenuItems(club) }}>
-            <Button type="primary" size="small" icon={<ThunderboltOutlined />}>
+            <Button type="primary" size="small" icon={<ThunderboltOutlined />} loading={extending}>
               {t('adminClubs.extend')}
             </Button>
           </Dropdown>
@@ -1053,7 +1092,7 @@ const AdminClubsPage = () => {
               <Form.Item
                 name="adminPassword"
                 label={t('adminClubs.adminPassword')}
-                rules={[{ required: true, min: 6, message: t('adminClubs.passwordRequired') }]}
+                rules={[{ required: true, min: 8, message: t('adminClubs.passwordRequired') }]}
               >
                 <Input
                   maxLength={100}
@@ -1136,7 +1175,7 @@ const AdminClubsPage = () => {
           <Form.Item
             name="password"
             label={t('adminClubs.newPassword')}
-            rules={[{ required: true, min: 6, message: t('adminClubs.passwordRequired') }]}
+            rules={[{ required: true, min: 8, message: t('adminClubs.passwordRequired') }]}
           >
             <Input
               autoComplete="new-password"
@@ -1164,7 +1203,7 @@ const AdminClubsPage = () => {
         okButtonProps={{ disabled: !extendDate }}
         onOk={() => {
           if (extendClub && extendDate) {
-            void doExtend(extendClub, { until: extendDate.endOf('day').toISOString() });
+            requestExtendUntil(extendClub, extendDate);
             setExtendClub(null);
           }
         }}
@@ -1199,7 +1238,12 @@ const AdminClubsPage = () => {
           detailClub && (
             <Space>
               <Dropdown menu={{ items: extendMenuItems(detailClub) }}>
-                <Button size="small" type="primary" icon={<ThunderboltOutlined />}>
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<ThunderboltOutlined />}
+                  loading={extending}
+                >
                   {t('adminClubs.extend')}
                 </Button>
               </Dropdown>

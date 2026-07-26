@@ -4,6 +4,7 @@ import { SwapOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, sessionsApi } from '../../api';
 import { MoneyText } from '../../components/ui';
+import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable, Session } from '../../types';
 
@@ -27,7 +28,7 @@ const TransferModal = ({ table, freeTables, onClose, onTransferred }: TransferMo
   const [submitting, setSubmitting] = useState(false);
 
   const session = table?.sessions?.[0] ?? null;
-  const currency = t('common.sum');
+  const currency = useCurrency();
 
   useEffect(() => {
     if (table) setTargetId(null);

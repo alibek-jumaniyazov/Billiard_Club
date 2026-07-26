@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   App,
@@ -145,6 +145,11 @@ const Feedback = () => {
   const [total, setTotal] = useState(0);
   const pageSize = 10;
 
+  // `t` yuklash callbackining bog'liqligi EMAS: til almashganda ro'yxat
+  // 1-sahifaga jimgina qaytib ketmasin
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const fetchList = useCallback(
     async (nextPage: number) => {
       setListLoading(true);
@@ -155,12 +160,12 @@ const Feedback = () => {
         setTotal(res.pagination?.total ?? 0);
       } catch (err) {
         setListError(true);
-        message.error(errorMessage(err, t('common.error')));
+        message.error(errorMessage(err, tRef.current('common.error')));
       } finally {
         setListLoading(false);
       }
     },
-    [message, t],
+    [message],
   );
 
   useEffect(() => {

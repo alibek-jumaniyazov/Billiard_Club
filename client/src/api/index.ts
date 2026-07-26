@@ -151,6 +151,9 @@ export const productsApi = {
   list: (params?: object) => get<Product[]>('/products', params),
   create: (body: object) => post<Product>('/products', body),
   update: (id: number, body: object) => put<Product>(`/products/${id}`, body),
+  /** Ombor qoldig'ini DELTA bo'yicha to'g'irlash (mutlaq qiymat yuborilmaydi) */
+  adjustStock: (id: number, delta: number, reason?: string) =>
+    post<Product>(`/products/${id}/stock`, { delta, ...(reason ? { reason } : {}) }),
   remove: (id: number) => del<void>(`/products/${id}`),
 };
 
@@ -356,7 +359,8 @@ export const adminApi = {
   clubStats: (id: number) => get<ClubStats>(`/admin/clubs/${id}/stats`),
   createClub: (body: object) => post<Club>('/admin/clubs', body),
   updateClub: (id: number, body: object) => put<Club>(`/admin/clubs/${id}`, body),
-  extend: (id: number, body: { months?: number; until?: string }) =>
+  /** months yoki until — aynan bittasi; allowShorten: muddatni qisqartirishga rozilik */
+  extend: (id: number, body: { months?: number; until?: string; allowShorten?: boolean }) =>
     post<Club>(`/admin/clubs/${id}/extend`, body),
   block: (id: number) => post<Club>(`/admin/clubs/${id}/block`),
   unblock: (id: number) => post<Club>(`/admin/clubs/${id}/unblock`),
@@ -391,8 +395,10 @@ export const publicApi = {
 /** Server xatosidan foydalanuvchiga ko'rsatiladigan xabarni ajratib oladi */
 export const errorMessage = (err: unknown, fallback: string): string => {
   if (typeof err === 'object' && err !== null && 'response' in err) {
-    const res = (err as { response?: { data?: { message?: string } } }).response;
-    if (res?.data?.message) return res.data.message;
+    const res = (err as { response?: { data?: { message?: unknown } } }).response;
+    // Faqat satr xabar ko'rsatiladi: blob/binar tana yoki obyekt kelsa
+    // "[object Object]" o'rniga zaxira matn qaytadi
+    if (typeof res?.data?.message === 'string' && res.data.message) return res.data.message;
   }
   return fallback;
 };

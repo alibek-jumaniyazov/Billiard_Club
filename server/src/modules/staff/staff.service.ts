@@ -6,13 +6,18 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, IsNull, Repository } from 'typeorm';
+import { RefreshSession } from '../../entities/refresh-session.entity';
 import { User } from '../../entities/user.entity';
 import { CreateStaffDto, ListStaffQueryDto, UpdateStaffDto } from './dto/staff.dto';
 
 @Injectable()
 export class StaffService {
-  constructor(@InjectRepository(User) private readonly userRepo: Repository<User>) {}
+  constructor(
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(RefreshSession)
+    private readonly refreshRepo: Repository<RefreshSession>,
+  ) {}
 
   async findAll(clubId: number, query: ListStaffQueryDto) {
     const page = query.page ?? 1;
@@ -92,6 +97,17 @@ export class StaffService {
     if (Object.keys(updates).length > 0) {
       await this.userRepo.update(id, updates);
     }
+
+    // tokenVersion tokenlarni o'ldiradi, lekin refresh_sessions qatorlari
+    // ochiq qolib, GET /auth/sessions da o'lik qurilmalarni "faol" ko'rsatardi.
+    // auth.service.changePassword bilan bir xil idioma: hammasi revoked.
+    if (dto.password) {
+      await this.refreshRepo.update(
+        { userId: id, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+    }
+
     return this.userRepo.findOne({ where: { id } });
   }
 
