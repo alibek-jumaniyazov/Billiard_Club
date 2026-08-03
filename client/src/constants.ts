@@ -6,6 +6,7 @@ import type {
   FeedbackStatus,
   FeedbackType,
   InvoiceStatus,
+  NotificationAudience,
   PaymentMethod,
   ReservationStatus,
   SessionStatus,
@@ -167,12 +168,36 @@ export const NOTIFICATION_TYPES: readonly ClubNotificationType[] = [
   'maintenance',
 ] as const;
 
-export const NOTIFICATION_TYPE_COLORS: Record<ClubNotificationType, string> = {
-  info: 'blue',
-  warning: 'orange',
-  promo: 'purple',
-  maintenance: 'red',
+/**
+ * Xabarnoma turi -> StatusTag semantik kaliti.
+ * IKKALA tomon (klub sahifasi va superadmin paneli) shu yagona xaritadan
+ * foydalanadi — compose oynasidagi jonli preview aynan klub ko'radigan
+ * ko'rinishni bersin.
+ */
+export const NOTIFICATION_TAG_KEY: Record<ClubNotificationType, string> = {
+  info: 'info',
+  warning: 'warning',
+  promo: 'promo',
+  maintenance: 'maintenance',
 };
+
+/** Ommaviy e'lon auditoriyalari */
+export const NOTIFICATION_AUDIENCES: readonly NotificationAudience[] = [
+  'all',
+  'trial',
+  'active',
+  'expired',
+] as const;
+
+/** Klub sahifasidagi o'qilganlik filtri */
+export const NOTIFICATION_READ_FILTERS = ['all', 'unread', 'read'] as const;
+export type NotificationReadFilter = (typeof NOTIFICATION_READ_FILTERS)[number];
+
+/**
+ * Ro'yxat tepasiga yopishtiriladigan muhim turlar — server tomondagi
+ * PINNED_TYPES bilan bir xil ro'yxat bo'lishi shart.
+ */
+export const NOTIFICATION_PINNED_TYPES: readonly string[] = ['maintenance', 'warning'];
 
 // ==================== Platforma (superadmin) ====================
 

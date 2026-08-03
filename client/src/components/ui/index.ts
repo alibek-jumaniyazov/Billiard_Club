@@ -2,6 +2,7 @@
 export { default as AnimatedBackground } from './AnimatedBackground';
 export { default as BilliardTable } from './BilliardTable';
 export { default as BrandLogo } from './BrandLogo';
+export { default as ClampedBody } from './ClampedBody';
 export { default as EmptyState } from './EmptyState';
 export { default as GlassCard } from './GlassCard';
 export { default as MoneyText } from './MoneyText';

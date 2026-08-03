@@ -4,24 +4,55 @@ import { Select } from 'antd';
 import { adminApi } from '../../api';
 import type { Club } from '../../types';
 
-interface ClubSelectProps {
-  value?: number;
-  onChange?: (value: number | undefined) => void;
+interface CommonProps {
   placeholder?: string;
   allowClear?: boolean;
   style?: CSSProperties;
 }
 
+/** Standart rejim — bitta klub */
+interface SingleProps extends CommonProps {
+  multiple?: false;
+  value?: number;
+  onChange?: (value: number | undefined) => void;
+}
+
+/** `multiple` — ID lar ro'yxati */
+interface MultiProps extends CommonProps {
+  multiple: true;
+  value?: number[];
+  onChange?: (value: number[] | undefined) => void;
+}
+
+/**
+ * Ajratuvchi (discriminated) union: `multiple` bayrog'i `value` va `onChange`
+ * tiplarini aniqlaydi, shu sababli bitta klub tanlaydigan mavjud
+ * chaqiruvchilar hech qanday cast'siz ishlashda davom etadi.
+ */
+type ClubSelectProps = SingleProps | MultiProps;
+
+const toIds = (value: number | number[] | undefined): number[] => {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
+};
+
 /**
  * Klub tanlash selecti — server tomonda qidiradi (adminApi.clubs?search=).
  * Xabarnoma yuborish, faktura/jurnal filtrlari uchun umumiy komponent.
+ *
+ * Tanlangan klublarning NOMI eslab qolinadi: qidiruv 20 ta natija qaytaradi,
+ * shu sababli tanlangan klub keyingi qidiruvda ro'yxatdan tushib qolsa,
+ * Select xom raqamli ID ni ko'rsatib qolardi.
  */
-const ClubSelect = ({ value, onChange, placeholder, allowClear = true, style }: ClubSelectProps) => {
+const ClubSelect = (props: ClubSelectProps) => {
+  const { value, placeholder, allowClear = true, multiple = false, style } = props;
   const [options, setOptions] = useState<Club[]>([]);
-  /** Tanlangan klub — qidiruv natijalaridan tushib qolsa ham nomi saqlanadi */
-  const [selected, setSelected] = useState<Club | null>(null);
+  /** id -> klub: tanlangan klublarning nomlari saqlanadigan xotira */
+  const [known, setKnown] = useState<Map<number, Club>>(new Map());
   const [loading, setLoading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Alohida so'ralgan ID lar — cheksiz so'rov halqasining oldini oladi */
+  const fetchedRef = useRef<Set<number>>(new Set());
 
   const search = useCallback(async (term: string) => {
     setLoading(true);
@@ -42,33 +73,68 @@ const ClubSelect = ({ value, onChange, placeholder, allowClear = true, style }: 
     };
   }, [search]);
 
-  // Tanlangan klub ro'yxatda uchrasa — eslab qolamiz; tanlov tozalansa — unutamiz
+  const ids = useMemo(() => toIds(value), [value]);
+  const idsKey = ids.join(',');
+
+  // Qidiruv natijalarida uchragan tanlangan klublarni eslab qolamiz
   useEffect(() => {
-    if (value === undefined) {
-      setSelected(null);
-      return;
-    }
-    const found = options.find((c) => c.id === value);
-    if (found) setSelected(found);
-  }, [value, options]);
+    if (ids.length === 0) return;
+    const found = options.filter((club) => ids.includes(club.id));
+    if (found.length === 0) return;
+    setKnown((prev) => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const club of found) {
+        if (next.get(club.id)?.name !== club.name) {
+          next.set(club.id, club);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // idsKey — massiv havolasi emas, mazmuni bo'yicha bog'liqlik
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, options]);
 
   /**
-   * Tanlangan klub qidiruv natijalarida bo'lmasa ham ro'yxatga qo'shiladi —
-   * aks holda Select xom raqamli ID ni ko'rsatib qolardi.
+   * Tanlangan ID na ro'yxatda, na xotirada bo'lsa — alohida so'rab olamiz.
+   * `?clubId=` chuqur havolasi xom raqam bo'lib ko'rinib qolmasin.
    */
+  useEffect(() => {
+    for (const id of ids) {
+      if (known.has(id) || fetchedRef.current.has(id)) continue;
+      if (options.some((club) => club.id === id)) continue;
+      fetchedRef.current.add(id);
+      adminApi
+        .club(id)
+        .then((res) => setKnown((prev) => new Map(prev).set(id, res.data)))
+        .catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, options, known]);
+
   const selectOptions = useMemo(() => {
-    const list = options.map((c) => ({ value: c.id, label: c.name }));
-    if (selected && value === selected.id && !options.some((c) => c.id === selected.id)) {
-      list.unshift({ value: selected.id, label: selected.name });
+    const list = options.map((club) => ({ value: club.id, label: club.name }));
+    const present = new Set(options.map((club) => club.id));
+    for (const id of ids) {
+      if (present.has(id)) continue;
+      const club = known.get(id);
+      if (club) list.unshift({ value: club.id, label: club.name });
     }
     return list;
-  }, [options, selected, value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options, known, idsKey]);
 
   return (
     <Select
       showSearch
+      mode={multiple ? 'multiple' : undefined}
+      maxTagCount="responsive"
       value={value}
-      onChange={(v) => onChange?.(v)}
+      onChange={(v) => {
+        if (props.multiple) props.onChange?.(v as number[] | undefined);
+        else props.onChange?.(v as number | undefined);
+      }}
       onSearch={(term) => {
         if (timerRef.current) clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => void search(term), 350);

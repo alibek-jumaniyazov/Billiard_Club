@@ -7,41 +7,47 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { notificationsApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationsContext';
+import { NOTIFICATION_TAG_KEY } from '../../constants';
 import { TOKENS } from '../../theme/tokens';
-import type { ClubNotification } from '../../types';
+import type { ClubNotification, ClubNotificationType } from '../../types';
+import { normalizeMessageBody } from '../../utils/format';
+import StatusTag from './StatusTag';
 
 dayjs.extend(relativeTime);
 
 const { Text } = Typography;
 
-/** Yangi xabarlarni tekshirish oralig'i (ms) */
-const POLL_INTERVAL_MS = 60_000;
 /** Dropdown da ko'rsatiladigan so'nggi xabarlar soni */
 const PREVIEW_LIMIT = 5;
 
+const KNOWN_TYPES = new Set<string>(['info', 'warning', 'promo', 'maintenance']);
+
 /**
  * Header uchun xabarnoma qo'ng'irog'i: o'qilmaganlar soni badge da,
- * dropdown da so'nggi 5 ta xabar va sahifaga havola. Server endpointi
- * faqat klub egasi (admin) uchun — boshqa rollarda render qilinmaydi.
+ * dropdown da so'nggi 5 ta xabar va sahifaga havola.
+ *
+ * O'qilmaganlar soni NotificationsContext dan olinadi — sahifada qilingan
+ * o'zgarish shu zahoti badge'da ko'rinadi. Server endpointi faqat klub egasi
+ * (admin) uchun, shu sababli boshqa rollarda umuman render qilinmaydi.
  */
 const NotificationsBell = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { unreadCount, syncUnread, bump, version } = useNotifications();
   const navigate = useNavigate();
 
   const [items, setItems] = useState<ClubNotification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
 
   const isAdmin = user?.role === 'admin';
 
-  const poll = useCallback(async (withSpinner = false) => {
+  const loadPreview = useCallback(async (withSpinner = false) => {
     if (withSpinner) setLoading(true);
     try {
       const res = await notificationsApi.list({ page: 1, limit: PREVIEW_LIMIT });
       setItems(res.data);
-      setUnreadCount(res.unreadCount ?? 0);
     } catch {
       // Fon so'rovi — xato jimgina o'tkaziladi (keyingi tsiklda qayta uriniladi)
     } finally {
@@ -49,21 +55,17 @@ const NotificationsBell = () => {
     }
   }, []);
 
+  // Kontekst polling tsikli `version` ni oshiradi — ro'yxat shunga ergashadi
   useEffect(() => {
     if (!isAdmin) return;
-    void poll();
-    const interval = setInterval(() => {
-      // Yashirin varaqda tarmoqni band qilmaymiz
-      if (document.visibilityState === 'visible') void poll();
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [isAdmin, poll]);
+    void loadPreview();
+  }, [isAdmin, loadPreview, version]);
 
   if (!isAdmin) return null;
 
-  const goToPage = () => {
+  const goToPage = (id?: number) => {
     setOpen(false);
-    navigate('/notifications');
+    navigate(id ? `/notifications?id=${id}` : '/notifications');
   };
 
   const handleItemClick = (item: ClubNotification) => {
@@ -71,17 +73,24 @@ const NotificationsBell = () => {
       setItems((prev) =>
         prev.map((n) => (n.id === item.id ? { ...n, readAt: new Date().toISOString() } : n)),
       );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      syncUnread(Math.max(0, unreadCount - 1));
       // Sahifaga o'tishni kutmasdan belgilab qo'yamiz; xato — keyingi poll tuzatadi
-      notificationsApi.read(item.id).catch(() => undefined);
+      notificationsApi
+        .read(item.id)
+        .then((res) => {
+          syncUnread(res.unreadCount);
+          bump();
+        })
+        .catch(() => undefined);
     }
-    goToPage();
+    // Chuqur havola: xabar birinchi sahifada bo'lmasa ham sahifa uni ochadi
+    goToPage(item.id);
   };
 
   const popup = (
     <div
       style={{
-        width: 320,
+        width: 340,
         maxWidth: 'calc(100vw - 24px)',
         background: TOKENS.color.bg.bg2,
         border: `1px solid ${TOKENS.color.border.base}`,
@@ -97,6 +106,7 @@ const NotificationsBell = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 8,
         }}
       >
         <Text strong>{t('notifications.bellTitle')}</Text>
@@ -121,6 +131,7 @@ const NotificationsBell = () => {
         <div>
           {items.map((item) => {
             const unread = !item.readAt;
+            const typeKey = KNOWN_TYPES.has(item.type) ? item.type : 'info';
             return (
               <button
                 key={item.id}
@@ -131,51 +142,58 @@ const NotificationsBell = () => {
                   width: '100%',
                   textAlign: 'start',
                   padding: '10px 14px',
-                  background: 'transparent',
+                  background: unread ? TOKENS.color.bg.bg3 : 'transparent',
                   border: 'none',
                   borderBottom: `1px solid ${TOKENS.color.border.subtle}`,
+                  borderInlineStart: unread
+                    ? `3px solid ${TOKENS.color.gold.base}`
+                    : '3px solid transparent',
                   cursor: 'pointer',
                 }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {unread && (
-                    <span
-                      aria-hidden
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: '50%',
-                        background: TOKENS.color.gold.base,
-                        boxShadow: `0 0 6px ${TOKENS.color.gold.base}`,
-                        flexShrink: 0,
-                      }}
-                    />
-                  )}
-                  <Text
-                    strong={unread}
-                    ellipsis
-                    style={{ flex: 1, minWidth: 0, fontSize: 13.5 }}
-                  >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <Text strong={unread} ellipsis style={{ flex: 1, minWidth: 0, fontSize: 13.5 }}>
                     {item.title}
                   </Text>
                   <Text type="secondary" style={{ fontSize: 11.5, whiteSpace: 'nowrap' }}>
                     {dayjs(item.createdAt).fromNow()}
                   </Text>
                 </span>
-                <Text
-                  type="secondary"
-                  ellipsis
-                  style={{ display: 'block', fontSize: 12.5, marginTop: 2 }}
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginTop: 4,
+                    minWidth: 0,
+                  }}
                 >
-                  {item.body}
-                </Text>
+                  <StatusTag
+                    status={NOTIFICATION_TAG_KEY[typeKey as ClubNotificationType]}
+                    label={t(`notifications.type.${typeKey}`)}
+                    dot={false}
+                    style={{ fontSize: 11, padding: '0 7px', lineHeight: '17px' }}
+                  />
+                  <Text
+                    type="secondary"
+                    ellipsis
+                    style={{ flex: 1, minWidth: 0, fontSize: 12.5 }}
+                  >
+                    {normalizeMessageBody(item.body).replace(/\n+/g, ' ')}
+                  </Text>
+                </span>
               </button>
             );
           })}
         </div>
       )}
 
-      <Button type="text" block onClick={goToPage} style={{ borderRadius: 0, color: TOKENS.color.gold.base }}>
+      <Button
+        type="text"
+        block
+        onClick={() => goToPage()}
+        style={{ borderRadius: 0, color: TOKENS.color.gold.base }}
+      >
         {t('notifications.bellViewAll')} <RightOutlined style={{ fontSize: 11 }} />
       </Button>
     </div>
@@ -186,7 +204,7 @@ const NotificationsBell = () => {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) void poll(true);
+        if (next) void loadPreview(true);
       }}
       trigger={['click']}
       placement="bottomRight"

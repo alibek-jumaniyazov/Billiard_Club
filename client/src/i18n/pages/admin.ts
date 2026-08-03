@@ -171,6 +171,61 @@ export default {
     'notif.readStatus': 'Holat',
     'notif.read': "O'qilgan",
     'notif.unread': "O'qilmagan",
+    // Filtrlar
+    'notif.searchPlaceholder': 'Sarlavha yoki matn',
+    'notif.filterType': 'Turi',
+    'notif.filterClub': 'Klub',
+    'notif.targetAny': 'Barcha qamrovlar',
+    'notif.targetSingleOnly': 'Bitta klubga',
+    'notif.targetBroadcast': "Ommaviy e'lon",
+    'notif.targetCount': '{{count}} ta klub',
+    // Jadval ustunlari
+    'notif.recipients': 'Qabul qiluvchilar',
+    'notif.readCount': "O'qildi",
+    'notif.readRate': "O'qish ulushi",
+    'notif.sender': 'Yuborgan',
+    'notif.unknownSender': "Noma'lum",
+    // Statistika
+    'notif.statBatches': "E'lonlar",
+    'notif.statRecipients': 'Yetkazilgan',
+    'notif.statRead': "O'qilgan",
+    'notif.statReadRate': "O'qish ulushi",
+    'notif.stat30d': '30 kunda',
+    // Batafsil oyna
+    'notif.detailTitle': "E'lon tafsilotlari",
+    'notif.recipientsTitle': 'Qabul qiluvchi klublar',
+    'notif.clubStatus': 'Klub holati',
+    'notif.duplicate': 'Nusxasini yuborish',
+    // Qaytarib olish
+    'notif.recall': 'Qaytarib olish',
+    'notif.recallOnlyUnread': "Faqat o'qilmaganlarni o'chirish",
+    'notif.recallHint':
+      "O'qilgan nusxalar saqlanadi — klub xabarni ko'rgan bo'lsa, uni tarixdan yashirish noto'g'ri manzara beradi. O'chirilgan yozuv qaytarilmaydi.",
+    'notif.recallConfirm':
+      "E'lon {{recipients}} ta klubga yuborilgan, {{read}} tasi allaqachon o'qigan. Qaytarib olinsinmi?",
+    'notif.recalled': "E'lon qaytarib olindi",
+    // Yozish oynasi
+    'notif.composeOpen': 'Yangi xabarnoma',
+    'notif.targetMany': 'Bir nechta klub',
+    'notif.selectClubs': 'Klublarni tanlang',
+    'notif.clubsRequired': 'Kamida bitta klub tanlang',
+    'notif.audience': 'Auditoriya',
+    'notif.audienceAll': 'Barcha klublar',
+    'notif.audienceTrial': 'Sinov muddatidagilar',
+    'notif.audienceActive': 'Faol obunachilar',
+    'notif.audienceExpired': 'Muddati tugaganlar',
+    'notif.includeBlocked': "Bloklanganlarni ham qo'shish",
+    'notif.audienceCount': 'Qabul qiluvchilar: {{count}} ta klub',
+    'notif.sendConfirmCount': 'Xabar {{count}} ta klubga yuboriladi. Davom etasizmi?',
+    'notif.titleHint': "Qo'ng'iroq ro'yxatida taxminan 60 belgi ko'rinadi",
+    'notif.bodyHint':
+      "Klub sahifasida dastlabki 3 satr ko'rinadi, qolgani — «To'liq o'qish» orqali",
+    'notif.titleMin': "Sarlavha kamida 3 belgidan iborat bo'lsin",
+    'notif.bodyMin': "Xabar matni kamida 10 belgidan iborat bo'lsin",
+    'notif.preview': "Klub qanday ko'radi",
+    'notif.previewEmpty': "Sarlavha va matnni kiriting — shu yerda ko'rinadi",
+    'notif.draftRestored': 'Saqlangan qoralama tiklandi',
+    'notif.draftDiscard': 'Qoralamani tashlash',
 
     // Tizim jurnali va texnik holat
     'logs.title': 'Tizim jurnali',
@@ -389,6 +444,61 @@ export default {
     'notif.readStatus': 'Статус',
     'notif.read': 'Прочитано',
     'notif.unread': 'Непрочитано',
+    // Фильтры
+    'notif.searchPlaceholder': 'Заголовок или текст',
+    'notif.filterType': 'Тип',
+    'notif.filterClub': 'Клуб',
+    'notif.targetAny': 'Любой охват',
+    'notif.targetSingleOnly': 'Одному клубу',
+    'notif.targetBroadcast': 'Массовая рассылка',
+    'notif.targetCount': '{{count}} клубов',
+    // Колонки таблицы
+    'notif.recipients': 'Получатели',
+    'notif.readCount': 'Прочитано',
+    'notif.readRate': 'Доля прочтений',
+    'notif.sender': 'Отправитель',
+    'notif.unknownSender': 'Неизвестно',
+    // Статистика
+    'notif.statBatches': 'Рассылки',
+    'notif.statRecipients': 'Доставлено',
+    'notif.statRead': 'Прочитано',
+    'notif.statReadRate': 'Доля прочтений',
+    'notif.stat30d': 'За 30 дней',
+    // Окно деталей
+    'notif.detailTitle': 'Детали рассылки',
+    'notif.recipientsTitle': 'Клубы-получатели',
+    'notif.clubStatus': 'Статус клуба',
+    'notif.duplicate': 'Отправить копию',
+    // Отзыв
+    'notif.recall': 'Отозвать',
+    'notif.recallOnlyUnread': 'Удалить только непрочитанные',
+    'notif.recallHint':
+      'Прочитанные копии сохраняются — если клуб уже увидел сообщение, прятать его из истории неверно. Удалённые записи не восстанавливаются.',
+    'notif.recallConfirm':
+      'Рассылка ушла в {{recipients}} клубов, {{read}} из них уже прочитали. Отозвать?',
+    'notif.recalled': 'Рассылка отозвана',
+    // Окно составления
+    'notif.composeOpen': 'Новое уведомление',
+    'notif.targetMany': 'Несколько клубов',
+    'notif.selectClubs': 'Выберите клубы',
+    'notif.clubsRequired': 'Выберите хотя бы один клуб',
+    'notif.audience': 'Аудитория',
+    'notif.audienceAll': 'Все клубы',
+    'notif.audienceTrial': 'На пробном периоде',
+    'notif.audienceActive': 'С активной подпиской',
+    'notif.audienceExpired': 'С истёкшей подпиской',
+    'notif.includeBlocked': 'Включая заблокированные',
+    'notif.audienceCount': 'Получателей: {{count}} клубов',
+    'notif.sendConfirmCount': 'Сообщение будет отправлено {{count}} клубам. Продолжить?',
+    'notif.titleHint': 'В списке колокольчика видно примерно 60 символов',
+    'notif.bodyHint':
+      'На странице клуба видны первые 3 строки, остальное — по «Читать полностью»',
+    'notif.titleMin': 'Заголовок — минимум 3 символа',
+    'notif.bodyMin': 'Текст сообщения — минимум 10 символов',
+    'notif.preview': 'Как это увидит клуб',
+    'notif.previewEmpty': 'Введите заголовок и текст — они появятся здесь',
+    'notif.draftRestored': 'Восстановлен сохранённый черновик',
+    'notif.draftDiscard': 'Отбросить черновик',
 
     // Журнал системы и техническое состояние
     'logs.title': 'Журнал системы',

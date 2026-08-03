@@ -148,6 +148,15 @@ const messages: Record<Language, Record<string, string>> = {
     'notifications.allMarkedRead': "Barcha xabarnomalar o'qilgan deb belgilandi",
     'notifications.sent': 'Xabarnoma yuborildi',
     'notifications.sentToAll': 'Xabarnoma {count} ta klubga yuborildi',
+    'notifications.markedUnread': "Xabarnoma o'qilmagan deb belgilandi",
+    'notifications.deleted': "Xabarnoma o'chirildi",
+    'notifications.bulkUpdated': '{count} ta xabarnoma yangilandi',
+    'notifications.bulkDeleted': "{count} ta xabarnoma o'chirildi",
+    'notifications.sentToClubs': 'Xabarnoma {count} ta klubga yuborildi',
+    'notifications.noRecipients': 'Tanlangan shartga mos klub topilmadi',
+    'notifications.batchNotFound': "E'lon topilmadi",
+    'notifications.recalled': "E'lon qaytarib olindi: {count} ta yozuv o'chirildi",
+    'notifications.rowDeleted': "Yozuv o'chirildi",
 
     // Platforma (superadmin)
     'platform.unknownTelegramEvent': "Noma'lum Telegram hodisasi: {event}",
@@ -405,6 +414,15 @@ const messages: Record<Language, Record<string, string>> = {
     'notifications.allMarkedRead': 'Все уведомления отмечены как прочитанные',
     'notifications.sent': 'Уведомление отправлено',
     'notifications.sentToAll': 'Уведомление отправлено {count} клубам',
+    'notifications.markedUnread': 'Уведомление отмечено как непрочитанное',
+    'notifications.deleted': 'Уведомление удалено',
+    'notifications.bulkUpdated': 'Обновлено уведомлений: {count}',
+    'notifications.bulkDeleted': 'Удалено уведомлений: {count}',
+    'notifications.sentToClubs': 'Уведомление отправлено {count} клубам',
+    'notifications.noRecipients': 'Не найдено клубов, подходящих под условие',
+    'notifications.batchNotFound': 'Рассылка не найдена',
+    'notifications.recalled': 'Рассылка отозвана: удалено записей — {count}',
+    'notifications.rowDeleted': 'Запись удалена',
 
     // Платформа (superadmin)
     'platform.unknownTelegramEvent': 'Неизвестное событие Telegram: {event}',
@@ -530,7 +548,11 @@ export const t = (
   let text = messages[lang]?.[key] ?? messages.uz[key] ?? key;
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      text = text.replace(`{${k}}`, String(v));
+      // Global almashtirish + funksiya-o'rnini bosuvchi: satrli shablon faqat
+      // BIRINCHI uchrashuvni almashtirardi va qiymat ichidagi `$&`/`$1` kabi
+      // ketma-ketliklarni kengaytirib yuborardi (masalan klub yozgan mavzu
+      // xabarnoma sarlavhasiga tushganda).
+      text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), () => String(v));
     }
   }
   return text;

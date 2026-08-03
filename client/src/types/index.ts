@@ -654,6 +654,8 @@ export interface Feedback {
 export interface ClubNotification {
   id: number;
   clubId: number;
+  /** Bitta yuborishning (fan-out) guruh kaliti */
+  batchId: string;
   title: string;
   body: string;
   type: ClubNotificationType | string;
@@ -663,6 +665,47 @@ export interface ClubNotification {
   club?: Club;
   createdBy?: User | null;
 }
+
+/** Superadmin tarixidagi bitta e'lon — fan-out qatorlari guruhlangan holda */
+export interface NotificationBatch {
+  batchId: string;
+  title: string;
+  body: string;
+  type: ClubNotificationType | string;
+  createdAt: string;
+  createdById: number | null;
+  createdByName: string | null;
+  recipients: number;
+  readCount: number;
+  unreadCount: number;
+  readRatePercent: number;
+  /** Faqat recipients === 1 bo'lganda to'ldiriladi */
+  clubId: number | null;
+  clubName: string | null;
+}
+
+/** E'lonning bitta qabul qiluvchisi (drill-down jadvali) */
+export interface NotificationRecipient {
+  id: number;
+  clubId: number;
+  clubName: string;
+  clubStatus: ClubStatus;
+  readAt: string | null;
+}
+
+/** Xabarnomalar bo'yicha umumiy ko'rsatkichlar (superadmin) */
+export interface NotificationStats {
+  batches: number;
+  recipients: number;
+  read: number;
+  unread: number;
+  readRatePercent: number;
+  batches30d: number;
+  recipients30d: number;
+}
+
+/** Ommaviy e'lon auditoriyasi — klub holati bo'yicha segment */
+export type NotificationAudience = 'all' | 'trial' | 'active' | 'expired';
 
 /** Audit jurnali yozuvi */
 export interface AuditLog {
@@ -733,12 +776,16 @@ export interface ApiResponse<T> {
   errors?: unknown;
   /** Tanlangan javoblarda: server vaqti (soat siljishini hisoblash uchun) */
   serverNow?: string;
-  /** GET /notifications: o'qilmaganlar soni */
+  /** GET /notifications va har bir xabarnoma mutatsiyasi: o'qilmaganlar soni */
   unreadCount?: number;
   /** GET /expenses: filtrga mos xarajatlar yig'indisi */
   sum?: number;
-  /** POST /admin/notifications: nechta klubga yuborildi */
+  /** Nechta yozuvga ta'sir qildi (xabarnoma yuborish/belgilash/o'chirish) */
   count?: number;
+  /** POST /admin/notifications: yaratilgan e'lon (batch) identifikatori */
+  batchId?: string;
+  /** DELETE /admin/notifications/batches/:batchId: o'chirilmagan (o'qilgan) nusxalar */
+  keptCount?: number;
   /** POST/PUT /reservations: to'qnashuv ogohlantirishi */
   warning?: string;
   overlaps?: Reservation[];
@@ -837,8 +884,14 @@ export interface SendNotificationPayload {
   title: string;
   body: string;
   type?: ClubNotificationType;
-  /** Berilmasa — barcha bloklanmagan klublarga */
+  /** Aynan bitta klubga */
   clubId?: number;
+  /** Tanlangan bir nechta klubga */
+  clubIds?: number[];
+  /** clubId ham, clubIds ham berilmasa — auditoriya bo'yicha fan-out */
+  audience?: NotificationAudience;
+  /** Faqat auditoriya bo'yicha yuborishga taalluqli */
+  includeBlocked?: boolean;
 }
 
 export interface CustomerPayload {

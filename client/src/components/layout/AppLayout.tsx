@@ -4,6 +4,7 @@ import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import AnimatedBackground from '../ui/AnimatedBackground';
+import { NotificationsProvider } from '../../context/NotificationsContext';
 import { TOKENS } from '../../theme/tokens';
 
 const { Content } = Layout;
@@ -22,40 +23,44 @@ const AppLayout = () => {
   const isMobile = screens.lg === false;
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      {!isMobile && <Sidebar collapsed={collapsed} />}
+    /* Xabarnomalar holati SHU YERDA: header qo'ng'irog'i ham, /notifications
+       sahifasi ham shu qobiq ichida — ikkalasi bitta manbadan o'qiydi */
+    <NotificationsProvider>
+      <Layout style={{ minHeight: '100vh' }}>
+        {!isMobile && <Sidebar collapsed={collapsed} />}
 
-      {isMobile && (
-        <Drawer
-          placement="left"
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          width={264}
-          closable={false}
-          styles={{
-            body: { padding: 0, background: TOKENS.color.bg.bg1 },
-            content: { background: TOKENS.color.bg.bg1 },
-          }}
-        >
-          <Sidebar collapsed={false} inDrawer onNavigate={() => setDrawerOpen(false)} />
-        </Drawer>
-      )}
+        {isMobile && (
+          <Drawer
+            placement="left"
+            open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            width={264}
+            closable={false}
+            styles={{
+              body: { padding: 0, background: TOKENS.color.bg.bg1 },
+              content: { background: TOKENS.color.bg.bg1 },
+            }}
+          >
+            <Sidebar collapsed={false} inDrawer onNavigate={() => setDrawerOpen(false)} />
+          </Drawer>
+        )}
 
-      {/* isolation: aurora z-index'i qatlamdan tashqariga (modal/drawer) chiqmasin */}
-      <Layout style={{ position: 'relative', isolation: 'isolate' }}>
-        {/* Nozik aurora foni — kontent ORQASIDA suzadi (pointer-events: none, z-index: 0) */}
-        <AnimatedBackground variant="subtle" />
-        <Header
-          collapsed={isMobile ? !drawerOpen : collapsed}
-          onToggle={() =>
-            isMobile ? setDrawerOpen((open) => !open) : setCollapsed((c) => !c)
-          }
-        />
-        <Content className="page-container" style={{ position: 'relative', zIndex: 1 }}>
-          <Outlet />
-        </Content>
+        {/* isolation: aurora z-index'i qatlamdan tashqariga (modal/drawer) chiqmasin */}
+        <Layout style={{ position: 'relative', isolation: 'isolate' }}>
+          {/* Nozik aurora foni — kontent ORQASIDA suzadi (pointer-events: none, z-index: 0) */}
+          <AnimatedBackground variant="subtle" />
+          <Header
+            collapsed={isMobile ? !drawerOpen : collapsed}
+            onToggle={() =>
+              isMobile ? setDrawerOpen((open) => !open) : setCollapsed((c) => !c)
+            }
+          />
+          <Content className="page-container" style={{ position: 'relative', zIndex: 1 }}>
+            <Outlet />
+          </Content>
+        </Layout>
       </Layout>
-    </Layout>
+    </NotificationsProvider>
   );
 };
 

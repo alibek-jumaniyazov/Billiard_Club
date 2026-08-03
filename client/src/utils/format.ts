@@ -62,6 +62,41 @@ export const formatClock = (iso: string | number | Date | null | undefined): str
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
 
+/**
+ * Xabar matnini normallashtirish: CRLF -> LF, satr oxiridagi bo'shliqlar
+ * olib tashlanadi, 3 va undan ortiq ketma-ket bo'sh satr ikkitaga
+ * qisqartiriladi. `white-space: pre-wrap` bilan birga ishlatiladi — ataylab
+ * qo'yilgan xat boshi va abzatslar SAQLANADI, faqat tasodifiy "shovqin"
+ * tozalanadi (nusxa-ko'chirilgan matnlar odatda shundan aziyat chekadi).
+ */
+export const normalizeMessageBody = (body: string | null | undefined): string =>
+  (body ?? '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+/** Sana guruhi kaliti — i18n da `notifications.group.<key>` */
+export type DateGroupKey = 'today' | 'yesterday' | 'week' | 'earlier';
+
+/**
+ * ISO sana -> guruh kaliti. dayjs isToday/isYesterday plaginlarisiz:
+ * kun chegarasi bo'yicha oddiy taqqoslash yetarli va bog'liqlik qo'shmaydi.
+ */
+export const dateGroupKey = (iso: string | number | Date): DateGroupKey => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'earlier';
+
+  const startOfDay = (date: Date) =>
+    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+  const days = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86_400_000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days <= 7) return 'week';
+  return 'earlier';
+};
+
 /** ISO sana -> "DD.MM.YYYY HH:mm" (chek/chop etish uchun) */
 export const formatDateTime = (iso: string | number | Date | null | undefined): string => {
   if (iso == null) return '—';

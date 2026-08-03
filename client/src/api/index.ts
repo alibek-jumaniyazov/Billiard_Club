@@ -36,6 +36,10 @@ import type {
   LightSettingsPayload,
   LightsOverview,
   LightTestResult,
+  NotificationAudience,
+  NotificationBatch,
+  NotificationRecipient,
+  NotificationStats,
   Order,
   PaymentMethod,
   Plan,
@@ -68,8 +72,9 @@ const post = async <T>(url: string, body?: object): Promise<ApiResponse<T>> =>
   (await client.post<ApiResponse<T>>(url, body)).data;
 const put = async <T>(url: string, body?: object): Promise<ApiResponse<T>> =>
   (await client.put<ApiResponse<T>>(url, body)).data;
-const del = async <T>(url: string): Promise<ApiResponse<T>> =>
-  (await client.delete<ApiResponse<T>>(url)).data;
+/** DELETE tanasi axios da `config.data` orqali yuboriladi (ommaviy o'chirish) */
+const del = async <T>(url: string, body?: object): Promise<ApiResponse<T>> =>
+  (await client.delete<ApiResponse<T>>(url, { data: body })).data;
 
 export const authApi = {
   login: (username: string, password: string) =>
@@ -315,20 +320,61 @@ export const adminFeedbackApi = {
       .then((res) => res.data),
 };
 
-/** Klub egasi xabarnomalari — javob ildizida unreadCount */
+/**
+ * Klub egasi xabarnomalari. Har bir mutatsiya javobining ildizida yangi
+ * `unreadCount` keladi — qo'ng'iroq badge'i qayta so'rovsiz yangilanadi.
+ */
 export const notificationsApi = {
-  list: (params?: { page?: number; limit?: number }) =>
-    get<ClubNotification[]>('/notifications', params),
-  readAll: () => put<void>('/notifications/read-all'),
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    status?: 'all' | 'unread' | 'read';
+    type?: string;
+    search?: string;
+  }) => get<ClubNotification[]>('/notifications', params),
+  /** Qo'ng'iroq polling'i uchun arzon so'rov */
+  unreadCount: () => get<null>('/notifications/unread-count'),
+  detail: (id: number) => get<ClubNotification>(`/notifications/${id}`),
+  readAll: () => put<null>('/notifications/read-all'),
   read: (id: number) => put<ClubNotification>(`/notifications/${id}/read`),
+  unread: (id: number) => put<ClubNotification>(`/notifications/${id}/unread`),
+  bulkRead: (ids: number[], read: boolean) =>
+    put<null>('/notifications/bulk-read', { ids, read }),
+  remove: (id: number) => del<null>(`/notifications/${id}`),
+  bulkRemove: (ids: number[]) => del<null>('/notifications', { ids }),
 };
 
-/** Superadmin — klublarga xabarnoma yuborish va tarix */
+/** Superadmin — xabarnoma yuborish va E'LON (batch) bo'yicha tarix */
 export const adminNotificationsApi = {
-  /** clubId berilmasa — barcha bloklanmagan klublarga (javobda count) */
-  send: (body: SendNotificationPayload) => post<ClubNotification | null>('/admin/notifications', body),
-  history: (params?: { page?: number; limit?: number }) =>
-    get<ClubNotification[]>('/admin/notifications', params),
+  /** clubId/clubIds berilmasa — auditoriya bo'yicha fan-out (javobda count, batchId) */
+  send: (body: SendNotificationPayload) =>
+    post<ClubNotification | null>('/admin/notifications', body),
+  /** Bitta e'lon = bitta qator (qabul qiluvchilar va o'qish hisobi bilan) */
+  history: (params?: {
+    page?: number;
+    limit?: number;
+    type?: string;
+    clubId?: number;
+    createdById?: number;
+    search?: string;
+    from?: string;
+    to?: string;
+    target?: 'any' | 'single' | 'broadcast';
+  }) => get<NotificationBatch[]>('/admin/notifications', params),
+  batch: (batchId: string) => get<NotificationBatch>(`/admin/notifications/batches/${batchId}`),
+  recipients: (
+    batchId: string,
+    params?: { page?: number; limit?: number; status?: 'all' | 'read' | 'unread'; search?: string },
+  ) =>
+    get<NotificationRecipient[]>(`/admin/notifications/batches/${batchId}/recipients`, params),
+  /** onlyUnread=true — o'qilgan nusxalar saqlanadi (javobda keptCount) */
+  recall: (batchId: string, onlyUnread: boolean) =>
+    del<null>(`/admin/notifications/batches/${batchId}?onlyUnread=${onlyUnread}`),
+  removeRow: (id: number) => del<null>(`/admin/notifications/${id}`),
+  stats: () => get<NotificationStats>('/admin/notifications/stats'),
+  /** Yuborishdan oldingi "nechta klubga boradi" — javobda count */
+  audienceCount: (params: { audience?: NotificationAudience; includeBlocked?: boolean }) =>
+    get<null>('/admin/notifications/audience-count', params),
 };
 
 /** Platforma boshqaruvi — faqat superadmin */

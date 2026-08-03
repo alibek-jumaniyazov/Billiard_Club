@@ -10,5 +10,8 @@ import { NotificationsService } from './notifications.service';
   imports: [TypeOrmModule.forFeature([ClubNotification, Club])],
   controllers: [NotificationsController, NotificationsAdminController],
   providers: [NotificationsService],
+  // Kelajakdagi ishlab chiqaruvchilar xom repozitoriyni inject qilish o'rniga
+  // shu servisdan foydalansin (feedback moduli hozircha repozitoriyni oladi)
+  exports: [NotificationsService],
 })
 export class NotificationsModule {}

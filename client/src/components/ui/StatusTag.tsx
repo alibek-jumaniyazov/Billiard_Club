@@ -41,6 +41,12 @@ const STATUS_STYLES: Record<string, StatusStyle> = {
   error: { color: semantic.error },
   info: { color: semantic.info },
   default: { color: text.secondary },
+
+  // Xabarnoma turlari — 'info' va 'warning' yuqoridagi semantikalardan olinadi
+  promo: { color: emerald.bright },
+  maintenance: { color: semantic.error },
+  /** O'qilmagan xabar belgisi — qatorning oltin chetki chizig'iga hamohang */
+  unread: { color: gold.base, dot: true },
 };
 
 interface StatusTagProps {
