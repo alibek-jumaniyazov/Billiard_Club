@@ -15,6 +15,10 @@ ExecStart=/usr/bin/node /opt/billiardclub-bridge/agent.js
 # Xohlasangiz shu yerdan ham berish mumkin:
 # Environment=SERVER_URL=https://billiardclub.uz
 # Environment=BRIDGE_TOKEN=xxxxxxxx
+# Environment=MQTT_URL=mqtt://192.168.1.10:1883
+
+# Yangi fayllar (state.json) faqat egasiga ko'rinsin — ichida rele parollari bo'lishi mumkin
+UMask=0077
 
 # Har qanday holatda qayta ishga tushirish
 Restart=always
@@ -28,6 +32,11 @@ SyslogIdentifier=billiardclub-bridge
 # Xavfsizlik (ixtiyoriy, lekin tavsiya etiladi)
 NoNewPrivileges=true
 PrivateTmp=true
+
+# USB rele (serial drayveri) ishlatilsa foydalanuvchi "dialout" guruhida bo'lishi kerak:
+#   sudo usermod -aG dialout pi
+# Qat'iyroq variant — faqat kerakli qurilmaga ruxsat berish:
+# DeviceAllow=/dev/ttyUSB0 rw
 
 [Install]
 WantedBy=multi-user.target

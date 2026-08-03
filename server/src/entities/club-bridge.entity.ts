@@ -54,6 +54,42 @@ export class ClubBridge {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  // ---------------------------------------------------------------------------
+  // Agentga beriladigan vazifa (hozircha faqat qurilma qidirish).
+  // Navbat ATAYLAB DB da: ko'p instansiyali deployda vazifa xotirada qolsa
+  // uni boshqa instansiyaga kelgan agent hech qachon ko'rmasdi, panel esa
+  // `queued: true` deb aldab qo'yardi. Vazifa tasdiqlanmaguncha (natija kelmaguncha
+  // yoki muddati o'tmaguncha) shu yerda TURADI — javob yo'qolsa qayta beriladi.
+  // ---------------------------------------------------------------------------
+
+  /** Bajarilishi kutilayotgan vazifa identifikatori (natija shu id bilan qaytadi) */
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  pendingTaskId: string | null;
+
+  /** Vazifa turi ('discover') */
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  pendingTaskType: string | null;
+
+  /** Skanerlanadigan pastki tarmoq ('192.168.1'); null — agent o'zi aniqlaydi */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  pendingTaskSubnet: string | null;
+
+  /** Vazifa navbatga qo'yilgan vaqt (3 daqiqadan keyin muddati o'tadi) */
+  @Column({ type: 'timestamptz', nullable: true })
+  pendingTaskAt: Date | null;
+
+  /** Agent vazifani oxirgi marta OLGAN vaqt (60 s dan keyin qayta beriladi) */
+  @Column({ type: 'timestamptz', nullable: true })
+  taskStartedAt: Date | null;
+
+  /** Oxirgi qidiruv natijasi kelgan vaqt */
+  @Column({ type: 'timestamptz', nullable: true })
+  lastDiscoverAt: Date | null;
+
+  /** Oxirgi qidiruv natijasi: `{ subnet, devices }` (vaqtinchalik yordamchi ma'lumot) */
+  @Column({ type: 'jsonb', nullable: true })
+  lastDiscover: { subnet?: string | null; devices?: unknown[] } | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

@@ -32,8 +32,12 @@ import type {
   FeedbackType,
   Invoice,
   InvoiceStatus,
-  LightMode,
+  LightDiscoverQueued,
+  LightDiscoverState,
+  LightEventView,
+  LightMasterResult,
   LightSettingsPayload,
+  LightSettingsResult,
   LightsOverview,
   LightTestResult,
   NotificationAudience,
@@ -112,7 +116,7 @@ export const lightsApi = {
   /** Klub rejimi + agent holati + BARCHA stollarning chiroq sozlamalari */
   overview: () => get<LightsOverview>('/lights'),
   updateSettings: (body: LightSettingsPayload) =>
-    put<{ mode: LightMode; offOnPause: boolean }>('/lights/settings', body),
+    put<LightSettingsResult>('/lights/settings', body),
   /** Faqat yuborilgan maydonlar yangilanadi; bo'sh satr — qiymatni tozalaydi */
   updateTable: (id: number, body: TableLightPayload) =>
     put<TableLightConfig>(`/lights/tables/${id}`, body),
@@ -124,6 +128,20 @@ export const lightsApi = {
       on,
       ...(minutes !== undefined ? { minutes } : {}),
     }),
+  /** Master boshqaruv — BARCHA stollarga birdan; on=null — avtomatikaga qaytaradi */
+  master: (on: boolean | null, minutes?: number) =>
+    post<LightMasterResult>('/lights/all', {
+      on,
+      ...(minutes !== undefined ? { minutes } : {}),
+    }),
+  /** Diagnostika jurnali (limit 1..200) */
+  events: (params?: { limit?: number; tableId?: number }) =>
+    get<LightEventView[]>('/lights/events', params),
+  /** Qurilmalarni qidirishni navbatga qo'yish — skanni lokal agent bajaradi */
+  discover: (subnet?: string) =>
+    post<LightDiscoverQueued>('/lights/discover', subnet ? { subnet } : {}),
+  /** Oxirgi skan natijasi (serverda DB da saqlanadi — instansiyalar orasida umumiy) */
+  discovered: () => get<LightDiscoverState>('/lights/discover'),
   /** XOM token faqat shu javobda qaytadi — eski token darhol kuchini yo'qotadi */
   issueBridgeToken: (name?: string) =>
     post<BridgeTokenResult>('/lights/bridge/token', name ? { name } : {}),

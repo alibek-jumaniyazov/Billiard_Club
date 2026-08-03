@@ -123,7 +123,23 @@ server esa holat o'zgarishi bilan javobni darhol qaytaradi — qayta so'rovni ku
 
 ---
 
-## 2. Uchta apparat varianti
+## 2. Apparat variantlari
+
+Quyida **oltita** variant bor:
+
+- **A, B, C** — eng ko'p ishlatiladigan yechimlar. Rele oddiy HTTP so'rov bilan boshqariladi,
+  shuning uchun ular `bridge` rejimida ham, `direct` (on-premise) rejimida ham ishlaydi.
+- **D, E, F** — maxsus holatlar uchun: Wi-Fi to'lib ketgan yoki signal yetmayapti (D),
+  sanoat darajasidagi ishonchlilik va 12+ stol (E), eng arzon va eng tez boshlanish (F).
+  Bu uchtasi **faqat `bridge` rejimida** ishlaydi — buyruq klubdagi agent orqali yuboriladi
+  (bulutdagi server MQTT brokerga, Modbus platasiga yoki USB portga to'g'ridan-to'g'ri chiqa olmaydi).
+
+Shoshilmang: 1–6 stol uchun deyarli har doim **Variant A** to'g'ri javob bo'ladi.
+
+> **Yana bir bor: quyidagi barcha narxlar — TAXMINIY**, 2026 yil holatiga ko'ra, faqat jihozning
+> o'zi uchun. Model nomlari ham **misol** sifatida keltirilgan — mahalliy bozorda topilgan
+> ekvivalent qurilma ham yaraydi. Sotib olishdan oldin joriy narxni va qurilmaning
+> HTTP/MQTT/Modbus API si borligini albatta tekshiring.
 
 ### Variant A — har stolga alohida Wi-Fi rele (**eng oson**)
 
@@ -234,7 +250,139 @@ Dasturda driver sifatida `tasmota` tanlanadi.
 
 ---
 
-### Variantlarni solishtirish
+### Variant D — MQTT / Zigbee (Zigbee2MQTT + koordinator)
+
+**Kimga mos:** zal katta va Wi-Fi signali stollarga yetmayapti; routerga 10–15 tadan ortiq qurilma
+ulanib, ular goh yo'qolib turadi; klubda allaqachon smart-home (Home Assistant, Zigbee) bor;
+kelajakda chiroqdan tashqari rozetka, harorat datchigi, eshik datchigi ham qo'shmoqchisiz.
+
+Zigbee — Wi-Fi dan alohida radio tarmoq. Har rele **qo'shni relega signal uzatadi** (mesh),
+shuning uchun 30 metrlik zalda ham ohirgi stol koordinatorga bevosita "eshitilmasa" ham ishlaydi.
+Zigbee qurilmalari `Zigbee2MQTT` dasturi orqali **MQTT brokerga** ulanadi, dastur esa
+`mqtt` drayveri bilan brokerga bitta xabar yozadi.
+
+**Kerakli jihozlar (8 stolli klub misolida):**
+
+| # | Jihoz | Model | Soni | Taxminiy narx (2026) |
+|---|---|---|---|---|
+| 1 | Zigbee koordinator | **SONOFF Zigbee 3.0 USB Dongle Plus** (USB, bridge PC ga) | 1 | 20–30 $ |
+| | *yoki (LAN/PoE)* | **SMLIGHT SLZB-06** — koordinatorni zal markaziga osib qo'yish mumkin | 1 | 35–50 $ |
+| 2 | Zigbee rele (1 kanal) | **Sonoff ZBMINI-L2** yoki Moes/Tuya ZigBee rele (10A) | 8 | 10–14 $/dona |
+| | *yoki (2 kanal)* | Moes/Tuya ZigBee 2 kanalli rele | 4 | 14–20 $/dona |
+| 3 | USB uzaytirgich | USB 2.0 kabel 1–2 m (koordinatorni USB 3.0 portidan uzoqlashtirish uchun) | 1 | 3–5 $ |
+| 4 | Broker + Zigbee2MQTT uchun kompyuter | bridge kompyuterning **o'zi** yetadi (Raspberry Pi 4 dan yuqori) | — | 0 $ |
+
+**8 stol uchun jihoz: taxminan 110–160 $** (bridge kompyuter allaqachon bor deb hisoblansa).
+
+**Afzalliklari:**
+- Wi-Fi ni umuman band qilmaydi — router "10 ta rele + kassa + kameralar" dan qutuladi
+- **Mesh:** har rele repeater vazifasini bajaradi, zal kattalashgani sari tarmoq **kuchayadi**
+- Bitta ulanish nuqtasi: agent brokerga ulanadi, har relega alohida IP kerak emas
+  (ya'ni `DHCP reservation` bilan ovora bo'lish yo'q)
+- `stateTopic` orqali qurilmaning **haqiqiy holati** o'qiladi → verify va drift tuzatish to'liq ishlaydi (6.8)
+- Zigbee2MQTT 4000+ qurilmani qo'llab-quvvatlaydi — keyinchalik datchik/rozetka qo'shish arzon
+- Batareyali qurilmalar (tugma, harakat datchigi) shu tarmoqqa qo'shiladi
+
+**Kamchiliklari:**
+- **Faqat `bridge` rejimida** ishlaydi
+- Qo'shimcha ikkita dastur (Mosquitto + Zigbee2MQTT) o'rnatiladi va vaqti-vaqti bilan yangilanadi —
+  bu "o'rnatib qo'ydim va unutdim" darajasida emas
+- Koordinator buzilsa yoki USB dan chiqib ketsa — **butun zal** boshqarilmay qoladi (yagona nuqta)
+- Zigbee ham 2.4 GHz da ishlaydi: Zigbee kanali (15/20/25) Wi-Fi kanali (1/6/11) bilan
+  to'g'ri tanlanmasa, ikkalasi bir-biriga xalaqit beradi
+- "Nolsiz" modellar (ZBMINI-L2 kabi) ba'zi LED chiroqlarda o'chgan holatda **miltillashi** mumkin —
+  imkoni bo'lsa nol simi bor modelni oling
+- Juftlash (pairing) va qurilmalarga to'g'ri nom berish — qo'shimcha 1–2 soatlik ish
+
+---
+
+### Variant E — Modbus TCP sanoat rele platasi
+
+**Kimga mos:** 12 va undan ko'p stolli klub; 24/7 ishlaydigan, yiliga million marta yonib-o'chadigan
+ishonchli yechim kerak; binoda allaqachon Modbus avtomatika (ventilyatsiya, kondisioner, hisoblagich) bor;
+shchit yig'ish imkoni va elektrik bor.
+
+Modbus TCP — sanoatda o'nlab yillardan beri ishlatiladigan protokol. Plata LAN (yoki PoE) bilan
+ulanadi, agent unga `FC5 (write coil)` buyrug'ini yuboradi va `FC1 (read coils)` bilan
+haqiqiy holatni o'qiydi.
+
+**Kerakli jihozlar (16 kanal = 16 stol misolida):**
+
+| # | Jihoz | Model | Soni | Taxminiy narx (2026) |
+|---|---|---|---|---|
+| 1 | Modbus TCP rele moduli | **Waveshare Modbus POE ETH Relay** (8 kanal, DIN, PoE) | 2 | 45–65 $/dona |
+| | *yoki* | 16-kanalli Modbus TCP rele plata (LAN) | 1 | 60–95 $ |
+| | *yoki (RS-485 li)* | Modbus RTU rele (8 kanal) + RS485↔Ethernet konverter | 2 + 1 | 25 $/dona + 20 $ |
+| 2 | Quvvat bloki | 24 V DC, 2 A, DIN (plata pasportiga qarab 12 V bo'lishi mumkin) | 1 | 10–15 $ |
+| 3 | Oraliq kontaktor *(kuchli chiroqlarda)* | 20 A, 1NO, DIN modul | kerakligicha | 8–14 $/dona |
+| 4 | Shchit, avtomatlar, kabel | B variantidagidek | — | B variantiga qarang |
+
+**16 stol uchun rele qismi: taxminan 100–140 $** — ya'ni stol boshiga **7–9 $**, bu eng arzon
+"sertifikatlangan" variant.
+
+**Afzalliklari:**
+- Sanoat qurilmasi: keng harorat oralig'i, uzoq xizmat muddati, ishonchli kontaktlar
+- **LAN / PoE** — Wi-Fi bilan bog'liq muammolarning hammasi yo'qoladi
+- Kanal narxi juda past; kengaytirish arzon (yana 8 kanal ~50 $)
+- Holatni **o'qish** mumkin (FC1) → verify va drift tuzatish to'liq ishlaydi (6.8)
+- Ko'p modellarida PoE bor — alohida quvvat bloki va rozetka kerak emas
+
+**Kamchiliklari:**
+- **Faqat `bridge` rejimida** ishlaydi
+- **Autentifikatsiya YO'Q.** Modbus da parol degan tushuncha yo'q: tarmoqqa ulangan har qanday
+  kompyuter releni boshqara oladi. Shuning uchun platani **alohida VLAN / alohida tarmoq segmentiga**
+  qo'yish va internetga umuman chiqarmaslik shart
+- Bitta plata buzilsa — birdaniga 8–16 stol ta'sirlanadi
+- Koil (coil) raqamlash ishlab chiqaruvchiga bog'liq: ba'zi platada 1-rele = `0`, ba'zilarida = `1` —
+  pasportdan tekshirish kerak (eng ko'p uchraydigan sozlash xatosi)
+- Arzon platalarning hujjatlari ko'pincha yomon tarjima qilingan, texnik yordam yo'q
+- Ko'p arzon plata bir vaqtning o'zida **bitta** TCP ulanishni qabul qiladi
+
+---
+
+### Variant F — USB rele (**eng arzon**, kassa PC ga ulanadi)
+
+**Kimga mos:** 1–4 stolli kichik klub; kassa kompyuteri stollarga yaqin (bir zalda) va doim yoqiq;
+tarmoq umuman yo'q yoki ishonchsiz; "avval arzonga sinab ko'ray, yoqsa kengaytiraman" degan holat.
+
+Bu yerda hech qanday tarmoq yo'q: rele platasi bridge agenti ishlayotgan kompyuterga
+**USB kabel** bilan ulanadi va oddiy COM port sifatida ko'rinadi. Agent unga 4 baytlik
+buyruq yuboradi.
+
+**Kerakli jihozlar (4 stolli klub misolida):**
+
+| # | Jihoz | Model | Soni | Taxminiy narx (2026) |
+|---|---|---|---|---|
+| 1 | USB rele moduli | **LCUS-4** (CH340, 4 kanal, 10A) | 1 | 7–12 $ |
+| | *yoki (1 kanal)* | **LCUS-1** — har stolga bittadan | 4 | 3–5 $/dona |
+| | *yoki (8 kanal)* | LCUS-8 / CH340 asosidagi 8 kanalli plata | 1 | 12–20 $ |
+| 2 | Aktiv USB uzaytirgich | 5 m (kassa → shchit oralig'i uzoq bo'lsa) | 1 | 6–10 $ |
+| 3 | Korpus + klemma | DIN yoki devor korpusi, vintli klemmalar | 1 | 6–12 $ |
+| 4 | CH340 drayveri (Windows) | bepul (`CH341SER.EXE`) | — | 0 $ |
+
+**4 stol uchun jihoz: taxminan 20–35 $** — ya'ni stol boshiga **5–9 $**.
+
+**Afzalliklari:**
+- Narxi bo'yicha tengi yo'q; zaxira plata olib qo'yish ham 10 $
+- **Tarmoq umuman kerak emas** — Wi-Fi, IP, DHCP, router muammolari yo'q
+- Kechikish ~10 ms (kabel orqali) — chiroq tugma bosilishi bilan yonadi
+- Sozlash 10 daqiqa: drayver + COM port + hex buyruqlar
+
+**Kamchiliklari:**
+- **Faqat `bridge` rejimida** va **faqat agent ishlayotgan kompyuterda** ishlaydi
+- USB kabel uzunligi bilan cheklangan (odatda 5 m, aktiv kabel bilan 10–15 m) — stollar
+  uzoq bo'lsa yaramaydi
+- Kompyuter o'chsa yoki uyquga ketsa — boshqaruv butunlay yo'qoladi (tarmoqdagi relelar esa
+  hech bo'lmaganda oxirgi holatida qoladi)
+- **Holatni o'qib bo'lmaydi:** LCUS platalarining ko'pchiligi javob qaytarmaydi →
+  verify ishlamaydi, dastur faqat "buyruq yuborildi" deb biladi (6.8)
+- COM port raqami USB uyasi almashtirilsa o'zgaradi (doimiy raqam berish kerak — 5-K bosqich)
+- Sertifikat va kafolat yo'q, kontaktlar arzon (C variantidagi kamchiliklar bu yerda ham bor)
+- Agentga bitta npm paketi kerak bo'ladi: `npm i serialport` (5-K bosqich)
+
+---
+
+### Variantlarni solishtirish (A, B, C)
 
 | Mezon | A (har stolga rele) | B (markaziy DIN) | C (o'zi yig'ish) |
 |---|---|---|---|
@@ -245,6 +393,51 @@ Dasturda driver sifatida `tasmota` tanlanadi.
 | Sertifikat/kafolat | Bor | Bor | **Yo'q** |
 | Kengaytirish | Har stol +15 $ | Kanal tugasa +140 $ | Juda arzon |
 | Tavsiya | 1–6 stol | **6+ stol** | Faqat mutaxassis bilan |
+
+### Variantlarni solishtirish (D, E, F)
+
+| Mezon | D (Zigbee/MQTT) | E (Modbus TCP) | F (USB rele) |
+|---|---|---|---|
+| 8 stol uchun jihoz narxi | 110–160 $ | 100–140 $ *(16 kanalga)* | 15–30 $ |
+| Montaj murakkabligi | O'rta (+ dasturiy sozlash) | Yuqori | **Eng past** |
+| Ishonchlilik | Yaxshi (mesh) | **Eng yaxshi** | O'rta |
+| Ulanish | Zigbee mesh → broker | **LAN / PoE** | USB kabel |
+| Dastur rejimi | faqat **bridge** | faqat **bridge** | faqat **bridge** |
+| Holat o'qish (verify) | Bor (`stateTopic`) | Bor (FC1) | **Yo'q** |
+| Parol / himoya | broker login+parol | **yo'q** — VLAN shart | fizik kabel |
+| Sertifikat/kafolat | Bor | Bor | Yo'q |
+| Kengaytirish | Har stol +12 $ | Kanal tugasa +50 $ | Kanal tugasa +10 $ |
+| Tavsiya | Wi-Fi tor bo'lsa, 6–20 stol | 12+ stol, sanoat darajasi | 1–4 stol yoki sinov |
+
+### Drayverlar solishtiruvi (dasturdagi `driver` maydoni)
+
+Har stolga qaysi drayver tanlanishi shu jadval bilan aniqlanadi. **Direct** — bulutdagi (yoki
+lokal) serverning o'zi buyruq yuboradi; **Bridge** — buyruqni klubdagi agent yuboradi.
+
+| Drayver | Direct | Bridge | Holat o'qish (verify) | Parol turi | Tipik qurilmalar | Ulanish |
+|---|---|---|---|---|---|---|
+| `shelly_gen1` | Ha | Ha | **Bor** (`/relay/0`) | Basic (`user:parol`) | Shelly 1 / 1PM (eski avlod) | Wi-Fi |
+| `shelly_gen2` | Ha | Ha | **Bor** (`Switch.GetStatus`) | **Digest** (`admin:parol`) | Shelly Plus / Pro / Gen3, Pro 4PM | Wi-Fi / LAN |
+| `tasmota` | Ha | Ha | **Bor** (`/cm?cmnd=Power1`) | Basic (`user:parol`) | Sonoff MINI R4, ESP32/ESP8266 | Wi-Fi |
+| `esphome` | Ha | Ha | **Bor** (`/switch/<entity>`) | Basic (`user:parol`) | ESPHome proshivkali ESP32/ESP8266 | Wi-Fi |
+| `home_assistant` | Ha | Ha | **Bor** (`/api/states/...`) | **Bearer token** (long-lived) | HA ko'radigan har qanday qurilma (Zigbee, Z-Wave, Tuya) | LAN |
+| `http` | Ha | Ha | Yo'q | o'zingiz kiritgan URL / Basic | boshqa har qanday qurilma | LAN |
+| `mqtt` | **Yo'q** | Ha | **Bor** (`stateTopic` bo'lsa) | broker login+parol (agent `.env` da) | Zigbee2MQTT, Tasmota-MQTT, ESPHome-MQTT | LAN (broker) |
+| `modbus_tcp` | **Yo'q** | Ha | **Bor** (FC1 read coils) | **yo'q** — tarmoq bilan himoyalanadi | Waveshare va sanoat rele platalari | LAN / PoE |
+| `tcp` | **Yo'q** | Ha | Qisman (javob bayti tekshiriladi) | odatda yo'q | xom TCP protokolli relelar | LAN |
+| `serial` | **Yo'q** | Ha | Yo'q | yo'q (fizik ulanish) | LCUS-1/2/4/8 (CH340) USB rele | USB (COM port) |
+| `none` | — | — | — | — | *chiroq boshqarilmaydi* (standart qiymat) | — |
+
+> **`mqtt`, `modbus_tcp`, `tcp`, `serial`** — klub rejimi `direct` bo'lsa dastur bu drayverlarni
+> saqlashga ruxsat bermaydi ("bu drayver faqat lokal agent rejimida ishlaydi" degan xato chiqadi).
+> Rejimni `bridge` ga o'tkazing.
+>
+> **Parol turi** — dasturdagi `auth` maydoniga nima yozilishini bildiradi:
+> `shelly_*`, `tasmota`, `esphome` uchun `foydalanuvchi:parol`; `home_assistant` uchun esa
+> **faqat token** (Home Assistant → Profil → Long-lived access tokens). `mqtt` brokerining
+> paroli dasturga umuman kiritilmaydi — u faqat klubdagi agentning `.env` faylida turadi.
+>
+> **Holat o'qish (verify)** nima qilishi 6.8-bo'limda tushuntirilgan.
 
 ---
 
@@ -470,8 +663,25 @@ quyidagi manzilni kiriting — chiroq **yonishi** kerak:
 | `shelly_gen1` (eski Shelly 1) | `http://192.168.1.51/relay/0?turn=on` | `http://192.168.1.51/relay/0?turn=off` |
 | `tasmota` (Sonoff/ESP32) | `http://192.168.1.51/cm?cmnd=Power1%20On` | `http://192.168.1.51/cm?cmnd=Power1%20Off` |
 | `http` (boshqa qurilmalar) | qurilma pasportidagi o'z URL i | o'z URL i |
+| `esphome` | `POST http://192.168.1.51/switch/relay_1/turn_on` | `.../turn_off` — quyidagi misolga qarang |
+| `home_assistant` | `POST http://192.168.1.10:8123/api/services/switch/turn_on` | `.../switch/turn_off` — quyidagi misolga qarang |
+| `mqtt` / `modbus_tcp` / `serial` | brauzerdan sinab bo'lmaydi — 5-I, 5-K, 5-L bosqichlariga qarang | — |
 
-- [ ] Har stol uchun ON va OFF ni brauzerdan sinab ko'ring
+`esphome` va `home_assistant` da so'rov **POST** bo'lgani uchun brauzer manzil qatori yaramaydi —
+`curl` yoki Postman ishlating:
+
+```bash
+# ESPHome
+curl -X POST http://192.168.1.51/switch/relay_1/turn_on
+
+# Home Assistant (token — Profil -> Long-lived access tokens)
+curl -X POST http://192.168.1.10:8123/api/services/switch/turn_on \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"entity_id":"switch.stol_3"}'
+```
+
+- [ ] Har stol uchun ON va OFF ni sinab ko'ring
 - [ ] **Bu bosqich ishlamasa, dasturda ham ishlamaydi** — avval shu yerni to'g'rilang
   (IP xato, tarmoq boshqa, parol qo'yilgan, kanal raqami boshqa)
 
@@ -511,15 +721,31 @@ quyidagi manzilni kiriting — chiroq **yonishi** kerak:
 
 Har stol uchun **Stollar → (stol) → Chiroq** bo'limida:
 
-- [ ] `driver` — `shelly_gen2` / `shelly_gen1` / `tasmota` / `http` dan birini tanlang
-      (`none` = bu stolda chiroq boshqarilmaydi — standart qiymat)
+- [ ] `driver` — ro'yxatdan birini tanlang: `shelly_gen2` / `shelly_gen1` / `tasmota` /
+      `esphome` / `home_assistant` / `http` / `mqtt` / `modbus_tcp` / `tcp` / `serial`
+      (`none` = bu stolda chiroq boshqarilmaydi — standart qiymat).
+      Qaysi biri nima ekanini 2-bo'limdagi **"Drayverlar solishtiruvi"** jadvalidan qarang
 - [ ] `host` — IP (`192.168.1.51`) yoki port bilan (`192.168.1.51:8080`)
 - [ ] `channel` — relay kanali, **0 dan boshlanadi** (bir kanalli relelarda `0`;
       Shelly Pro 4PM da `0,1,2,3`; Tasmota da `Power1`=`0`, `Power2`=`1`)
 - [ ] `inverted` — rele **NC** (normally closed) ulangan bo'lsa yoqing
 - [ ] `auth` — rele veb-interfeysiga parol qo'ygan bo'lsangiz: `foydalanuvchi:parol`
+      (`home_assistant` uchun bu maydonga **faqat token** yoziladi)
 - [ ] `onUrl` / `offUrl` — faqat `driver = http` uchun
-- [ ] **"Test"** tugmasini bosing → chiroq bir marta yonib-o'chishi kerak
+- [ ] Drayverga bog'liq qo'shimcha maydonlar (faqat kerakli drayver tanlanganda ko'rinadi):
+
+  | Drayver | To'ldiriladigan maydonlar |
+  |---|---|
+  | `home_assistant` | `entityId` (`switch.stol_3`), `host` = `192.168.1.10:8123`, `auth` = token |
+  | `esphome` | `entity` (`relay_1`), `host` |
+  | `mqtt` | `topic`, `onPayload`, `offPayload`, ixtiyoriy `stateTopic` (5-J bosqich) |
+  | `modbus_tcp` | `host` (`192.168.1.80:502`), `unitId`, `coil` (5-L bosqich) |
+  | `tcp` / `serial` | `onHex` / `offHex` (yoki `onAscii` / `offAscii`), `serial` uchun `serialPort` va `baudRate` (5-K bosqich) |
+
+- [ ] **"Qo'shimcha"** bo'limida (kerak bo'lsa): `channels` — bitta stolda 2–3 lampa bo'lsa
+      qo'shimcha kanal raqamlari; `verify` — shu stol uchun holatni tekshirishni alohida
+      yoqish/o'chirish (6.8-bo'lim)
+- [ ] **"Yoqib ko'rish" / "O'chirib ko'rish"** tugmalarini bosing → chiroq yonib-o'chishi kerak
 - [ ] Test muvaffaqiyatsiz bo'lsa — 7-bo'limga qarang
 
 ### 5-H bosqich. Haqiqiy sinov
@@ -535,19 +761,231 @@ Har stol uchun **Stollar → (stol) → Chiroq** bo'limida:
 
 ---
 
+> **Quyidagi 5-I … 5-L bosqichlari — IXTIYORIY.** Ular faqat **D (Zigbee/MQTT)**,
+> **E (Modbus TCP)** va **F (USB rele)** variantlarini tanlaganlar uchun.
+> A, B, C variantlarida ular **umuman kerak emas** — 5-H bosqichda ish tugadi.
+> Bu bosqichlar 5-G dan **oldin** bajariladi (avval qurilma ishlasin, keyin dasturda sozlanadi).
+
+### 5-I bosqich (ixtiyoriy). MQTT broker — Mosquitto o'rnatish
+
+Faqat `mqtt` drayveri uchun (Variant D, yoki Tasmota ni MQTT orqali boshqarmoqchi bo'lsangiz).
+Broker odatda **bridge kompyuterning o'ziga** o'rnatiladi — u holda agent bilan broker orasida
+tarmoq umuman ishtirok etmaydi.
+
+**Windows da:**
+
+- [ ] https://mosquitto.org/download dan `mosquitto-2.x-install-windows-x64.exe` ni yuklab o'rnating
+      (o'rnatishda **Service** komponenti belgilangan bo'lsin)
+- [ ] `C:\Program Files\mosquitto\mosquitto.conf` faylini **administrator** huquqi bilan
+      Notepad da oching va oxiriga qo'shing:
+
+  ```
+  listener 1883 0.0.0.0
+  allow_anonymous false
+  password_file C:\Program Files\mosquitto\passwd
+  ```
+
+- [ ] Foydalanuvchi yarating (administrator `cmd`):
+
+  ```
+  cd "C:\Program Files\mosquitto"
+  mosquitto_passwd -c passwd billiard
+  ```
+
+- [ ] Xizmatni qayta ishga tushiring: `net stop mosquitto` so'ng `net start mosquitto`
+- [ ] Windows Defender Firewall da 1883-portga **faqat Private (lokal) tarmoq** uchun ruxsat bering
+
+**Raspberry Pi / Linux da:**
+
+```bash
+sudo apt-get update
+sudo apt-get install -y mosquitto mosquitto-clients
+sudo mosquitto_passwd -c /etc/mosquitto/passwd billiard
+echo 'listener 1883 0.0.0.0
+allow_anonymous false
+password_file /etc/mosquitto/passwd' | sudo tee /etc/mosquitto/conf.d/billiard.conf
+sudo systemctl enable --now mosquitto
+sudo systemctl restart mosquitto
+```
+
+**Tekshirish** (ikkita terminal oching):
+
+```bash
+# 1-terminal — tinglaymiz
+mosquitto_sub -h 127.0.0.1 -u billiard -P <parol> -t 'test/#' -v
+# 2-terminal — yuboramiz
+mosquitto_pub -h 127.0.0.1 -u billiard -P <parol> -t 'test/x' -m 'salom'
+```
+
+Birinchi terminalda `test/x salom` chiqsa — broker ishlayapti.
+
+- [ ] Broker ma'lumotlarini agentning `bridge/.env` fayliga qo'shing:
+
+  ```
+  MQTT_URL=mqtt://127.0.0.1:1883
+  MQTT_USER=billiard
+  MQTT_PASS=<broker paroli>
+  ```
+
+- [ ] Agentni qayta ishga tushiring
+
+> **Xavfsizlik:** broker paroli **faqat klubdagi `.env` faylida** qoladi, bulutdagi serverga
+> hech qachon yuborilmaydi va dasturdagi hech bir maydonga kiritilmaydi.
+> 1883-portni internetdan (routerdan) **ochmang** — u faqat lokal tarmoq uchun.
+
+### 5-J bosqich (ixtiyoriy). Zigbee2MQTT bilan ulash
+
+- [ ] Zigbee koordinatorni (USB stick) **USB 2.0 uzaytirgich** orqali ulang.
+      To'g'ridan-to'g'ri USB 3.0 portiga tiqilsa — USB 3.0 2.4 GHz da shovqin beradi va
+      Zigbee radiusi keskin kamayadi
+- [ ] Portni aniqlang:
+  - Linux: `ls -l /dev/serial/by-id/`
+  - Windows: `Device Manager → Ports (COM & LPT)`
+- [ ] Zigbee2MQTT ni o'rnating (eng qulay yo'l — Docker):
+
+  ```bash
+  sudo apt-get install -y docker.io
+  sudo mkdir -p /opt/zigbee2mqtt/data
+  sudo nano /opt/zigbee2mqtt/data/configuration.yaml
+  ```
+
+  ```yaml
+  mqtt:
+    server: mqtt://127.0.0.1:1883
+    user: billiard
+    password: <broker paroli>
+  serial:
+    port: /dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_xxxx-if00-port0
+    adapter: ezsp        # dongle turiga qarab: zstack | ezsp | deconz
+  advanced:
+    channel: 25          # Wi-Fi bilan to'qnashmasligi uchun 15, 20 yoki 25
+    network_key: GENERATE
+  frontend:
+    port: 8080
+  ```
+
+  ```bash
+  sudo docker run -d --name zigbee2mqtt --restart=always \
+    -v /opt/zigbee2mqtt/data:/app/data \
+    --device=/dev/ttyUSB0 \
+    -p 8080:8080 \
+    koenkk/zigbee2mqtt
+  ```
+
+- [ ] Brauzerda `http://<bridge-IP>:8080` ni oching → **Permit join** ni yoqing
+- [ ] Har releni juftlang (odatda tugmasini 5 soniya bosib turish) va **darhol nomini o'zgartiring**:
+      `stol3` (lotin harflari, probelsiz — bu nom topic ga kiradi)
+- [ ] Barcha relelar juftlangach **Permit join** ni o'chiring (begona qurilma qo'shilmasin)
+- [ ] Z2M frontend dan sinab ko'ring: `stol3` → ON / OFF (chiroq yonishi kerak)
+- [ ] Dasturda shu stol uchun:
+
+  | Maydon | Qiymat |
+  |---|---|
+  | `driver` | `mqtt` |
+  | `topic` | `zigbee2mqtt/stol3/set` |
+  | `onPayload` | `{"state":"ON"}` |
+  | `offPayload` | `{"state":"OFF"}` |
+  | `stateTopic` | `zigbee2mqtt/stol3` *(ixtiyoriy — holatni tekshirish uchun)* |
+
+- [ ] **"Yoqib ko'rish"** tugmasi bilan dasturdan tekshiring
+
+> **Tasmota ni MQTT orqali boshqarish** (Zigbee siz): Tasmota sozlamalarida MQTT yoqiladi, so'ng
+> `topic` = `cmnd/tasmota_1/POWER`, `onPayload` = `ON`, `offPayload` = `OFF`,
+> `stateTopic` = `stat/tasmota_1/POWER`.
+
+### 5-K bosqich (ixtiyoriy). USB rele (LCUS / CH340) ni sozlash
+
+- [ ] **Windows:** CH340 drayverini o'rnating (`CH341SER.EXE`) → `Device Manager → Ports (COM & LPT)`
+      da `USB-SERIAL CH340 (COM3)` paydo bo'lsin
+- [ ] **Linux:** drayver yadroda bor, faqat huquq kerak:
+
+  ```bash
+  sudo usermod -aG dialout $USER    # keyin tizimdan chiqib qayta kiring
+  ls -l /dev/ttyUSB*
+  ```
+
+- [ ] **COM port raqamini doimiy qiling** — aks holda USB uyasi almashsa port o'zgaradi:
+  - Windows: `Device Manager → COM3 → Properties → Port Settings → Advanced → COM Port Number`
+  - Linux: barqaror yo'lni ishlating — `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0`
+- [ ] Agentga `serialport` paketini o'rnating (bu — agentning **yagona** ixtiyoriy npm bog'liqligi):
+
+  ```
+  cd C:\billiardclub-bridge          (Linux: cd /opt/billiardclub-bridge)
+  npm i serialport
+  ```
+
+  > Paket o'rnatilmasa agent boshqa hamma drayver bilan normal ishlayveradi —
+  > faqat `serial` drayverli stollarda "serialport paketi o'rnatilmagan" xatosi chiqadi.
+
+- [ ] LCUS platalarining standart buyruqlari (9600 baud, 4 bayt):
+
+  | Kanal | Yoqish (`onHex`) | O'chirish (`offHex`) |
+  |---|---|---|
+  | 1 | `A0 01 01 A2` | `A0 01 00 A1` |
+  | 2 | `A0 02 01 A3` | `A0 02 00 A2` |
+  | 3 | `A0 03 01 A4` | `A0 03 00 A3` |
+  | 4 | `A0 04 01 A5` | `A0 04 00 A4` |
+
+  (oxirgi bayt — nazorat yig'indisi: oldingi uch baytning yig'indisi. Boshqa modelda buyruqlar
+  boshqacha bo'lishi mumkin — plata pasportiga qarang.)
+
+- [ ] Dasturda shu stol uchun: `driver` = `serial`, `serialPort` = `COM3` (yoki `/dev/ttyUSB0`),
+      `baudRate` = `9600`, `onHex` / `offHex` — yuqoridagi jadvaldan
+- [ ] Agentni qayta ishga tushiring va **"Yoqib ko'rish"** tugmasini bosing — plata "chirt" etib
+      bosilishi va indikatori yonishi kerak
+
+> USB rele **holatini qaytarmaydi**: dastur faqat "buyruq yuborildi" deb biladi.
+> Shuning uchun bu stolda "Holatni tekshirish" (verify) ishlamaydi (6.8).
+
+### 5-L bosqich (ixtiyoriy). Modbus TCP rele platasini sozlash
+
+- [ ] Plataga pasportda ko'rsatilgan quvvatni (odatda 24 V DC) bering, LAN kabelini routerga ulang,
+      `LINK` indikatori yonganini tekshiring
+- [ ] Ishlab chiqaruvchining konfigurator dasturi (yoki plataning veb-interfeysi) orqali:
+  - IP ni **statik** qiling (masalan `192.168.1.80`), port — `502`
+  - `Unit ID` (slave address) ni yozib oling — odatda `1`
+- [ ] **Koil raqamlanishini pasportdan tekshiring:** ko'p platada 1-rele = `0`, ba'zilarida = `1`
+- [ ] Ulanishni tekshiring (bridge kompyuterdan):
+
+  ```bash
+  # Linux
+  nc -vz 192.168.1.80 502
+  ```
+  ```powershell
+  # Windows PowerShell
+  Test-NetConnection 192.168.1.80 -Port 502
+  ```
+
+- [ ] Dasturda: `driver` = `modbus_tcp`, `host` = `192.168.1.80:502`, `unitId` = `1`,
+      `coil` = kanal raqami (bo'sh qoldirilsa `channel` qiymati ishlatiladi)
+- [ ] Konfigurator dasturini **yoping** — ko'p arzon plata bir vaqtda faqat bitta TCP ulanishni
+      qabul qiladi
+- [ ] **"Yoqib ko'rish"** tugmasi bilan tekshiring
+
+> Modbus da **parol yo'q**. Platani alohida VLAN yoki kamida alohida tarmoq segmentiga qo'ying,
+> internetdan (routerdan) 502-portni **hech qachon ochmang**.
+
+---
+
 ## 6. Ishlash rejimlari va qoidalar
 
 ### 6.1 Sessiya holati → chiroq holati
 
+Jadval **ustuvorlik tartibida** o'qiladi: yuqoridan pastga qarab **birinchi mos kelgan** qator
+g'olib chiqadi.
+
 | # | Vaziyat | Sozlama | Chiroqning kerakli holati |
 |---|---|---|---|
-| 1 | Stolda **faol** (`active`) sessiya bor | — | **YONIQ** |
-| 2 | Sessiya **pauzada** (`paused`) | `lightOffOnPause = false` *(standart)* | **YONIQ** |
-| 3 | Sessiya **pauzada** (`paused`) | `lightOffOnPause = true` | **O'CHIQ** |
-| 4 | Sessiya **yakunlangan** (`completed`) | — | **O'CHIQ** |
-| 5 | Sessiya **bekor qilingan** (`cancelled`) | — | **O'CHIQ** |
-| 6 | Stolda umuman sessiya yo'q | — | **O'CHIQ** |
-| 7 | **Qo'lda override faol** (`lightOverrideUntil > hozir`) | — | `lightOverrideOn` **qiymati ustun turadi** |
+| 1 | **Qo'lda override faol** (`lightOverrideUntil > hozir`) | — | `lightOverrideOn` **qiymati ustun turadi** |
+| 2 | Stolda **faol** (`active`) sessiya bor | — | **YONIQ** |
+| 3 | Sessiya **pauzada** (`paused`) | "Pauzada o'chsin" = **o'chiq** *(standart)* | **YONIQ** |
+| 4 | Sessiya **pauzada** (`paused`) | "Pauzada o'chsin" = **yoqiq** | **O'CHIQ** |
+| 5 | Sessiya endigina **yakunlandi / bekor qilindi** | "Sessiya tugagach yoniq qolsin" = `N` soniya va `N` hali o'tmagan | **YONIQ** (6.5) |
+| 6 | Yaqin orada shu stolga **bron** bor | "Bron oldidan yoqilsin" = `M` daqiqa va bron `M` daqiqadan yaqin | **YONIQ** (6.6) |
+| 7 | Sessiya **yakunlangan** (`completed`) / **bekor qilingan** (`cancelled`) | kechikish tugagan yoki `0` *(standart)* | **O'CHIQ** |
+| 8 | Stolda umuman sessiya yo'q | — | **O'CHIQ** |
+
+Qisqacha: **override → faol sessiya → pauza → kechikish (grace) → bron oldidan → o'chiq.**
 
 **Transfer** (bir stoldan boshqasiga ko'chirish) alohida qoida talab qilmaydi: eski stolda faol
 sessiya qolmaydi → o'chadi; yangi stolda `active` paydo bo'ladi → yonadi. Ikkalasi ham bitta
@@ -576,9 +1014,13 @@ Kassir dasturdan istalgan stol chirog'ini **majburan** yoqishi/o'chirishi mumkin
   - version **o'zgargan** bo'lsa → javob **darhol** qaytadi
   - o'zgarmagan bo'lsa → server javobni **25 soniyagacha ushlab turadi** (har 1000 ms da qayta tekshiradi),
     keyin o'sha version bilan qaytaradi va agent yana so'raydi
-- **`forceSyncMs`** (standart **60 000 ms = 1 daqiqa**): version o'zgarmagan bo'lsa ham agent
-  har daqiqada holatni relelarga **majburan qayta qo'llaydi**. Bu — rele qayta yuklangan yoki
-  kimdir qo'lda o'zgartirib qo'ygan holatlarni o'z-o'zidan to'g'rilaydi.
+- **`forceSyncMs`** (standart **60 000 ms = 1 daqiqa**, panelda **10–3600 soniya** oralig'ida
+  sozlanadi): version o'zgarmagan bo'lsa ham agent har shu oraliqda holatni relelarga
+  **majburan qayta qo'llaydi**. Bu — rele qayta yuklangan yoki kimdir qo'lda o'zgartirib qo'ygan
+  holatlarni o'z-o'zidan to'g'rilaydi. "Holatni tekshirish" (verify) yoqiq bo'lsa, aynan shu
+  paytda qurilmadan **haqiqiy holat o'qiladi** (6.8).
+  > Juda kichik qiymat (10–15 s) tarmoqni va relelarni bekorga band qiladi; 60 s — oltin o'rtalik.
+  > Wi-Fi zaif bo'lsa 120–300 s qo'yish ham mumkin.
 - Agent har amaldan keyin `POST /api/bridge/report` yuboradi → dasturda har stol uchun
   `lightState` (`on`/`off`/`unknown`), `lightSyncedAt` (oxirgi muvaffaqiyatli vaqt) va
   `lightError` (xato matni) ko'rinadi.
@@ -592,6 +1034,139 @@ Kassir dasturdan istalgan stol chirog'ini **majburan** yoqishi/o'chirishi mumkin
 | Internet uzilgan | Sessiya normal ishlaydi; chiroqlar oxirgi holatda qoladi |
 | Rele IP o'zgargan | Faqat o'sha stol chirog'i sinxronlanmaydi |
 | Token noto'g'ri | Agent ulanmaydi; qolgan hamma narsa ishlaydi |
+
+### 6.5 Sessiya tugagach kechikish (grace)
+
+**Panelda:** Stollar → Chiroq sozlamalari → **"Sessiya tugagach yoniq qolsin"** (0–3600 soniya).
+**Standart qiymat — `0`**, ya'ni bu funksiya o'chiq va chiroq sessiya yakunlanishi bilan darhol o'chadi.
+
+**Nima uchun kerak:** o'yin tugagandan keyin ish tugamaydi — mijoz stol yonida hisob-kitob qiladi,
+xodim sharlarni yig'adi, movutni tozalaydi, kiy va uchburchakni joyiga qo'yadi. Qorong'ida buni
+qilib bo'lmaydi va kassir har safar qo'lda yoqishga majbur bo'ladi.
+
+- Tavsiya etiladigan qiymat: **60–180 soniya**.
+- Kechikish taymer bilan emas, **oxirgi yakunlangan sessiyaning tugash vaqti** bilan hisoblanadi:
+  server har safar "shu stolda oxirgi sessiya `N` soniyadan yaqinroq oldin tugaganmi?" deb qaraydi.
+  Shuning uchun server yoki agent qayta ishga tushsa ham kechikish **yo'qolmaydi**.
+- Vaqt tugashi bilan chiroq **bir-ikki soniya ichida** o'chadi (uzun-polling har soniyada qayta hisoblaydi).
+- Grace davomida shu stolda **yangi sessiya** boshlansa — chiroq umuman o'chmaydi (o'chib-yonish bo'lmaydi).
+- Kassir kutmasdan o'chirmoqchi bo'lsa — qo'lda override bilan darhol o'chiradi (6.2), override ustun turadi.
+
+### 6.6 Bron oldidan yoqish
+
+**Panelda:** Stollar → Chiroq sozlamalari → **"Bron oldidan yoqilsin"** (0–120 daqiqa).
+**Standart qiymat — `0`** (o'chiq).
+
+Mijoz kelganda stol allaqachon yoritilgan va tayyor bo'lishi uchun chiroq bron boshlanishidan
+belgilangan daqiqa oldin yonadi.
+
+- Faqat **`pending`** va **`confirmed`** holatidagi bronlar hisobga olinadi
+  (bekor qilingan yoki tugagan bron chiroqni yoqmaydi).
+- Bron vaqti kelib sessiya boshlansa — chiroq yonib turaveradi (qayta yoqilmaydi).
+- **Mijoz kelmasa:** bron boshlanish vaqti o'tib ketgach shart bajarilmay qoladi va chiroq
+  avtomatik o'chadi — ya'ni "yonib qolish" xavfi yo'q.
+- Tavsiya: **5–15 daqiqa**. 60 daqiqa qo'yilsa va kunda 10 ta bron bo'lsa, tejash effekti sezilarli kamayadi.
+- Bu qoida grace dan **keyin** turadi: agar stolda hozir grace ham, bron ham bo'lsa — baribir yonadi.
+
+### 6.7 Master tugmalar — hammasini bir vaqtda boshqarish
+
+**Panelda:** Stollar → Chiroq sozlamalari → **Master boshqaruv**. Uchta tugma bor:
+
+| Tugma | Nima qiladi |
+|---|---|
+| **Hammasini yoqish** | Barcha stollarga tanlangan muddatga "yoq" degan qo'lda override qo'yadi |
+| **Hammasini o'chirish** | Barcha stollarga tanlangan muddatga "o'chir" degan override qo'yadi |
+| **Avtomatikaga qaytarish** | Barcha override larni bekor qiladi — tizim 6.1-jadvalga qaytadi |
+
+- Muddat tanlanadi (**30 / 60 / 120 daqiqa**) va tugma **tasdiq oynasi** bilan bosiladi
+  (tasodifan bosib yuborilmasligi uchun).
+- Qachon kerak bo'ladi: zal yopilayotganda hammasini bir bosishda o'chirish; ertalab
+  tozalash/generalka uchun hammasini yoqish; tadbir yoki fotosuratga tayyorlash; texnik
+  ishlar vaqtida zalni yoritish.
+- **Muhim:** master tugmalar **faqat chiroqqa** ta'sir qiladi — faol sessiyalarni to'xtatmaydi,
+  pulga aloqasi yo'q.
+- Muddat tugashi bilan hamma stol avtomatik rejimga qaytadi. Ya'ni "o'chirib qo'yib unutdim,
+  ertaga chiroq umuman yonmay qoladi" degan holat bo'lmaydi — lekin aksincha, kechqurun
+  "hammasini o'chirish" bosilsa ham, muddat tugagach **faol sessiyali** stollar qaytadan yonadi.
+- Har bir master amal diagnostika jurnaliga `master` manbai bilan tushadi (6.9).
+
+### 6.8 Holatni tekshirish (verify) va drift ni avtomatik tuzatish
+
+**Panelda:** Stollar → Chiroq sozlamalari → **"Holatni tekshirish"** (standart holatda **yoqiq**).
+Bitta stol uchun uni "Qo'shimcha" bo'limidagi `verify` bilan alohida yoqish/o'chirish mumkin —
+stol sozlamasi klub sozlamasidan **ustun** turadi.
+
+**Nima qiladi:** majburiy sinxronizatsiya paytida (har `forceSyncMs`) agent qurilmaga buyruq
+yuborish bilan cheklanmaydi — undan **haqiqiy holatni o'qiydi**:
+
+| Drayver | Holat qanday o'qiladi |
+|---|---|
+| `shelly_gen2` | `Switch.GetStatus` |
+| `shelly_gen1` | `/relay/{kanal}` |
+| `tasmota` | `/cm?cmnd=Power{N}` |
+| `esphome` | `/switch/{entity}` |
+| `home_assistant` | `/api/states/{entityId}` |
+| `mqtt` | `stateTopic` ga obuna (kelgan qiymat ishlatiladi) |
+| `modbus_tcp` | FC1 — read coils |
+| `http`, `tcp`, `serial` | **o'qib bo'lmaydi** — verify ishlamaydi |
+
+O'qilgan holat kerakli holatdan farq qilsa — bu **drift** deyiladi. Agent uni darhol tuzatadi
+(buyruqni qayta yuboradi) va serverga qurilmaning haqiqiy holatini yuboradi; hodisa jurnalga
+`drift` manbai bilan yoziladi (6.9).
+
+**Drift qayerdan chiqadi:**
+- kimdir relening veb-interfeysiga kirib qo'lda o'zgartirgan
+- devor vyklyuchateli `detached` rejimiga o'tkazilmagan (4.1, 4-qoida)
+- rele qayta yuklangan va "power on default" `ON` bo'lgan
+- Zigbee/Wi-Fi da buyruq yo'lda yo'qolgan (paket yetib bormagan)
+
+**Qachon o'chirish mumkin:** tarmoq juda sekin bo'lsa yoki eski qurilmalar qo'shimcha so'rovga
+yomon javob bersa. O'chirilganda dastur faqat "buyruq yuborildi" degan ma'lumotga tayanadi —
+chiroq holati ko'rsatiladi, lekin u **tasdiqlanmagan** bo'ladi.
+
+### 6.9 Diagnostika jurnali
+
+**Panelda:** Stollar → Chiroq sozlamalari → **Diagnostika** (bo'lim ochilganda yuklanadi).
+Oxirgi hodisalar ro'yxati: vaqt, stol, yoqildi/o'chirildi, **manba**, natija (muvaffaqiyatli/xato),
+xato matni va — qo'lda bajarilgan bo'lsa — xodimning ismi.
+
+| Manba | Ma'nosi |
+|---|---|
+| `session` | sessiya holati o'zgardi (boshlandi / pauza / yakunlandi / transfer) |
+| `override` | kassir yoki admin qo'lda yoqdi-o'chirdi |
+| `master` | master tugma bosildi (6.7) |
+| `test` | "Yoqib ko'rish" / "O'chirib ko'rish" tugmasi |
+| `sync` | agent holatni qo'lladi va hisobot yubordi |
+| `drift` | qurilmadagi holat kerakli holatdan farq qilib, avtomatik tuzatildi (6.8) |
+| `settings` | chiroq sozlamalari o'zgartirildi (rejim, kechikish, tekshirish va h.k.) |
+
+- Yozuvlar **30 kun** saqlanadi, keyin avtomatik tozalanadi.
+- Nimaga asqotadi: "kecha kechqurun 5-stol chirog'i nega yonib qolgan?" degan savolga aniq javob;
+  qaysi rele qaysi soatlarda xato berayotganini ko'rish (Wi-Fi zaif bo'lsa naqsh darhol ko'rinadi);
+  xodim override ni suiiste'mol qilayotganini aniqlash.
+- Jurnal **faqat chiroq** hodisalarini yozadi — sessiya, kassa va pul jurnallariga aloqasi yo'q.
+
+### 6.10 Qurilmalarni qidirish (discover)
+
+**Panelda:** Stollar → Chiroq sozlamalari → Lokal agent → **"Qurilmalarni qidirish"**.
+
+Server agentga vazifa beradi, agent klub tarmog'ini (o'z `/24` tarmog'i: `192.168.1.1–254`)
+skanerlaydi va topilgan qurilmalarni qaytaradi: **IP, MAC, model, nom, taxminiy drayver,
+kanallar soni**. Har bir qator yonida **"Stolga biriktirish"** tugmasi bor — stolni tanlaysiz,
+`host` va `driver` avtomatik to'ldiriladi, keyin faqat test qilib ko'rasiz.
+
+Bu — 5-C bosqichdagi "IP larni qo'lda yozib chiqish" ishini bir necha marta qisqartiradi.
+
+**Bilib qo'yish kerak:**
+- Skan **faqat `bridge` rejimida** ishlaydi — bulutdagi server klub tarmog'ini ko'rmaydi.
+- Skan **10–30 soniya** davom etadi; natija serverda oxirgi skan bo'yicha saqlanadi (yangi skan uni
+  almashtiradi). Agent javob bermasa vazifa **3 daqiqadan** keyin bekor bo'ladi.
+- Faqat **HTTP javob beradigan** qurilmalar topiladi: **Shelly, Tasmota, ESPHome**.
+  **Zigbee/MQTT, Modbus va USB** relelar bu skanda **hech qachon topilmaydi** — ular boshqa
+  protokolda ishlaydi, ularni qo'lda kiritasiz.
+- Parol qo'yilgan qurilma ham ro'yxatga tushadi (modeli aniqlanmasligi mumkin) — parolni
+  keyin qo'lda kiritasiz.
+- Boshqa quyi tarmoqni tekshirish uchun `subnet` maydoniga uni yozing: masalan `192.168.10`.
 
 ---
 
@@ -694,7 +1269,96 @@ Rele **NC** (normally closed) kontaktga ulangan.
 
 - Agent hali birinchi hisobotni yubormagan — 1 daqiqa kuting (`forceSyncMs`)
 - Yoki agent offlayn (7.1-bo'lim)
+- Yoki drayver holatni umuman qaytarmaydi (`http`, `tcp`, `serial`) — bu normal holat (6.8)
 - Bu holat **hech narsani buzmaydi** — shunchaki holat hali ma'lum emas degani
+
+### 7.12 MQTT: agent brokerga ulanmayapti yoki chiroq yonmayapti
+
+1. **Broker ishlayaptimi?**
+   - Linux: `systemctl status mosquitto`
+   - Windows: `Services` (`services.msc`) → `Mosquitto Broker` → `Running` bo'lsin
+2. Agent `.env` faylida `MQTT_URL`, `MQTT_USER`, `MQTT_PASS` to'g'ri yozilganmi?
+   URL formati aynan `mqtt://192.168.1.10:1883` bo'lsin (`http://` **emas**). Broker agent bilan
+   bitta kompyuterda bo'lsa — `mqtt://127.0.0.1:1883`.
+3. **Qo'lda tekshiring** (bridge kompyuterdan):
+   ```bash
+   mosquitto_pub -h 127.0.0.1 -u billiard -P <parol> -t 'zigbee2mqtt/stol3/set' -m '{"state":"ON"}'
+   ```
+   Chiroq yonsa — muammo agentda emas, dasturdagi `topic`/`onPayload` da.
+4. **`Connection Refused: not authorised`** — parol xato, yoki `allow_anonymous false` qo'yilgan-u
+   foydalanuvchi yaratilmagan (`mosquitto_passwd`, 5-I bosqich).
+5. **Topic xato.** Zigbee2MQTT da qurilma nomi o'zgartirilsa topic ham o'zgaradi —
+   aniq nomni frontend (`http://<bridge-IP>:8080`) dan oling. Topic da `#` va `+` bo'lmasin.
+6. **Payload xato.** Zigbee2MQTT `{"state":"ON"}` kutadi, Tasmota — oddiy `ON`. Noto'g'ri payload
+   da broker **xato bermaydi**, qurilma shunchaki e'tibor bermaydi — shuning uchun "hammasi
+   yaxshi ko'rinadi, lekin chiroq yonmaydi" holati chiqadi.
+7. **Zigbee relesi tarmoqdan tushib qolgan.** Z2M frontend da `Last seen` ustuniga qarang;
+   kerak bo'lsa releni qayta juftlang. Uzoq stol koordinatorga yetmasa — oradagi rozetkaga
+   Zigbee repeater (yoki doim tokda turadigan Zigbee qurilma) qo'ying.
+8. **Firewall** 1883-portni bloklamayaptimi (Windows Defender → Private tarmoq uchun ruxsat).
+9. **Rejim `bridge` mi?** `direct` rejimda `mqtt` ishlamaydi — dastur bunday drayverni saqlashga
+   ruxsat ham bermaydi.
+10. Broker va Zigbee2MQTT bitta kompyuterda bo'lsa, u kompyuter qayta yuklangandan keyin ikkala
+    xizmat ham **avtomatik ishga tushishi** kerak (`systemctl enable`, Docker `--restart=always`).
+
+### 7.13 Modbus plata javob bermayapti
+
+1. Plata quvvat olayaptimi (24 V), LAN kabeli ulanganmi, `LINK` indikatori yonyaptimi?
+2. `ping 192.168.1.80` — javob bo'lmasa IP boshqa. Ishlab chiqaruvchining konfigurator dasturi
+   bilan qurilmani tarmoqdan qidiring.
+3. **502-port ochiqmi:**
+   ```bash
+   nc -vz 192.168.1.80 502              # Linux
+   ```
+   ```powershell
+   Test-NetConnection 192.168.1.80 -Port 502    # Windows
+   ```
+4. **`unitId` (slave address)** to'g'rimi? Standart `1`, lekin plataning DIP-switch i bilan
+   o'zgartirilgan bo'lishi mumkin.
+5. **Koil raqami — eng ko'p uchraydigan xato.** Ba'zi platada 1-rele = `0`, ba'zilarida = `1`.
+   `coil` ni `0` va `1` bilan navbat bilan sinab ko'ring.
+6. **Bir vaqtda bitta ulanish.** Arzon platalarning ko'pi faqat bitta TCP ulanishni qabul qiladi —
+   konfigurator dasturi, Modbus Poll yoki boshqa terminal ochiq qolgan bo'lsa **yoping**.
+7. Plata "osilib qolgan" bo'lishi mumkin — quvvatdan 10 soniya uzib, qayta ulang.
+8. **RS-485 konverter** orqali ulangan bo'lsa: baud rate va parity mos kelsin, `A`–`A` / `B`–`B`
+   simlar to'g'ri ulansin, liniya oxiriga 120 Ω rezistor qo'yilsin.
+9. Agent logida `timeout` chiqsa — plata boshqa VLAN da qolib ketmaganmi? Agent bilan plata
+   bir-birini ko'rishi shart.
+
+### 7.14 COM port topilmadi (USB rele ishlamayapti)
+
+1. Plataning quvvat indikatori yonyaptimi? Kabel butunmi (ba'zi arzon USB kabellar faqat
+   quvvat beradi, ma'lumot simlari yo'q)?
+2. **Windows:** `Device Manager → Ports (COM & LPT)` da `USB-SERIAL CH340` bormi?
+   - Sariq undov belgisi yoki `Unknown device` → CH340 drayveri o'rnatilmagan (`CH341SER.EXE`)
+   - Port raqamini (`COM3`) dasturdagi `serialPort` qiymati bilan solishtiring
+3. **Linux:** `ls -l /dev/ttyUSB*` — ko'rinmasa `dmesg | tail` ga qarang
+   (`ch341-uart converter now attached to ttyUSB0` chiqishi kerak).
+   `Permission denied` bo'lsa — foydalanuvchi `dialout` guruhida emas (5-K bosqich).
+4. **Port band:** `Access denied` / `Resource busy` — portni boshqa dastur ushlab turibdi
+   (Arduino IDE, plata konfiguratori, terminal dasturi). Ularni yoping va agentni qayta ishga tushiring.
+5. **Port raqami o'zgargan** — plata boshqa USB uyasiga ulangan. Doimiy raqam bering (5-K) yoki
+   Linux da `/dev/serial/by-id/...` yo'lini ishlating.
+6. **`serialport paketi o'rnatilmagan`** xatosi — agent papkasida `npm i serialport` bajaring va
+   agentni qayta ishga tushiring.
+7. Buyruq baytlari (`onHex` / `offHex`) va `baudRate` (odatda `9600`) plata pasportiga mos kelyaptimi?
+   Noto'g'ri bayt yuborilsa plata **jim qoladi** — xato ham chiqmaydi.
+8. USB rele **faqat agent ishlayotgan kompyuterga** ulangan bo'lishi kerak. Boshqa kompyuterga
+   ulangan bo'lsa — agent uni umuman ko'rmaydi.
+
+### 7.15 "Qurilmalarni qidirish" hech narsa topmadi
+
+1. **Bridge onlaynmi?** Skanni faqat agent bajaradi — `off` va `direct` rejimlarida ishlamaydi.
+2. Agent versiyasi eskimi? Discover funksiyasi **2.0.0** va undan yuqori agentda bor.
+3. Bridge kompyuter relelar bilan **bitta tarmoqdami**? Mehmon Wi-Fi (guest) tarmog'ida
+   qurilmalar bir-birini ko'rmaydi.
+4. Router yoki access pointda **"AP isolation" / "Client isolation"** yoqilgan bo'lsa — o'chiring.
+5. Tarmoq boshqa oralig'da bo'lishi mumkin — `subnet` maydoniga qo'lda yozing: `192.168.10`.
+6. Faqat **Shelly, Tasmota, ESPHome** topiladi. Zigbee/MQTT, Modbus va USB relelar
+   **hech qachon topilmaydi** — ularni qo'lda kiriting (6.10).
+7. Antivirus yoki firewall agentning ko'p sonli qisqa so'rovlarini "skanerlash" deb bloklashi
+   mumkin — `node.exe` ga ruxsat bering.
+8. Skan 10–30 soniya davom etadi: darhol bo'sh ko'rinsa, biroz kutib ro'yxatni yangilang.
 
 ---
 
@@ -703,7 +1367,7 @@ Rele **NC** (normally closed) kontaktga ulangan.
 > **Narxlar taxminiy, 2026 yil holatiga ko'ra, AQSh dollarida.**
 > Jihoz va montaj alohida ko'rsatilgan. Yetkazib berish va bojxona kiritilmagan.
 
-### 8.1 Umumiy (har uch variantda kerak) — bir marta
+### 8.1 Umumiy (har qanday variantda kerak) — bir marta
 
 | Element | Taxminiy narx |
 |---|---|
@@ -762,6 +1426,14 @@ Rele **NC** (normally closed) kontaktga ulangan.
 | 5–8 stol | **Variant A** (ta'mir yo'q bo'lsa) yoki **Variant B** (kapital ta'mir bo'lsa) |
 | 9+ stol | **Variant B** — LAN ishonchliligi va tartibli shchit uzoq muddatda o'zini oqlaydi |
 | Byudjet juda tor + mutaxassis bor | **Variant C** |
+| Wi-Fi to'lib ketgan / zal katta | **Variant D** (Zigbee) |
+| 12+ stol, sanoat darajasidagi ishonchlilik | **Variant E** (Modbus TCP) |
+| 1–4 stol, kassa PC stollarga yaqin | **Variant F** (USB rele) |
+
+> **D, E, F variantlari** yuqoridagi 8.2–8.4 jadvallariga kiritilmagan (ular maxsus holatlar uchun).
+> Taxminiy qiyoslash: **D** — 8 stolga ~110–160 $, **E** — 16 kanalga ~100–140 $,
+> **F** — 4 stolga ~20–35 $. Bularga 8.1-bo'limdagi umumiy xarajat, shchit/kabel va
+> elektrik ishi qo'shiladi (montaj narxi A yoki B variantidagidek qoladi).
 
 **O'zini oqlashi:** 8 stolli klubda kunlik 3–5 soat ortiqcha yonib turgan chiroq
 (8 x 200 Vt) oyiga taxminan 40–80 kVt·soat isrof beradi. Bunga xodimning "chiroqni o'chirdimmi?"
@@ -795,6 +1467,43 @@ J: Ha, **ikki yo'l bilan**:
 2. **Dasturdan qo'lda override** — muayyan muddatga (masalan 30 daqiqa) sessiya holatidan
    qat'i nazar yoqib/o'chirib turadi, muddat tugagach avtomatik rejim qaytadi.
 
+**S: O'yin tugashi bilan chiroq darhol o'chib qolsa noqulay-ku?**
+J: Shuning uchun **"Sessiya tugagach yoniq qolsin"** sozlamasi bor (6.5): chiroq siz belgilagan
+muddat davomida (masalan 90 soniya) yonib turadi — mijoz hisob-kitob qiladi, xodim sharlarni
+yig'ib, stolni tozalaydi, keyin chiroq o'zi o'chadi. Standart qiymat `0` (darhol o'chadi),
+tavsiya — **60–180 soniya**. Kutish shart bo'lmasa, kassir qo'lda darhol o'chira oladi.
+
+**S: Mijoz bron qilgan bo'lsa, u kelguncha stol qorong'i turadimi?**
+J: **"Bron oldidan yoqilsin"** sozlamasini yoqing (6.6) — bron boshlanishidan, masalan,
+10 daqiqa oldin chiroq avtomatik yonadi va mijoz kelganda stol tayyor, yoritilgan bo'ladi.
+Mijoz kelmasa ham xavotir yo'q: bron vaqti o'tib ketgach chiroq o'zi o'chadi.
+
+**S: Zal yopilayotganda har stol chirog'ini bittalab o'chirish kerakmi?**
+J: Yo'q. **Master tugmalar** bor (6.7): "Hammasini o'chirish", "Hammasini yoqish" va
+"Avtomatikaga qaytarish". Bir bosishda butun zal boshqariladi, muddat tanlanadi (30/60/120 daqiqa),
+tugma tasodifan bosilmasligi uchun tasdiq so'raydi. Muddat tugagach tizim odatdagi
+avtomatik rejimga qaytadi.
+
+**S: Dastur chiroq haqiqatan yonganini biladimi, yoki shunchaki buyruq yuboradimi?**
+J: Ko'p qurilmalarda **haqiqatan biladi**. "Holatni tekshirish" (verify) yoqiq bo'lsa (standart
+holatda yoqiq), agent har majburiy sinxronizatsiyada qurilmadan holatni **o'qib oladi** va
+kerakli holatdan farq qilsa darhol tuzatadi — bu diagnostika jurnalida `drift` deb ko'rinadi (6.8).
+Shelly, Tasmota, ESPHome, Home Assistant, Modbus va `stateTopic` li MQTT qurilmalarida ishlaydi;
+`http`, `tcp` va USB (`serial`) relelarda esa qurilma javob qaytarmagani uchun ishlamaydi —
+u yerda dastur faqat "buyruq yuborildi" deb biladi.
+
+**S: Wi-Fi ga 10 tadan ortiq rele sig'maydi / ular uzilib turadi. Nima qilay?**
+J: Uchta yo'l bor: **Variant B** — Shelly Pro 4PM ni LAN kabeli bilan ulash (eng ishonchli);
+**Variant D** — Zigbee ga o'tish (relelar bir-biriga signal uzatadi, Wi-Fi umuman band bo'lmaydi);
+**Variant E** — Modbus TCP sanoat platasi (12+ stol uchun eng arzon va eng bardoshli).
+Uchalasi ham 2-bo'limda batafsil yozilgan.
+
+**S: Relelarning IP sini bittalab qidirib chiqish shartmi?**
+J: Yo'q. **"Qurilmalarni qidirish"** tugmasi klub tarmog'ini skanerlab, Shelly / Tasmota / ESPHome
+qurilmalarini o'zi topadi va har birini bir bosishda stolga biriktirib beradi (6.10).
+Zigbee, Modbus va USB relelar bu ro'yxatga tushmaydi — ular boshqa protokolda ishlaydi,
+ularni qo'lda kiritasiz.
+
 **S: Bir nechta klubga bittadan bridge kerakmi?**
 J: **Ha.** Har klubning o'z lokal tarmog'i bor, shuning uchun har klubda **alohida bridge agent**
 va **alohida token** bo'ladi. Bir agent faqat o'z klubining stollarini ko'radi va boshqaradi.
@@ -825,7 +1534,9 @@ buyruq yuborishda ishlatiladi.
 **S: Klub tarmog'iga tashqaridan kirish xavfi bormi?**
 J: Yo'q. Agent **o'zi chiqadi** (chiquvchi HTTPS), routerda hech qanday port ochilmaydi.
 Serverdan klub tarmog'iga kiruvchi ulanish umuman yo'q. `DIRECT` rejimida esa server faqat
-**xususiy IP** larga (10.x, 172.16–31.x, 192.168.x, 127.x) murojaat qila oladi — bu SSRF himoyasi.
+**xususiy IP** larga (10.x, 172.16–31.x, 192.168.x) murojaat qila oladi — bu SSRF himoyasi.
+Serverning o'z loopbacki (127.x) ataylab **taqiqlangan**: rele u yerda turmaydi, ruxsat esa
+serverning ichki portlarini tekshirish yo'lini ochib qo'yardi.
 
 **S: Ijaradagi binodan ko'chsak, jihozni olib keta olamizmi?**
 J: **Variant A** da — ha, relelar oson yechiladi. **Variant B** da shchit va kabel binoda qoladi

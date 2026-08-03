@@ -84,10 +84,42 @@ export enum ReservationStatus {
 export enum LightDriver {
   NONE = 'none',
   SHELLY_GEN1 = 'shelly_gen1',
-  SHELLY_GEN2 = 'shelly_gen2',
+  SHELLY_GEN2 = 'shelly_gen2', // Gen2/Gen3/Plus/Pro (RPC) — digest auth qo'llab-quvvatlanadi
   TASMOTA = 'tasmota',
-  HTTP = 'http',
+  ESPHOME = 'esphome', // ESPHome web server REST
+  HOME_ASSISTANT = 'home_assistant', // HA REST API (Bearer token)
+  MQTT = 'mqtt', // FAQAT bridge rejimida
+  TCP = 'tcp', // FAQAT bridge — xom TCP baytlar
+  MODBUS_TCP = 'modbus_tcp', // FAQAT bridge — FC5 write coil
+  SERIAL = 'serial', // FAQAT bridge — USB rele (COM/ttyUSB)
+  HTTP = 'http', // umumiy URL shabloni
 }
+
+/**
+ * Serverning O'ZI (direct rejim) bajara oladigan drayverlar — hammasi HTTP
+ * ustida ishlaydi, shuning uchun bulut server relega to'g'ridan-to'g'ri
+ * murojaat qila oladi (SSRF himoyasi doirasida: faqat lokal IPv4).
+ */
+export const SERVER_CAPABLE_DRIVERS: LightDriver[] = [
+  LightDriver.SHELLY_GEN1,
+  LightDriver.SHELLY_GEN2,
+  LightDriver.TASMOTA,
+  LightDriver.ESPHOME,
+  LightDriver.HOME_ASSISTANT,
+  LightDriver.HTTP,
+];
+
+/**
+ * Faqat klubdagi agent (bridge) bajara oladigan drayverlar — bular HTTP emas
+ * (MQTT broker, xom TCP, Modbus, USB rele), ya'ni klub tarmog'i ichidan
+ * ulanish talab qiladi. Klub rejimi 'direct' bo'lsa bu drayverlar taqiqlanadi.
+ */
+export const BRIDGE_ONLY_DRIVERS: LightDriver[] = [
+  LightDriver.MQTT,
+  LightDriver.TCP,
+  LightDriver.MODBUS_TCP,
+  LightDriver.SERIAL,
+];
 
 /** Klubning chiroq boshqaruv rejimi: o'chiq / lokal agent orqali / to'g'ridan-to'g'ri */
 export enum LightMode {

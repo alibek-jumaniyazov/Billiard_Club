@@ -13,6 +13,10 @@ import { NumericTransformer } from '../common/transformers/numeric.transformer';
 import { LightDriver, TableStatus } from './enums';
 import { Club } from './club.entity';
 import { Session } from './session.entity';
+// Tur entity papkasidan olinadi (drayver modulidan EMAS) — aks holda
+// entity -> modul -> entity ko'rinishidagi aylanma import paydo bo'lardi.
+// `light-driver.ts` shu turni re-export qiladi, ya'ni shakl bitta joyda.
+import type { LightDeviceConfig } from './light-config.type';
 
 @Entity('tables')
 export class Table {
@@ -83,6 +87,20 @@ export class Table {
   /** driver='http' uchun o'chirish shablon URL i (`select: false` — lightHost bilan bir xil sabab) */
   @Column({ type: 'text', nullable: true, select: false })
   lightOffUrl: string | null;
+
+  /**
+   * Drayverga xos qo'shimcha sozlamalar (Home Assistant `entityId`, ESPHome
+   * `entity`, MQTT `topic`/payloadlar, Modbus `unitId`/`coil`, TCP/serial
+   * baytlari, qo'shimcha rele kanallari va h.k.) — shakli `LightDeviceConfig`.
+   *
+   * `select: false` — lightHost/lightAuth bilan bir xil sabab: klubning lokal
+   * tarmoq tafsilotlari oddiy `find`/`findOne` javoblariga (GET /tables,
+   * sessiyalardagi `relations: { table: true }`) HECH QACHON tushmasligi kerak.
+   * Kerak bo'lganda faqat ATAYLAB o'qiladi: `addSelect('t.lightConfig')` yoki
+   * xom SQL orqali. Bu ustunga parol/token YOZILMAYDI — ular `lightAuth` da.
+   */
+  @Column({ type: 'jsonb', nullable: true, select: false })
+  lightConfig: LightDeviceConfig | null;
 
   /** Qo'lda boshqaruv (override) qiymati — sessiya holatidan ustun turadi */
   @Column({ type: 'boolean', nullable: true })

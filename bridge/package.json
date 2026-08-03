@@ -1,12 +1,16 @@
 {
   "name": "billiardclub-bridge",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Billiard Club — klub tarmog'ida ishlaydigan chiroq boshqaruvi bridge agenti (npm bog'liqliklarisiz)",
+  "description": "Billiard Club — klub tarmog'ida ishlaydigan chiroq boshqaruvi bridge agenti (majburiy npm bog'liqliklarsiz)",
   "type": "commonjs",
   "main": "agent.js",
   "scripts": {
-    "start": "node agent.js"
+    "start": "node agent.js",
+    "check": "node --check agent.js && node --check lib/common.js && node --check lib/http-device.js && node --check lib/mqtt.js && node --check lib/modbus.js && node --check lib/rawtcp.js && node --check lib/serial.js && node --check lib/discover.js"
+  },
+  "optionalDependencies": {
+    "serialport": "^12.0.0"
   },
   "engines": {
     "node": ">=18"

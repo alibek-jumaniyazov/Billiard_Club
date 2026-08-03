@@ -11,6 +11,7 @@ import {
   PauseCircleOutlined,
   PlayCircleOutlined,
   SwapOutlined,
+  SyncOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -80,6 +81,8 @@ export interface TableCardProps {
    * AYNAN hozirgidek qoladi).
    */
   onLightToggle?: (table: BilliardTable, on: boolean) => void;
+  /** Qo'lda boshqaruvni bekor qilib avtomatikaga qaytarish (override faol bo'lsa) */
+  onLightAuto?: (table: BilliardTable) => void;
 }
 
 /**
@@ -103,6 +106,7 @@ const TableCard = memo(
     onPauseResume,
     onCancel,
     onLightToggle,
+    onLightAuto,
   }: TableCardProps) => {
     const { t } = useTranslation();
     const reduceMotion = useReducedMotion();
@@ -128,16 +132,46 @@ const TableCard = memo(
     // Chiroq indikatori faqat rele sozlangan VA klub rejimi yoqilgan stolda
     // ko'rinadi (rejim 'off' bo'lsa tugma bosilishi hech narsani o'zgartirmasdi)
     const hasLight = !!onLightToggle && table.lightControl === true;
-    const lightOn = table.lightState === true;
+    const lightState = table.lightState ?? null;
+    const lightOn = lightState === true;
     const lightError = table.lightError ?? null;
+    // Qo'lda boshqaruv faol — chiroq avtomatikaga bo'ysunmayapti
+    const lightOverride =
+      !!table.lightOverrideUntil &&
+      new Date(table.lightOverrideUntil).getTime() > Date.now() + offsetMs;
+    /*
+     * Tugma QAYSI qiymatni yuborishi: FAOL override qiymati > oxirgi ma'lum
+     * holat > o'chiq. Ilgari faqat `lightState` ga tayanilgani uchun holat
+     * noma'lum (null) bo'lganda tugma DOIM "yoqish" yuborardi va chiroqni
+     * kartadan o'chirib bo'lmasdi.
+     */
+    const lightTarget =
+      (lightOverride ? (table.lightOverrideOn ?? null) : null) ?? lightState ?? false;
+    // Yoniq — oltin, o'chiq — kulrang, noma'lum — xira, xato — qizil
     const lightColor = lightError
       ? TOKENS.color.semantic.error
       : lightOn
         ? TOKENS.color.gold.base
-        : TOKENS.color.text.tertiary;
-    const lightLabel = lightError
+        : lightState === false
+          ? TOKENS.color.text.tertiary
+          : TOKENS.color.text.disabled;
+    const lightStateLabel = lightError
       ? `${t('tables.lightsStateError')}: ${lightError}`
-      : `${lightOn ? t('tables.lightsStateOn') : t('tables.lightsStateOff')} · ${t('tables.lightsToggleHint')}`;
+      : lightOn
+        ? t('tables.lightsStateOn')
+        : lightState === false
+          ? t('tables.lightsStateOff')
+          : t('tables.lightsStateUnknown');
+    // Holat noma'lum bo'lsa — tugma nima qilishini aniq aytamiz
+    const lightActionHint =
+      lightState === null && !lightError
+        ? lightTarget
+          ? t('tables.lightsStateUnknownOffHint')
+          : t('tables.lightsStateUnknownOnHint')
+        : t('tables.lightsToggleHint');
+    const lightLabel = lightError
+      ? lightStateLabel
+      : `${lightStateLabel} · ${lightActionHint}`;
 
     const surface = isBusy
       ? isPaused
@@ -172,15 +206,32 @@ const TableCard = memo(
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
               {hasLight && (
-                <Tooltip title={lightLabel}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<BulbOutlined style={{ color: lightColor }} />}
-                    onClick={() => onLightToggle?.(table, !lightOn)}
-                    aria-label={lightLabel}
-                  />
-                </Tooltip>
+                <>
+                  <Tooltip title={lightLabel}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<BulbOutlined style={{ color: lightColor }} />}
+                      onClick={() => onLightToggle?.(table, !lightTarget)}
+                      aria-label={lightLabel}
+                      style={{
+                        background: lightOn ? TOKENS.color.gold.subtle : undefined,
+                        border: lightOn ? `1px solid ${TOKENS.color.gold.line}` : undefined,
+                      }}
+                    />
+                  </Tooltip>
+                  {lightOverride && onLightAuto && (
+                    <Tooltip title={t('tables.lightsOverrideAuto')}>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<SyncOutlined style={{ color: TOKENS.color.text.tertiary }} />}
+                        onClick={() => onLightAuto(table)}
+                        aria-label={t('tables.lightsOverrideAuto')}
+                      />
+                    </Tooltip>
+                  )}
+                </>
               )}
               {isBusy ? (
                 <StatusTag

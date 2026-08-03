@@ -65,6 +65,37 @@ export class Settings {
   @Column({ type: 'boolean', default: false })
   lightOffOnPause: boolean;
 
+  /**
+   * Sessiya tugagach chiroq yana shuncha SONIYA yoniq qoladi (0..3600).
+   * Mijoz stoldan turgan zahoti zal qorong'i bo'lib qolmasligi uchun —
+   * kassir hisob-kitob qilib bo'lguncha chiroq o'chmaydi. 0 — darhol o'chadi.
+   */
+  @Column({ type: 'int', default: 0 })
+  lightOffDelaySec: number;
+
+  /**
+   * Bron boshlanishidan shuncha DAQIQA oldin chiroq yoqiladi (0..120).
+   * Mehmon kelganda stol allaqachon tayyor bo'ladi. 0 — o'chiq (yoqilmaydi).
+   */
+  @Column({ type: 'int', default: 0 })
+  lightPreOnMinutes: number;
+
+  /**
+   * Majburiy qayta qo'llash oralig'i, SONIYA (10..3600). Holat o'zgarmagan
+   * bo'lsa ham shu oraliqda buyruq qayta yuboriladi — rele elektr uzilishidan
+   * keyin o'zicha boshqa holatga tushib qolsa, tiklanadi.
+   */
+  @Column({ type: 'int', default: 60 })
+  lightForceSyncSec: number;
+
+  /**
+   * Qurilmadan HAQIQIY holatni o'qib tekshirish (majburiy sinxronizatsiyada).
+   * Farq topilsa (drift) buyruq darhol qayta qo'llanadi. Holat o'qishni
+   * qo'llab-quvvatlamaydigan qurilmalarda bu sozlama zararsiz.
+   */
+  @Column({ type: 'boolean', default: true })
+  lightVerify: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

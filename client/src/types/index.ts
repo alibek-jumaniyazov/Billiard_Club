@@ -13,8 +13,22 @@ export type FeedbackPriority = 'low' | 'medium' | 'high';
 export type FeedbackStatus = 'unread' | 'read' | 'resolved' | 'rejected';
 export type ReservationStatus = 'pending' | 'confirmed' | 'seated' | 'cancelled' | 'no_show';
 export type ClubNotificationType = 'info' | 'warning' | 'promo' | 'maintenance';
-/** Stol chirog'ini boshqaruvchi rele turi ('none' — chiroq ulanmagan) */
-export type LightDriver = 'none' | 'shelly_gen1' | 'shelly_gen2' | 'tasmota' | 'http';
+/**
+ * Stol chirog'ini boshqaruvchi rele turi ('none' — chiroq ulanmagan).
+ * mqtt/tcp/modbus_tcp/serial — FAQAT lokal agent (bridge) rejimida ishlaydi.
+ */
+export type LightDriver =
+  | 'none'
+  | 'shelly_gen1'
+  | 'shelly_gen2'
+  | 'tasmota'
+  | 'esphome'
+  | 'home_assistant'
+  | 'mqtt'
+  | 'tcp'
+  | 'modbus_tcp'
+  | 'serial'
+  | 'http';
 /** Klubning chiroq rejimi: o'chiq / lokal agent orqali / to'g'ridan-to'g'ri */
 export type LightMode = 'off' | 'bridge' | 'direct';
 
@@ -121,8 +135,51 @@ export interface BilliardTable {
 }
 
 /**
+ * Drayverga xos qo'shimcha sozlamalar (`lightConfig` jsonb ustuni).
+ * Parol/token BU YERDA saqlanmaydi — u alohida `auth` maydonida.
+ */
+export interface LightDeviceConfig {
+  /** Qo'shimcha rele kanallari (bitta stolda 2–3 lampa); asosiy `channel` bilan BIRGA */
+  channels?: number[];
+
+  /* home_assistant */
+  entityId?: string;
+
+  /* esphome */
+  entity?: string;
+
+  /* mqtt (faqat bridge) */
+  topic?: string;
+  onPayload?: string;
+  offPayload?: string;
+  stateTopic?: string;
+  stateOnValue?: string;
+  retain?: boolean;
+  qos?: 0 | 1;
+
+  /* modbus_tcp (faqat bridge) */
+  unitId?: number;
+  coil?: number;
+
+  /* tcp (faqat bridge) */
+  onHex?: string;
+  offHex?: string;
+  onAscii?: string;
+  offAscii?: string;
+  expectHex?: string;
+
+  /* serial (faqat bridge) */
+  serialPort?: string;
+  baudRate?: number;
+
+  /** Shu stol uchun holatni o'qib tekshirish (klub sozlamasidan ustun) */
+  verify?: boolean;
+}
+
+/**
  * Stolning rele sozlamalari va oxirgi holati (GET /lights, PUT /lights/tables/:id).
- * Rele paroli HECH QACHON qaytarilmaydi — faqat `hasAuth` bildiriladi.
+ * Rele paroli/tokeni HECH QACHON qaytarilmaydi — faqat `hasAuth` bildiriladi.
+ * `host`/`config` faqat admin/superadmin javobida to'ldiriladi (aks holda null).
  */
 export interface TableLightConfig {
   tableId: number;
@@ -136,6 +193,8 @@ export interface TableLightConfig {
   hasAuth: boolean;
   onUrl: string | null;
   offUrl: string | null;
+  /** Drayverga xos sozlamalar (parolsiz) */
+  config: LightDeviceConfig | null;
   overrideOn: boolean | null;
   overrideUntil: string | null;
   state: boolean | null;
@@ -144,9 +203,12 @@ export interface TableLightConfig {
   /* Quyidagi uchtasi faqat GET /lights javobida bo'ladi */
   overrideActive?: boolean;
   sessionStatus?: 'active' | 'paused' | null;
-  /** Kerakli holat (override -> sessiya -> pauza sozlamasi) */
+  /** Kerakli holat (override -> sessiya -> grace -> bron oldidan) */
   desired?: boolean;
 }
+
+/** Panel ro'yxatidagi stol — `TableLightConfig` bilan bir xil shakl */
+export type LightTableView = TableLightConfig;
 
 /** Klub agentining (bridge) holati — token hech qachon qaytarilmaydi */
 export interface BridgeStatus {
@@ -162,11 +224,78 @@ export interface BridgeStatus {
 export interface LightsOverview {
   mode: LightMode;
   offOnPause: boolean;
+  /** Sessiya tugagach chiroq shuncha soniya yoniq qoladi (grace), 0..3600 */
+  offDelaySec: number;
+  /** Bron boshlanishidan shuncha daqiqa oldin yoqiladi, 0..120 */
+  preOnMinutes: number;
+  /** Majburiy qayta qo'llash oralig'i (soniya), 10..3600 */
+  forceSyncSec: number;
+  /** Qurilmadan haqiqiy holatni o'qib tekshirish */
+  verify: boolean;
   serverNow: string;
   forceSyncMs: number;
   bridge: BridgeStatus;
   /** BARCHA stollar (chiroq ulanmaganlari ham) — number bo'yicha tartiblangan */
-  tables: TableLightConfig[];
+  tables: LightTableView[];
+  /** Sozlamalarni tahrirlash huquqi (admin/superadmin) */
+  canEdit: boolean;
+}
+
+/** Klub sozlamasi saqlangandan keyingi javob (PUT /lights/settings) */
+export interface LightSettingsResult {
+  mode: LightMode;
+  offOnPause: boolean;
+  offDelaySec: number;
+  preOnMinutes: number;
+  forceSyncSec: number;
+  verify: boolean;
+}
+
+/** Diagnostika jurnali yozuvi (GET /lights/events) */
+export interface LightEventView {
+  id: number;
+  at: string;
+  tableId: number;
+  tableNumber: number;
+  tableName: string;
+  /** Qo'llangan mantiqiy holat (xatoda null) */
+  isOn: boolean | null;
+  /** 'session'|'override'|'master'|'test'|'sync'|'drift'|'settings' */
+  source: string;
+  ok: boolean;
+  error: string | null;
+  userName: string | null;
+}
+
+/** LAN skanerida topilgan qurilma */
+export interface DiscoveredDevice {
+  host: string;
+  mac?: string;
+  model?: string;
+  name?: string;
+  /** Taxmin qilingan drayver */
+  driver?: LightDriver;
+  channels?: number;
+}
+
+/** Qidiruv natijasi (GET /lights/discover) */
+export interface LightDiscoverState {
+  scannedAt: string | null;
+  running: boolean;
+  /** Skanerlangan tarmoq ('192.168.1') — agent o'zi tanlagan bo'lsa ham qaytadi */
+  subnet: string | null;
+  devices: DiscoveredDevice[];
+}
+
+/** Qidiruvni navbatga qo'yish natijasi (POST /lights/discover) */
+export interface LightDiscoverQueued {
+  queued: boolean;
+  bridgeOnline: boolean;
+}
+
+/** Master boshqaruv natijasi (POST /lights/all) */
+export interface LightMasterResult {
+  affected: number;
 }
 
 /** Qurilmani sinash natijasi (POST /lights/tables/:id/test) */
@@ -907,10 +1036,18 @@ export interface ExpensePayload {
   spentAt?: string;
 }
 
-/** Klubning chiroq rejimi (PUT /lights/settings) */
+/** Klubning chiroq rejimi va vaqt sozlamalari (PUT /lights/settings) */
 export interface LightSettingsPayload {
   mode: LightMode;
   offOnPause?: boolean;
+  /** Sessiya tugagach chiroq yoniq qoladigan vaqt (soniya), 0..3600 */
+  offDelaySec?: number;
+  /** Bron oldidan yoqish (daqiqa), 0..120 */
+  preOnMinutes?: number;
+  /** Majburiy sinxronizatsiya oralig'i (soniya), 10..3600 */
+  forceSyncSec?: number;
+  /** Holatni qurilmadan o'qib tekshirish */
+  verify?: boolean;
 }
 
 /**
@@ -922,10 +1059,12 @@ export interface TableLightPayload {
   host?: string | null;
   channel?: number;
   inverted?: boolean;
-  /** Basic-auth "user:parol" */
+  /** Basic-auth "user:parol" yoki Home Assistant uchun token */
   auth?: string | null;
   onUrl?: string | null;
   offUrl?: string | null;
+  /** Drayverga xos sozlamalar; null — tozalaydi */
+  config?: LightDeviceConfig | null;
 }
 
 export interface ReservationPayload {

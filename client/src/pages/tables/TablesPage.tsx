@@ -17,7 +17,7 @@ import { errorMessage, lightsApi, sessionsApi, tablesApi } from '../../api';
 import { EmptyState, PageHeader, PageTransition, StatCard } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { TOKENS } from '../../theme/tokens';
-import type { BilliardTable, Session } from '../../types';
+import type { BilliardTable, Session, TableLightConfig } from '../../types';
 import {
   clockOffsetMs,
   initialSegmentOf,
@@ -173,6 +173,25 @@ const TablesPage = () => {
 
   const silentRefresh = useCallback(() => void fetchTables(true), [fetchTables]);
 
+  /**
+   * Chiroq holati amaldan keyin bir necha yuz millisekundda o'zgaradi (bridge
+   * rejimida agent buyruqni olib qo'llaguncha), poll esa 15 s da bir keladi —
+   * shuning uchun amaldan ~2 soniya keyin BITTA qo'shimcha yangilash
+   * rejalashtiriladi (unmount da taymer tozalanadi).
+   */
+  const lightRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleLightRefresh = useCallback(() => {
+    if (lightRefreshTimer.current) clearTimeout(lightRefreshTimer.current);
+    lightRefreshTimer.current = setTimeout(() => void fetchTables(true), 2000);
+  }, [fetchTables]);
+
+  useEffect(
+    () => () => {
+      if (lightRefreshTimer.current) clearTimeout(lightRefreshTimer.current);
+    },
+    [],
+  );
+
   /* ------------------------------------------------------------- Amallar */
 
   /** Sessiyani pending to'plamiga qo'shish/olib tashlash */
@@ -228,8 +247,10 @@ const TablesPage = () => {
       const seg = initialSegmentOf(session);
       if (seg) commitSegments({ ...segmentsRef.current, [session.id]: seg });
       void fetchTables(true);
+      // O'yin boshlanishi chiroqni yoqadi — holat kartada tez ko'rinsin
+      scheduleLightRefresh();
     },
-    [commitSegments, fetchTables],
+    [commitSegments, fetchTables, scheduleLightRefresh],
   );
 
   const handleTransferred = useCallback(
@@ -255,6 +276,27 @@ const TablesPage = () => {
   }, []);
 
   /**
+   * Override javobidan kartani DARHOL yangilash — foydalanuvchi natijani
+   * keyingi poll'ni (15 s) kutmasdan ko'radi.
+   */
+  const applyLightResult = useCallback((tableId: number, row: TableLightConfig) => {
+    setTables((prev) =>
+      prev.map((tbl) =>
+        tbl.id === tableId
+          ? {
+              ...tbl,
+              lightOverrideOn: row.overrideOn,
+              lightOverrideUntil: row.overrideUntil,
+              lightState: row.state,
+              lightSyncedAt: row.syncedAt,
+              lightError: row.error,
+            }
+          : tbl,
+      ),
+    );
+  }, []);
+
+  /**
    * Chiroqni qo'lda yoqish/o'chirish (override, 30 daqiqa).
    * Butunlay QO'SHIMCHA amal — sessiya oqimiga hech qanday aloqasi yo'q.
    */
@@ -263,12 +305,31 @@ const TablesPage = () => {
       try {
         const res = await lightsApi.override(table.id, on);
         message.success(res.message);
+        applyLightResult(table.id, res.data);
         await fetchTables(true);
+        // Bridge rejimida haqiqiy holat bir necha soniyadan keyin keladi
+        scheduleLightRefresh();
       } catch (err) {
         message.error(errorMessage(err, t('common.error')));
       }
     },
-    [fetchTables, message, t],
+    [applyLightResult, fetchTables, message, scheduleLightRefresh, t],
+  );
+
+  /** Qo'lda boshqaruvni bekor qilish — chiroq avtomatik (sessiya) holatiga qaytadi */
+  const handleLightAuto = useCallback(
+    async (table: BilliardTable) => {
+      try {
+        const res = await lightsApi.override(table.id, null);
+        message.success(res.message);
+        applyLightResult(table.id, res.data);
+        await fetchTables(true);
+        scheduleLightRefresh();
+      } catch (err) {
+        message.error(errorMessage(err, t('common.error')));
+      }
+    },
+    [applyLightResult, fetchTables, message, scheduleLightRefresh, t],
   );
 
   /* ---------------------------------------------------------- Statistika */
@@ -294,20 +355,20 @@ const TablesPage = () => {
         extra={
           <>
             {canManage && (
-              <>
-                <Button icon={<SettingOutlined />} onClick={() => openManage(false)}>
-                  {t('tables.manage')}
-                </Button>
-                {/* Chiroq boshqaruvi — ixtiyoriy imkoniyat, faqat admin uchun */}
-                <Tooltip title={t('tables.lightsTitle')}>
-                  <Button
-                    icon={<BulbOutlined />}
-                    onClick={() => setLightsOpen(true)}
-                    aria-label={t('tables.lightsTitle')}
-                  />
-                </Tooltip>
-              </>
+              <Button icon={<SettingOutlined />} onClick={() => openManage(false)}>
+                {t('tables.manage')}
+              </Button>
             )}
+            {/* Chiroq boshqaruvi — ixtiyoriy imkoniyat. Kassir/operatorga ham
+                ochiq: server ularga ko'rish, qo'lda boshqarish, master va
+                jurnalni bergan; ichkarida `canEdit` sozlashni bloklaydi */}
+            <Tooltip title={t('tables.lightsTitle')}>
+              <Button
+                icon={<BulbOutlined />}
+                onClick={() => setLightsOpen(true)}
+                aria-label={t('tables.lightsTitle')}
+              />
+            </Tooltip>
             <Tooltip title={t('btn.refresh')}>
               <Button
                 icon={<ReloadOutlined />}
@@ -411,6 +472,7 @@ const TablesPage = () => {
                   onPauseResume={handlePauseResume}
                   onCancel={handleCancel}
                   onLightToggle={handleLightToggle}
+                  onLightAuto={handleLightAuto}
                 />
               </Col>
             );
@@ -450,14 +512,13 @@ const TablesPage = () => {
         onChanged={silentRefresh}
       />
 
-      {/* Chiroq boshqaruvi (admin, ixtiyoriy imkoniyat) */}
-      {canManage && (
-        <LightSettingsDrawer
-          open={lightsOpen}
-          onClose={() => setLightsOpen(false)}
-          onChanged={silentRefresh}
-        />
-      )}
+      {/* Chiroq boshqaruvi (ixtiyoriy imkoniyat) — barcha xodimlarga ochiq,
+          sozlash huquqi javobdagi `canEdit` bilan cheklanadi */}
+      <LightSettingsDrawer
+        open={lightsOpen}
+        onClose={() => setLightsOpen(false)}
+        onChanged={silentRefresh}
+      />
     </PageTransition>
   );
 };

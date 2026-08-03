@@ -1,4 +1,6 @@
-import { LightDriver } from '../../../entities/enums';
+import { BRIDGE_ONLY_DRIVERS, LightDriver } from '../../../entities/enums';
+import type { LightDeviceConfig } from '../../../entities/light-config.type';
+import { buildDigestHeader, parseDigestChallenge } from './digest-auth';
 
 /**
  * Chiroq relelari bilan ishlovchi past darajali drayverlar.
@@ -12,6 +14,14 @@ import { LightDriver } from '../../../entities/enums';
  * (LightsService ularni ushlab, tables."lightError" ga yozadi).
  */
 
+/**
+ * Drayverga xos sozlamalar turi (`tables."lightConfig"`).
+ * E'lon `entities/light-config.type.ts` da — entity ↔ drayver aylanma importi
+ * bo'lmasligi uchun; bu yerdan re-export qilinadi, ya'ni drayver shartnomasini
+ * shu fayldan ham import qilish mumkin.
+ */
+export type { LightDeviceConfig };
+
 /** Bitta rele uchun ulanish ma'lumotlari (stol yozuvidan yoki bridge javobidan) */
 export interface LightTarget {
   driver: LightDriver;
@@ -21,16 +31,40 @@ export interface LightTarget {
   channel: number;
   /** NC (normally closed) rele — yuboriladigan qiymat teskarilanadi */
   inverted: boolean;
-  /** Basic-auth "user:parol" yoki null */
+  /**
+   * Autentifikatsiya ma'lumoti:
+   * - shelly/tasmota/esphome — basic yoki digest uchun "user:parol"
+   * - home_assistant — long-lived access token (Bearer sifatida yuboriladi)
+   */
   auth: string | null;
   /** driver='http' uchun yoqish shabloni */
   onUrl: string | null;
   /** driver='http' uchun o'chirish shabloni */
   offUrl: string | null;
+  /** Drayverga xos qo'shimcha sozlamalar (jsonb) — yo'q bo'lsa null */
+  config: LightDeviceConfig | null;
 }
 
 /** Standart so'rov timeouti (ms) — lokal tarmoq uchun 3 soniya yetarli */
 const DEFAULT_TIMEOUT_MS = 3000;
+
+/**
+ * Bitta buyruqda qo'llanadigan kanallarning eng ko'p soni:
+ * asosiy `channel` + `config.channels` dan 8 tagacha (validatsiyada ham 8 ta chegara bor).
+ */
+const MAX_CHANNELS = 9;
+
+/** `config.channels` elementi uchun ruxsat etilgan chegara */
+const MAX_CHANNEL_INDEX = 32;
+
+/** BRIDGE_ONLY drayverlarni tez tekshirish uchun to'plam */
+const BRIDGE_ONLY_SET = new Set<LightDriver>(BRIDGE_ONLY_DRIVERS);
+
+/** ESPHome switch obyekti nomi ('relay_1') — URL ga qo'yilishidan OLDIN tekshiriladi */
+const ESPHOME_ENTITY_RE = /^[a-z0-9_]+$/;
+
+/** Home Assistant entity id ('switch.stol_3') — URL ga qo'yilishidan OLDIN tekshiriladi */
+const HA_ENTITY_ID_RE = /^[a-z_]+\.[a-z0-9_]+$/;
 
 /**
  * Rele HTTP xatosi. `message` FOYDALANUVCHIGA ko'rinadi (tables."lightError"),
@@ -71,46 +105,59 @@ const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,
  */
 const ALL_NUMERIC_HOST_RE = /^\d+(\.\d+)*$/;
 
+/** Bitta HTTP so'rovining tavsifi (drayver bo'yicha yig'iladi) */
+interface DeviceRequest {
+  url: string;
+  method: 'GET' | 'POST';
+  /** So'rov tanasi (home_assistant uchun JSON) */
+  body?: string;
+  contentType?: string;
+}
+
 /**
  * Relega yoqish/o'chirish buyrug'ini yuboradi.
  * `on` — MANTIQIY holat (chiroq yonsinmi); inverted=true bo'lsa relega teskari
  * qiymat jo'natiladi. Javob res.ok bo'lmasa Error throw qilinadi.
+ *
+ * `config.channels` berilgan bo'lsa (bitta stolda bir nechta lampa) buyruq
+ * asosiy `channel` dan boshlab har bir kanalga KETMA-KET yuboriladi —
+ * bittasi xato bersa umumiy natija ham xato bo'ladi.
  */
 export async function applyLight(
   target: LightTarget,
   on: boolean,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<void> {
+  // Bu drayverlar HTTP emas (MQTT/xom TCP/Modbus/COM-port) — bulutdagi server
+  // klub tarmog'iga bunday ulana olmaydi, ular faqat lokal agentda bajariladi
+  if (BRIDGE_ONLY_SET.has(target.driver)) {
+    throw new Error('Bu drayver faqat lokal agent (bridge) rejimida ishlaydi');
+  }
+
   // NC rele uchun mantiqiy holat fizik holatga teskari
   const physical = target.inverted ? !on : on;
-  const url = buildCommandUrl(target, physical);
 
-  const res = await fetch(url, {
-    headers: buildHeaders(target),
-    // Yo'naltirish KUZATILMAYDI: ruxsat etilgan lokal manzil 302 bilan serverni
-    // boshqa (tashqi) manzilga jo'natib yuborishi mumkin edi — 3xx xato hisoblanadi
-    redirect: 'manual',
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!res.ok) {
-    // Javob TANASI xato matniga qo'shilmaydi (u panelga chiqadi) — faqat log uchun
-    const body = await res.text().catch(() => '');
-    throw new LightHttpError(
-      `HTTP ${res.status} ${res.statusText}`,
-      body ? body.slice(0, 300) : null,
-    );
+  for (const channel of resolveChannels(target)) {
+    const single = channel === target.channel ? target : { ...target, channel };
+    await sendCommand(single, physical, timeoutMs);
   }
 }
 
 /**
  * Relening HAQIQIY holatini o'qish (mantiqiy qiymatda, inverted hisobga olingan).
  * O'qish majburiy emas: qurilma javob bermasa yoki formatni tushunmasak — null.
+ *
+ * Ko'p kanalli sozlamada faqat ASOSIY kanal o'qiladi — u stolning holatini
+ * bildiradi (qolgan kanallar unga birga qo'llanadi).
  */
 export async function readLight(
   target: LightTarget,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<boolean | null> {
   try {
+    // Bridge drayverlarining holatini faqat agent o'qiy oladi
+    if (BRIDGE_ONLY_SET.has(target.driver)) return null;
+
     const host = target.host?.trim();
     let physical: boolean | null = null;
 
@@ -139,6 +186,30 @@ export async function readLight(
         physical = typeof value === 'string' ? value.toUpperCase() === 'ON' : null;
         break;
       }
+      case LightDriver.ESPHOME: {
+        if (!host) return null;
+        const entity = readEsphomeEntity(target.config);
+        if (!entity) return null;
+        const data = await fetchJson(`http://${host}/switch/${entity}`, target, timeoutMs);
+        // ESPHome web server: {"state":"ON","value":true}
+        const value = data?.['value'];
+        if (typeof value === 'boolean') {
+          physical = value;
+        } else {
+          physical = parseOnOff(data?.['state']);
+        }
+        break;
+      }
+      case LightDriver.HOME_ASSISTANT: {
+        if (!host) return null;
+        const entityId = readHaEntityId(target.config);
+        if (!entityId) return null;
+        const url = `http://${host}/api/states/${entityId}`;
+        const data = await fetchJson(url, target, timeoutMs);
+        // HA: {"state":"on"} | {"state":"off"} | {"state":"unavailable"}
+        physical = parseOnOff(data?.['state']);
+        break;
+      }
       // driver='http' — ixtiyoriy shablon URL, holatni o'qishning yagona usuli yo'q
       default:
         return null;
@@ -154,9 +225,13 @@ export async function readLight(
 
 /**
  * SSRF himoyasi: DIRECT rejimda server FAQAT lokal tarmoq manziliga chiqishi mumkin.
- * Ruxsat: 10.x, 172.16-31.x, 192.168.x, 127.x — FAQAT raqamli IPv4.
+ * Ruxsat: 10.x, 172.16-31.x, 192.168.x — FAQAT raqamli IPv4.
  *
- * Nom (hostname) ataylab RAD ETILADI: "localhost" ham, "shelly-abc.local" ham DNS/mDNS
+ * 127.x (loopback) ATAYLAB RUXSAT ETILMAYDI: rele hech qachon bulut serverining
+ * o'zida turmaydi, lekin ruxsat berilsa klub admini `driver='http'` bilan
+ * serverning O'Z portlariga so'rov yubortirib ichki xizmatlarni skanerlab olardi.
+ *
+ * Nom (hostname) ham ataylab RAD ETILADI: "localhost" ham, "shelly-abc.local" ham DNS/mDNS
  * orqali istalgan IP ga (jumladan tashqi manzilga) yechilishi mumkin, bu esa bulut
  * serverini ichki xizmatlarga so'rov yuborishga majburlash yo'lini ochadi.
  * Shu sababli DIRECT rejimda relega DHCP reservation orqali doimiy IP berilishi shart
@@ -173,7 +248,7 @@ export function isPrivateHost(host: string): boolean {
   if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
 
   const [a, b] = octets;
-  if (a === 10 || a === 127) return true;
+  if (a === 10) return true;
   if (a === 192 && b === 168) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
   return false;
@@ -208,35 +283,133 @@ export function isValidHost(host: string): boolean {
   return HOSTNAME_RE.test(name);
 }
 
-/** Drayver bo'yicha buyruq URL ini yig'ish (`physical` — relega yuboriladigan qiymat) */
-function buildCommandUrl(target: LightTarget, physical: boolean): string {
+/** Drayver serverning o'zida (DIRECT) emas, faqat lokal agentda bajariladimi */
+export function isBridgeOnlyDriver(driver: LightDriver): boolean {
+  return BRIDGE_ONLY_SET.has(driver);
+}
+
+/**
+ * Buyruq yuboriladigan kanallar ro'yxati: asosiy `channel` DOIM birinchi,
+ * keyin `config.channels` dagi takrorlanmagan, chegaradagi qiymatlar.
+ *
+ * `entity`/`entityId` bilan ishlaydigan drayverlarda (esphome, home_assistant)
+ * manzil kanalga bog'liq emas — u yerda qo'shimcha kanallar bir xil so'rovni
+ * takrorlashdan boshqa narsa bermaydi, shuning uchun e'tiborga olinmaydi.
+ */
+function resolveChannels(target: LightTarget): number[] {
+  const channels = [target.channel];
+  if (!driverUsesChannel(target.driver)) return channels;
+
+  const extra = target.config?.channels;
+  if (!Array.isArray(extra)) return channels;
+
+  for (const raw of extra) {
+    if (channels.length >= MAX_CHANNELS) break;
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 0 || value > MAX_CHANNEL_INDEX) continue;
+    if (!channels.includes(value)) channels.push(value);
+  }
+  return channels;
+}
+
+/** Drayver manzilida kanal raqami qatnashadimi */
+function driverUsesChannel(driver: LightDriver): boolean {
+  return (
+    driver === LightDriver.SHELLY_GEN1 ||
+    driver === LightDriver.SHELLY_GEN2 ||
+    driver === LightDriver.TASMOTA ||
+    driver === LightDriver.HTTP
+  );
+}
+
+/** Bitta kanalga buyruq yuborish (`physical` — relega yuboriladigan qiymat) */
+async function sendCommand(
+  target: LightTarget,
+  physical: boolean,
+  timeoutMs: number,
+): Promise<void> {
+  const request = buildCommandRequest(target, physical);
+  const res = await deviceFetch(request, target, timeoutMs);
+  if (!res.ok) {
+    // Javob TANASI xato matniga qo'shilmaydi (u panelga chiqadi) — faqat log uchun
+    const body = await res.text().catch(() => '');
+    throw new LightHttpError(
+      `HTTP ${res.status} ${res.statusText}`,
+      body ? body.slice(0, 300) : null,
+    );
+  }
+}
+
+/** Drayver bo'yicha so'rovni yig'ish (`physical` — relega yuboriladigan qiymat) */
+function buildCommandRequest(target: LightTarget, physical: boolean): DeviceRequest {
   const host = target.host?.trim();
 
   switch (target.driver) {
     case LightDriver.SHELLY_GEN1:
-      return `http://${requireHost(host)}/relay/${target.channel}?turn=${physical ? 'on' : 'off'}`;
+      return {
+        url: `http://${requireHost(host)}/relay/${target.channel}?turn=${physical ? 'on' : 'off'}`,
+        method: 'GET',
+      };
 
     case LightDriver.SHELLY_GEN2:
-      return (
-        `http://${requireHost(host)}/rpc/Switch.Set` +
-        `?id=${target.channel}&on=${physical ? 'true' : 'false'}`
-      );
+      return {
+        url:
+          `http://${requireHost(host)}/rpc/Switch.Set` +
+          `?id=${target.channel}&on=${physical ? 'true' : 'false'}`,
+        method: 'GET',
+      };
 
     case LightDriver.TASMOTA:
       // %20 allaqachon kodlangan — URLSearchParams ishlatilmaydi
-      return (
-        `http://${requireHost(host)}/cm` +
-        `?cmnd=Power${target.channel + 1}%20${physical ? 'ON' : 'OFF'}`
-      );
+      return {
+        url:
+          `http://${requireHost(host)}/cm` +
+          `?cmnd=Power${target.channel + 1}%20${physical ? 'ON' : 'OFF'}`,
+        method: 'GET',
+      };
+
+    case LightDriver.ESPHOME: {
+      // ESPHome web server: POST /switch/<entity>/turn_on|turn_off
+      const entity = readEsphomeEntity(target.config);
+      if (!entity) {
+        throw new Error("esphome drayveri uchun config.entity ko'rsatilmagan yoki noto'g'ri");
+      }
+      return {
+        url: `http://${requireHost(host)}/switch/${entity}/${physical ? 'turn_on' : 'turn_off'}`,
+        method: 'POST',
+      };
+    }
+
+    case LightDriver.HOME_ASSISTANT: {
+      // HA REST: POST /api/services/<domain>/turn_on, tana: {"entity_id":"switch.stol_3"}
+      const entityId = readHaEntityId(target.config);
+      if (!entityId) {
+        throw new Error(
+          "home_assistant drayveri uchun config.entityId ko'rsatilmagan yoki noto'g'ri",
+        );
+      }
+      const domain = entityId.slice(0, entityId.indexOf('.'));
+      return {
+        url:
+          `http://${requireHost(host)}/api/services/${domain}` +
+          `/${physical ? 'turn_on' : 'turn_off'}`,
+        method: 'POST',
+        body: JSON.stringify({ entity_id: entityId }),
+        contentType: 'application/json',
+      };
+    }
 
     case LightDriver.HTTP: {
       const template = physical ? target.onUrl : target.offUrl;
       if (!template) {
         throw new Error(`http drayveri uchun ${physical ? 'onUrl' : 'offUrl'} ko'rsatilmagan`);
       }
-      return template
-        .replace(/\{channel\}/g, String(target.channel))
-        .replace(/\{state\}/g, physical ? 'on' : 'off');
+      return {
+        url: template
+          .replace(/\{channel\}/g, String(target.channel))
+          .replace(/\{state\}/g, physical ? 'on' : 'off'),
+        method: 'GET',
+      };
     }
 
     default:
@@ -244,10 +417,79 @@ function buildCommandUrl(target: LightTarget, physical: boolean): string {
   }
 }
 
-/** Basic-auth headeri (auth "user:parol" ko'rinishida bo'lsa) */
+/**
+ * Qurilmaga so'rov yuborish. 401 javobida (Shelly Gen2/Gen3 parol qo'yilgan)
+ * `WWW-Authenticate: Digest` chaqirig'i bo'yicha digest hisoblanadi va so'rov
+ * BIR MARTA qayta yuboriladi. Qolgan hollarda javob o'zgarishsiz qaytariladi.
+ */
+async function deviceFetch(
+  request: DeviceRequest,
+  target: LightTarget,
+  timeoutMs: number,
+): Promise<Response> {
+  const headers = buildHeaders(target);
+  if (request.contentType) headers['Content-Type'] = request.contentType;
+
+  const res = await fetch(request.url, {
+    method: request.method,
+    headers,
+    body: request.body,
+    // Yo'naltirish KUZATILMAYDI: ruxsat etilgan lokal manzil 302 bilan serverni
+    // boshqa (tashqi) manzilga jo'natib yuborishi mumkin edi — 3xx xato hisoblanadi
+    redirect: 'manual',
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  // Bearer tokenli qurilmada (home_assistant) digest bo'lmaydi — qayta urinilmaydi
+  if (res.status !== 401 || !target.auth || target.driver === LightDriver.HOME_ASSISTANT) {
+    return res;
+  }
+  const challenge = parseDigestChallenge(res.headers.get('www-authenticate'));
+  if (!challenge) return res;
+
+  // Ulanish bo'shashi uchun 401 javobning tanasi o'qib tashlanadi
+  await res.text().catch(() => '');
+
+  const separator = target.auth.indexOf(':');
+  const username = separator === -1 ? target.auth : target.auth.slice(0, separator);
+  const password = separator === -1 ? '' : target.auth.slice(separator + 1);
+  const parsed = new URL(request.url);
+
+  return fetch(request.url, {
+    method: request.method,
+    headers: {
+      ...headers,
+      Authorization: buildDigestHeader(challenge, {
+        username,
+        password,
+        method: request.method,
+        // Digest HA2 faqat yo'l + query dan hisoblanadi (host qatnashmaydi)
+        uri: `${parsed.pathname}${parsed.search}`,
+      }),
+    },
+    body: request.body,
+    redirect: 'manual',
+    // Qayta urinish uchun YANGI timeout — birinchisi allaqachon sarflangan
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
+
+/**
+ * Autentifikatsiya headeri:
+ * - home_assistant — `Authorization: Bearer <token>` (foydalanuvchi "Bearer " deb
+ *   yozib qo'ysa ham to'g'ri ishlashi uchun prefiks kesib tashlanadi)
+ * - qolganlari — basic auth ("user:parol"); qurilma digest talab qilsa
+ *   `deviceFetch` 401 dan keyin digest bilan qayta yuboradi
+ */
 function buildHeaders(target: LightTarget): Record<string, string> {
-  if (!target.auth) return {};
-  const encoded = Buffer.from(target.auth, 'utf8').toString('base64');
+  const auth = target.auth?.trim();
+  if (!auth) return {};
+
+  if (target.driver === LightDriver.HOME_ASSISTANT) {
+    const token = auth.replace(/^Bearer\s+/i, '');
+    return { Authorization: `Bearer ${token}` };
+  }
+  const encoded = Buffer.from(auth, 'utf8').toString('base64');
   return { Authorization: `Basic ${encoded}` };
 }
 
@@ -257,17 +499,35 @@ async function fetchJson(
   target: LightTarget,
   timeoutMs: number,
 ): Promise<Record<string, unknown> | null> {
-  const res = await fetch(url, {
-    headers: buildHeaders(target),
-    // applyLight bilan bir xil: yo'naltirish kuzatilmaydi, 3xx ham muvaffaqiyatsizlik
-    redirect: 'manual',
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  const res = await deviceFetch({ url, method: 'GET' }, target, timeoutMs);
   if (!res.ok) return null;
   const data: unknown = await res.json();
   return typeof data === 'object' && data !== null && !Array.isArray(data)
     ? (data as Record<string, unknown>)
     : null;
+}
+
+/** 'ON'/'on'/'off' ko'rinishidagi qiymatni mantiqiy holatga o'girish (tushunarsiz bo'lsa null) */
+function parseOnOff(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'on' || normalized === 'true' || normalized === '1') return true;
+  if (normalized === 'off' || normalized === 'false' || normalized === '0') return false;
+  // 'unavailable', 'unknown' va h.k. — noma'lum
+  return null;
+}
+
+/** ESPHome switch nomi — shakli tekshiriladi (URL ga qo'shilishi sababli) */
+function readEsphomeEntity(config: LightDeviceConfig | null): string | null {
+  const entity = config?.entity?.trim().toLowerCase();
+  return entity && ESPHOME_ENTITY_RE.test(entity) ? entity : null;
+}
+
+/** Home Assistant entity id — shakli tekshiriladi (URL ga qo'shilishi sababli) */
+function readHaEntityId(config: LightDeviceConfig | null): string | null {
+  const entityId = config?.entityId?.trim().toLowerCase();
+  return entityId && HA_ENTITY_ID_RE.test(entityId) ? entityId : null;
 }
 
 /** Manzilsiz drayverlar uchun aniq xato matni */

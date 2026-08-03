@@ -129,6 +129,14 @@ const messages: Record<Language, Record<string, string>> = {
     'lights.notConfigured': "Bu stolda chiroq sozlanmagan yoki boshqaruv o'chirilgan",
     'lights.bridgeOffline': "Klub agenti ulanmagan — buyruq u ulangach qo'llanadi",
     'lights.deviceUnreachable': "Relega ulanib bo'lmadi",
+    'lights.invalidConfig':
+      "Drayver sozlamalari to'liq emas: tanlangan drayver uchun majburiy maydonlarni to'ldiring",
+    'lights.driverBridgeOnly':
+      "Bu drayver faqat lokal agent (bridge) rejimida ishlaydi — klub rejimini 'bridge' ga o'zgartiring",
+    'lights.allApplied': "Barcha stollarga qo'llandi",
+    'lights.discoverQueued': "Qurilmalarni qidirish boshlandi — natija bir necha soniyada ko'rinadi",
+    'lights.discoverUnavailable':
+      "Qidiruv uchun klubda lokal agent (bridge) o'rnatilgan bo'lishi kerak",
 
     // Fikr-mulohaza markazi
     'feedback.created': "Fikr-mulohaza yuborildi. Tez orada ko'rib chiqamiz",
@@ -395,6 +403,14 @@ const messages: Record<Language, Record<string, string>> = {
     'lights.notConfigured': 'На этом столе освещение не настроено или управление отключено',
     'lights.bridgeOffline': 'Агент клуба не на связи — команда применится после подключения',
     'lights.deviceUnreachable': 'Не удалось подключиться к реле',
+    'lights.invalidConfig':
+      'Настройки драйвера неполные: заполните обязательные поля для выбранного драйвера',
+    'lights.driverBridgeOnly':
+      'Этот драйвер работает только через локальный агент (bridge) — переключите режим клуба на «bridge»',
+    'lights.allApplied': 'Применено ко всем столам',
+    'lights.discoverQueued': 'Поиск устройств запущен — результат появится через несколько секунд',
+    'lights.discoverUnavailable':
+      'Для поиска в клубе должен быть установлен локальный агент (bridge)',
 
     // Центр отзывов
     'feedback.created': 'Отзыв отправлен. Мы рассмотрим его в ближайшее время',
