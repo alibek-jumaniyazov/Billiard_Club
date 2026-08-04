@@ -127,3 +127,15 @@ export enum LightMode {
   BRIDGE = 'bridge',
   DIRECT = 'direct',
 }
+
+/**
+ * Desktop dastur relizi qaysi platforma uchun.
+ *
+ * Qiymatlar electron-updater ning kanal fayllari bilan bevosita bog'liq:
+ * win -> latest.yml, mac -> latest-mac.yml, linux -> latest-linux.yml.
+ */
+export enum ReleasePlatform {
+  WIN = 'win',
+  MAC = 'mac',
+  LINUX = 'linux',
+}

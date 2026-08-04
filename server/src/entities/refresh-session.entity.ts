@@ -48,6 +48,12 @@ export class RefreshSession {
   @Column({ type: 'varchar', length: 45, nullable: true })
   ip: string | null;
 
+  /**
+   * Muddat tugash vaqti. Kunlik tozalash cron i AYNAN shu ustun bo'yicha
+   * filtrlaydi — indekssiz butun jadval seq-scan bo'lardi (jadval har bir
+   * login/rotatsiyada o'sadi).
+   */
+  @Index('IDX_refresh_sessions_expiresAt')
   @Column({ type: 'timestamptz' })
   expiresAt: Date;
 

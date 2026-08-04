@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -15,7 +16,10 @@ import { Plan } from './plan.entity';
  * Chegirma kuponi — obuna to'lovlarida qo'llanadi.
  * type=percent: value foizda (0-100), type=fixed: value so'mda.
  */
+// DB darajasidagi cheklov migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
 @Entity('coupons')
+@Check('chk_coupons_nonneg', '"value" >= 0 AND "usedCount" >= 0')
 export class Coupon {
   @PrimaryGeneratedColumn()
   id: number;

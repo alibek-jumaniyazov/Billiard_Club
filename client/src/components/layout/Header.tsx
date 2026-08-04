@@ -12,6 +12,7 @@ import {
 } from 'antd';
 import {
   CrownOutlined,
+  DesktopOutlined,
   EyeOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -25,6 +26,7 @@ import { viewingClub } from '../../api/client';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_TAG_COLORS } from '../../constants';
+import { isDesktop } from '../../offline/desktop';
 import { TOKENS } from '../../theme/tokens';
 import NotificationsBell from '../ui/NotificationsBell';
 
@@ -108,7 +110,7 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
       <Space size="middle">
         <Button
           type="text"
-          aria-label="Menu"
+          aria-label={t('btn.menu')}
           icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           onClick={onToggle}
         />
@@ -176,6 +178,19 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
                   label: t('menu.profile'),
                   onClick: () => navigate('/profile'),
                 },
+                // Desktop qobiqda YASHIRILADI: u yerda dastur allaqachon
+                // o'rnatilgan va o'zi yangilanadi — "yuklab olish" bandi
+                // faqat chalg'itardi.
+                ...(isDesktop()
+                  ? []
+                  : [
+                      {
+                        key: 'download',
+                        icon: <DesktopOutlined />,
+                        label: t('menu.download'),
+                        onClick: () => navigate('/download'),
+                      },
+                    ]),
                 { type: 'divider' as const },
                 {
                   key: 'logout',

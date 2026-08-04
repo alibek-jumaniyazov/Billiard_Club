@@ -24,6 +24,10 @@ import feedback from './pages/feedback';
 import notifications from './pages/notifications';
 import admin from './pages/admin';
 import game from './pages/game';
+import offline from './pages/offline';
+import download from './pages/download';
+import adminClubData from './pages/adminClubData';
+import adminReleases from './pages/adminReleases';
 
 export type Lang = 'uz' | 'ru';
 
@@ -54,6 +58,10 @@ const pages: Record<string, PageDict> = {
   notifications,
   admin,
   game,
+  offline,
+  download,
+  adminClubData,
+  adminReleases,
 };
 
 const buildLocale = (lang: Lang): Record<string, string> => {
@@ -69,6 +77,12 @@ const buildLocale = (lang: Lang): Record<string, string> => {
 export const getStoredLang = (): Lang =>
   (localStorage.getItem('lang') === 'ru' ? 'ru' : 'uz') as Lang;
 
+/**
+ * Sinov muddatining STANDART qiymati — serverdan javob kelgunicha ishlatiladi.
+ * Haqiqiy qiymat superadmin sozlamasidan keladi (`setTrialDays`).
+ */
+const DEFAULT_TRIAL_DAYS = 7;
+
 void i18n.use(initReactI18next).init({
   resources: {
     uz: { translation: buildLocale('uz') },
@@ -76,7 +90,32 @@ void i18n.use(initReactI18next).init({
   },
   lng: getStoredLang(),
   fallbackLng: 'uz',
-  interpolation: { escapeValue: false },
+  interpolation: {
+    escapeValue: false,
+    /**
+     * `{{days}}` — bepul sinov muddati. Landing matnlarida u O'NDAN ORTIQ
+     * joyda uchraydi (sarlavha, CTA, tariflar, FAQ, meta teglar), shuning
+     * uchun har bir `t()` chaqiruviga qo'lda uzatish o'rniga GLOBAL standart
+     * qiymat sifatida beriladi. Bittasini uzatishni unutish sahifada
+     * xom "{{days}}" ko'rinib qolishiga olib kelardi.
+     */
+    defaultVariables: { days: DEFAULT_TRIAL_DAYS },
+  },
 });
+
+/**
+ * Sinov muddatini serverdan kelgan qiymatga o'rnatadi.
+ *
+ * `t()` interpolatsiyani CHAQIRUV paytida bajaradi, shuning uchun qiymat
+ * yangilangach komponent qayta render bo'lishi kifoya — tarjimalarni qayta
+ * yuklash shart emas. Chaqiruvchi (Landing) qiymatni holatga yozadi va
+ * shu bilan qayta render yuz beradi.
+ */
+export const setTrialDays = (days: number): void => {
+  if (!Number.isFinite(days) || days < 0) return;
+  const interpolation = i18n.options.interpolation ?? {};
+  interpolation.defaultVariables = { ...interpolation.defaultVariables, days };
+  i18n.options.interpolation = interpolation;
+};
 
 export default i18n;

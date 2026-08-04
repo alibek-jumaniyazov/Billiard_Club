@@ -28,6 +28,7 @@ import {
   CopyOutlined,
   DeleteOutlined,
   EditOutlined,
+  DatabaseOutlined,
   EyeOutlined,
   FileTextOutlined,
   KeyOutlined,
@@ -45,7 +46,7 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { adminApi, adminBillingApi, errorMessage } from '../../api';
+import { adminApi, adminBillingApi, errorMessage, platformApi } from '../../api';
 import { viewingClub } from '../../api/client';
 import { EmptyState, PageHeader, PageTransition, StatCard, StatusTag } from '../../components/ui';
 import { TOKENS } from '../../theme/tokens';
@@ -59,6 +60,7 @@ import type {
   InvoiceStatus,
 } from '../../types';
 import { formatMoney, formatNumber } from '../../utils/format';
+import { isFormValidationError } from '../../utils/formErrors';
 
 const { Text } = Typography;
 
@@ -111,6 +113,26 @@ const AdminClubsPage = () => {
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [status, setStatus] = useState<ClubStatus | undefined>(undefined);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Yangi klub formasidagi sinov muddatining boshlang'ich qiymati.
+   * Platforma sozlamasidan olinadi; so'rov yiqilsa serverdagi standart (7).
+   */
+  const [defaultTrialDays, setDefaultTrialDays] = useState(7);
+  useEffect(() => {
+    let alive = true;
+    void platformApi
+      .config()
+      .then((res) => {
+        if (alive && typeof res.data?.trialDays === 'number') {
+          setDefaultTrialDays(res.data.trialDays);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // ---------- Modallar ----------
   const [createOpen, setCreateOpen] = useState(false);
@@ -232,16 +254,18 @@ const AdminClubsPage = () => {
 
   // ---------- Yaratish ----------
   const handleCreate = async () => {
-    const values = await createForm.validateFields();
-    setCreating(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await createForm.validateFields();
+      setCreating(true);
       await adminApi.createClub(values);
       setCreateOpen(false);
       createForm.resetFields();
       showCredentials(values.name, values.adminUsername, values.adminPassword);
       refreshList();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setCreating(false);
     }
@@ -250,15 +274,17 @@ const AdminClubsPage = () => {
   // ---------- Tahrirlash ----------
   const handleEdit = async () => {
     if (!editClub) return;
-    const values = await editForm.validateFields();
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await editForm.validateFields();
       const res = await adminApi.updateClub(editClub.id, values);
       message.success(res.message);
       setEditClub(null);
       refreshList();
       if (detailClub?.id === editClub.id) setDetailClub(res.data);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     }
   };
 
@@ -362,15 +388,17 @@ const AdminClubsPage = () => {
 
   const handleResetPassword = async () => {
     if (!passwordClub) return;
-    const values = await passwordForm.validateFields();
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await passwordForm.validateFields();
       const res = await adminApi.resetPassword(passwordClub.id, values.password);
       const clubName = passwordClub.name;
       setPasswordClub(null);
       passwordForm.resetFields();
       showCredentials(clubName, res.data.username, values.password);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     }
   };
 
@@ -450,9 +478,10 @@ const AdminClubsPage = () => {
 
   const handleAddContract = async () => {
     if (!detailClub) return;
-    const values = await contractForm.validateFields();
-    setContractSaving(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await contractForm.validateFields();
+      setContractSaving(true);
       const res = await adminApi.addContract(detailClub.id, {
         type: values.type,
         amount: values.amount,
@@ -467,7 +496,8 @@ const AdminClubsPage = () => {
       void reloadContracts(detailClub.id);
       refreshList();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setContractSaving(false);
     }
@@ -549,6 +579,16 @@ const AdminClubsPage = () => {
         <Space wrap size={4}>
           <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(club)}>
             {t('adminClubs.view')}
+          </Button>
+          {/* Ma'lumotlar konsoli — FAQAT O'QISH. "Klubni ko'rish"
+              (impersonatsiya) tugmasidan farqli: sessiya konteksti
+              o'zgarmaydi va klub nomidan hech narsa yozilmaydi. */}
+          <Button
+            size="small"
+            icon={<DatabaseOutlined />}
+            onClick={() => navigate(`/admin/clubs/${club.id}/data`)}
+          >
+            {t('adminClubs.data')}
           </Button>
           <Dropdown menu={{ items: extendMenuItems(club) }}>
             <Button type="primary" size="small" icon={<ThunderboltOutlined />} loading={extending}>
@@ -1051,7 +1091,14 @@ const AdminClubsPage = () => {
         cancelText={t('btn.cancel')}
         destroyOnHidden
       >
-        <Form form={createForm} layout="vertical" initialValues={{ trialDays: 7 }}>
+        {/* Sinov muddati boshlang'ich qiymati SOZLAMADAN keladi (Sozlamalar ->
+            Platforma qoidalari). Bu yerda uni bitta klub uchun o'zgartirish
+            mumkin — masalan yirik mijozga uzunroq sinov berish. */}
+        <Form
+          form={createForm}
+          layout="vertical"
+          initialValues={{ trialDays: defaultTrialDays }}
+        >
           <Form.Item
             name="name"
             label={t('adminClubs.clubName')}
@@ -1114,8 +1161,14 @@ const AdminClubsPage = () => {
           </Row>
           <Row gutter={12}>
             <Col xs={24} sm={12}>
-              <Form.Item name="trialDays" label={t('adminClubs.trialDays')}>
-                <InputNumber min={0} max={60} style={{ width: '100%' }} />
+              <Form.Item
+                name="trialDays"
+                label={t('adminClubs.trialDays')}
+                extra={t('adminClubs.trialDaysHint', { days: defaultTrialDays })}
+              >
+                {/* Yuqori chegara server bilan bir xil (365) — ilgari bu yerda
+                    60 turardi va panelda 90 kunlik sinov berib bo'lmasdi */}
+                <InputNumber min={0} max={365} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Spin } from 'antd';
 import AppLayout from './components/layout/AppLayout';
 import { viewingClub } from './api/client';
+import { isSubscriptionOver } from './offline/license';
 import { useAuth } from './context/AuthContext';
 import type { UserRole } from './types';
 import Login from './pages/Login';
@@ -10,6 +11,7 @@ import Locked from './pages/Locked';
 import NotFound from './pages/NotFound';
 
 const Landing = lazy(() => import('./pages/Landing'));
+const Download = lazy(() => import('./pages/Download'));
 const Register = lazy(() => import('./pages/Register'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Tables = lazy(() => import('./pages/Tables'));
@@ -30,6 +32,8 @@ const Subscription = lazy(() => import('./pages/Subscription'));
 const Profile = lazy(() => import('./pages/Profile'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminClubsPage = lazy(() => import('./pages/admin/AdminClubsPage'));
+const AdminClubData = lazy(() => import('./pages/admin/AdminClubData'));
+const AdminReleases = lazy(() => import('./pages/admin/AdminReleases'));
 const AdminBilling = lazy(() => import('./pages/admin/AdminBilling'));
 const AdminFeedback = lazy(() => import('./pages/admin/AdminFeedback'));
 const AdminNotifications = lazy(() => import('./pages/admin/AdminNotifications'));
@@ -71,16 +75,31 @@ const SUPERADMIN_VIEW_BLOCKED = ['/feedback', '/notifications', '/subscription']
  *  3) rol tekshiruvi (superadmin "klubni ko'rish" rejimida klub sahifalariga kira oladi)
  */
 const Protected = ({ roles, children }: { roles?: UserRole[]; children: ReactNode }) => {
-  const { user, club, loading, hasRole } = useAuth();
+  const { user, club, loading, hasRole, offlineLicense } = useAuth();
   const location = useLocation();
 
   if (loading) return <FullScreenSpin />;
   if (!user) return <Navigate to="/login" replace />;
 
+  /**
+   * OBUNA BLOKI — uch manba, ixtiyoriysi yetarli:
+   *
+   *  1. `status` — serverdan kelgan holat (bloklangan/muddati tugagan).
+   *  2. `effectiveEndsAt` + MONOTON vaqt — `club.isExpired` ataylab
+   *     ISHLATILMAYDI: u javob KESHLANGAN PAYTDAGI qiymat va oflaynda
+   *     abadiy `false` bo'lib qolardi. Muddat esa shu yerda, hozirgi
+   *     (orqaga surib bo'lmaydigan) vaqt bilan qayta hisoblanadi.
+   *  3. `offlineLicense` — serverning IMZOLANGAN ruxsatnomasi. IndexedDB
+   *     dagi keshni tahrirlab (2) ni chetlab o'tishga urinilsa, imzo mos
+   *     kelmaydi va bu qatlam baribir bloklaydi.
+   */
   const clubLocked =
     user.role !== 'superadmin' &&
     club &&
-    (club.status === 'blocked' || club.status === 'expired' || club.isExpired);
+    (club.status === 'blocked' ||
+      club.status === 'expired' ||
+      isSubscriptionOver(club.effectiveEndsAt) ||
+      offlineLicense?.locked === true);
   if (clubLocked) return <Navigate to="/locked" replace />;
 
   // Superadmin klub ichini ko'rayotganda klub sahifalari ochiq —
@@ -128,6 +147,10 @@ const App = () => {
           path="/login"
           element={!loading && user ? <Navigate to={homeFor(user.role)} replace /> : <Login />}
         />
+        {/* Desktop dasturni yuklab olish — ATAYLAB autentifikatsiyasiz va
+            login holatidan qat'i nazar ochiq: yangi kassa kompyuteriga
+            dasturni o'rnatayotgan odam hali tizimga kira olmagan bo'ladi. */}
+        <Route path="/download" element={<Download />} />
         <Route path="/locked" element={<Locked />} />
 
         <Route
@@ -151,6 +174,25 @@ const App = () => {
             element={
               <Protected roles={['superadmin']}>
                 <AdminClubsPage />
+              </Protected>
+            }
+          />
+          {/* Klub ma'lumotlari konsoli — FAQAT O'QISH, impersonatsiyasiz
+              (viewingClub konteksti o'zgarmaydi) */}
+          <Route
+            path="/admin/clubs/:id/data"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminClubData />
+              </Protected>
+            }
+          />
+          {/* Desktop relizlari — o'rnatgichlarni yuklash va nashr qilish */}
+          <Route
+            path="/admin/releases"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminReleases />
               </Protected>
             }
           />

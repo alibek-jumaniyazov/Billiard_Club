@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -12,7 +13,10 @@ import { NumericTransformer } from '../common/transformers/numeric.transformer';
 import { Order } from './order.entity';
 import { Product } from './product.entity';
 
+// DB darajasidagi cheklov migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
 @Entity('order_items')
+@Check('chk_order_items_valid', '"quantity" >= 1 AND "price" >= 0 AND "subtotal" >= 0')
 export class OrderItem {
   @PrimaryGeneratedColumn()
   id: number;

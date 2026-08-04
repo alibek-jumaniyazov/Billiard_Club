@@ -1,10 +1,11 @@
 import { memo } from 'react';
-import { Button, Card, Popconfirm, Tooltip, Typography } from 'antd';
+import { Button, Card, Popconfirm, Tag, Tooltip, Typography } from 'antd';
 import {
   BulbOutlined,
   CaretRightOutlined,
   ClockCircleOutlined,
   CloseCircleOutlined,
+  CloudSyncOutlined,
   CoffeeOutlined,
   DollarOutlined,
   HistoryOutlined,
@@ -73,7 +74,8 @@ export interface TableCardProps {
   onOrder: (table: BilliardTable) => void;
   onTransfer: (table: BilliardTable) => void;
   onCheckout: (table: BilliardTable) => void;
-  onPauseResume: (session: Session) => void;
+  /** Stol ham uzatiladi: oflayn navbatga yozishda amal nomi uchun kerak */
+  onPauseResume: (session: Session, table: BilliardTable) => void;
   onCancel: (session: Session) => void;
   /**
    * Chiroqni qo'lda yoqish/o'chirish (override). Berilmasa — lampochka
@@ -119,15 +121,26 @@ const TableCard = memo(
     const todayCompleted = table.todayCompletedSessions ?? 0;
 
     /**
+     * Sessiya OFLAYN boshlangan — serverda hali mavjud emas (uning haqiqiy
+     * ID si yo'q). Bunday sessiyada hisob-kitob, ko'chirish va bekor qilish
+     * bajarilmaydi: bu amallar server tomonidagi haqiqiy yozuvni talab qiladi
+     * va eskirgan ma'lumot ustida hisoblangan chek mijozdan noto'g'ri pul
+     * olishga olib kelardi (offline/pos.ts izohiga qarang).
+     * Taymer esa ishlayveradi — vaqt yo'qolmaydi.
+     */
+    const isOfflineSession = !!session?.offlineLocalId;
+
+    /**
      * Bekor qilish huquqi — SERVERDAGI qoidaning aynan nusxasi
      * (sessions.service.ts CASHIER_CANCEL_MAX_SECONDS): kassir faqat adashib
      * boshlangan (qisqa va bar buyurtmasiz) o'yinni bekor qila oladi.
      */
     const canCancel =
-      canManage ||
-      (!!session &&
-        (session.barAmount ?? 0) <= 0 &&
-        sessionElapsedMs(session, Date.now() + offsetMs) <= 600_000);
+      !isOfflineSession &&
+      (canManage ||
+        (!!session &&
+          (session.barAmount ?? 0) <= 0 &&
+          sessionElapsedMs(session, Date.now() + offsetMs) <= 600_000));
 
     // Chiroq indikatori faqat rele sozlangan VA klub rejimi yoqilgan stolda
     // ko'rinadi (rejim 'off' bo'lsa tugma bosilishi hech narsani o'zgartirmasdi)
@@ -241,6 +254,15 @@ const TableCard = memo(
               ) : (
                 <StatusTag status="free" label={t('status.free')} />
               )}
+              {/* Oflayn boshlangan o'yin — kassir nima uchun ba'zi tugmalar
+                  o'chiqligini shu belgidan tushunadi */}
+              {isOfflineSession && (
+                <Tooltip title={t('offline.savedOffline')}>
+                  <Tag icon={<CloudSyncOutlined />} color="warning" style={{ margin: 0 }}>
+                    {t('offline.queuePending')}
+                  </Tag>
+                </Tooltip>
+              )}
               {isBusy &&
                 canCheckout &&
                 (canCancel ? (
@@ -266,15 +288,27 @@ const TableCard = memo(
                 ) : (
                   /* Serverdagi qoida bilan bir xil: kassir uzoq davom etgan yoki
                      bar buyurtmasi bor o'yinni bekor qila olmaydi — tugma bosilib
-                     xato chiqarish o'rniga sababi bilan o'chirilgan holda turadi */
-                  <Tooltip title={t('tables.cancelNeedsAdmin')}>
+                     xato chiqarish o'rniga sababi bilan o'chirilgan holda turadi.
+                     Oflayn sessiyada esa sabab BOSHQA: yozuv hali serverda yo'q,
+                     shuning uchun adminGA ham to'g'ri sababni ko'rsatamiz */
+                  <Tooltip
+                    title={
+                      isOfflineSession
+                        ? t('offline.offlineBlocked')
+                        : t('tables.cancelNeedsAdmin')
+                    }
+                  >
                     <Button
                       type="text"
                       danger
                       size="small"
                       disabled
                       icon={<CloseCircleOutlined />}
-                      aria-label={t('tables.cancelNeedsAdmin')}
+                      aria-label={
+                        isOfflineSession
+                          ? t('offline.offlineBlocked')
+                          : t('tables.cancelNeedsAdmin')
+                      }
                     />
                   </Tooltip>
                 ))}
@@ -347,7 +381,7 @@ const TableCard = memo(
                   <Button
                     icon={isPaused ? <CaretRightOutlined /> : <PauseCircleOutlined />}
                     loading={pending}
-                    onClick={() => onPauseResume(session)}
+                    onClick={() => onPauseResume(session, table)}
                     aria-label={isPaused ? t('tables.resume') : t('tables.pause')}
                     style={{ flex: 1 }}
                   />
@@ -360,24 +394,38 @@ const TableCard = memo(
                     style={{ flex: 1 }}
                   />
                 </Tooltip>
-                <Tooltip title={isPaused ? t('tables.transferPausedHint') : t('tables.transfer')}>
+                <Tooltip
+                  title={
+                    isOfflineSession
+                      ? t('offline.offlineBlocked')
+                      : isPaused
+                        ? t('tables.transferPausedHint')
+                        : t('tables.transfer')
+                  }
+                >
                   <Button
                     icon={<SwapOutlined />}
-                    disabled={isPaused}
+                    disabled={isPaused || isOfflineSession}
                     onClick={() => onTransfer(table)}
                     aria-label={t('tables.transfer')}
                     style={{ flex: 1 }}
                   />
                 </Tooltip>
                 {canCheckout && (
-                  <Button
-                    type="primary"
-                    icon={<DollarOutlined />}
-                    onClick={() => onCheckout(table)}
-                    style={{ flex: 2, minWidth: 0 }}
-                  >
-                    {t('tables.end')}
-                  </Button>
+                  /* Oflayn boshlangan sessiyada hisob-kitob tugmasi sababi
+                     bilan o'chirilgan holda turadi — bosilib xato chiqarish
+                     o'rniga kassir nima uchun ishlamayotganini KO'RADI */
+                  <Tooltip title={isOfflineSession ? t('offline.offlineBlocked') : ''}>
+                    <Button
+                      type="primary"
+                      icon={<DollarOutlined />}
+                      disabled={isOfflineSession}
+                      onClick={() => onCheckout(table)}
+                      style={{ flex: 2, minWidth: 0 }}
+                    >
+                      {t('tables.end')}
+                    </Button>
+                  </Tooltip>
                 )}
               </div>
             </>

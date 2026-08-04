@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -24,7 +25,11 @@ export enum ContractType {
  * Har shartnoma platforma daromadining yozuvi; shartnoma yaratilganda
  * klub obunasi endDate gacha uzaytiriladi.
  */
+// DB darajasidagi cheklovlar migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` ularni DROP qiladi).
 @Entity('contracts')
+@Check('chk_contracts_amount_nonneg', '"amount" >= 0')
+@Check('chk_contracts_dates', '"endDate" > "startDate"')
 export class Contract {
   @PrimaryGeneratedColumn()
   id: number;

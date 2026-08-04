@@ -24,6 +24,9 @@ export default {
       "Ish vaqti faqat ma'lumot sifatida saqlanadi — tizim ishlashini cheklamaydi.",
     openTime: 'Ochilish vaqti',
     closeTime: 'Yopilish vaqti',
+    // Yuklash xatosi
+    loadErrorTitle: "Sozlamalarni yuklab bo'lmadi",
+    loadErrorHint: "Server bilan aloqa yo'q yoki vaqtinchalik uzilish. Qayta urinib ko'ring.",
   },
   ru: {
     title: 'Настройки клуба',
@@ -50,5 +53,8 @@ export default {
       'Время работы носит информационный характер и не ограничивает работу системы.',
     openTime: 'Время открытия',
     closeTime: 'Время закрытия',
+    // Ошибка загрузки
+    loadErrorTitle: 'Не удалось загрузить настройки',
+    loadErrorHint: 'Нет связи с сервером или временный сбой. Попробуйте ещё раз.',
   },
 };

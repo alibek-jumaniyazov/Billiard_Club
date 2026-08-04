@@ -1,4 +1,7 @@
-import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { cacheGet, cachePut, isCacheable } from '../offline/cache';
+import { noteServerTime } from '../offline/license';
+import { markOffline, markOnline } from '../offline/net-status';
 
 /**
  * Yagona axios instansiyasi:
@@ -9,8 +12,40 @@ import axios, { AxiosError, AxiosRequestConfig } from 'axios';
  *  - 401 TOKEN_EXPIRED da single-flight refresh (parallel 401 lar bitta
  *    refresh so'rovini kutadi — aylantirilgan refresh token poygasi yo'q)
  *  - SUBSCRIPTION_EXPIRED / CLUB_BLOCKED da blok ekraniga yo'naltirish
+ *  - OFLAYN: muvaffaqiyatli GET javoblari tenant bilan kalitlangan keshga
+ *    yoziladi; tarmoq uzilganda o'sha kesh qaytariladi (`fromCache: true`)
+ *
+ * API manzili: standart holatda nisbiy `/api` (bir domendan xizmat qilinadi).
+ * Electron desktop qobig'ida ilova `file://` dan ochiladi va nisbiy yo'l
+ * ishlamaydi — shuning uchun build vaqtida `VITE_API_BASE_URL` bilan to'liq
+ * manzil beriladi.
  */
-const client = axios.create({ baseURL: '/api', withCredentials: true });
+const RAW_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').trim();
+/** Oxiridagi '/' olib tashlanadi, so'ng '/api' qo'shiladi */
+export const API_BASE_URL = RAW_BASE ? `${RAW_BASE.replace(/\/+$/, '')}/api` : '/api';
+
+/**
+ * SO'ROV MUDDATI (timeout) — MAJBURIY.
+ *
+ * Muddatsiz (axios standarti = 0 = cheksiz) so'rov klub Wi-Fi si "qora tuynuk"
+ * holatiga tushganda (TCP ochiladi, javob kelmaydi — captive portal, osilgan
+ * nginx upstream) HECH QACHON rad etilmaydi. Oqibati kassada juda og'ir edi:
+ *  - boshlanishdagi `authApi.me()` osilsa `setLoading(false)` bajarilmay,
+ *    butun ilova aylanuvchi spinner ekranida abadiy qotardi;
+ *  - `sessionsApi.end()` osilsa hisob-kitob oynasi `submitting` holatida
+ *    qulflanib, kassir pul oynasidan chiqa olmasdi.
+ * 20 soniya — sekin 3G da ham yetarli, lekin "abadiy" emas.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
+
+/** Excel eksport / rasm yuklab olish kabi og'ir javoblar uchun kengaytirilgan muddat */
+export const LONG_TIMEOUT_MS = 120_000;
+
+const client = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  timeout: REQUEST_TIMEOUT_MS,
+});
 
 const LEGACY_REFRESH_KEY = 'refreshToken';
 
@@ -91,7 +126,17 @@ let refreshPromise: Promise<RefreshResult> | null = null;
 /** Interceptorlarsiz toza refresh urinishi — cheksiz siklga tushmaslik uchun */
 const attemptRefresh = async (body: object): Promise<RefreshResult> => {
   try {
-    const res = await axios.post('/api/auth/refresh', body, { withCredentials: true });
+    // Manzil `client` bilan bir xil bazadan olinadi — desktop qobig'ida
+    // (to'liq host) ham, veb-versiyada (nisbiy /api) ham to'g'ri ishlaydi.
+    // MUDDAT ham majburiy: bu chaqiruv `client` instansiyasidan EMAS, global
+    // `axios` dan ketadi (interceptorlarsiz, cheksiz sikldan qochish uchun),
+    // shuning uchun instansiyadagi timeout unga TEGMAYDI. Muddatsiz qolsa
+    // ilova boshlanishidagi "jim refresh" osilib, butun ekran abadiy
+    // spinnerda qotib qolardi.
+    const res = await axios.post(`${API_BASE_URL}/auth/refresh`, body, {
+      withCredentials: true,
+      timeout: REQUEST_TIMEOUT_MS,
+    });
     const data = res.data?.data;
     if (data?.accessToken) {
       tokenStore.set(data.accessToken);
@@ -131,11 +176,72 @@ export const silentRefresh = (): Promise<RefreshResult> => {
   return refreshPromise;
 };
 
+/**
+ * Keshdan sun'iy javob — chaqiruvchi uchun oddiy 200 dan farq qilmaydi,
+ * faqat tanasida `fromCache: true` bo'ladi.
+ */
+const cachedResponse = (
+  config: AxiosRequestConfig,
+  payload: unknown,
+  at: number,
+): AxiosResponse => ({
+  data: { ...(payload as object), fromCache: true, cachedAt: at },
+  status: 200,
+  statusText: 'OK (offline cache)',
+  headers: {},
+  config: config as AxiosResponse['config'],
+});
+
 client.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Serverdan javob keldi — aloqa bor
+    markOnline();
+    /**
+     * SERVER VAQTINI monoton langarga qo'shamiz (offline/license.ts).
+     *
+     * Manba ikkita: javob tanasidagi `serverNow` (sessiya endpointlari beradi)
+     * va HTTP `Date` sarlavhasi (deyarli har bir javobda bor). Server vaqti
+     * eng ishonchli manba: undan keyin kompyuter soatini orqaga surish
+     * oflayn obuna muddatini uzaytirmaydi.
+     *
+     * Ataylab KESHDAN o'qilgan javoblarda ham xavfsiz: `cachedResponse`
+     * eski `Date` sarlavhasini bermaydi, `serverNow` esa cache.ts da
+     * hozirgi vaqtga qayta hisoblanadi.
+     */
+    const body = response.data as { data?: { serverNow?: string }; serverNow?: string } | undefined;
+    noteServerTime(body?.serverNow ?? body?.data?.serverNow);
+    const dateHeader = response.headers?.date as string | undefined;
+    if (dateHeader) noteServerTime(Date.parse(dateHeader));
+    // Muvaffaqiyatli GET larni oflayn uchun saqlab qo'yamiz (ro'yxat
+    // cache.ts dagi CACHEABLE bilan cheklangan; xatolar jimgina yutiladi)
+    if (response.config.method?.toLowerCase() === 'get') {
+      const url = response.config.url ?? '';
+      if (isCacheable(url)) {
+        void cachePut(url, response.config.params as object | undefined, response.data);
+      }
+    }
+    return response;
+  },
   async (error: AxiosError<{ code?: string; message?: string }>) => {
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
+
+    if (error.response) {
+      // Server javob berdi (hatto 4xx/5xx bo'lsa ham) — aloqa BOR
+      markOnline();
+    } else {
+      // Javob umuman yo'q: tarmoq uzilgan yoki server yetib bo'lmas holatda
+      markOffline();
+      // Oflayn o'qish: keshda bor bo'lsa oxirgi ma'lum holatni qaytaramiz,
+      // shunda kassir bo'sh ekran o'rniga stollarni ko'rib turaveradi
+      if (original && original.method?.toLowerCase() === 'get') {
+        const url = original.url ?? '';
+        if (isCacheable(url)) {
+          const hit = await cacheGet(url, original.params as object | undefined);
+          if (hit) return cachedResponse(original, hit.payload, hit.at);
+        }
+      }
+    }
 
     // responseType:'blob' so'rovlarida (Excel eksport, biriktirilgan fayllar)
     // axios xato tanasini JSON qilib ochmaydi — `data` Blob bo'lib qoladi va

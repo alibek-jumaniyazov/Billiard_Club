@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -16,7 +17,13 @@ import { Session } from './session.entity';
 import { User } from './user.entity';
 import { DebtPayment } from './debt-payment.entity';
 
+// DB darajasidagi cheklov migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
 @Entity('debts')
+@Check(
+  'chk_debts_amounts_nonneg',
+  '"tableAmount" >= 0 AND "barAmount" >= 0 AND "totalDebt" >= 0 AND "paidAmount" >= 0 AND "remainingDebt" >= 0',
+)
 export class Debt {
   @PrimaryGeneratedColumn()
   id: number;
@@ -88,6 +95,30 @@ export class Debt {
 
   @Column({ type: 'timestamptz', nullable: true })
   dueDate: Date | null;
+
+  /**
+   * HISOBDAN CHIQARISH (write-off) — undirilmagan qarzdan voz kechish.
+   *
+   * Avval bu amal qatorni QATTIQ o'chirardi va shu sababli o'tgan davr
+   * hisoboti keyinchalik O'ZGARIB ketardi: iyul oyida yozilgan qarz avgustda
+   * hisobdan chiqarilsa, iyul hisobotidagi "yaratilgan qarzlar" summasi
+   * retroaktiv kamayardi — moliyaviy hisobot o'zgarmas (immutable) bo'lmasdi.
+   * Ustiga-ustak qarzli sessiya abadiy "to'lanmagan" bo'lib qolardi.
+   *
+   * Endi qator SAQLANADI: `remainingDebt` nolga tushadi (shu sababli barcha
+   * "joriy qarz" yig'indilaridan o'zi chiqib ketadi), `isPaid` esa true bo'ladi.
+   * Qachon, kim va nima sababdan chiqargani shu ustunlarda va audit jurnalida
+   * qoladi.
+   */
+  @Column({ type: 'timestamptz', nullable: true })
+  writtenOffAt: Date | null;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  writtenOffReason: string | null;
+
+  /** Hisobdan chiqargan xodim */
+  @Column({ type: 'int', nullable: true })
+  writtenOffById: number | null;
 
   @Index()
   @CreateDateColumn({ type: 'timestamptz' })

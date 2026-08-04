@@ -34,6 +34,8 @@ export default {
     adjustmentReason: 'Sabab',
     grossAmount: 'Oraliq jami',
     liveNote: "O'yin hali davom etmoqda — summalar joriy holat bo'yicha",
+    receiptError: "Jonli chekni yuklab bo'lmadi — summalar ko'rsatilmayapti",
+    detailError: "O'yin tafsilotlarini yuklab bo'lmadi",
     // Bo'sh holat
     emptyTitle: 'Sessiyalar topilmadi',
     emptyHint: "Filtrlarni o'zgartiring yoki yangi o'yinni Stollar sahifasidan boshlang",
@@ -73,6 +75,8 @@ export default {
     adjustmentReason: 'Причина',
     grossAmount: 'Промежуточный итог',
     liveNote: 'Игра ещё продолжается — суммы на текущий момент',
+    receiptError: 'Не удалось загрузить текущий чек — суммы не показаны',
+    detailError: 'Не удалось загрузить детали игры',
     // Пустое состояние
     emptyTitle: 'Сессии не найдены',
     emptyHint: 'Измените фильтры или начните новую игру на странице «Столы»',

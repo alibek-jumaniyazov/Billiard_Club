@@ -1,18 +1,30 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'crypto';
 import { DataSource, IsNull, Not, Repository } from 'typeorm';
+import { AuditService } from '../../common/audit/audit.service';
 import { ClubBridge } from '../../entities/club-bridge.entity';
 import { BRIDGE_ONLY_DRIVERS, LightDriver, LightMode } from '../../entities/enums';
 import type { LightDeviceConfig } from '../../entities/light-config.type';
 import { Settings } from '../../entities/settings.entity';
 import { Table } from '../../entities/table.entity';
 import { TableLightEvent } from '../../entities/table-light-event.entity';
+import { User } from '../../entities/user.entity';
 import {
   applyLight,
+  isAllowedHostPort,
+  isAllowedHttpPort,
+  isDirectAllowedHost,
   isPrivateHost,
   isValidHost,
+  LightConfigError,
   LightHttpError,
   LightTarget,
   readLight,
@@ -254,6 +266,21 @@ const SLOW_DEVICE_MS = 2000;
  */
 const DRIFT_REJECTED = "Rele buyruqni qabul qilmadi (holat mos kelmadi)";
 
+/**
+ * ULANISH xatosining foydalanuvchiga ko'rinadigan YAGONA matni.
+ * Haqiqiy sabab (HTTP status, ECONNREFUSED, timeout) faqat server logiga
+ * yoziladi: aks holda `lightError` javobi klub admini uchun ochiq/yopiq/
+ * filtrlangan portni aniqlaydigan skaner vositasiga aylanardi.
+ * SOZLAMA xatolari bunga kirmaydi — ular tushunarli qoladi (LightConfigError).
+ */
+const DEVICE_UNREACHABLE = "Qurilmaga ulanib bo'lmadi";
+
+/** Manzil operator ochgan CIDR ro'yxatiga kirmadi (DIRECT rejim) */
+const HOST_NOT_ALLOWED = "Bu manzil DIRECT rejimda ruxsat etilmagan (operator ro'yxatida yo'q)";
+
+/** driver='http' shabloni ruxsat etilmagan portga murojaat qilmoqda */
+const PORT_NOT_ALLOWED = "Bu port DIRECT rejimda ruxsat etilmagan";
+
 /** MQTT mavzusida joker belgilar bo'lmasligi kerak (bu buyruq mavzusi) */
 const MQTT_TOPIC_INVALID_RE = /[#+]/;
 
@@ -382,6 +409,8 @@ export class LightsService {
     @InjectRepository(ClubBridge) private readonly bridgeRepo: Repository<ClubBridge>,
     @InjectRepository(TableLightEvent)
     private readonly eventRepo: Repository<TableLightEvent>,
+    // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -1542,8 +1571,16 @@ export class LightsService {
    * Klub uchun yangi bridge tokeni chiqaradi (mavjud yozuv bo'lsa yangilanadi —
    * eski token darhol kuchini yo'qotadi). Xom token DB ga YOZILMAYDI, faqat
    * sha256 xeshi; token UI da bir marta ko'rsatiladi va boshqa tiklanmaydi.
+   *
+   * Amal audit jurnaliga yoziladi: bu token bilan `GET /api/bridge/state`
+   * orqali klubning BARCHA relelari paroli (`lightAuth`) ochiq matnda o'qiladi,
+   * ya'ni tokenni kim va qachon olgani izlanadigan bo'lishi shart.
    */
-  async issueToken(clubId: number, name?: string): Promise<{ token: string; bridge: ClubBridge }> {
+  async issueToken(
+    clubId: number,
+    name?: string,
+    user?: User | null,
+  ): Promise<{ token: string; bridge: ClubBridge }> {
     const token = randomBytes(32).toString('base64url');
     const tokenHash = this.hashToken(token);
 
@@ -1565,6 +1602,18 @@ export class LightsService {
     }
 
     const saved = await this.bridgeRepo.save(bridge);
+
+    // Yozuv saqlangandan keyin (fire-and-forget — audit hech qachon so'rovni buzmaydi)
+    this.auditService?.log({
+      action: 'lights.bridge_token_issue',
+      clubId,
+      userId: user?.id ?? null,
+      actorRole: user?.role ?? null,
+      entity: 'club_bridge',
+      entityId: saved.id,
+      meta: { name: saved.name },
+    });
+
     return { token, bridge: saved };
   }
 
@@ -1929,6 +1978,37 @@ export class LightsService {
           { detail: `manzil: ${host}` },
         );
       }
+      // Ikkinchi qatlam: bulutli deployda serverning O'Z ichki xizmatlari ham
+      // xususiy oraliqlarda turadi, shuning uchun manzil operator ochgan
+      // LIGHTS_DIRECT_ALLOWED_CIDRS ro'yxatida ham bo'lishi SHART
+      // (ro'yxat bo'sh bo'lsa — standart holat — DIRECT rejim hech qayerga chiqmaydi)
+      if (!isDirectAllowedHost(host)) {
+        return this.fail(clubId, device.tableId, HOST_NOT_ALLOWED, event, {
+          detail: `manzil: ${host}`,
+        });
+      }
+      // Uchinchi qatlam: manzildagi PORT ham cheklanadi. Bu tekshiruv BARCHA
+      // drayverlarga tegishli — aks holda drayverni almashtirib (masalan
+      // shelly -> tasmota) ruxsat etilgan tarmoq ichidagi istalgan portni
+      // tekshirib ko'rish mumkin bo'lardi (port-skaner).
+      if (!isAllowedHostPort(host)) {
+        return this.fail(clubId, device.tableId, PORT_NOT_ALLOWED, event, {
+          detail: `manzil: ${host}`,
+        });
+      }
+    }
+
+    // driver='http' — ixtiyoriy shablon URL: port ham cheklanadi, aks holda
+    // xususiy manzildagi PostgreSQL/Redis/ichki panel portlarini tekshirib
+    // bo'lardi (port-skaner). Ruxsat: 80, 443, 8080, 8081, 8123
+    if (device.driver === LightDriver.HTTP) {
+      for (const template of [device.onUrl, device.offUrl]) {
+        if (template && !isAllowedHttpPort(template)) {
+          return this.fail(clubId, device.tableId, PORT_NOT_ALLOWED, event, {
+            detail: `url: ${template}`,
+          });
+        }
+      }
     }
 
     const guardKey = this.driftKey(clubId, device.tableId);
@@ -1987,7 +2067,15 @@ export class LightsService {
       if (err instanceof LightHttpError && err.body) {
         this.logger.warn(`Rele javobi (table=${device.tableId}): ${err.body}`);
       }
-      return this.fail(clubId, device.tableId, (err as Error).message, event);
+      // SOZLAMA xatosi tushunarli qoladi (klub egasi relesini sozlay olishi kerak)
+      if (err instanceof LightConfigError) {
+        return this.fail(clubId, device.tableId, err.message, event);
+      }
+      // ULANISH xatosi (HTTP status / ECONNREFUSED / timeout) — foydalanuvchiga
+      // qat'iy matn, haqiqiy sabab esa FAQAT server logiga (`detail`)
+      return this.fail(clubId, device.tableId, DEVICE_UNREACHABLE, event, {
+        detail: `sabab: ${(err as Error).message}`,
+      });
     }
   }
 

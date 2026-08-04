@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Button, Card, Col, Row } from 'antd';
+import { Alert, Button, Card, Col, Row } from 'antd';
 import {
   CalendarOutlined,
   CreditCardOutlined,
@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { EmptyState, PageHeader, PageTransition, StatCard } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
-import { formatMoney } from '../../utils/format';
+import { formatClock, formatMoney } from '../../utils/format';
 import ActiveSessionsList from './ActiveSessionsList';
 import PeakHoursChart from './PeakHoursChart';
 import RecentPaymentsList from './RecentPaymentsList';
@@ -50,7 +50,17 @@ const itemVariants = {
  */
 const DashboardPage = () => {
   const { t } = useTranslation();
-  const { stats, loading, error, refreshing, clockOffset, refresh, retry } = useDashboardStats();
+  const {
+    stats,
+    loading,
+    error,
+    refreshing,
+    refreshError,
+    lastUpdatedAt,
+    clockOffset,
+    refresh,
+    retry,
+  } = useDashboardStats();
   const reduceMotion = useReducedMotion();
 
   // Klub puli — belgi klub sozlamasidan (barcha bolalarga shu qiymat uzatiladi,
@@ -106,6 +116,28 @@ const DashboardPage = () => {
   return (
     <PageTransition>
       {header}
+      {/* Qo'lda "Yangilash" xato tugadi — ekrandagi raqamlar ESKI ekani
+          aytiladi (aks holda bosish jim ketardi) */}
+      {refreshError && stats && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<WarningOutlined />}
+          style={{ marginBottom: 16 }}
+          message={t('dashboard.refreshFailed')}
+          description={
+            lastUpdatedAt
+              ? t('dashboard.lastUpdated', { time: formatClock(lastUpdatedAt) })
+              : undefined
+          }
+          action={
+            <Button size="small" onClick={refresh} loading={refreshing}>
+              {t('dashboard.retry')}
+            </Button>
+          }
+        />
+      )}
+
       <motion.div
         variants={containerVariants}
         initial={reduceMotion ? false : 'hidden'}

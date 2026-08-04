@@ -44,7 +44,7 @@ export class StaffController {
     @Body() dto: UpdateStaffDto,
     @Lang() lang: Language,
   ) {
-    const data = await this.staffService.update(clubId, user.id, id, dto);
+    const data = await this.staffService.update(clubId, user, id, dto);
     return { success: true, message: t(lang, 'staff.updated'), data };
   }
 
@@ -55,7 +55,7 @@ export class StaffController {
     @Param('id', ParseIntPipe) id: number,
     @Lang() lang: Language,
   ) {
-    await this.staffService.remove(clubId, user.id, id);
+    await this.staffService.remove(clubId, user, id);
     return { success: true, message: t(lang, 'staff.deleted') };
   }
 }

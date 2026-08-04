@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -18,7 +19,16 @@ import { Session } from './session.entity';
 // `light-driver.ts` shu turni re-export qiladi, ya'ni shakl bitta joyda.
 import type { LightDeviceConfig } from './light-config.type';
 
+// DB darajasidagi cheklovlar migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` ularni DROP qiladi).
 @Entity('tables')
+@Check('chk_tables_price_nonneg', '"pricePerHour" >= 0')
+@Check('chk_tables_light_channel_nonneg', '"lightChannel" >= 0')
+// Klub ichida faol stol raqami unikal
+@Index('uq_tables_club_number_active', ['clubId', 'number'], {
+  unique: true,
+  where: `"isActive" = true`,
+})
 export class Table {
   @PrimaryGeneratedColumn()
   id: number;

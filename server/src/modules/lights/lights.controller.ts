@@ -242,9 +242,12 @@ export class LightsController {
   async issueToken(
     @ClubId() clubId: number,
     @Body() dto: IssueBridgeTokenDto,
+    @CurrentUser() user: User,
     @Lang() lang: Language,
   ) {
-    const { token, bridge } = await this.lightsService.issueToken(clubId, dto.name);
+    // Aktyor audit jurnaliga yozilishi uchun uzatiladi (token bilan barcha
+    // relelarning parolini o'qish mumkin — kim olgani ma'lum bo'lsin)
+    const { token, bridge } = await this.lightsService.issueToken(clubId, dto.name, user);
     return {
       success: true,
       message: t(lang, 'lights.tokenIssued'),

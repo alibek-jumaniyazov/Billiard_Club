@@ -7,12 +7,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { Response } from 'express';
 import { createHash, randomUUID } from 'node:crypto';
 import { DataSource, IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { LicenseService } from '../../common/license/license.service';
 import { Club } from '../../entities/club.entity';
 import { RefreshSession } from '../../entities/refresh-session.entity';
 import { User } from '../../entities/user.entity';
@@ -56,6 +58,19 @@ const LOCK_MINUTES = 15;
  */
 const ROTATION_GRACE_MS = 10_000;
 
+/**
+ * Muddati o'tgan refresh sessiyalar shu qadar kun saqlanadi. Nol emas, chunki
+ * yaqinda o'tgan yozuvlar "reuse" (o'g'irlangan token) tekshiruvi va
+ * "Qurilmalar" ro'yxati uchun hali ham ma'noli.
+ */
+const REFRESH_RETENTION_DAYS = 7;
+
+/** Tozalash bo'lagi: bitta ulkan DELETE o'rniga kichik qadamlar */
+const REFRESH_CLEANUP_BATCH = 5000;
+
+/** Tozalash sikli hech qachon cheksiz aylanmasin (5000 * 200 = 1 mln qator) */
+const REFRESH_CLEANUP_MAX_STEPS = 200;
+
 /** Xotiradagi login-blok yozuvi — (username + IP) kaliti bo'yicha */
 interface LoginLockEntry {
   count: number;
@@ -90,6 +105,7 @@ export class AuthService {
     private readonly dataSource: DataSource,
     private readonly audit: AuditService,
     private readonly telegram: TelegramService,
+    private readonly license: LicenseService,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Club) private readonly clubRepo: Repository<Club>,
     @InjectRepository(RefreshSession)
@@ -342,7 +358,12 @@ export class AuthService {
       userAgent: ctx.userAgent,
     });
 
-    return { user: this.sanitize(user), club: this.clubInfo(club), ...tokens };
+    return {
+      user: this.sanitize(user),
+      club: this.clubInfo(club),
+      license: this.license.issue(club),
+      ...tokens,
+    };
   }
 
   /**
@@ -473,6 +494,7 @@ export class AuthService {
       return {
         user: this.sanitize(user),
         club: this.clubInfo(club),
+        license: this.license.issue(club),
         accessToken: result.accessToken,
         refreshToken: null as string | null,
       };
@@ -481,6 +503,7 @@ export class AuthService {
     return {
       user: this.sanitize(user),
       club: this.clubInfo(club),
+      license: this.license.issue(club),
       accessToken: result.tokens.accessToken,
       refreshToken: result.tokens.refreshToken as string | null,
     };
@@ -648,13 +671,58 @@ export class AuthService {
     return tokens;
   }
 
+  // ==================== Xizmat ishlari ====================
+
+  /**
+   * Kunlik tozalash: muddati 7 kundan ko'proq oldin tugagan refresh sessiyalar.
+   *
+   * Jadval AVVAL hech qachon tozalanmasdi va cheksiz o'sardi: har bir login
+   * va har bir rotatsiya (klientda har 15 daqiqada) yangi qator qo'shadi,
+   * eskisi esa faqat "revoked" deb belgilanadi.
+   *
+   * O'chirish 5000 talik BO'LAKLARDA — bitta ulkan DELETE uzoq tranzaksiya
+   * ochib jadvalni bloklab turardi (login shu jadvalga yozadi). Filtr
+   * "expiresAt" bo'yicha, unga migratsiyada indeks qo'shilgan.
+   * Butun tanasi try/catch ichida — cron xatosi jarayonni to'xtatmaydi.
+   */
+  @Cron('0 40 3 * * *')
+  async cleanupExpiredSessions(): Promise<void> {
+    try {
+      let total = 0;
+      for (let step = 0; step < REFRESH_CLEANUP_MAX_STEPS; step += 1) {
+        const result: unknown = await this.dataSource.query(
+          `DELETE FROM refresh_sessions
+           WHERE id IN (
+             SELECT id FROM refresh_sessions
+             WHERE "expiresAt" < now() - make_interval(days => $1)
+             LIMIT $2
+           )`,
+          [REFRESH_RETENTION_DAYS, REFRESH_CLEANUP_BATCH],
+        );
+        // node-postgres DELETE uchun [rows, affected] qaytaradi
+        const affected = Array.isArray(result) ? Number(result[1] ?? 0) : 0;
+        total += affected;
+        // Bo'lak to'lmadi — eski yozuv qolmadi
+        if (affected < REFRESH_CLEANUP_BATCH) break;
+      }
+      if (total > 0) {
+        this.logger.log(`Refresh sessiyalar tozalandi: ${total} ta eski yozuv o'chirildi`);
+      }
+    } catch (err) {
+      this.logger.error(`Refresh sessiyalarni tozalash xatosi: ${(err as Error).message}`);
+    }
+  }
+
   // ==================== Profil ====================
 
   async me(user: User) {
     const club = user.clubId
       ? await this.clubRepo.findOne({ where: { id: user.clubId } })
       : null;
-    return { user: this.sanitize(user), club: this.clubInfo(club) };
+    // Ruxsatnoma AYNAN shu yerda ham beriladi: klient ilova ochilganda
+    // /auth/me ni chaqiradi va oflayn nazorat uchun eng yangi muddatni
+    // shundan oladi (login har kuni takrorlanmaydi).
+    return { user: this.sanitize(user), club: this.clubInfo(club), license: this.license.issue(club) };
   }
 
   /** Klientga kerakli klub obuna ma'lumotlari (blok ekrani uchun ham) */

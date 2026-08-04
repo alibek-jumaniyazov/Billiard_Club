@@ -50,6 +50,8 @@ export default {
     errorTitle: "Ma'lumotlarni yuklab bo'lmadi",
     errorHint: "Server bilan aloqa yo'q yoki vaqtinchalik uzilish. Qayta urinib ko'ring.",
     retry: 'Qayta urinish',
+    refreshFailed: "Ma'lumot yangilanmadi",
+    lastUpdated: 'Ekranda oxirgi muvaffaqiyatli holat: {{time}}',
   },
   ru: {
     title: 'Панель управления',
@@ -102,5 +104,7 @@ export default {
     errorTitle: 'Не удалось загрузить данные',
     errorHint: 'Нет связи с сервером или временный сбой. Попробуйте ещё раз.',
     retry: 'Повторить',
+    refreshFailed: 'Данные не обновились',
+    lastUpdated: 'На экране последнее успешное состояние: {{time}}',
   },
 };

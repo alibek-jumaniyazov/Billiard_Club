@@ -38,6 +38,10 @@ export default {
     // Bo'sh holatlar
     emptySessions: 'Bu davrda yakunlangan sessiyalar topilmadi',
     emptyProducts: 'Bu davrda bar savdosi topilmadi',
+    selectRangeTitle: "Sana oralig'ini tanlang",
+    selectRangeHint:
+      "Yuqoridagi maydonda boshlanish va tugash sanasini belgilang — hisobot shundan keyin hisoblanadi",
+    exportDisabledHint: "Avval sana oralig'ini tanlang — hisobotsiz Excel yasab bo'lmaydi",
   },
   ru: {
     title: 'Финансовые отчёты',
@@ -78,5 +82,9 @@ export default {
     // Пустые состояния
     emptySessions: 'Завершённых сессий за период не найдено',
     emptyProducts: 'Продаж бара за период не найдено',
+    selectRangeTitle: 'Выберите диапазон дат',
+    selectRangeHint:
+      'Укажите дату начала и окончания в поле выше — отчёт будет рассчитан после этого',
+    exportDisabledHint: 'Сначала выберите диапазон дат — без отчёта Excel не сформировать',
   },
 };

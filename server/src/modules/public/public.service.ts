@@ -7,12 +7,12 @@ import { ClubStatus, UserRole } from '../../entities/enums';
 import { Plan } from '../../entities/plan.entity';
 import { Settings } from '../../entities/settings.entity';
 import { User } from '../../entities/user.entity';
+import { PlatformConfigService } from '../../common/platform-config/platform-config.service';
 import { TelegramService } from '../../telegram/telegram.service';
 import { AuthService, RequestContext } from '../auth/auth.service';
 import { normalizePhone } from '../customers/customers.service';
 import { RegisterDto } from './dto/register.dto';
 
-const TRIAL_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -44,6 +44,7 @@ export class PublicService {
     private readonly dataSource: DataSource,
     private readonly telegram: TelegramService,
     private readonly authService: AuthService,
+    private readonly platformConfig: PlatformConfigService,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
   ) {}
@@ -62,7 +63,8 @@ export class PublicService {
 
   /**
    * Landing sahifadan ro'yxatdan o'tish:
-   * klub + admin + sozlamalar bitta tranzaksiyada, 7 kunlik sinov
+   * klub + admin + sozlamalar bitta tranzaksiyada. Sinov muddati
+   * PLATFORMA SOZLAMASIDAN olinadi (superadmin panelida o'zgartiriladi) va
    * ro'yxatdan o'tgan PAYTdan boshlanadi. Sizga Telegram xabar ketadi,
    * foydalanuvchi darhol tizimga kiritiladi (avto-login).
    */
@@ -100,7 +102,11 @@ export class PublicService {
       throw new ConflictException({ key: 'public.phoneAlreadyRegistered' });
     }
 
-    const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * DAY_MS);
+    // Sinov muddati SUPERADMIN sozlamasidan (platform_settings) — ilgari u
+    // shu faylda qat'iy 7 kun bo'lib yozilgan edi va uni o'zgartirish uchun
+    // kodni tahrirlab, qayta deploy qilish kerak edi.
+    const { trialDays } = await this.platformConfig.get();
+    const trialEndsAt = new Date(Date.now() + trialDays * DAY_MS);
 
     const { club, admin } = await this.dataSource.transaction(async (manager) => {
       const newClub = await manager.save(Club, {
@@ -147,7 +153,7 @@ export class PublicService {
         `📞 Telefon: ${this.escapeHtml(club.phone ?? '-')}`,
         `📍 Manzil: ${this.escapeHtml(club.address ?? '-')}`,
         `🔑 Login: <code>${this.escapeHtml(admin.username)}</code>`,
-        `⏳ Sinov tugaydi: ${trialEndsAt.toLocaleDateString('uz-UZ')} (${TRIAL_DAYS} kun)`,
+        `⏳ Sinov tugaydi: ${trialEndsAt.toLocaleDateString('uz-UZ')} (${trialDays} kun)`,
       ].join('\n'),
     );
 

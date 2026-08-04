@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Drawer, Grid, Layout } from 'antd';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
+import ErrorBoundary from '../ErrorBoundary';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import AnimatedBackground from '../ui/AnimatedBackground';
+import ConnectionBanner from '../ui/ConnectionBanner';
 import { NotificationsProvider } from '../../context/NotificationsContext';
 import { TOKENS } from '../../theme/tokens';
 
@@ -18,6 +20,7 @@ const AppLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const screens = Grid.useBreakpoint();
+  const location = useLocation();
 
   // Birinchi renderda screens bo'sh — desktop deb qaraladi (sakrashning oldini oladi)
   const isMobile = screens.lg === false;
@@ -55,8 +58,17 @@ const AppLayout = () => {
               isMobile ? setDrawerOpen((open) => !open) : setCollapsed((c) => !c)
             }
           />
+          {/* Ulanish/sinxronizatsiya holati — faqat aytadigan gap bo'lganda
+              ko'rinadi, normal ish holatida ekran toza qoladi */}
+          <ConnectionBanner />
           <Content className="page-container" style={{ position: 'relative', zIndex: 1 }}>
-            <Outlet />
+            {/* Sahifa darajasidagi xato chegarasi: bitta sahifadagi render
+                xatosi yon menyu va sarlavhani O'LDIRMAYDI — kassir boshqa
+                sahifaga o'tib ishini davom ettiradi. `location.key` o'zgarganda
+                holat o'zi tiklanadi (ErrorBoundary izohiga qarang) */}
+            <ErrorBoundary inRoute resetKey={location.key}>
+              <Outlet />
+            </ErrorBoundary>
           </Content>
         </Layout>
       </Layout>

@@ -20,6 +20,7 @@ import {
   CancelSessionDto,
   EndSessionDto,
   ListSessionsQueryDto,
+  OfflineAtDto,
   StartSessionDto,
   TransferSessionDto,
 } from './dto/sessions.dto';
@@ -85,9 +86,10 @@ export class SessionsController {
   async pause(
     @ClubId() clubId: number,
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: OfflineAtDto,
     @Lang() lang: Language,
   ) {
-    const data = await this.sessionsService.pause(clubId, id);
+    const data = await this.sessionsService.pause(clubId, id, dto);
     return { success: true, message: t(lang, 'sessions.paused'), data };
   }
 
@@ -97,9 +99,10 @@ export class SessionsController {
   async resume(
     @ClubId() clubId: number,
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: OfflineAtDto,
     @Lang() lang: Language,
   ) {
-    const data = await this.sessionsService.resume(clubId, id);
+    const data = await this.sessionsService.resume(clubId, id, dto);
     return { success: true, message: t(lang, 'sessions.resumed'), data };
   }
 

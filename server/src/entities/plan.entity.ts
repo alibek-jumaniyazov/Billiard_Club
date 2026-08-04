@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -12,7 +13,10 @@ import { NumericTransformer } from '../common/transformers/numeric.transformer';
  * Obuna tarifi — klub egalariga ko'rsatiladigan narxlar katalogi
  * (oylik / yarim yillik / yillik). Nomlar va tavsiflar uz+ru.
  */
+// DB darajasidagi cheklov migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
 @Entity('plans')
+@Check('chk_plans_valid', '"price" >= 0 AND "durationDays" > 0')
 export class Plan {
   @PrimaryGeneratedColumn()
   id: number;

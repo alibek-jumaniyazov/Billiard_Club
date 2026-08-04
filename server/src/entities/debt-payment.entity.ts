@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -18,7 +19,10 @@ import { User } from './user.entity';
  * Qarz to'lovlari tarixi — har bir qisman to'lov alohida yozuv
  * (kim, qachon, qancha, qanday usulda qabul qilgani bilan).
  */
+// DB darajasidagi cheklov migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
 @Entity('debt_payments')
+@Check('chk_debt_payments_positive', '"amount" > 0')
 export class DebtPayment {
   @PrimaryGeneratedColumn()
   id: number;

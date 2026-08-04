@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { clubTimezone, parseDateParts, zonedMidnight } from '../../common/time/club-day';
 import { Customer } from '../../entities/customer.entity';
 import { ReservationStatus } from '../../entities/enums';
 import { Reservation } from '../../entities/reservation.entity';
@@ -35,16 +36,23 @@ const ALLOWED_TRANSITIONS: Record<ReservationStatus, ReservationStatus[]> = {
   [ReservationStatus.NO_SHOW]: [],
 };
 
-/** 'YYYY-MM-DD' server-lokal kun; to'liq ISO ham qabul qilinadi */
-const parseDateParam = (value: string, endExclusive = false): Date => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
-  let date: Date;
-  if (match) {
-    date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-    if (endExclusive) date.setDate(date.getDate() + 1);
-  } else {
-    date = new Date(value);
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 'YYYY-MM-DD' ni KLUB vaqt mintaqasidagi yarim tun sifatida o'qiydi
+ * (expenses.service dagi bilan bir xil naqsh). Avval server-lokal yarim tun
+ * olinardi: Docker'da UTC — tunda (00:00-05:00) yaratilgan bron noto'g'ri
+ * kunga tushib, kun ro'yxatidan yo'qolardi.
+ * To'liq ISO datetime ham qabul qilinadi (aniq on beriladi — o'zgarishsiz o'tadi).
+ * endExclusive=true bo'lsa sana-kun keyingi kun boshiga suriladi ('to' yarim ochiq).
+ */
+const parseDateParam = (value: string, tz: string, endExclusive = false): Date => {
+  const raw = value.trim();
+  if (DATE_ONLY.test(raw)) {
+    const { year, month, day } = parseDateParts(raw);
+    return zonedMidnight(tz, year, month, endExclusive ? day + 1 : day);
   }
+  const date = new Date(raw);
   if (Number.isNaN(date.getTime())) {
     throw new BadRequestException({ key: 'reports.invalidRange' });
   }
@@ -61,6 +69,8 @@ export class ReservationsService {
   async findAll(clubId: number, query: ListReservationsQueryDto) {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 50, 100);
+    // Kun chegaralari klub mintaqasida — xarajatlar/hisobotlar bilan bir xil ta'rif
+    const tz = await clubTimezone(this.dataSource, clubId);
 
     const qb = this.reservationRepo
       .createQueryBuilder('reservation')
@@ -71,10 +81,10 @@ export class ReservationsService {
     if (query.status) qb.andWhere('reservation.status = :status', { status: query.status });
     if (query.tableId) qb.andWhere('reservation.tableId = :tableId', { tableId: query.tableId });
     if (query.from) {
-      qb.andWhere('reservation.startsAt >= :from', { from: parseDateParam(query.from) });
+      qb.andWhere('reservation.startsAt >= :from', { from: parseDateParam(query.from, tz) });
     }
     if (query.to) {
-      qb.andWhere('reservation.startsAt < :to', { to: parseDateParam(query.to, true) });
+      qb.andWhere('reservation.startsAt < :to', { to: parseDateParam(query.to, tz, true) });
     }
 
     // startsAt UNIKAL EMAS (bronlar 19:00 kabi butun soatlarga to'planadi).

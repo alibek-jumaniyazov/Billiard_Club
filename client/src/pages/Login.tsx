@@ -27,6 +27,15 @@ const Login = () => {
     setLoading(false);
     if (result.ok) {
       navigate('/', { replace: true });
+      return;
+    }
+    // Sababni ATAYLAB ajratamiz: tarmoq uzilganda "login yoki parol noto'g'ri"
+    // deyish foydalanuvchini parolni qayta-qayta terishga majbur qiladi va u
+    // serverning urinishlar chegarasiga tushib qoladi (AuthContext izohiga qarang)
+    if (result.reason === 'network') {
+      message.error(t('offline.networkError'));
+    } else if (result.reason === 'rateLimited') {
+      message.error(result.message || t('offline.rateLimited'));
     } else {
       message.error(result.message || t('login.failed'));
     }

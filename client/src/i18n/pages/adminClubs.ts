@@ -49,6 +49,7 @@ export default {
     viewStats: 'Statistika',
     editClub: 'Tahrirlash',
     deleteConfirm: "Klubni o'chirmoqchimisiz? Faqat ma'lumotsiz klubni o'chirish mumkin.",
+    data: "Ma'lumotlar",
     view: "Ko'rish",
     viewAsClub: 'Klub panelini ochish',
     // Shartnomalar
@@ -69,10 +70,11 @@ export default {
     amountRequired: 'Summani kiriting',
     endDateRequired: 'Tugash sanasini tanlang',
     // Yaratish formasi
-    createTitle: 'Yangi klub (7 kun bepul sinov)',
+    createTitle: 'Yangi klub',
     adminUsername: 'Admin login',
     adminPassword: 'Admin parol',
     trialDays: 'Sinov (kun)',
+    trialDaysHint: "Standart: {{days}} kun (Sozlamalarda o'zgartiriladi)",
     phone: 'Telefon',
     address: 'Manzil',
     notes: 'Izoh',
@@ -163,6 +165,7 @@ export default {
     viewStats: 'Статистика',
     editClub: 'Изменить',
     deleteConfirm: 'Удалить клуб? Можно удалить только клуб без данных.',
+    data: 'Данные',
     view: 'Открыть',
     viewAsClub: 'Открыть панель клуба',
     // Контракты
@@ -183,10 +186,11 @@ export default {
     amountRequired: 'Введите сумму',
     endDateRequired: 'Выберите дату окончания',
     // Форма создания
-    createTitle: 'Новый клуб (7 дней бесплатно)',
+    createTitle: 'Новый клуб',
     adminUsername: 'Логин админа',
     adminPassword: 'Пароль админа',
     trialDays: 'Пробный период (дней)',
+    trialDaysHint: 'По умолчанию: {{days}} дн. (меняется в Настройках)',
     phone: 'Телефон',
     address: 'Адрес',
     notes: 'Комментарий',

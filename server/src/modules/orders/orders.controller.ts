@@ -6,7 +6,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
-import { CreateOrderDto, ListOrdersQueryDto } from './dto/orders.dto';
+import { CancelOrderDto, CreateOrderDto, ListOrdersQueryDto } from './dto/orders.dto';
 import { OrdersService } from './orders.service';
 
 @Controller('orders')
@@ -43,10 +43,12 @@ export class OrdersController {
   @Post(':id/cancel')
   async cancel(
     @ClubId() clubId: number,
+    @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CancelOrderDto,
     @Lang() lang: Language,
   ) {
-    const data = await this.ordersService.cancel(clubId, id);
+    const data = await this.ordersService.cancel(clubId, user, id, dto);
     return { success: true, message: t(lang, 'orders.cancelled'), data };
   }
 }

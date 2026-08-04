@@ -430,6 +430,13 @@ export interface Session {
   payments?: SessionPayment[];
   /** Detal javobida keladi — soat siljishini hisoblash uchun */
   serverNow?: string;
+  /**
+   * FAQAT KLIENT TOMONIDA. Sessiya internet yo'q paytda boshlangan va hali
+   * serverga yuborilmagan — uning haqiqiy `id` si yo'q (`id` manfiy sintetik
+   * qiymat). Hisob-kitob va ko'chirish bunday sessiyada bloklanadi.
+   * Manba: src/offline/overlay.ts
+   */
+  offlineLocalId?: string;
 }
 
 /** Chek oldindan ko'rish (GET /sessions/:id/receipt) — live yoki yakunlangan */
@@ -541,6 +548,14 @@ export interface Debt {
   isPaid: boolean;
   paidAt: string | null;
   dueDate: string | null;
+  /**
+   * Qarz HISOBDAN CHIQARILGAN (undirilmagan, lekin undan voz kechilgan).
+   * Bunday qarz `isPaid: true` bo'ladi, lekin u TO'LANGAN emas — ro'yxatda
+   * alohida belgi bilan ko'rsatiladi, aks holda klub egasi undirilmagan
+   * summani tushum deb o'ylardi.
+   */
+  writtenOffAt: string | null;
+  writtenOffReason: string | null;
   createdAt: string;
   session?: Session | null;
   user?: User | null;
@@ -683,6 +698,90 @@ export interface Reservation {
   updatedAt: string;
   table?: BilliardTable;
   customer?: Customer | null;
+}
+
+/**
+ * Superadmin konsoli: klubning qisqacha holati.
+ * Server: GET /admin/platform/clubs/:clubId/overview
+ */
+export interface ClubDataOverview {
+  club: {
+    id: number;
+    name: string;
+    status: ClubStatus;
+    effectiveEndsAt: string | null;
+    createdAt: string;
+  };
+  revenueToday: number;
+  revenueTotal: number;
+  sessionsToday: number;
+  activeSessions: number;
+  staffCount: number;
+  openDebtAmount: number;
+  openDebtCount: number;
+  /** Oxirgi o'yin ochilgan payt — klub umuman ishlayaptimi degan savolga javob */
+  lastActivityAt: string | null;
+}
+
+/** Superadmin konsoli: klub xodimining 30 kunlik faolligi */
+export interface ClubStaffActivity {
+  id: number;
+  name: string;
+  username: string;
+  role: UserRole;
+  lastLogin: string | null;
+  isActive: boolean;
+  sessions30d: number;
+  revenue30d: number;
+}
+
+/**
+ * Platforma sozlamalari (superadmin boshqaradi).
+ *
+ * Bu qiymatlar ilgari serverda KODDA qat'iy yozilgan edi. Endi ular bitta
+ * manbadan keladi va o'zgartirilgani zahoti ro'yxatdan o'tish, klub
+ * yaratish, landing matnlari va eslatma cron'ida amal qiladi.
+ */
+export interface PlatformConfig {
+  /** Bepul sinov muddati (kun). 0 — sinovsiz. */
+  trialDays: number;
+  /** Obuna tugashidan necha kun oldin eslatma yuborilsin (bo'sh = o'chirilgan) */
+  expiryReminderDays: number[];
+}
+
+/** Desktop dastur qaysi platforma uchun */
+export type ReleasePlatform = 'win' | 'mac' | 'linux';
+
+/**
+ * Desktop dasturning nashr etilgan relizi (/download sahifasi uchun).
+ *
+ * `url` — serverdagi NISBIY yo'l (`/api/public/download/win`). Absolyut manzil
+ * ataylab qaytarilmaydi: ilova bir vaqtning o'zida billiardclub.uz da ham,
+ * lokal dev serverda ham, klubning o'z serverida ham turishi mumkin —
+ * nisbiy yo'l uchalasida ham to'g'ri ishlaydi.
+ */
+export interface AppReleaseInfo {
+  platform: ReleasePlatform;
+  version: string;
+  fileName: string;
+  /** Bayt */
+  size: number;
+  sha512: string;
+  notesUz: string | null;
+  notesRu: string | null;
+  publishedAt: string | null;
+  url: string;
+}
+
+/** Superadmin ko'radigan to'liq reliz yozuvi (nashr etilmaganlari ham) */
+export interface AppRelease extends AppReleaseInfo {
+  id: number;
+  storedName: string;
+  isPublished: boolean;
+  downloads: number;
+  uploadedById: number | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** Obuna tarifi (uz+ru nomlar birga keladi, klient tanlaydi) */
@@ -918,11 +1017,33 @@ export interface ApiResponse<T> {
   /** POST/PUT /reservations: to'qnashuv ogohlantirishi */
   warning?: string;
   overlaps?: Reservation[];
+  /**
+   * OFLAYN: javob serverdan emas, lokal keshdan berildi. Sahifalar shu
+   * bayroqqa qarab "ma'lumot eski" holatini ko'rsatishi mumkin
+   * (umumiy chiziq AppLayout dagi ConnectionBanner da).
+   */
+  fromCache?: boolean;
+  /** Kesh qachon yozilgani (ms) — `fromCache` bo'lganda */
+  cachedAt?: number;
+}
+
+/**
+ * Server imzolagan oflayn ruxsatnoma (ES256).
+ *
+ * Klient uni faqat SAQLAYDI va TEKSHIRADI — tarkibini o'zgartira olmaydi.
+ * To'liq izoh: client/src/offline/license.ts
+ */
+export interface SignedLicense {
+  payload: string;
+  signature: string;
+  alg: 'ES256';
 }
 
 export interface AuthData {
   user: User;
   club: ClubInfo | null;
+  /** Oflayn obuna nazorati uchun — superadminda null */
+  license?: SignedLicense | null;
   accessToken: string;
   /** Eski klientlar mosligi uchun tanada ham keladi — endi SAQLANMAYDI (httpOnly cookie) */
   refreshToken?: string;

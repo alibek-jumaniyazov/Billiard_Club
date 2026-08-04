@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Alert,
   App,
+  Button,
   Card,
   Col,
   Descriptions,
@@ -90,10 +91,19 @@ const Sessions = () => {
   // Tafsilotlar keshi (segmentlar/to'lovlar ro'yxatda kelmaydi — detal so'raladi)
   const [details, setDetails] = useState<Record<number, Session>>({});
   const [drawerId, setDrawerId] = useState<number | null>(null);
+  const [detailError, setDetailError] = useState(false);
   const [liveReceipt, setLiveReceipt] = useState<SessionReceipt | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptError, setReceiptError] = useState(false);
   // Server soat siljishi: jonli taymerlar Date.now() + offsetMs bilan yuritiladi
   const [offsetMs, setOffsetMs] = useState(0);
+
+  /**
+   * Chek so'rovi navbati tokeni: sekin kelgan ESKI sessiya cheki yangi
+   * drawer ustiga yozilib, boshqa o'yinning pulini ko'rsatib qo'ymasin
+   * (Reservations.tsx dagi requestIdRef bilan bir xil naqsh).
+   */
+  const openReceiptRef = useRef<number | null>(null);
 
   // `t` yuklash callbackining bog'liqligi EMAS: til almashganda ro'yxat
   // standart filtrlar bilan jimgina qayta yuklanib ketmasin
@@ -148,35 +158,73 @@ const Sessions = () => {
       // Kesh faqat holati o'zgarmagan bo'lsa yaroqli — boshqa terminalda
       // yakunlangan sessiya jonli (nol chek bilan) ko'rinib qolmasin
       if (details[record.id] && details[record.id].status === record.status) return;
+      setDetailError(false);
       try {
         const res = await sessionsApi.detail(record.id);
         if (res.data.serverNow) setOffsetMs(clockOffsetMs(res.data.serverNow));
         setDetails((prev) => ({ ...prev, [record.id]: res.data }));
       } catch (err) {
+        // Xato holati saqlanadi — aks holda drawer abadiy skeletda qotib qolardi
+        setDetailError(true);
         message.error(errorMessage(err, t('common.error')));
       }
     },
     [details, message, t],
   );
 
+  /**
+   * Jonli chekni serverdan oladi. Javob FAQAT ayni shu sessiya draweri
+   * hali ochiq bo'lsa yoziladi (eskirgan javob tashlab yuboriladi).
+   */
+  const loadLiveReceipt = (sessionId: number) => {
+    openReceiptRef.current = sessionId;
+    setReceiptLoading(true);
+    setReceiptError(false);
+    setLiveReceipt(null);
+    sessionsApi
+      .receipt(sessionId)
+      .then((res) => {
+        if (openReceiptRef.current !== sessionId) return;
+        setOffsetMs(clockOffsetMs(res.data.serverNow));
+        setLiveReceipt(res.data);
+      })
+      .catch((err) => {
+        if (openReceiptRef.current !== sessionId) return;
+        // Xato bo'lsa "0 so'm" emas, aniq xato paneli ko'rsatiladi
+        setReceiptError(true);
+        message.error(errorMessage(err, t('common.error')));
+      })
+      .finally(() => {
+        if (openReceiptRef.current === sessionId) setReceiptLoading(false);
+      });
+  };
+
   const openDrawer = (record: Session) => {
     setDrawerId(record.id);
+    setDetailError(false);
     void ensureDetail(record);
     // Jonli sessiya uchun serverdan sekundlik chek olamiz
     if (isLive(record)) {
-      setReceiptLoading(true);
-      setLiveReceipt(null);
-      sessionsApi
-        .receipt(record.id)
-        .then((res) => {
-          setOffsetMs(clockOffsetMs(res.data.serverNow));
-          setLiveReceipt(res.data);
-        })
-        .catch((err) => message.error(errorMessage(err, t('common.error'))))
-        .finally(() => setReceiptLoading(false));
+      loadLiveReceipt(record.id);
     } else {
+      openReceiptRef.current = record.id;
       setLiveReceipt(null);
+      setReceiptError(false);
+      setReceiptLoading(false);
     }
+  };
+
+  const closeDrawer = () => {
+    // Ochiq chek tokeni bekor qilinadi — yopilgandan keyin kelgan javob yozilmasin
+    openReceiptRef.current = null;
+    setDrawerId(null);
+    setDetailError(false);
+  };
+
+  /** Detalni qayta yuklash — drawerdagi xato panelidan */
+  const retryDetail = () => {
+    const record = sessions.find((s) => s.id === drawerId);
+    if (record) void ensureDetail(record);
   };
 
   /** Yakunlangan sessiya davomiyligi — sekundlik aniqlikda */
@@ -479,6 +527,18 @@ const Sessions = () => {
       >
         {drawerLive && receiptLoading ? (
           <Skeleton active title={false} paragraph={{ rows: 3 }} />
+        ) : drawerLive && receiptError ? (
+          // Jonli chek kelmadi — noto'g'ri "0 so'm" ko'rsatmaymiz
+          <Alert
+            type="error"
+            showIcon
+            message={t('sessions.receiptError')}
+            action={
+              <Button size="small" onClick={() => loadLiveReceipt(detail.id)}>
+                {t('btn.refresh')}
+              </Button>
+            }
+          />
         ) : (
           <>
             {receiptRow(
@@ -670,10 +730,24 @@ const Sessions = () => {
           )
         }
         open={drawerId != null}
-        onClose={() => setDrawerId(null)}
+        onClose={closeDrawer}
         width="min(480px, 100vw)"
-        loading={drawerId != null && !drawerDetail}
+        loading={drawerId != null && !drawerDetail && !detailError}
       >
+        {/* Detal kelmadi — skeletda qotib qolmaslik uchun xato + qayta urinish */}
+        {drawerId != null && !drawerDetail && detailError && (
+          <Alert
+            type="error"
+            showIcon
+            message={t('sessions.detailError')}
+            action={
+              <Button size="small" onClick={retryDetail}>
+                {t('btn.refresh')}
+              </Button>
+            }
+          />
+        )}
+
         {drawerDetail && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             {drawerLive && <Alert type="info" showIcon message={t('sessions.liveNote')} />}

@@ -58,6 +58,14 @@ const Register = () => {
     if (result.ok) {
       message.success(t('register.successTitle'));
       navigate('/dashboard', { replace: true });
+      return;
+    }
+    // Login sahifasidagi kabi: tarmoq xatosini "ma'lumot noto'g'ri" deb
+    // ko'rsatmaymiz — foydalanuvchi shaklni qayta-qayta yuboravermasin
+    if (result.reason === 'network') {
+      message.error(t('offline.networkError'));
+    } else if (result.reason === 'rateLimited') {
+      message.error(result.message || t('offline.rateLimited'));
     } else {
       message.error(result.message || t('common.error'));
     }

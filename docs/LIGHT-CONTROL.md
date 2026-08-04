@@ -45,6 +45,31 @@ Yechim: agent **o'zi** serverga chiqadi (chiquvchi HTTPS). Ya'ni:
 Agar server klub bilan **bitta tarmoqda** bo'lsa (on-premise o'rnatma), `DIRECT` rejimi ishlatiladi —
 u holda agent kerak emas, server relega o'zi murojaat qiladi.
 
+> ### ⚠️ `DIRECT` rejimi standart holatda YOPIQ (operator ruxsati talab qilinadi)
+>
+> `DIRECT` rejimda **server** lokal tarmoqqa so'rov yuboradi. Bulutda joylashgan serverda
+> (AWS/GCP/Hetzner xususiy tarmog'i, Docker/Kubernetes) aynan o'sha xususiy IP oraliqlarida
+> serverning **o'z PostgreSQL i, Redis i va ichki panellari** turadi. Shu sababli klub admini
+> rele manzili o'rniga ichki xizmat manzilini yozib, javob matnidan qaysi port ochiqligini
+> aniqlab olishi mumkin edi.
+>
+> Endi `DIRECT` rejim faqat **operator ochiq ruxsat bergan tarmoqlarda** ishlaydi:
+>
+> ```bash
+> # server/.env
+> LIGHTS_DIRECT_ALLOWED_CIDRS=192.168.1.0/24
+> ```
+>
+> - **Standart qiymat — bo'sh**, ya'ni `DIRECT` hech qayerga chiqmaydi.
+> - Format: vergul bilan ajratilgan IPv4 CIDR lar; yakka IP `/32` deb qabul qilinadi.
+> - Ro'yxat **mavjud tekshiruvlarning ustiga** qo'shiladi — manzil baribir xususiy (RFC1918)
+>   bo'lishi shart, `127.x` va domen nomlariga hech qachon ruxsat yo'q.
+> - Qiymat server ishga tushganda bir marta o'qiladi — o'zgartirilsa qayta ishga tushiring.
+> - `driver=http` shablon URL lari faqat **80, 443, 8080, 8081, 8123** portlariga chiqa oladi.
+>
+> **BRIDGE rejimi (tavsiya etilgan yo'l) bu cheklovdan mutlaqo ta'sirlanmaydi.** Bulutdagi server
+> uchun to'g'ri yechim — har doim bridge agent.
+
 ### 1.3 Oqim sxemasi (o'yin boshlash)
 
 ```

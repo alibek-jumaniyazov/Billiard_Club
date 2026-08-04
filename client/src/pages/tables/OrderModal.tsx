@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { App, Button, Col, Divider, Form, InputNumber, Modal, Row, Select, Typography } from 'antd';
 import { CoffeeOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { errorMessage, ordersApi, productsApi } from '../../api';
+import { errorMessage, isNetworkError, ordersApi, productsApi } from '../../api';
 import { MoneyText } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
+import { useConnection } from '../../context/ConnectionContext';
+import { newActionKey, queueOrder } from '../../offline/pos';
 import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable, Product } from '../../types';
 import { formatMoney } from '../../utils/format';
+import { isFormValidationError } from '../../utils/formErrors';
 
 const { Text } = Typography;
 
@@ -18,6 +21,17 @@ const { Text } = Typography;
  * urilib qolmasligi uchun oldindan to'xtatamiz.
  */
 const MAX_ITEMS = 50;
+
+/**
+ * O'lchov birliklari — DB da til-neytral kalit sifatida saqlanadi
+ * ('dona', 'paket', ...), ekranda esa tarjima qilinadi. Ro'yxat Products
+ * sahifasidagi UNITS bilan bir xil bo'lishi kerak.
+ */
+const UNITS = ['dona', 'paket', 'piyola', 'litr'] as const;
+
+/** Birlik kalitini tarjimaga aylantiradi; notanish qiymat o'z holicha qoladi */
+const unitLabel = (unit: string, t: (key: string) => string): string =>
+  (UNITS as readonly string[]).includes(unit) ? t(`products.unit_${unit}`) : unit;
 
 interface OrderRow {
   productId?: number;
@@ -48,6 +62,7 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
   const session = table?.sessions?.[0] ?? null;
   const items = Form.useWatch('items', form);
   const currency = useCurrency();
+  const { online } = useConnection();
 
   useEffect(() => {
     if (!table) return;
@@ -77,9 +92,9 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
         .filter((p) => p.isActive)
         .map((p) => ({
           value: p.id,
-          label: `${p.name} · ${formatMoney(p.price, currency)} · ${p.stock} ${p.unit}`,
+          label: `${p.name} · ${formatMoney(p.price, currency)} · ${p.stock} ${unitLabel(p.unit, t)}`,
         })),
-    [products, currency],
+    [products, currency, t],
   );
 
   const orderTotal = useMemo(() => {
@@ -92,26 +107,69 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
   }, [items, products]);
 
   const handleOk = async () => {
-    if (!session) return;
-    const values = await form.validateFields();
-    const rows = (values.items ?? [])
-      .filter((row): row is { productId: number; quantity: number } =>
-        Boolean(row?.productId && row?.quantity),
-      )
-      // Miqdor har doim butun son (DTO @IsInt) — kasr qiymat kesib tashlanadi
-      .map((row) => ({ productId: row.productId, quantity: Math.trunc(row.quantity) }))
-      .filter((row) => row.quantity >= 1);
-    if (rows.length === 0) {
-      message.warning(t('tables.noItems'));
-      return;
-    }
+    if (!session || !table) return;
     setSubmitting(true);
+    // Bir martalik kalit — onlayn urinish va navbatdagi takror uchun BIR XIL
+    // (takroriy so'rov ikkinchi buyurtma yozib, bar summasini ikkilantirmasin)
+    const key = newActionKey();
     try {
-      const res = await ordersApi.create({ sessionId: session.id, items: rows });
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await form.validateFields();
+      const rows = (values.items ?? [])
+        .filter((row): row is { productId: number; quantity: number } =>
+          Boolean(row?.productId && row?.quantity),
+        )
+        // Miqdor har doim butun son (DTO @IsInt) — kasr qiymat kesib tashlanadi
+        .map((row) => ({ productId: row.productId, quantity: Math.trunc(row.quantity) }))
+        .filter((row) => row.quantity >= 1);
+      if (rows.length === 0) {
+        message.warning(t('tables.noItems'));
+        return;
+      }
+
+      /**
+       * NAVBATGA ikki holatda tushadi:
+       *  1. internet yo'q — buyurtma mavjud summani O'ZGARTIRMAYDI, faqat
+       *     qo'shadi, shuning uchun eskirgan ma'lumot ustida xavfsiz;
+       *  2. sessiya hali serverda YO'Q (oflayn boshlangan) — uning `id` si
+       *     manfiy sintetik qiymat, uni yuborish xato berardi. Navbat buyurtmani
+       *     sessiya yaratilgandan KEYIN yuboradi ($local havolasi).
+       */
+      if (!online || session.offlineLocalId) {
+        await queueOrder(table, session, rows, orderTotal, key);
+        message.success(t('offline.savedOffline'));
+        onOrdered();
+        onClose();
+        return;
+      }
+
+      const res = await ordersApi.create({ sessionId: session.id, items: rows }, key);
       message.success(res.message);
       onOrdered();
       onClose();
     } catch (err) {
+      if (isFormValidationError(err)) return;
+      // Aloqa aynan shu so'rovda uzildi — buyurtma yo'qolmasin, navbatga tushsin
+      if (isNetworkError(err) && table) {
+        try {
+          const rows = (form.getFieldValue('items') as OrderRow[] | undefined) ?? [];
+          const items = rows
+            .filter((row): row is { productId: number; quantity: number } =>
+              Boolean(row?.productId && row?.quantity),
+            )
+            .map((row) => ({ productId: row.productId, quantity: Math.trunc(row.quantity) }))
+            .filter((row) => row.quantity >= 1);
+          if (items.length > 0) {
+            await queueOrder(table, session, items, orderTotal, key);
+            message.success(t('offline.savedOffline'));
+            onOrdered();
+            onClose();
+            return;
+          }
+        } catch {
+          // navbatga ham yozib bo'lmadi — oddiy xato ko'rsatiladi
+        }
+      }
       message.error(errorMessage(err, t('common.error')));
     } finally {
       setSubmitting(false);

@@ -3,10 +3,12 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { Brackets, IsNull, Repository } from 'typeorm';
+import { AuditService } from '../../common/audit/audit.service';
 import { RefreshSession } from '../../entities/refresh-session.entity';
 import { User } from '../../entities/user.entity';
 import { CreateStaffDto, ListStaffQueryDto, UpdateStaffDto } from './dto/staff.dto';
@@ -17,6 +19,8 @@ export class StaffService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(RefreshSession)
     private readonly refreshRepo: Repository<RefreshSession>,
+    // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   async findAll(clubId: number, query: ListStaffQueryDto) {
@@ -71,8 +75,12 @@ export class StaffService {
   /**
    * Yangilash. O'z akkauntida rol/holat o'zgartirish taqiqlanadi —
    * oxirgi admin o'zini bloklab qo'yishining oldini oladi.
+   *
+   * HISOB EGALLASH amallari (parol almashtirish, rol berish, faolsizlantirish)
+   * audit jurnaliga yoziladi — kim kimga nima qilgani iz qoldiradi.
    */
-  async update(clubId: number, currentUserId: number, id: number, dto: UpdateStaffDto) {
+  async update(clubId: number, actor: User, id: number, dto: UpdateStaffDto) {
+    const currentUserId = actor.id;
     const user = await this.userRepo.findOne({ where: { id, clubId } });
     if (!user) throw new NotFoundException({ key: 'staff.notFound' });
 
@@ -108,15 +116,43 @@ export class StaffService {
       );
     }
 
+    // Audit yozuvlari o'zgarish saqlangach (debts/tables dagi kabi)
+    const audit = (action: string, meta: Record<string, unknown>) =>
+      this.auditService?.log({
+        action,
+        clubId,
+        userId: actor.id,
+        actorRole: actor.role,
+        entity: 'user',
+        entityId: id,
+        meta: { username: user.username, ...meta },
+      });
+    if (dto.password) audit('staff.password_reset', {});
+    if (updates.role !== undefined && updates.role !== user.role) {
+      audit('staff.role_change', { oldRole: user.role, newRole: updates.role });
+    }
+    if (updates.isActive === false && user.isActive) audit('staff.deactivate', {});
+
     return this.userRepo.findOne({ where: { id } });
   }
 
   /** Soft-delete: isActive=false (moliyaviy yozuvlardagi izlar saqlanadi) */
-  async remove(clubId: number, currentUserId: number, id: number) {
+  async remove(clubId: number, actor: User, id: number) {
     const user = await this.userRepo.findOne({ where: { id, clubId } });
     if (!user) throw new NotFoundException({ key: 'staff.notFound' });
-    if (id === currentUserId) throw new BadRequestException({ key: 'staff.cannotDeleteSelf' });
+    if (id === actor.id) throw new BadRequestException({ key: 'staff.cannotDeleteSelf' });
     await this.userRepo.update(id, { isActive: false });
+
+    this.auditService?.log({
+      action: 'staff.deactivate',
+      clubId,
+      userId: actor.id,
+      actorRole: actor.role,
+      entity: 'user',
+      entityId: id,
+      meta: { username: user.username, role: user.role, viaDelete: true },
+    });
+
     return true;
   }
 }

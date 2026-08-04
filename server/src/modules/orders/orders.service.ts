@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
+import { AuditService } from '../../common/audit/audit.service';
 import { OrderStatus, SessionStatus } from '../../entities/enums';
 import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
@@ -8,7 +9,7 @@ import { Product } from '../../entities/product.entity';
 import { Session } from '../../entities/session.entity';
 import { User } from '../../entities/user.entity';
 import { safeTimezone } from '../settings/timezones';
-import { CreateOrderDto, ListOrdersQueryDto } from './dto/orders.dto';
+import { CancelOrderDto, CreateOrderDto, ListOrdersQueryDto } from './dto/orders.dto';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -17,6 +18,8 @@ export class OrdersService {
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(Order) private readonly orderRepo: Repository<Order>,
+    // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   async findAll(clubId: number, query: ListOrdersQueryDto) {
@@ -190,13 +193,17 @@ export class OrdersService {
    *   yig'ib, o'sish tartibida — deadlock oldini oladi)
    * - Qulflash tartibi createOrder bilan bir xil: sessiya -> buyurtma -> mahsulotlar
    * - Sessiyaning jonli bar summasi (barAmount) buyurtma summasiga kamaytiriladi
+   *
+   * PUL NAZORATI: bu amal butun bar hisobini nolga tushiradi, shuning uchun kim,
+   * qaysi buyurtmani, qancha summaga va nima sababdan bekor qilgani HAR DOIM
+   * audit jurnaliga yoziladi (debts.remove dagi kabi).
    */
-  async cancel(clubId: number, id: number) {
+  async cancel(clubId: number, user: User, id: number, dto: CancelOrderDto = {}) {
     // Qulflashdan avval sessionId ni aniqlab olamiz (qulf tartibi uchun)
     const existing = await this.orderRepo.findOne({ where: { id, clubId } });
     if (!existing) throw new NotFoundException({ key: 'orders.notFound' });
 
-    return this.dataSource.transaction(async (manager) => {
+    const { cancelled, meta } = await this.dataSource.transaction(async (manager) => {
       let session: Session | null = null;
       if (existing.sessionId) {
         session = await manager.findOne(Session, {
@@ -243,10 +250,32 @@ export class OrdersService {
         });
       }
 
-      return manager.findOne(Order, {
-        where: { id: order.id },
-        relations: { items: { product: true } },
-      });
+      return {
+        cancelled: await manager.findOne(Order, {
+          where: { id: order.id },
+          relations: { items: { product: true } },
+        }),
+        meta: {
+          totalAmount: order.totalAmount,
+          sessionId: order.sessionId,
+          tableId: order.tableId,
+          itemCount: items.length,
+        },
+      };
     });
+
+    // Tranzaksiya muvaffaqiyatli yakunlangach yoziladi (orqaga qaytgan
+    // tranzaksiya soxta "bekor qilindi" yozuvini qoldirmasligi uchun)
+    this.auditService?.log({
+      action: 'order.cancel',
+      clubId,
+      userId: user.id,
+      actorRole: user.role,
+      entity: 'order',
+      entityId: id,
+      meta: { ...meta, reason: dto.reason?.trim() || null },
+    });
+
+    return cancelled;
   }
 }

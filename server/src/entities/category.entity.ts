@@ -12,7 +12,14 @@ import {
 import { Club } from './club.entity';
 import { Product } from './product.entity';
 
+// Qisman unikal indeks migratsiyada yaratilgan, lekin metadatada ham e'lon
+// qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
 @Entity('categories')
+// Klub ichida faol kategoriya nomi unikal
+@Index('uq_categories_club_name_active', ['clubId', 'name'], {
+  unique: true,
+  where: `"isActive" = true`,
+})
 export class Category {
   @PrimaryGeneratedColumn()
   id: number;

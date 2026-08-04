@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { Alert, App, Form, Input, Modal } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { errorMessage, reservationsApi, sessionsApi } from '../../api';
+import { errorMessage, isNetworkError, reservationsApi, sessionsApi } from '../../api';
+import { useConnection } from '../../context/ConnectionContext';
+import { newActionKey, queueStartSession } from '../../offline/pos';
+import { isFormValidationError } from '../../utils/formErrors';
 import type { BilliardTable, Reservation, Session } from '../../types';
 import { formatClock } from '../../utils/format';
 
@@ -18,14 +21,27 @@ interface StartModalProps {
   onClose: () => void;
   /** Muvaffaqiyatli boshlangan sessiya (segment keshi uchun) */
   onStarted: (session: Session) => void;
+  /**
+   * Internet yo'q edi — o'yin NAVBATGA yozildi. Sessiyaning serverdagi ID si
+   * hali yo'q, shuning uchun bu yerda `Session` uzatilmaydi: ekrandagi holatni
+   * navbat qoplamasi (offline/overlay.ts) chizadi.
+   */
+  onQueuedOffline: () => void;
+  /**
+   * Server soati bilan farq (ms). Oflayn boshlangan o'yinning vaqt muhri
+   * AYNAN shu soatdan olinadi — ekrandagi taymer bilan serverga yoziladigan
+   * boshlanish vaqti bir xil bo'lishi uchun (offline/pos.ts izohiga qarang).
+   */
+  offsetMs: number;
 }
 
 /** Yaqin 12 soat ichidagi kutilayotgan/tasdiqlangan bronlar ogohlantirishi */
 const RESERVATION_WINDOW_MS = 12 * 3600_000;
 
-const StartModal = ({ table, onClose, onStarted }: StartModalProps) => {
+const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: StartModalProps) => {
   const { t } = useTranslation();
   const { message } = App.useApp();
+  const { online } = useConnection();
   const [form] = Form.useForm<StartValues>();
   const [submitting, setSubmitting] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -54,14 +70,44 @@ const StartModal = ({ table, onClose, onStarted }: StartModalProps) => {
 
   const handleOk = async () => {
     if (!table) return;
-    const values = await form.validateFields();
     setSubmitting(true);
+    // Bir martalik kalit — onlayn urinish va navbatdagi takror uchun BIR XIL
+    // (takroriy so'rov ikkinchi sessiya ochib yubormasin)
+    const key = newActionKey();
     try {
-      const res = await sessionsApi.start({ tableId: table.id, ...values });
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await form.validateFields();
+
+      // OFLAYN: o'yin navbatga yoziladi va ekranda darhol ko'rinadi.
+      // Taymer `startTime` dan yuradi, ya'ni aloqa tiklanganda vaqt ham,
+      // summa ham yo'qolmaydi (offline/pos.ts izohiga qarang).
+      if (!online) {
+        await queueStartSession(table, values, key, offsetMs);
+        message.success(t('offline.savedOffline'));
+        onQueuedOffline();
+        onClose();
+        return;
+      }
+
+      const res = await sessionsApi.start({ tableId: table.id, ...values }, key);
       message.success(res.message);
       onStarted(res.data);
       onClose();
     } catch (err) {
+      if (isFormValidationError(err)) return;
+      // Aloqa aynan shu so'rovda uzildi — o'yin yo'qolmasin, navbatga tushsin
+      if (isNetworkError(err)) {
+        try {
+          const values = form.getFieldsValue();
+          await queueStartSession(table, values, key, offsetMs);
+          message.success(t('offline.savedOffline'));
+          onQueuedOffline();
+          onClose();
+          return;
+        } catch {
+          // navbatga ham yozib bo'lmadi — oddiy xato ko'rsatiladi
+        }
+      }
       message.error(errorMessage(err, t('common.error')));
     } finally {
       setSubmitting(false);

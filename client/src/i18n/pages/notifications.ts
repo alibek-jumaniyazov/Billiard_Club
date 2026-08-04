@@ -38,6 +38,8 @@ export default {
     bulkMarkUnread: "O'qilmagan",
     bulkDelete: "O'chirish",
     bulkDeleteConfirm: "Tanlangan {{count}} ta xabarnoma o'chirilsinmi?",
+    // O'zbekchada son bilan kelgan ot o'zgarmaydi — plural shakli bir xil
+    bulkDeleteConfirm_other: "Tanlangan {{count}} ta xabarnoma o'chirilsinmi?",
     // Batafsil oyna
     sentAt: 'Yuborilgan',
     readAt: "O'qilgan",
@@ -91,6 +93,10 @@ export default {
     bulkMarkUnread: 'Непрочитано',
     bulkDelete: 'Удалить',
     bulkDeleteConfirm: 'Удалить выбранные уведомления ({{count}})?',
+    // Ruscha ko'plik: 1 уведомление / 2–4 уведомления / 5+ уведомлений
+    bulkDeleteConfirm_one: 'Удалить выбранное уведомление?',
+    bulkDeleteConfirm_few: 'Удалить выбранные уведомления ({{count}})?',
+    bulkDeleteConfirm_many: 'Удалить выбранные уведомления ({{count}})?',
     // Окно деталей
     sentAt: 'Отправлено',
     readAt: 'Прочитано',

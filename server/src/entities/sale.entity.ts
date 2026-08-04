@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -20,7 +21,13 @@ import { User } from './user.entity';
  * totalAmount = qarzga yozilgan qism chiqarilgan, chegirma qo'llangan summa.
  * Tushum hisobotlari: sales + debt_payments (to'lov sanasiga ko'ra).
  */
+// DB darajasidagi cheklov migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
 @Entity('sales')
+@Check(
+  'chk_sales_amounts_nonneg',
+  '"tableAmount" >= 0 AND "barAmount" >= 0 AND "totalAmount" >= 0 AND "discount" >= 0',
+)
 export class Sale {
   @PrimaryGeneratedColumn()
   id: number;

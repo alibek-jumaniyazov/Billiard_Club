@@ -179,6 +179,8 @@ export default {
     'notif.targetSingleOnly': 'Bitta klubga',
     'notif.targetBroadcast': "Ommaviy e'lon",
     'notif.targetCount': '{{count}} ta klub',
+    // O'zbekchada son bilan kelgan ot o'zgarmaydi — plural shakli bir xil
+    'notif.targetCount_other': '{{count}} ta klub',
     // Jadval ustunlari
     'notif.recipients': 'Qabul qiluvchilar',
     'notif.readCount': "O'qildi",
@@ -216,7 +218,9 @@ export default {
     'notif.audienceExpired': 'Muddati tugaganlar',
     'notif.includeBlocked': "Bloklanganlarni ham qo'shish",
     'notif.audienceCount': 'Qabul qiluvchilar: {{count}} ta klub',
+    'notif.audienceCount_other': 'Qabul qiluvchilar: {{count}} ta klub',
     'notif.sendConfirmCount': 'Xabar {{count}} ta klubga yuboriladi. Davom etasizmi?',
+    'notif.sendConfirmCount_other': 'Xabar {{count}} ta klubga yuboriladi. Davom etasizmi?',
     'notif.titleHint': "Qo'ng'iroq ro'yxatida taxminan 60 belgi ko'rinadi",
     'notif.bodyHint':
       "Klub sahifasida dastlabki 3 satr ko'rinadi, qolgani — «To'liq o'qish» orqali",
@@ -251,8 +255,18 @@ export default {
 
     // Platforma sozlamalari
     'settings.title': 'Platforma sozlamalari',
-    'settings.subtitle': 'Telegram xabarnoma hodisalarini boshqarish',
+    'settings.subtitle': 'Sinov muddati, eslatmalar va Telegram xabarnomalari',
+    'settings.platformTitle': 'Platforma qoidalari',
+    'settings.trialDays': 'Bepul sinov muddati',
+    'settings.trialDaysHint': "Yangi klub ro'yxatdan o'tganda shuncha kun bepul ishlaydi. 0 — sinovsiz. Landing sahifasidagi matnlar ham shu qiymatdan yig'iladi.",
+    'settings.reminderDays': 'Obuna tugashi haqida eslatma',
+    'settings.reminderDaysHint': "Obuna tugashiga shuncha kun qolganda sizga Telegram xabar keladi. Bo'sh qoldirilsa eslatmalar yuborilmaydi.",
+    'settings.reminderDaysEmpty': 'Eslatmalar yuborilmaydi',
+    'settings.reminderOption': '{{count}} kun qolganda',
     'settings.telegramTitle': 'Telegram xabarnomalari',
+    'settings.telegramTest': 'Sinov xabari',
+    'settings.telegramTestOk': 'Telegram ishlayapti ✅ (chat: {{chatId}})',
+    'settings.telegramTestFail': 'Telegram xatosi: {{error}}',
     'settings.telegramHint': 'Tanlangan hodisalar platforma egasiga Telegram orqali yuboriladi',
     'settings.cacheHint':
       "O'zgarishlar ko'pi bilan bir daqiqada kuchga kiradi (server keshi 60 soniya)",
@@ -452,6 +466,10 @@ export default {
     'notif.targetSingleOnly': 'Одному клубу',
     'notif.targetBroadcast': 'Массовая рассылка',
     'notif.targetCount': '{{count}} клубов',
+    // Ruscha ko'plik: 1 клуб / 2–4 клуба / 5+ клубов
+    'notif.targetCount_one': '{{count}} клуб',
+    'notif.targetCount_few': '{{count}} клуба',
+    'notif.targetCount_many': '{{count}} клубов',
     // Колонки таблицы
     'notif.recipients': 'Получатели',
     'notif.readCount': 'Прочитано',
@@ -489,7 +507,13 @@ export default {
     'notif.audienceExpired': 'С истёкшей подпиской',
     'notif.includeBlocked': 'Включая заблокированные',
     'notif.audienceCount': 'Получателей: {{count}} клубов',
+    'notif.audienceCount_one': 'Получателей: {{count}} клуб',
+    'notif.audienceCount_few': 'Получателей: {{count}} клуба',
+    'notif.audienceCount_many': 'Получателей: {{count}} клубов',
     'notif.sendConfirmCount': 'Сообщение будет отправлено {{count}} клубам. Продолжить?',
+    'notif.sendConfirmCount_one': 'Сообщение будет отправлено {{count}} клубу. Продолжить?',
+    'notif.sendConfirmCount_few': 'Сообщение будет отправлено {{count}} клубам. Продолжить?',
+    'notif.sendConfirmCount_many': 'Сообщение будет отправлено {{count}} клубам. Продолжить?',
     'notif.titleHint': 'В списке колокольчика видно примерно 60 символов',
     'notif.bodyHint':
       'На странице клуба видны первые 3 строки, остальное — по «Читать полностью»',
@@ -524,8 +548,18 @@ export default {
 
     // Настройки платформы
     'settings.title': 'Настройки платформы',
-    'settings.subtitle': 'Управление событиями Telegram-уведомлений',
+    'settings.subtitle': 'Пробный период, напоминания и Telegram-уведомления',
+    'settings.platformTitle': 'Правила платформы',
+    'settings.trialDays': 'Бесплатный пробный период',
+    'settings.trialDaysHint': 'Столько дней новый клуб работает бесплатно после регистрации. 0 — без пробного периода. Тексты на лендинге берутся из этого же значения.',
+    'settings.reminderDays': 'Напоминание об окончании подписки',
+    'settings.reminderDaysHint': 'За столько дней до окончания подписки вам придёт сообщение в Telegram. Если оставить пустым — напоминания не отправляются.',
+    'settings.reminderDaysEmpty': 'Напоминания не отправляются',
+    'settings.reminderOption': 'за {{count}} дн.',
     'settings.telegramTitle': 'Telegram-уведомления',
+    'settings.telegramTest': 'Тестовое сообщение',
+    'settings.telegramTestOk': 'Telegram работает ✅ (чат: {{chatId}})',
+    'settings.telegramTestFail': 'Ошибка Telegram: {{error}}',
     'settings.telegramHint': 'Выбранные события отправляются владельцу платформы в Telegram',
     'settings.cacheHint':
       'Изменения вступают в силу максимум через минуту (кэш сервера 60 секунд)',

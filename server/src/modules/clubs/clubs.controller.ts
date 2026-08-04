@@ -10,11 +10,13 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SkipSubscription } from '../../common/decorators/skip-subscription.decorator';
 import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
+import { User } from '../../entities/user.entity';
 import { ClubsService } from './clubs.service';
 import {
   CreateClubDto,
@@ -108,11 +110,12 @@ export class ClubsController {
   @HttpCode(200)
   @Post(':id/reset-password')
   async resetPassword(
+    @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ResetClubPasswordDto,
     @Lang() lang: Language,
   ) {
-    const data = await this.clubsService.resetAdminPassword(id, dto.password);
+    const data = await this.clubsService.resetAdminPassword(id, user, dto.password);
     return { success: true, message: t(lang, 'clubs.passwordReset'), data };
   }
 

@@ -23,14 +23,16 @@ import {
   SaveOutlined,
   SettingOutlined,
   ShopOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, settingsApi } from '../api';
-import { PageHeader, PageTransition } from '../components/ui';
-import { useAppSettings } from '../context/AppSettingsContext';
+import { EmptyState, PageHeader, PageTransition } from '../components/ui';
+import { useAppSettings, useCurrency } from '../context/AppSettingsContext';
 import { TOKENS } from '../theme/tokens';
 import type { Settings as ClubSettings } from '../types';
+import { moneyFormatter, moneyParser } from '../utils/format';
 
 const { Text } = Typography;
 
@@ -108,11 +110,18 @@ const Settings = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { setCurrencySymbol } = useAppSettings();
+  const currency = useCurrency();
   const [form] = Form.useForm<SettingsFormValues>();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [initialValues, setInitialValues] = useState<SettingsFormValues | null>(null);
   const [timezones, setTimezones] = useState<readonly string[]>(FALLBACK_TIMEZONES);
+
+  // Narx maydonidagi belgi formadagi jonli qiymatga ergashadi (hali
+  // saqlanmagan bo'lsa ham), aks holda ilovadagi joriy belgi ishlatiladi
+  const watchedSymbol = Form.useWatch('currencySymbol', form);
+  const priceCurrency = (watchedSymbol ?? '').trim() || currency;
 
   // `t` yuklash callbackining bog'liqligi EMAS: til almashganda forma qayta
   // yaratilib, saqlanmagan o'zgarishlar yo'qolib ketmasin (xabar chaqirilgan
@@ -122,10 +131,13 @@ const Settings = () => {
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await settingsApi.get();
       setInitialValues(toFormValues(res.data));
     } catch (err) {
+      // Xato holati saqlanadi — aks holda sahifa abadiy skeletda qolardi
+      setLoadError(true);
       message.error(errorMessage(err, tRef.current('common.error')));
     } finally {
       setLoading(false);
@@ -182,9 +194,23 @@ const Settings = () => {
       />
 
       <div style={{ maxWidth: 920 }}>
-        {loading || !initialValues ? (
+        {loading ? (
           <Card>
             <Skeleton active paragraph={{ rows: 8 }} />
+          </Card>
+        ) : !initialValues ? (
+          // Sozlamalar kelmadi — skeletda qotib qolmasdan qayta urinish taklif etiladi
+          <Card>
+            <EmptyState
+              icon={<WarningOutlined />}
+              title={t('settings.loadErrorTitle')}
+              hint={loadError ? t('settings.loadErrorHint') : undefined}
+              action={
+                <Button type="primary" onClick={() => void fetchSettings()}>
+                  {t('btn.refresh')}
+                </Button>
+              }
+            />
           </Card>
         ) : (
           <Form<SettingsFormValues>
@@ -237,14 +263,19 @@ const Settings = () => {
                   <Col xs={24} md={8}>
                     <Form.Item
                       name="defaultTablePrice"
-                      label={t('settings.defaultTablePrice')}
+                      label={`${t('settings.defaultTablePrice')} (${priceCurrency})`}
                       rules={[{ required: true, message: t('settings.priceRequired') }]}
                     >
+                      {/* Ming ajratkichi + valyuta belgisi — boshqa pul maydonlari
+                          bilan bir xil (bitta ortiqcha nol darrov sezilsin) */}
                       <InputNumber
                         min={0}
                         step={1000}
                         style={{ width: '100%' }}
-                        placeholder="40000"
+                        placeholder="40 000"
+                        addonAfter={priceCurrency}
+                        formatter={moneyFormatter}
+                        parser={moneyParser}
                       />
                     </Form.Item>
                   </Col>

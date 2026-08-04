@@ -25,6 +25,39 @@ export const formatMoney = (
   symbol = defaultCurrencySymbol,
 ): string => `${formatNumber(amount)} ${symbol}`;
 
+/**
+ * InputNumber uchun ming ajratkichli pul formatlash — narx maydonlari boshqa
+ * pul maydonlari bilan bir xil ko'rinsin (bitta ortiqcha nol darrov sezilsin).
+ * Butun qismga ajratkich qo'yadi, kasr qismiga TEGMAYDI (butun satrga regex
+ * qo'llansa "1234.5678" -> "1 234.5 678" bo'lib buzilardi).
+ */
+export const moneyFormatter = (value?: string | number): string => {
+  const raw = `${value ?? ''}`;
+  if (raw === '') return '';
+  const negative = raw.startsWith('-');
+  const body = negative ? raw.slice(1) : raw;
+  const dot = body.indexOf('.');
+  const intPart = dot === -1 ? body : body.slice(0, dot);
+  const rest = dot === -1 ? '' : body.slice(dot);
+  return `${negative ? '-' : ''}${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}${rest}`;
+};
+
+/**
+ * Pul maydonini o'qish (moneyFormatter juftligi).
+ *
+ * MUHIM: noto'g'ri kiritilgan qiymat 0 GA AYLANTIRILMAYDI:
+ *  - bo'sh kiritma -> '' (rc-input-number qiymatni null qiladi -> `required` ishlaydi)
+ *  - o'qib bo'lmaydigan kiritma -> NaN (rc-input-number oxirgi TO'G'RI qiymatni saqlaydi)
+ * Vergul kasr ajratkichi sifatida qabul qilinadi (mahalliy klaviatura odati).
+ * `\s` uzilmas bo'shliqlarni (U+00A0, U+202F) ham qamrab oladi.
+ */
+export const moneyParser = (value?: string): number | string => {
+  const cleaned = (value ?? '').replace(/\s/g, '').replace(',', '.');
+  if (cleaned === '') return '';
+  const n = Number(cleaned);
+  return Number.isNaN(n) ? NaN : n;
+};
+
 /** 95 (daqiqa) -> "1 s 35 daq" */
 export const formatDuration = (
   minutes: number | null | undefined,

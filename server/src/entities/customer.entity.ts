@@ -17,6 +17,12 @@ import { Club } from './club.entity';
  */
 @Entity('customers')
 @Index('IDX_customers_club_name', ['clubId', 'name'])
+// Qisman unikal indeks migratsiyada yaratilgan, lekin metadatada ham e'lon
+// qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
+@Index('uq_customers_club_phone', ['clubId', 'phone'], {
+  unique: true,
+  where: `"phone" IS NOT NULL`,
+})
 export class Customer {
   @PrimaryGeneratedColumn()
   id: number;

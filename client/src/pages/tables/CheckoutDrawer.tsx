@@ -410,6 +410,16 @@ const CheckoutDrawer = ({
   const openSessionRef = useRef<number | null>(null);
   /** Ekranda oxirgi KO'RSATILGAN bar summasi — fon yangilanishi bilan taqqoslash uchun */
   const shownBarRef = useRef<number | null>(null);
+  /**
+   * Oxirgi QABUL QILINGAN server vaqti (ms).
+   *
+   * `openSessionRef` sekin javobning BOSHQA sessiyaga tushishini to'xtatadi,
+   * lekin AYNI sessiyaning ikki chek so'rovi tartibsiz kelishini emas (poll
+   * har 10 soniyada, oldingisini kutmasdan). Eskirgan javob `offsetMs` ni
+   * orqaga siljitib, kassa oynasidagi JONLI SUMMANI kamaytirib ko'rsatardi.
+   * Shuning uchun javob faqat server vaqti oldinga siljigan bo'lsa qabul qilinadi.
+   */
+  const lastServerNowRef = useRef(0);
 
   const discount = Form.useWatch('discount', form) ?? 0;
   const watchedAdjustment = Form.useWatch('adjustmentAmount', form) ?? 0;
@@ -444,6 +454,12 @@ const CheckoutDrawer = ({
         const res = await sessionsApi.receipt(reqId);
         if (openSessionRef.current !== reqId) return null;
         const r = res.data;
+        // Eskirgan javobni tashlaymiz (yuqoridagi lastServerNowRef izohiga qarang)
+        const serverMs = Date.parse(r.serverNow);
+        if (!Number.isNaN(serverMs)) {
+          if (serverMs < lastServerNowRef.current) return null;
+          lastServerNowRef.current = serverMs;
+        }
         const previousBar = shownBarRef.current;
         if (previousBar !== null && Math.abs(previousBar - r.barAmount) > 0.01) {
           setBarChanged({ from: previousBar, to: r.barAmount });
@@ -470,6 +486,8 @@ const CheckoutDrawer = ({
     if (!table) return;
     openSessionRef.current = sessionId;
     shownBarRef.current = null;
+    // Yangi sessiya — vaqt qo'riqchisi ham noldan boshlanadi
+    lastServerNowRef.current = 0;
     setReceipt(null);
     setTiming(null);
     setSegments([]);

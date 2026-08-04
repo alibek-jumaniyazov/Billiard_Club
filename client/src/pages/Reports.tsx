@@ -10,10 +10,12 @@ import {
   Skeleton,
   Table,
   Tabs,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
   BarChartOutlined,
+  CalendarOutlined,
   CoffeeOutlined,
   DollarOutlined,
   DownloadOutlined,
@@ -92,18 +94,33 @@ const Reports = () => {
 
   const paramsKey = currentParams ? `${reportType}|${JSON.stringify(currentParams)}` : null;
 
+  /**
+   * So'rov navbati tokenlari: davr almashtirilganda eski (sekinroq) so'rov
+   * oxirida tugab, yangi davr raqamlarini bosib ketmasin
+   * (Reservations.tsx dagi requestIdRef bilan bir xil naqsh).
+   */
+  const reqIdRef = useRef(0);
+  const productsReqIdRef = useRef(0);
+
   const fetchReport = useCallback(
     async (p: number, ps: number) => {
       if (!currentParams) return;
+      const reqId = (reqIdRef.current += 1);
+      const isStale = () => reqIdRef.current !== reqId;
       setLoading(true);
       try {
         const res = await reportsApi.get(reportType, { ...currentParams, page: p, limit: ps });
+        if (isStale()) return;
         setReport(res.data);
       } catch (err) {
+        if (isStale()) return;
         message.error(errorMessage(err, t('common.error')));
       } finally {
-        setLoading(false);
-        setLoaded(true);
+        // Eskirgan oqim yangi so'rovning yuklanish holatini o'chirmasin
+        if (!isStale()) {
+          setLoading(false);
+          setLoaded(true);
+        }
       }
     },
     [reportType, currentParams, message, t],
@@ -126,20 +143,34 @@ const Reports = () => {
   // Bar savdosi hisoboti — faqat tab ochiq bo'lganda yuklanadi
   const fetchProducts = useCallback(async () => {
     if (!currentParams) return;
+    const reqId = (productsReqIdRef.current += 1);
+    const isStale = () => productsReqIdRef.current !== reqId;
     setProductsLoading(true);
     try {
       const res = await reportsApi.products(reportType, currentParams);
+      if (isStale()) return;
       setProductsReport(res.data);
     } catch (err) {
+      if (isStale()) return;
       message.error(errorMessage(err, t('common.error')));
     } finally {
-      setProductsLoading(false);
+      if (!isStale()) setProductsLoading(false);
     }
   }, [reportType, currentParams, message, t]);
 
   useEffect(() => {
     if (activeTab === 'products') void fetchProducts();
   }, [activeTab, fetchProducts]);
+
+  /**
+   * Davr turi almashtirilganda ESKI davr raqamlari ekranda qolib ketmasin:
+   * yangi so'rov kelguncha (yoki "Davr" uchun sana tanlanguncha) bo'sh holat.
+   */
+  const handleTypeChange = (value: ReportType) => {
+    setReportType(value);
+    setReport(null);
+    setProductsReport(null);
+  };
 
   const handleRefresh = () => {
     void fetchReport(page, pageSize);
@@ -290,7 +321,7 @@ const Reports = () => {
                 { label: t('reports.custom'), value: 'custom' },
               ]}
               value={reportType}
-              onChange={setReportType}
+              onChange={handleTypeChange}
             />
             {reportType === 'daily' && (
               <DatePicker
@@ -326,20 +357,43 @@ const Reports = () => {
                 }}
               />
             )}
-            <Button icon={<ReloadOutlined />} onClick={handleRefresh} />
             <Button
-              type="primary"
-              icon={<DownloadOutlined />}
-              loading={exporting}
+              icon={<ReloadOutlined />}
+              onClick={handleRefresh}
               disabled={!currentParams}
-              onClick={() => void handleExport()}
-            >
-              {t('reports.exportExcel')}
-            </Button>
+              aria-label={t('btn.refresh')}
+            />
+            {/* O'chiq tugma nega bosilmasligini Tooltip tushuntiradi
+                (antd disabled tugmani hodisa uchun span bilan o'rash kerak) */}
+            <Tooltip title={currentParams ? undefined : t('reports.exportDisabledHint')}>
+              <span style={{ display: 'inline-block' }}>
+                <Button
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                  loading={exporting}
+                  disabled={!currentParams}
+                  onClick={() => void handleExport()}
+                >
+                  {t('reports.exportExcel')}
+                </Button>
+              </span>
+            </Tooltip>
           </>
         }
       />
 
+      {/* "Davr" tanlangan, lekin sana oralig'i hali berilmagan — raqamlar
+          o'rniga bo'sh holat (eski davr raqamlari ko'rinib turmasin) */}
+      {currentParams === null ? (
+        <Card>
+          <EmptyState
+            icon={<CalendarOutlined />}
+            title={t('reports.selectRangeTitle')}
+            hint={t('reports.selectRangeHint')}
+          />
+        </Card>
+      ) : (
+      <>
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         <Col xs={24} sm={12} lg={6}>
           <StatCard
@@ -567,6 +621,8 @@ const Reports = () => {
           },
         ]}
       />
+      </>
+      )}
     </PageTransition>
   );
 };

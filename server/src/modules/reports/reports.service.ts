@@ -387,7 +387,8 @@ export class ReportsService {
             discount,
             adjustment: session.adjustmentAmount,
             total: session.totalAmount,
-            method: session.paymentMethod ?? '-',
+            // Xom enum ('cash'/'card'/'transfer') o'rniga tarjima qilingan nom
+            method: session.paymentMethod ? t(lang, `payment.${session.paymentMethod}`) : '-',
             paid: session.isPaid ? t(lang, 'reports.paidYes') : t(lang, 'reports.paidNo'),
           })
           .commit();

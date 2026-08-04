@@ -11,7 +11,7 @@ export default {
     ruleRussian: 'Rus bilyardi',
     ruleAmerican: 'Amerika pul (8-ball)',
     ruleRussianDesc:
-      '15 fil suyagi shar va qizil biток. Har tushirilgan shar — 1 ochko. Birinchi bo‘lib 8 ochko yiqqan g‘olib.',
+      '15 fil suyagi shar va qizil bitok. Har tushirilgan shar — 1 ochko. Birinchi bo‘lib 8 ochko yiqqan g‘olib.',
     ruleAmericanDesc:
       'To‘liq (1–7) va chiziqli (9–15) sharlar. O‘z guruhini tozalab, 8-sharni qoidaga ko‘ra tushirgan yutadi.',
     player1: '1-o‘yinchi',
@@ -20,7 +20,7 @@ export default {
     player2Default: '2-o‘yinchi',
     start: 'Boshlash',
     howToTitle: 'Qanday o‘ynaladi',
-    howTo1: 'Sichqoncha bilan mo‘ljal oling — biток‘dan nishon sari.',
+    howTo1: 'Sichqoncha bilan mo‘ljal oling — bitok‘dan nishon sari.',
     howTo2: 'Bosib turing: quvvat o‘lchagichi to‘ladi. Kerakli kuchda qo‘yib yuboring.',
     howTo3: 'O‘ngdagi soqqadan effekt tanlang — follow, draw yoki yon burama (spin).',
 
@@ -33,10 +33,10 @@ export default {
     open: 'Ochiq stol',
     power: 'Quvvat',
     spin: 'Effekt (spin)',
-    spinHint: 'Biток‘ning qayeriga urishni tanlang',
+    spinHint: 'Bitok‘ning qayeriga urishni tanlang',
     spinReset: 'Markazga',
     aimHint: 'Mo‘ljallang, bosib turing va kerakli quvvatda qo‘yib yuboring.',
-    ballInHand: 'Biток‘ni qo‘ying',
+    ballInHand: 'Bitok‘ni qo‘ying',
     newRound: 'Yangi partiya',
     exit: 'Chiqish',
 
@@ -44,7 +44,7 @@ export default {
     msg_break: 'Boshlang‘ich zarba',
     msg_continue: 'Muvaffaqiyatli! Navbat yana sizda',
     msg_miss: 'O‘tkazib yuborildi — navbat almashdi',
-    msg_foulScratch: 'Faul: biток tushib ketdi',
+    msg_foulScratch: 'Faul: bitok tushib ketdi',
     msg_foulNoContact: 'Faul: hech qaysi sharga tegmadi',
     msg_foulWrongBall: 'Faul: avval o‘z guruhingizni urish kerak',
     msg_assignedSolids: '{{name}} — TO‘LIQ sharlar (1–7)',

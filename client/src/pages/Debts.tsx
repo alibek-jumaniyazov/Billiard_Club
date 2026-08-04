@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -9,7 +10,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
   Row,
   Segmented,
   Select,
@@ -17,6 +17,7 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
@@ -48,7 +49,12 @@ import { isFormValidationError } from '../utils/formErrors';
 
 const { Text } = Typography;
 
-type StatusFilter = 'unpaid' | 'paid' | 'all';
+/**
+ * 'written_off' — hisobdan chiqarilgan qarzlar ALOHIDA ko'rsatiladi.
+ * Ular ham `isPaid = true` bo'ladi, lekin pul OLINMAGAN — "To'langan"
+ * ro'yxatiga qo'shilsa yig'indi klub egasini chalg'itardi.
+ */
+type StatusFilter = 'unpaid' | 'paid' | 'written_off' | 'all';
 
 interface FetchParams {
   page: number;
@@ -80,6 +86,12 @@ const Debts = () => {
   const [historyDebt, setHistoryDebt] = useState<Debt | null>(null);
   const [payments, setPayments] = useState<DebtPayment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
+
+  // Hisobdan chiqarish — oddiy "rostdanmi?" o'rniga to'liq tasdiq oynasi
+  const [deleteDebt, setDeleteDebt] = useState<Debt | null>(null);
+  /** Hisobdan chiqarish sababi — serverga uzatiladi va audit jurnaliga tushadi */
+  const [writeOffReason, setWriteOffReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const canPay = hasRole('admin', 'kassir');
   const isAdmin = hasRole('admin');
@@ -175,14 +187,24 @@ const Debts = () => {
     }
   };
 
-  // ---------- O'chirish (server to'lovi bor qarzni bloklaydi) ----------
-  const handleDelete = async (debt: Debt) => {
+  // ---------- Hisobdan chiqarish (server to'lovi bor qarzni bloklaydi) ----------
+  const handleDelete = async () => {
+    if (!deleteDebt) return;
+    const reason = writeOffReason.trim();
+    if (!reason) {
+      message.warning(t('debts.writeOffReasonRequired'));
+      return;
+    }
+    setDeleting(true);
     try {
-      const res = await debtsApi.remove(debt.id);
+      const res = await debtsApi.remove(deleteDebt.id, reason);
       message.success(res.message);
+      setDeleteDebt(null);
       void fetchDebts({ page, limit: pageSize, search, status });
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -248,9 +270,16 @@ const Debts = () => {
     {
       title: t('debts.status'),
       dataIndex: 'isPaid',
-      width: 130,
-      render: (isPaid: boolean) =>
-        isPaid ? (
+      width: 150,
+      // Hisobdan chiqarilgan qarz ham `isPaid: true` bo'ladi, lekin u
+      // TO'LANMAGAN — uni "To'langan" deb ko'rsatish klub egasini undirilmagan
+      // pulni tushum deb o'ylashga olib kelardi. Shuning uchun alohida belgi.
+      render: (isPaid: boolean, debt) =>
+        debt.writtenOffAt ? (
+          <Tooltip title={debt.writtenOffReason || t('debts.writeOffTitle')}>
+            <Tag color="warning">{t('debts.writtenOff')}</Tag>
+          </Tooltip>
+        ) : isPaid ? (
           <StatusTag status="paid" label={t('status.paid')} />
         ) : (
           <StatusTag status="debt" label={t('status.unpaid')} />
@@ -278,15 +307,23 @@ const Debts = () => {
             title={t('debts.historyTitle')}
             onClick={() => void openHistory(debt)}
           />
-          {isAdmin && (
-            <Popconfirm
-              title={t('common.confirmDelete')}
-              okText={t('common.yes')}
-              cancelText={t('common.no')}
-              onConfirm={() => void handleDelete(debt)}
-            >
-              <Button size="small" danger type="text" icon={<DeleteOutlined />} />
-            </Popconfirm>
+          {/* Yopilgan qarzni (to'langan yoki allaqachon hisobdan chiqarilgan)
+              qayta chiqarib bo'lmaydi — server ham rad etadi. Tugmani ochiq
+              qoldirish foydalanuvchini majburiy sabab yozib, so'ng xato olishga
+              olib borardi */}
+          {isAdmin && !debt.isPaid && (
+            <Button
+              size="small"
+              danger
+              type="text"
+              icon={<DeleteOutlined />}
+              aria-label={t('debts.writeOffTitle')}
+              title={t('debts.writeOffTitle')}
+              onClick={() => {
+                setWriteOffReason('');
+                setDeleteDebt(debt);
+              }}
+            />
           )}
         </Space>
       ),
@@ -331,6 +368,7 @@ const Debts = () => {
               options={[
                 { label: t('status.unpaid'), value: 'unpaid' },
                 { label: t('status.paid'), value: 'paid' },
+                { label: t('debts.writtenOff'), value: 'written_off' },
                 { label: t('common.all'), value: 'all' },
               ]}
               value={status}
@@ -505,6 +543,65 @@ const Debts = () => {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Hisobdan chiqarish — mijoz, qoldiq va qaytarib bo'lmasligi aniq ko'rsatiladi */}
+      <Modal
+        title={t('debts.writeOffTitle')}
+        open={!!deleteDebt}
+        onCancel={() => setDeleteDebt(null)}
+        onOk={() => void handleDelete()}
+        okText={t('debts.writeOffConfirm')}
+        cancelText={t('btn.cancel')}
+        okButtonProps={{ danger: true }}
+        confirmLoading={deleting}
+      >
+        <div
+          style={{
+            background: TOKENS.color.bg.bg2,
+            border: `1px solid ${TOKENS.color.border.subtle}`,
+            borderRadius: TOKENS.radius.md,
+            padding: '12px 16px',
+            marginBottom: 16,
+          }}
+        >
+          <Text type="secondary" style={{ fontSize: 13, display: 'block' }}>
+            {t('common.customer')}
+          </Text>
+          <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 8 }}>
+            {deleteDebt?.customerName}
+          </Text>
+          <Text type="secondary" style={{ fontSize: 13, display: 'block' }}>
+            {t('debts.remainingLabel')}
+          </Text>
+          <MoneyText
+            amount={deleteDebt?.remainingDebt}
+            currency={currency}
+            size="lg"
+            color={TOKENS.color.semantic.error}
+          />
+        </div>
+        <Alert
+          type="error"
+          showIcon
+          message={t('debts.writeOffWarning')}
+          style={{ marginBottom: 16 }}
+        />
+
+        {/* Sabab MAJBURIY: bu pulni yo'q qiladigan amal — audit jurnalida
+            "kim, qachon, nega" savoliga javob qolishi shart */}
+        <Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>
+          {t('debts.writeOffReasonLabel')}
+        </Text>
+        <Input.TextArea
+          value={writeOffReason}
+          onChange={(e) => setWriteOffReason(e.target.value)}
+          placeholder={t('debts.writeOffReasonPlaceholder')}
+          maxLength={200}
+          showCount
+          rows={2}
+          status={writeOffReason.trim().length === 0 ? 'error' : undefined}
+        />
       </Modal>
 
       {/* To'lovlar tarixi */}

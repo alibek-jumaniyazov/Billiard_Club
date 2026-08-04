@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -12,7 +13,15 @@ import { NumericTransformer } from '../common/transformers/numeric.transformer';
 import { Club } from './club.entity';
 import { Category } from './category.entity';
 
+// DB darajasidagi cheklovlar migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` ularni DROP qiladi).
 @Entity('products')
+@Check('chk_products_valid', '"price" >= 0 AND "stock" >= 0')
+// Klub + kategoriya ichida faol mahsulot nomi unikal
+@Index('uq_products_club_cat_name_active', ['clubId', 'categoryId', 'name'], {
+  unique: true,
+  where: `"isActive" = true`,
+})
 export class Product {
   @PrimaryGeneratedColumn()
   id: number;

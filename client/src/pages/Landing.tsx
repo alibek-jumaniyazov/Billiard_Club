@@ -43,6 +43,7 @@ import { AnimatedBackground, BilliardTable, BrandLogo, GlassCard } from '../comp
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { formatNumber } from '../utils/format';
 import { publicApi } from '../api';
+import { setTrialDays } from '../i18n';
 import type { Plan } from '../types';
 
 const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
@@ -345,6 +346,35 @@ const Landing = () => {
     };
   }, []);
 
+  /**
+   * BEPUL SINOV MUDDATI — superadmin sozlamasidan (GET /public/config).
+   *
+   * Sahifadagi barcha "N kun bepul" matnlari shu qiymatdan yig'iladi
+   * (i18n `{{days}}`). Ilgari ular qat'iy "7 kun" edi va superadmin
+   * muddatni o'zgartirsa sayt YOLG'ON va'da berib qolardi.
+   *
+   * `trialDays` holati ataylab saqlanadi: u to'g'ridan-to'g'ri render'da
+   * ishlatilmasa ham, o'zgarishi qayta render'ni keltiradi va shundagina
+   * `t()` yangi qiymat bilan interpolatsiya qiladi.
+   */
+  const [, setTrialDaysState] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    publicApi
+      .config()
+      .then((res) => {
+        if (!alive || typeof res.data?.trialDays !== 'number') return;
+        setTrialDays(res.data.trialDays);
+        setTrialDaysState(res.data.trialDays);
+      })
+      .catch(() => {
+        /* standart qiymat (7) qoladi — sahifa baribir to'g'ri ko'rinadi */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const planCards = useMemo<PlanCard[]>(() => {
     if (livePlans && livePlans.length > 0) {
       const sorted = [...livePlans].sort((a, b) => a.durationDays - b.durationDays);
@@ -587,6 +617,9 @@ const Landing = () => {
                   {t(`landing.${link.key}`)}
                 </a>
               ))}
+              <Link className="lp-nav-link" to="/download">
+                {t('landing.navDownload')}
+              </Link>
               {langSwitcher()}
               <Button className="lp-outline-btn" onClick={() => navigate('/login')}>
                 {t('landing.navLogin')}
@@ -769,7 +802,10 @@ const Landing = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.8, ease: TOKENS.motion.easing.out, delay: 0.25 }}
                   >
-                    <BilliardTable hint={t('landing.heroTableHint')} />
+                    <BilliardTable
+                      hint={t('landing.heroTableHint')}
+                      ariaLabel={t('landing.heroTableAria')}
+                    />
                   </motion.div>
                 </Col>
               </Row>
@@ -1418,6 +1454,9 @@ const Landing = () => {
                       {t(`landing.${link.key}`)}
                     </a>
                   ))}
+                  <Link className="lp-nav-link" to="/download">
+                    {t('landing.navDownload')}
+                  </Link>
                 </div>
               </Col>
               <Col xs={12} md={7}>

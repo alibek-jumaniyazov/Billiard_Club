@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   App,
-  AutoComplete,
   Button,
   Card,
   Col,
@@ -37,6 +36,7 @@ import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { Expense } from '../types';
+import { isFormValidationError } from '../utils/formErrors';
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -176,9 +176,10 @@ const Expenses = () => {
   };
 
   const handleSave = async () => {
-    const values = await form.validateFields();
-    setSaving(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await form.validateFields();
+      setSaving(true);
       const body = {
         category: values.category.trim(),
         amount: values.amount,
@@ -192,7 +193,8 @@ const Expenses = () => {
       closeForm();
       refresh();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setSaving(false);
     }
@@ -411,16 +413,28 @@ const Expenses = () => {
           <Form.Item
             name="category"
             label={t('expenses.categoryLabel')}
-            rules={[{ required: true, whitespace: true, message: t('expenses.categoryRequired') }]}
+            rules={[
+              { required: true, whitespace: true, message: t('expenses.categoryRequired') },
+              { max: 50, message: t('expenses.categoryTooLong') },
+            ]}
+            /* DB da AVVALGIDEK til-neytral kalit ('rent') saqlanadi — Select
+               `tags` rejimi massiv bilan ishlagani uchun forma qiymati shu
+               yerda satrga o'giriladi (oxirgi tanlangan qiymat qoladi).
+               AutoComplete combobox rejimi label emas, XOM kalitni yozardi. */
+            getValueProps={(value?: string) => ({ value: value ? [value] : [] })}
+            normalize={(value: string[]) =>
+              value && value.length > 0 ? value[value.length - 1] : undefined
+            }
           >
-            <AutoComplete
-              options={categoryOptions}
+            <Select
+              mode="tags"
+              allowClear
               placeholder={t('expenses.categoryPlaceholder')}
-              maxLength={50}
+              options={categoryOptions}
               filterOption={(input, option) => {
                 const q = input.toLowerCase();
                 return (
-                  (option?.value ?? '').toLowerCase().includes(q) ||
+                  String(option?.value ?? '').toLowerCase().includes(q) ||
                   String(option?.label ?? '').toLowerCase().includes(q)
                 );
               }}

@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -21,7 +22,24 @@ import { Sale } from './sale.entity';
 import { SessionSegment } from './session-segment.entity';
 import { SessionPayment } from './session-payment.entity';
 
+// DB darajasidagi cheklovlar migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART: aks holda kelajakdagi `migration:generate` ularni
+// "ortiqcha" deb hisoblab DROP qiladigan migratsiya yozadi.
 @Entity('sessions')
+@Check(
+  'chk_sessions_amounts_nonneg',
+  '"tableAmount" >= 0 AND "barAmount" >= 0 AND "totalAmount" >= 0 AND "totalPausedMs" >= 0',
+)
+// Bitta stolda bir vaqtda faqat bitta faol/pauzadagi sessiya (poyga himoyasi)
+@Index('uq_sessions_one_active_per_table', ['tableId'], {
+  unique: true,
+  where: `"status" IN ('active', 'paused')`,
+})
+// Chiroq "grace" mantiqi stolning OXIRGI yakunlangan sessiyasini qidiradi —
+// unga qisman indeks kerak (1784247700000-LightControlPro migratsiyasi)
+@Index('IDX_sessions_table_endTime_finished', ['tableId', 'endTime'], {
+  where: `status IN ('completed', 'cancelled')`,
+})
 export class Session {
   @PrimaryGeneratedColumn()
   id: number;

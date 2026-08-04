@@ -1,14 +1,18 @@
 {
-  "name": "prime-billiard",
+  "name": "billiard-club",
   "private": true,
   "version": "1.0.0",
-  "description": "Prime Billiard — billiard klublar uchun multi-tenant boshqaruv tizimi (SaaS)",
+  "description": "Billiard Club — billiard klublar uchun multi-tenant boshqaruv tizimi (SaaS)",
   "scripts": {
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "build": "npm --prefix server run build && npm --prefix client run build",
     "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck",
+    "test": "npm --prefix client run test",
     "migrate": "npm --prefix server run migration:run",
-    "seed": "npm --prefix server run seed"
+    "seed": "npm --prefix server run seed",
+    "desktop": "npm --prefix desktop start",
+    "desktop:dist": "npm --prefix desktop run dist:win",
+    "icons": "node desktop/build/make-icons.mjs"
   }
 }

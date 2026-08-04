@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -25,7 +26,11 @@ import { Table } from './table.entity';
  *  - Segment bo'yicha hisob: billedSeconds = floor((min(endedAt ?? now, sessiyaTugashi) - startedAt - pausedMs) / 1000)
  *    summa = round2(pricePerHour * billedSeconds / 3600).
  */
+// DB darajasidagi cheklovlar migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` ularni DROP qiladi).
 @Entity('session_segments')
+@Check('chk_session_segments_price_nonneg', '"pricePerHour" >= 0')
+@Check('chk_session_segments_pausedMs_nonneg', '"pausedMs" >= 0')
 export class SessionSegment {
   @PrimaryGeneratedColumn()
   id: number;

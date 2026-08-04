@@ -47,9 +47,11 @@ interface BilliardTableProps {
   style?: CSSProperties;
   className?: string;
   hint?: string;
+  /** Ekran o'quvchi uchun nom — matn tarjimasi chaqiruvchi sahifadan keladi (hint kabi) */
+  ariaLabel?: string;
 }
 
-const BilliardTable = ({ style, className, hint }: BilliardTableProps) => {
+const BilliardTable = ({ style, className, hint, ariaLabel }: BilliardTableProps) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showHint, setShowHint] = useState(Boolean(hint));
@@ -719,7 +721,7 @@ const BilliardTable = ({ style, className, hint }: BilliardTableProps) => {
 
   return (
     <div
-      aria-label="Rus bilyardi"
+      aria-label={ariaLabel}
       className={className}
       style={{
         position: 'relative',

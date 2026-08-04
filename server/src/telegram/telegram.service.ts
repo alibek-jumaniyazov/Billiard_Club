@@ -34,8 +34,40 @@ export const DEFAULT_TELEGRAM_EVENTS: Record<TelegramEvent, boolean> = {
 /** platform_settings dagi hodisa sozlamalari kaliti */
 export const TELEGRAM_EVENTS_SETTING_KEY = 'telegram_events';
 
+/**
+ * platform_settings dagi CHAT ID kaliti.
+ *
+ * Nega DB da, `.env` da emas: oddiy guruh supergroup'ga aylanganda Telegram
+ * chat ID sini BUTUNLAY o'zgartiradi. `.env` ni server o'zi tahrirlay olmaydi
+ * (va tahrirlamasligi ham kerak), shuning uchun yangi ID shu yerga yoziladi.
+ */
+export const TELEGRAM_CHAT_ID_SETTING_KEY = 'telegram_chat_id';
+
 /** Hodisa sozlamalari keshi muddati — har so'rovda DB ga bormaslik uchun */
 const EVENTS_CACHE_TTL_MS = 60 * 1000;
+
+/** Bitta xabar uchun eng ko'p urinish (ko'chish + qayta urinishlar bilan birga) */
+const SEND_MAX_ATTEMPTS = 3;
+
+/** Bitta so'rov timeouti — chaqiruvchi uzoq bloklanmasin */
+const SEND_TIMEOUT_MS = 5000;
+
+/** Vaqtinchalik xatodan keyin kutish (urinish raqamiga ko'paytiriladi) */
+const SEND_RETRY_DELAY_MS = 500;
+
+/** 429 dagi `retry_after` shundan uzoq bo'lsa kutmaymiz — xabar eskiradi */
+const SEND_MAX_BACKOFF_MS = 3000;
+
+/** Telegram API xato javobining bizga kerakli qismi */
+interface TelegramErrorBody {
+  description?: string;
+  parameters?: {
+    /** Guruh supergroup'ga ko'chdi — yangi chat ID */
+    migrate_to_chat_id?: number;
+    /** Chegaraga urildik — shuncha soniya kutish kerak */
+    retry_after?: number;
+  };
+}
 
 /**
  * Telegram xabarnomalari — platforma egasiga (sizga) muhim hodisalar
@@ -50,6 +82,12 @@ export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
 
   private eventsCache: { value: Record<string, boolean>; loadedAt: number } | null = null;
+
+  /**
+   * Joriy chat ID keshi. `undefined` — hali o'qilmagan, `null` — sozlanmagan.
+   * TTL yo'q: qiymat faqat shu servis o'zi ko'chirganda o'zgaradi.
+   */
+  private chatIdCache: string | null | undefined = undefined;
 
   constructor(
     private readonly config: ConfigService,
@@ -192,29 +230,194 @@ export class TelegramService {
     );
   }
 
-  /** Xabarni Telegram API ga jo'natish (fire-and-forget) */
+  /**
+   * Joriy chat ID.
+   *
+   * Manba tartibi: DB dagi ko'chirilgan qiymat > `.env`. DB birinchi turadi,
+   * chunki guruh supergroup'ga aylanganda Telegram YANGI ID beradi va eski
+   * `.env` qiymati abadiy ishlamay qoladi (pastdagi izohga qarang).
+   */
+  private async resolveChatId(): Promise<string | null> {
+    if (this.chatIdCache !== undefined) return this.chatIdCache;
+    try {
+      const row = await this.platformSettingRepo.findOne({
+        where: { key: TELEGRAM_CHAT_ID_SETTING_KEY },
+      });
+      const stored = typeof row?.value === 'string' ? row.value : null;
+      this.chatIdCache = stored || this.config.get<string>('TELEGRAM_CHAT_ID') || null;
+    } catch {
+      // DB yetib bo'lmasa .env ga qaytamiz — xabarnoma to'xtamasin
+      this.chatIdCache = this.config.get<string>('TELEGRAM_CHAT_ID') || null;
+    }
+    return this.chatIdCache;
+  }
+
+  /**
+   * Yangi chat ID ni DOIMIY saqlash (supergroup ko'chishidan keyin).
+   *
+   * `.env` ni o'zgartirib bo'lmaydi — server uni faqat o'qiydi va qayta
+   * ishga tushirish kerak bo'lardi. platform_settings esa allaqachon shu
+   * maqsad uchun ishlatiladi (telegram_events shu yerda).
+   */
+  private async persistChatId(chatId: string): Promise<void> {
+    this.chatIdCache = chatId;
+    try {
+      await this.platformSettingRepo.upsert(
+        { key: TELEGRAM_CHAT_ID_SETTING_KEY, value: chatId },
+        ['key'],
+      );
+      this.logger.log(`Telegram chat ID yangilandi va saqlandi: ${chatId}`);
+    } catch (err) {
+      // Saqlanmasa ham joriy jarayon davomida ishlaydi (kesh yangilangan)
+      this.logger.error(`Telegram chat ID saqlanmadi: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Xabarni Telegram API ga jo'natish (fire-and-forget).
+   *
+   * UCHTA HOLAT ALOHIDA QAYTA ISHLANADI — ilgari ularning hammasi shunchaki
+   * logga yozilib, xabar YO'QOLARDI:
+   *
+   *  1. SUPERGROUP KO'CHISHI (400 + `migrate_to_chat_id`). Oddiy guruhga
+   *     admin qo'shilsa yoki tarix yoqilsa Telegram uni supergroup'ga
+   *     aylantiradi va ID BUTUNLAY o'zgaradi (masalan -123 -> -1004487367602).
+   *     Shundan keyin BARCHA xabarlar 400 bilan yiqilardi va buni faqat
+   *     server logini ochgan odam bilardi. Endi yangi ID javobning o'zidan
+   *     olinadi, DB ga saqlanadi va xabar DARHOL qayta yuboriladi.
+   *
+   *  2. CHEGARA (429 + `retry_after`). Telegram aytgan muddat kutiladi.
+   *
+   *  3. VAQTINCHALIK XATO (5xx, tarmoq, timeout). Qisqa kutish bilan
+   *     qayta urinish — bir marталик tarmoq lipillashi xabarni yo'qotmasin.
+   *
+   * Urinishlar soni cheklangan: bu fire-and-forget yo'l va u hech qachon
+   * chaqiruvchini uzoq ushlab turmasligi kerak.
+   */
   private async send(text: string): Promise<void> {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
-    const chatId = this.config.get<string>('TELEGRAM_CHAT_ID');
-    if (!token || !chatId) {
-      this.logger.warn('Telegram sozlanmagan (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID) — xabar yuborilmadi');
+    if (!token) {
+      this.logger.warn('Telegram sozlanmagan (TELEGRAM_BOT_TOKEN) — xabar yuborilmadi');
       return;
     }
+
+    let chatId = await this.resolveChatId();
+    if (!chatId) {
+      this.logger.warn('Telegram sozlanmagan (TELEGRAM_CHAT_ID) — xabar yuborilmadi');
+      return;
+    }
+
+    for (let attempt = 1; attempt <= SEND_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        // Timeout SHART: aks holda Telegram sekin/yetib bo'lmaydigan bo'lsa fetch
+        // uzoq osilib qolardi — bu esa xabarni AWAIT qilgan chaqiruvchilarni
+        // (masalan fikr-mulohaza yuborish) bloklaydi.
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text,
+            parse_mode: 'HTML',
+            // Havolalar ostidagi katta oldindan ko'rish bloklari xabarnomalarni
+            // o'qishni qiyinlashtiradi
+            link_preview_options: { is_disabled: true },
+          }),
+          signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+        });
+
+        if (res.ok) return;
+
+        const body = (await res.json().catch(() => null)) as TelegramErrorBody | null;
+
+        // 1. Guruh supergroup'ga ko'chdi — yangi ID bilan DARHOL qayta yuboramiz
+        const migrateTo = body?.parameters?.migrate_to_chat_id;
+        if (migrateTo) {
+          await this.persistChatId(String(migrateTo));
+          chatId = String(migrateTo);
+          continue;
+        }
+
+        // 2. Chegara — Telegram aytgan muddat kutiladi
+        const retryAfter = body?.parameters?.retry_after;
+        if (res.status === 429 && retryAfter && attempt < SEND_MAX_ATTEMPTS) {
+          await this.delay(Math.min(retryAfter * 1000, SEND_MAX_BACKOFF_MS));
+          continue;
+        }
+
+        // 3. Server tomondagi vaqtinchalik xato
+        if (res.status >= 500 && attempt < SEND_MAX_ATTEMPTS) {
+          await this.delay(SEND_RETRY_DELAY_MS * attempt);
+          continue;
+        }
+
+        // Qolgani DOIMIY xato (noto'g'ri token, bot guruhdan chiqarilgan,
+        // chat topilmadi) — qayta urinish yordam bermaydi, sabab logda qoladi
+        this.logger.error(
+          `Telegram API xatosi: ${res.status} ${body?.description ?? '(tavsifsiz)'}`,
+        );
+        return;
+      } catch (err) {
+        // Tarmoq/timeout — vaqtinchalik deb qaraladi
+        if (attempt < SEND_MAX_ATTEMPTS) {
+          await this.delay(SEND_RETRY_DELAY_MS * attempt);
+          continue;
+        }
+        this.logger.error(`Telegram xabari yuborilmadi: ${(err as Error).message}`);
+      }
+    }
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Sozlamani tekshirish — superadmin panelidagi "Sinov xabari" tugmasi uchun.
+   * Xatoni YUTMAYDI: bu yerda foydalanuvchi aynan sababni ko'rishi kerak.
+   */
+  async selfTest(): Promise<{ ok: boolean; chatId: string | null; error?: string }> {
+    const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
+    const chatId = await this.resolveChatId();
+    if (!token) return { ok: false, chatId, error: 'TELEGRAM_BOT_TOKEN kiritilmagan' };
+    if (!chatId) return { ok: false, chatId, error: 'TELEGRAM_CHAT_ID kiritilmagan' };
+
     try {
-      // Timeout SHART: aks holda Telegram sekin/yetib bo'lmaydigan bo'lsa fetch
-      // uzoq osilib qolardi — bu esa xabarni AWAIT qilgan chaqiruvchilarni
-      // (masalan fikr-mulohaza yuborish) bloklaydi. 5 soniyadan keyin uziladi.
       const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
-        signal: AbortSignal.timeout(5000),
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: '✅ <b>Billiard Club</b> — Telegram ulanishi ishlayapti.',
+          parse_mode: 'HTML',
+        }),
+        signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
       });
-      if (!res.ok) {
-        this.logger.error(`Telegram API xatosi: ${res.status} ${await res.text()}`);
+      if (res.ok) return { ok: true, chatId };
+
+      const body = (await res.json().catch(() => null)) as TelegramErrorBody | null;
+
+      // Sinov paytida ham ko'chishni o'zi hal qiladi — foydalanuvchi tugmani
+      // ikkinchi marta bosishga majbur bo'lmasin
+      const migrateTo = body?.parameters?.migrate_to_chat_id;
+      if (migrateTo) {
+        await this.persistChatId(String(migrateTo));
+        const retry = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: String(migrateTo),
+            text: '✅ <b>Billiard Club</b> — Telegram ulanishi ishlayapti (guruh supergroup‘ga ko‘chdi, yangi ID saqlandi).',
+            parse_mode: 'HTML',
+          }),
+          signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+        });
+        if (retry.ok) return { ok: true, chatId: String(migrateTo) };
       }
+
+      return { ok: false, chatId, error: body?.description ?? `HTTP ${res.status}` };
     } catch (err) {
-      this.logger.error(`Telegram xabari yuborilmadi: ${(err as Error).message}`);
+      return { ok: false, chatId, error: (err as Error).message };
     }
   }
 

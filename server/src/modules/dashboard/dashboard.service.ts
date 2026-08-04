@@ -97,12 +97,58 @@ export class DashboardService {
         //    eng band stollar / eng ko'p xarajat qilgan mijozlar / soatlik yuklama
         this.dataSource.query(
           `(
+             WITH completed AS (
+               SELECT s.id, s."tableId", s."tableAmount", s."endTime"
+               FROM sessions s
+               WHERE s."clubId" = $1 AND s.status = 'completed'
+                 AND s."endTime" >= now() - interval '30 days'
+             ),
+             table_parts AS (
+               -- Segmentli sessiyalar: har segment tushumi O'Z stoliga tushadi.
+               -- Avval transfer qilingan sessiya butunlay OXIRGI stolga yozilardi.
+               -- Hisob sessions.service dagi formulaga YAQIN, lekin AYNAN o'sha
+               -- emas: u yerda soniyalar KUMULYATIV yig'indidan olinadi (chek
+               -- satrlari umumiy davomiylikka teng chiqishi uchun), bu yerda esa
+               -- har segment mustaqil yaxlitlanadi. Farq segment boshiga bir
+               -- soniyagacha — analitik reyting uchun ahamiyatsiz, chekda esa
+               -- ATAYLAB kumulyativ formula ishlatiladi.
+               SELECT seg."tableId" AS "tableId", c.id AS "sessionId",
+                      seg."pricePerHour" * GREATEST(0, FLOOR(
+                        EXTRACT(EPOCH FROM (
+                          LEAST(COALESCE(seg."endedAt", c."endTime"), c."endTime") - seg."startedAt"
+                        )) - seg."pausedMs" / 1000.0
+                      )) / 3600 AS "partAmount"
+               FROM completed c
+               JOIN session_segments seg ON seg."sessionId" = c.id
+               UNION ALL
+               -- Segmentsiz (v2 dan avvalgi) sessiyalar — zaxira yo'l.
+               -- DIQQAT: bu yerda totalAmount EMAS, tableAmount olinadi.
+               -- Korsatkich "stol qancha pul keltirdi" degani, yani STOL
+               -- VAQTI tushumi; yuqoridagi segment tarmogi ham aynan shuni
+               -- hisoblaydi. totalAmount bar savdosi va tuzatishlarni ham
+               -- oz ichiga oladi — ikkovini bir ustunda qoshish bir xil
+               -- korsatkichni ikki xil formula bilan hisoblash bolardi va
+               -- eski sessiyali stollar suniy ravishda oldinga chiqardi.
+               SELECT c."tableId", c.id, c."tableAmount"
+               FROM completed c
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM session_segments seg2 WHERE seg2."sessionId" = c.id
+               )
+               UNION ALL
+               -- BAR savdosi buyurtma QAYSI STOLDA berilgan bo'lsa o'sha stolga
+               -- yoziladi (orders."tableId"). Shu tufayli korsatkich avvalgidek
+               -- "stol qancha pul keltirdi" degan TOLIQ manoni saqlaydi, lekin
+               -- kochirilgan sessiyada bar puli ham togri stolga tushadi.
+               SELECT o."tableId", o."sessionId", o."totalAmount"
+               FROM orders o
+               JOIN completed c ON c.id = o."sessionId"
+               WHERE o.status = 'closed' AND o."tableId" IS NOT NULL
+             )
              SELECT 'table' AS kind, t.id AS id, t.name AS name, t.number::int AS num,
-                    COUNT(*)::int AS cnt, COALESCE(SUM(s."totalAmount"), 0)::float AS amount
-             FROM sessions s
-             JOIN tables t ON t.id = s."tableId"
-             WHERE s."clubId" = $1 AND s.status = 'completed'
-               AND s."endTime" >= now() - interval '30 days'
+                    COUNT(DISTINCT p."sessionId")::int AS cnt,
+                    COALESCE(SUM(p."partAmount"), 0)::float AS amount
+             FROM table_parts p
+             JOIN tables t ON t.id = p."tableId"
              GROUP BY t.id, t.name, t.number
              ORDER BY cnt DESC, amount DESC
              LIMIT 5

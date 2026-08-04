@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -13,7 +14,12 @@ import { LightMode } from './enums';
 import { Club } from './club.entity';
 
 /** Har bir klub uchun bitta sozlamalar yozuvi (clubId unique) */
+// DB darajasidagi cheklovlar migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` ularni DROP qiladi).
 @Entity('settings')
+@Check('chk_settings_light_off_delay', '"lightOffDelaySec" >= 0 AND "lightOffDelaySec" <= 3600')
+@Check('chk_settings_light_pre_on', '"lightPreOnMinutes" >= 0 AND "lightPreOnMinutes" <= 120')
+@Check('chk_settings_light_force_sync', '"lightForceSyncSec" >= 10 AND "lightForceSyncSec" <= 3600')
 export class Settings {
   @PrimaryGeneratedColumn()
   id: number;

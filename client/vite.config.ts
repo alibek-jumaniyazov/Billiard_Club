@@ -1,8 +1,9 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { swPlugin } from './vite-plugin-sw';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), swPlugin()],
   server: {
     port: 5173,
     proxy: {

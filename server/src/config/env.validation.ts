@@ -36,4 +36,18 @@ export const envValidationSchema = Joi.object({
   SUPERADMIN_USERNAME: Joi.string().optional(),
   SUPERADMIN_PASSWORD: Joi.string().optional(),
   SEED_DEMO_CLUB: Joi.string().optional(),
+
+  // Desktop o'rnatgichlari saqlanadigan papka. Bo'sh bo'lsa <server>/uploads/releases.
+  // Konteynerda ishlatilsa BU PAPKA doimiy diskka (volume) ulanishi shart —
+  // aks holda har deploy'da relizlar yo'qolib, mijozlar yangilana olmay qoladi.
+  RELEASES_DIR: Joi.string().allow('').optional(),
+
+  // Oflayn obuna ruxsatnomasini imzolash kaliti (ECDSA P-256, PKCS8 PEM).
+  // Bo'sh bo'lsa server birinchi ishga tushishda o'zi yaratadi va
+  // LICENSE_KEY_FILE ga yozadi.
+  // BIR NECHTA NUSXADA (bir nechta server/pod) ishlatilsa BU QIYMAT MAJBURIY:
+  // aks holda har nusxa o'z kalitini yaratadi va bir nusxa bergan
+  // ruxsatnomani klient boshqasining kaliti bilan tekshirib rad etadi.
+  LICENSE_PRIVATE_KEY: Joi.string().allow('').optional(),
+  LICENSE_KEY_FILE: Joi.string().allow('').optional(),
 });

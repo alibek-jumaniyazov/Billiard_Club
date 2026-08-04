@@ -136,8 +136,11 @@ export class CatalogService {
    * Mahsulot kartochkasini tahrirlash — ombor qoldig'iga TEGMAYDI.
    * Narxni tahrirlagan admin sahifa ochilgandan beri bo'lgan bar sotuvlarini
    * jimgina qaytarib yubormasligi uchun qoldiq faqat adjustStock() orqali.
+   *
+   * Narx o'zgarishi PUL NAZORATI hodisasi — u audit jurnaliga yoziladi
+   * (tables.service dagi table.price naqshi bilan bir xil).
    */
-  async updateProduct(clubId: number, id: number, dto: UpdateProductDto) {
+  async updateProduct(clubId: number, id: number, user: User, dto: UpdateProductDto) {
     const product = await this.productRepo.findOne({ where: { id, clubId, isActive: true } });
     if (!product) throw new NotFoundException({ key: 'products.notFound' });
 
@@ -148,6 +151,9 @@ export class CatalogService {
       if (!category) throw new NotFoundException({ key: 'categories.notFound' });
     }
 
+    const oldPrice = product.price;
+    const priceChanged = dto.price !== undefined && dto.price !== oldPrice;
+
     Object.assign(product, {
       ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
       ...(dto.name !== undefined ? { name: dto.name } : {}),
@@ -155,7 +161,22 @@ export class CatalogService {
       ...(dto.unit !== undefined ? { unit: dto.unit } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
     });
-    return this.productRepo.save(product);
+    const saved = await this.productRepo.save(product);
+
+    // Audit yozuv muvaffaqiyatli saqlangach (tables.service dagi kabi)
+    if (priceChanged) {
+      this.auditService?.log({
+        action: 'product.price',
+        clubId,
+        userId: user.id,
+        actorRole: user.role,
+        entity: 'product',
+        entityId: id,
+        meta: { oldPrice, newPrice: saved.price, name: saved.name },
+      });
+    }
+
+    return saved;
   }
 
   /**

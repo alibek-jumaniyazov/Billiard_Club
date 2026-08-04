@@ -3,10 +3,13 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
-import { Between, Brackets, DataSource, EntityManager, Repository } from 'typeorm';
+import { Between, Brackets, DataSource, EntityManager, IsNull, Repository } from 'typeorm';
+import { AuditService } from '../../common/audit/audit.service';
+import { clubTimezone, localDateParts, zonedMidnight } from '../../common/time/club-day';
 import { Category } from '../../entities/category.entity';
 import { Club } from '../../entities/club.entity';
 import { Contract, ContractType } from '../../entities/contract.entity';
@@ -14,11 +17,13 @@ import { Debt } from '../../entities/debt.entity';
 import { DebtPayment } from '../../entities/debt-payment.entity';
 import { ClubStatus, SessionStatus, UserRole } from '../../entities/enums';
 import { Product } from '../../entities/product.entity';
+import { RefreshSession } from '../../entities/refresh-session.entity';
 import { Sale } from '../../entities/sale.entity';
 import { Session } from '../../entities/session.entity';
 import { Settings } from '../../entities/settings.entity';
 import { Table } from '../../entities/table.entity';
 import { User } from '../../entities/user.entity';
+import { PlatformConfigService } from '../../common/platform-config/platform-config.service';
 import { TelegramService } from '../../telegram/telegram.service';
 import {
   CreateClubDto,
@@ -59,8 +64,13 @@ export class ClubsService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly telegram: TelegramService,
+    private readonly platformConfig: PlatformConfigService,
     @InjectRepository(Club) private readonly clubRepo: Repository<Club>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(RefreshSession)
+    private readonly refreshRepo: Repository<RefreshSession>,
+    // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   /**
@@ -117,13 +127,17 @@ export class ClubsService {
 
   /**
    * Yangi klub: klub + admin foydalanuvchi + sozlamalar bitta tranzaksiyada,
-   * 7 kunlik (yoki ko'rsatilgan) sinov muddati bilan. Sizga Telegram xabar ketadi.
+   * Sinov muddati: formada ko'rsatilgan qiymat, bo'lmasa platforma sozlamasi.
+   * Sizga Telegram xabar ketadi.
    */
   async create(dto: CreateClubDto) {
     const existing = await this.userRepo.findOne({ where: { username: dto.adminUsername } });
     if (existing) throw new ConflictException({ key: 'clubs.usernameTaken' });
 
-    const trialDays = dto.trialDays ?? 7;
+    // Standart qiymat SOZLAMADAN keladi (superadmin panelida o'zgartiriladi).
+    // Formadagi `trialDays` bu klub uchun BIR MARTALIK istisno sifatida
+    // qoladi — ba'zan alohida mijozga uzunroq sinov berish kerak bo'ladi.
+    const trialDays = dto.trialDays ?? (await this.platformConfig.get()).trialDays;
     const trialEndsAt = new Date(Date.now() + trialDays * DAY_MS);
 
     const club = await this.dataSource.transaction(async (manager) => {
@@ -268,8 +282,12 @@ export class ClubsService {
     return this.withMeta(club);
   }
 
-  /** Klub admin foydalanuvchisining parolini yangilash (unutilgan parol uchun) */
-  async resetAdminPassword(id: number, password: string) {
+  /**
+   * Klub admin foydalanuvchisining parolini yangilash (unutilgan parol uchun).
+   * HISOB EGALLASH amali — kim, qaysi klub adminining parolini almashtirgani
+   * audit jurnaliga yoziladi.
+   */
+  async resetAdminPassword(id: number, actor: User, password: string) {
     const club = await this.clubRepo.findOne({ where: { id } });
     if (!club) throw new NotFoundException({ key: 'clubs.notFound' });
 
@@ -285,6 +303,25 @@ export class ClubsService {
       password: hash,
       tokenVersion: admin.tokenVersion + 1,
     });
+
+    // tokenVersion tokenlarni o'ldiradi, lekin refresh_sessions qatorlari
+    // ochiq qolib, GET /auth/sessions da o'lik qurilmalarni "faol" ko'rsatardi.
+    // staff.service.update bilan bir xil idioma: hammasi revoked.
+    await this.refreshRepo.update(
+      { userId: admin.id, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
+
+    this.auditService?.log({
+      action: 'clubs.reset_admin_password',
+      clubId: id,
+      userId: actor.id,
+      actorRole: actor.role,
+      entity: 'user',
+      entityId: admin.id,
+      meta: { username: admin.username, clubName: club.name },
+    });
+
     return { username: admin.username };
   }
 
@@ -293,10 +330,13 @@ export class ClubsService {
     const club = await this.clubRepo.findOne({ where: { id } });
     if (!club) throw new NotFoundException({ key: 'clubs.notFound' });
 
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
+    // Oy boshi KLUB vaqt mintaqasida (dashboard/hisobotlar bilan bir xil):
+    // server-lokal yarim tun (Docker'da UTC) klubning oyini bir necha soatga
+    // surib, oy boshidagi tushumni noto'g'ri ko'rsatardi.
     const now = new Date();
+    const tz = await clubTimezone(this.dataSource, id);
+    const { year, month } = localDateParts(tz, now);
+    const monthStart = zonedMidnight(tz, year, month, 1);
 
     const [users, tables, activeSessions, totalSessions, monthlySales, monthlyDebtPayments, unpaidDebts, lastSession] =
       await Promise.all([

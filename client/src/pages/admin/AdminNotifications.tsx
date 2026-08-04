@@ -536,11 +536,19 @@ const BatchDetailDrawer = ({ batchId, onClose, onChanged, onDuplicate }: BatchDr
 
   /** Ochiq e'lon — kech kelgan javob boshqasini bosib ketmasin */
   const activeRef = useRef<string | null>(null);
+  /** So'rov navbati tokeni — eskirgan qabul qiluvchilar javobi tashlanadi */
+  const recipientsReqIdRef = useRef(0);
+  /** Qidiruv debounce'i (sahifaning asosiy searchTimerRef naqshi) */
+  const recipientsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tRef = useRef(t);
   tRef.current = t;
 
   const loadRecipients = useCallback(
     async (id: string, params: { page: number; status: 'all' | 'read' | 'unread'; search: string }) => {
+      // To'g'ridan-to'g'ri yuklash kutayotgan qidiruvni bekor qiladi
+      if (recipientsTimerRef.current) clearTimeout(recipientsTimerRef.current);
+      const reqId = (recipientsReqIdRef.current += 1);
+      const isStale = () => activeRef.current !== id || recipientsReqIdRef.current !== reqId;
       setRecipientsLoading(true);
       try {
         const res = await adminNotificationsApi.recipients(id, {
@@ -549,16 +557,42 @@ const BatchDetailDrawer = ({ batchId, onClose, onChanged, onDuplicate }: BatchDr
           status: params.status === 'all' ? undefined : params.status,
           search: params.search || undefined,
         });
-        if (activeRef.current !== id) return;
+        if (isStale()) return;
         setRecipients(res.data);
         setRecipientsTotal(res.pagination?.total ?? res.data.length);
       } catch {
-        if (activeRef.current === id) setRecipients([]);
+        if (!isStale()) setRecipients([]);
       } finally {
-        if (activeRef.current === id) setRecipientsLoading(false);
+        if (!isStale()) setRecipientsLoading(false);
       }
     },
     [],
+  );
+
+  /** Qidiruv 350 ms tinchligidan keyin yuboriladi — har harfga so'rov ketmasin */
+  const searchRecipients = useCallback(
+    (id: string, value: string, currentStatus: 'all' | 'read' | 'unread') => {
+      if (recipientsTimerRef.current) clearTimeout(recipientsTimerRef.current);
+      recipientsTimerRef.current = setTimeout(() => {
+        void loadRecipients(id, { page: 1, status: currentStatus, search: value.trim() });
+      }, 350);
+    },
+    [loadRecipients],
+  );
+
+  /**
+   * Drawer yopilganda kutayotgan debounce so'rovi ishga tushib ketmasin.
+   *
+   * Bog'liqlik `batchId`: komponent drawer yopilganda UNMOUNT BO'LMAYDI
+   * (antd Drawer `open` propi bilan ochilib-yopiladi), shuning uchun bo'sh
+   * bog'liqlikli tozalash faqat sahifadan chiqqandagina ishlardi va yopilgan
+   * drawer uchun keraksiz so'rov ketaverardi.
+   */
+  useEffect(
+    () => () => {
+      if (recipientsTimerRef.current) clearTimeout(recipientsTimerRef.current);
+    },
+    [batchId],
   );
 
   useEffect(() => {
@@ -741,7 +775,7 @@ const BatchDetailDrawer = ({ batchId, onClose, onChanged, onDuplicate }: BatchDr
                     const value = e.target.value;
                     setSearch(value);
                     setPage(1);
-                    void loadRecipients(batch.batchId, { page: 1, status, search: value });
+                    searchRecipients(batch.batchId, value, status);
                   }}
                 />
                 <Select

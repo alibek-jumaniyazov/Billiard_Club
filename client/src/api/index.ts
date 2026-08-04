@@ -1,6 +1,8 @@
-import client from './client';
+import client, { LONG_TIMEOUT_MS } from './client';
 import type {
   ApiResponse,
+  AppRelease,
+  AppReleaseInfo,
   AuditLog,
   AuthData,
   AuthDeviceSession,
@@ -11,6 +13,8 @@ import type {
   Club,
   ClubInfo,
   ClubNotification,
+  ClubDataOverview,
+  ClubStaffActivity,
   ClubStats,
   Contract,
   ContractType,
@@ -48,6 +52,7 @@ import type {
   PaymentMethod,
   Plan,
   PlanPayload,
+  PlatformConfig,
   PlatformHealth,
   PlatformOverview,
   PlatformStats,
@@ -59,6 +64,7 @@ import type {
   ReservationPayload,
   SendNotificationPayload,
   Session,
+  SignedLicense,
   SessionReceipt,
   Settings,
   StartSessionPayload,
@@ -72,10 +78,25 @@ import type {
 
 const get = async <T>(url: string, params?: object): Promise<ApiResponse<T>> =>
   (await client.get<ApiResponse<T>>(url, { params })).data;
-const post = async <T>(url: string, body?: object): Promise<ApiResponse<T>> =>
-  (await client.post<ApiResponse<T>>(url, body)).data;
-const put = async <T>(url: string, body?: object): Promise<ApiResponse<T>> =>
-  (await client.put<ApiResponse<T>>(url, body)).data;
+
+/**
+ * Bir martalik amal kaliti — SERVER buni eslab qoladi
+ * (server/src/common/idempotency/).
+ *
+ * NEGA KERAK: so'rov serverga yetib borib BAJARILGAN, lekin javob yo'lda
+ * yo'qolgan bo'lishi mumkin. Bunday holatda amalni qayta yuborish pulni ikki
+ * marta yozardi. Kalit bilan yuborilganda server ikkinchi so'rovga
+ * BIRINCHISINING javobini qaytaradi — amal aynan bir marta bajariladi.
+ *
+ * Kasса amallari (sessiya boshlash/pauza/davom/buyurtma) uni HAR DOIM yuboradi
+ * va tarmoq uzilganda navbatga AYNAN SHU kalit bilan tushadi.
+ */
+const idem = (key?: string) => (key ? { headers: { 'Idempotency-Key': key } } : undefined);
+
+const post = async <T>(url: string, body?: object, key?: string): Promise<ApiResponse<T>> =>
+  (await client.post<ApiResponse<T>>(url, body, idem(key))).data;
+const put = async <T>(url: string, body?: object, key?: string): Promise<ApiResponse<T>> =>
+  (await client.put<ApiResponse<T>>(url, body, idem(key))).data;
 /** DELETE tanasi axios da `config.data` orqali yuboriladi (ommaviy o'chirish) */
 const del = async <T>(url: string, body?: object): Promise<ApiResponse<T>> =>
   (await client.delete<ApiResponse<T>>(url, { data: body })).data;
@@ -83,7 +104,8 @@ const del = async <T>(url: string, body?: object): Promise<ApiResponse<T>> =>
 export const authApi = {
   login: (username: string, password: string) =>
     post<AuthData>('/auth/login', { username, password }),
-  me: () => get<{ user: User; club: ClubInfo | null }>('/auth/me'),
+  me: () =>
+    get<{ user: User; club: ClubInfo | null; license?: SignedLicense | null }>('/auth/me'),
   /** Refresh sessiya cookie orqali topilib bekor qilinadi */
   logout: () => post<void>('/auth/logout', {}),
   /** Faol qurilmalar (refresh sessiyalar) ro'yxati */
@@ -152,11 +174,12 @@ export const sessionsApi = {
   detail: (id: number) => get<Session>(`/sessions/${id}`),
   /** Chek oldindan ko'rish — yakunlamasdan joriy summalar (checkout modal) */
   receipt: (id: number) => get<SessionReceipt>(`/sessions/${id}/receipt`),
-  start: (body: StartSessionPayload) => post<Session>('/sessions/start', body),
-  end: (id: number, body: EndSessionPayload) =>
-    put<EndSessionResult>(`/sessions/${id}/end`, body),
-  pause: (id: number) => put<Session>(`/sessions/${id}/pause`),
-  resume: (id: number) => put<Session>(`/sessions/${id}/resume`),
+  /** `key` — bir martalik amal kaliti (yuqoridagi `idem` izohiga qarang) */
+  start: (body: StartSessionPayload, key?: string) => post<Session>('/sessions/start', body, key),
+  end: (id: number, body: EndSessionPayload, key?: string) =>
+    put<EndSessionResult>(`/sessions/${id}/end`, body, key),
+  pause: (id: number, key?: string) => put<Session>(`/sessions/${id}/pause`, undefined, key),
+  resume: (id: number, key?: string) => put<Session>(`/sessions/${id}/resume`, undefined, key),
   /** Faol sessiyani boshqa stolga ko'chirish */
   transfer: (id: number, tableId: number) =>
     post<Session>(`/sessions/${id}/transfer`, { tableId }),
@@ -183,8 +206,10 @@ export const productsApi = {
 export const ordersApi = {
   list: (params?: object) => get<Order[]>('/orders', params),
   todayStats: () => get<{ todayAmount: number; todayCount: number }>('/orders/stats/today'),
-  create: (body: { sessionId: number; items: Array<{ productId: number; quantity: number }> }) =>
-    post<Order>('/orders', body),
+  create: (
+    body: { sessionId: number; items: Array<{ productId: number; quantity: number }> },
+    key?: string,
+  ) => post<Order>('/orders', body, key),
   /** Ochiq buyurtmani bekor qilish (ombor qaytariladi) */
   cancel: (id: number) => post<Order>(`/orders/${id}/cancel`),
 };
@@ -194,7 +219,13 @@ export const debtsApi = {
   payments: (id: number) => get<DebtPayment[]>(`/debts/${id}/payments`),
   pay: (id: number, amount: number, paymentMethod: PaymentMethod) =>
     post<Debt>(`/debts/${id}/pay`, { amount, paymentMethod }),
-  remove: (id: number) => del<void>(`/debts/${id}`),
+  /**
+   * Undirilmagan qarzni HISOBDAN CHIQARISH. Sabab audit jurnaliga tushadi —
+   * bu pulni yo'q qiladigan amal, uning izi qolishi shart.
+   * Server sababni QUERY parametr sifatida oladi (WriteOffDebtDto).
+   */
+  remove: (id: number, reason?: string) =>
+    del<void>(`/debts/${id}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),
 };
 
 export const reportsApi = {
@@ -207,6 +238,9 @@ export const reportsApi = {
     const res = await client.get('/reports/export/excel', {
       params: { type, ...params },
       responseType: 'blob',
+      // Katta davr hisoboti serverda o'nlab soniya yasalishi mumkin —
+      // umumiy 20 soniyalik muddat bu yerda yetmaydi
+      timeout: LONG_TIMEOUT_MS,
     });
     const url = URL.createObjectURL(res.data as Blob);
     const a = document.createElement('a');
@@ -313,7 +347,11 @@ export const feedbackApi = {
   /** Biriktirilgan rasm — autentifikatsiyalangan blob (statik /uploads yo'q) */
   attachment: (id: number, index: number) =>
     client
-      .get<Blob>(`/feedback/${id}/attachments/${index}`, { responseType: 'blob' })
+      .get<Blob>(`/feedback/${id}/attachments/${index}`, {
+        responseType: 'blob',
+        // Rasm sekin ulanishda 20 soniyaga sig'masligi mumkin
+        timeout: LONG_TIMEOUT_MS,
+      })
       .then((res) => res.data),
 };
 
@@ -411,6 +449,34 @@ export const platformApi = {
   updateTelegramSettings: (events: Record<string, boolean>) =>
     put<TelegramSettings>('/admin/platform/telegram-settings', { events }),
   health: () => get<PlatformHealth>('/admin/platform/health'),
+  /** Telegram ulanishini sinash — guruhga haqiqiy xabar yuboriladi */
+  telegramTest: () =>
+    post<{ ok: boolean; chatId: string | null; error?: string }>('/admin/platform/telegram-test'),
+  /** Platforma sozlamalari — sinov muddati va eslatma chegaralari */
+  config: () => get<PlatformConfig>('/admin/platform/config'),
+  updateConfig: (body: Partial<PlatformConfig>) =>
+    put<PlatformConfig>('/admin/platform/config', body),
+
+  /**
+   * KLUB MA'LUMOTLARI KONSOLI — faqat o'qish, impersonatsiyasiz.
+   *
+   * "Klubni ko'rish" rejimidan (`viewingClub` + X-Club-Id) farqi: bu yerda
+   * sessiya konteksti O'ZGARMAYDI va har bir so'rov `admin.impersonate`
+   * jurnal yozuvini hosil qilmaydi. Bir necha klubni ketma-ket ko'rish
+   * uchun aynan shu yo'l mo'ljallangan.
+   */
+  clubOverview: (clubId: number) =>
+    get<ClubDataOverview>(`/admin/platform/clubs/${clubId}/overview`),
+  clubSessions: (clubId: number, params?: { page?: number; limit?: number }) =>
+    get<Session[]>(`/admin/platform/clubs/${clubId}/sessions`, params),
+  clubOrders: (clubId: number, params?: { page?: number; limit?: number }) =>
+    get<Order[]>(`/admin/platform/clubs/${clubId}/orders`, params),
+  clubDebts: (clubId: number, params?: { page?: number; limit?: number }) =>
+    get<Debt[]>(`/admin/platform/clubs/${clubId}/debts`, params),
+  clubStaff: (clubId: number) =>
+    get<ClubStaffActivity[]>(`/admin/platform/clubs/${clubId}/staff`),
+  clubActivity: (clubId: number, params?: { page?: number; limit?: number; action?: string }) =>
+    get<AuditLog[]>(`/admin/platform/clubs/${clubId}/activity`, params),
 };
 
 /** Superadmin paneli — klublar */
@@ -444,6 +510,16 @@ export const adminApi = {
 export const publicApi = {
   /** Ommaviy tariflar — superadmin boshqaradigan faol tariflar (landing narxlari) */
   plans: () => get<Plan[]>('/public/plans'),
+  /** Desktop dasturning so'nggi relizlari (/download sahifasi) */
+  releases: () => get<AppReleaseInfo[]>('/public/download'),
+  /** Oflayn ruxsatnomani tekshirish uchun ochiq kalit (sir emas) */
+  licenseKey: () => get<{ publicKey: string; alg: 'ES256' }>('/public/license-key'),
+  /**
+   * Landing uchun ommaviy sozlamalar — hozircha sinov muddati.
+   * Sayt matnlari ("N kun bepul") shu qiymatdan yig'iladi, shuning uchun
+   * superadmin muddatni o'zgartirsa sayt ham darhol to'g'ri yozadi.
+   */
+  config: () => get<{ trialDays: number }>('/public/config'),
   register: (body: {
     clubName: string;
     ownerName: string;
@@ -455,6 +531,46 @@ export const publicApi = {
     website?: string;
   }) => post<AuthData>('/public/register', body),
 };
+
+/**
+ * Desktop relizlarini boshqarish — faqat superadmin.
+ *
+ * Yuklash `FormData` bilan ketadi: faylni JSON ga (base64) o'rash uni 33% ga
+ * shishirardi va 200 MB lik o'rnatgichda bu qo'shimcha 70 MB degani.
+ */
+export const releasesApi = {
+  list: () => get<AppRelease[]>('/admin/releases'),
+  upload: (body: FormData, onProgress?: (percent: number) => void) =>
+    client
+      .post<ApiResponse<AppRelease>>('/admin/releases', body, {
+        // Yuklash uzoq davom etadi — standart timeout ni kutib bo'lmaydi
+        timeout: 0,
+        onUploadProgress: (e) => {
+          if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+        },
+      })
+      // Boshqa yordamchilar bilan bir xil shakl: ApiResponse qaytadi
+      .then((r) => r.data),
+  publish: (id: number) => post<AppRelease>(`/admin/releases/${id}/publish`),
+  unpublish: (id: number) => post<AppRelease>(`/admin/releases/${id}/unpublish`),
+  remove: (id: number) => del<void>(`/admin/releases/${id}`),
+};
+
+/**
+ * Xato TARMOQ uzilishidanmi (serverdan javob umuman kelmadi).
+ *
+ * NEGA KERAK: oflayn holat ketma-ket 2 ta javobsiz so'rovdan keyin aniqlanadi
+ * (net-status.ts — bitta timeout bejiz "oflayn" degani emas). Ya'ni aloqa
+ * uzilgandan keyingi BIRINCHI amal hali "onlayn" deb hisoblanadi va oddiy
+ * yo'ldan ketib, xato bilan qaytadi. Kassa uchun bu yomon: amal ko'z oldida
+ * "bajarilmadi" bo'lib qoladi. Shuning uchun POS amallari xatoni SHU funksiya
+ * bilan tekshirib, tarmoq xatosida amalni oflayn navbatga o'tkazadi.
+ */
+export const isNetworkError = (err: unknown): boolean =>
+  typeof err === 'object' &&
+  err !== null &&
+  'isAxiosError' in err &&
+  (err as { response?: unknown }).response === undefined;
 
 /** Server xatosidan foydalanuvchiga ko'rsatiladigan xabarni ajratib oladi */
 export const errorMessage = (err: unknown, fallback: string): string => {

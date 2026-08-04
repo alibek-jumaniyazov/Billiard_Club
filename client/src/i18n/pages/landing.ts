@@ -8,18 +8,19 @@ export default {
     // SEO meta (useDocumentHead)
     metaTitle: 'Billiard Club — billiard klublari uchun boshqaruv tizimi',
     metaDescription:
-      "Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. 7 kun bepul sinab ko'ring.",
+      "Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. {{days}} kun bepul sinab ko'ring.",
     metaLoginTitle: 'Kirish — Billiard Club',
     metaLoginDescription:
       "Billiard Club hisobingizga kiring va klubingizni istalgan qurilmadan boshqaring.",
-    metaRegisterTitle: "7 kun bepul sinov — Billiard Club",
+    metaRegisterTitle: "{{days}} kun bepul sinov — Billiard Club",
     metaRegisterDescription:
-      "1 daqiqada ro'yxatdan o'ting va billiard klubingizni 7 kun bepul boshqaring. Karta talab qilinmaydi.",
+      "1 daqiqada ro'yxatdan o'ting va billiard klubingizni {{days}} kun bepul boshqaring. Karta talab qilinmaydi.",
     // Navigatsiya
     navFeatures: 'Imkoniyatlar',
     navPricing: 'Narxlar',
     navFaq: 'Savol-javob',
     navContact: 'Aloqa',
+    navDownload: 'Dastur',
     navLogin: 'Kirish',
     navCta: 'Bepul boshlash',
     navMenu: 'Menyu',
@@ -28,10 +29,11 @@ export default {
     heroTitle: 'Billiard klubingizni bir tizimdan boshqaring',
     heroSubtitle:
       "Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — barchasi bitta ishonchli bulutli tizimda. Klubingizni istalgan joydan nazorat qiling.",
-    heroCta: '7 kunlik bepul sinovni boshlash',
+    heroCta: '{{days}} kunlik bepul sinovni boshlash',
     heroSecondary: "Imkoniyatlarni ko'rish",
     heroNote: "Karta talab qilinmaydi · 5 daqiqada ishga tushadi",
     heroTableHint: 'Soqqani teshikka urib tushiring 🎯',
+    heroTableAria: 'Interaktiv rus bilyardi stoli',
     // Ijtimoiy isbot — ko'rsatkichlar
     stat1Value: 'Real vaqt',
     stat1Label: 'stollar jonli nazoratda',
@@ -79,12 +81,12 @@ export default {
     step2Desc: 'Stollar sonini, soatlik narxlarni va bar menyusini kiriting.',
     step3Title: 'Ishlashni boshlang',
     step3Desc: 'Sessiyalarni oching, buyurtma qabul qiling, daromadni real vaqtda kuzating.',
-    howNote: "7 kunlik bepul sinovdan so'ng qulay tarifni tanlab davom etasiz.",
+    howNote: "{{days}} kunlik bepul sinovdan so'ng qulay tarifni tanlab davom etasiz.",
     // Tariflar
     pricingOverline: 'Tariflar',
     pricingTitle: 'Oddiy va shaffof narxlar',
     pricingSubtitle:
-      "Har bir tarif 7 kunlik bepul sinov bilan boshlanadi. Barcha imkoniyatlar barcha tariflarda — stollar va xodimlar soni cheklanmagan.",
+      "Har bir tarif {{days}} kunlik bepul sinov bilan boshlanadi. Barcha imkoniyatlar barcha tariflarda — stollar va xodimlar soni cheklanmagan.",
     planMonthlyName: 'Oylik',
     planMonthlyPeriod: '30 kun',
     planSemiName: '6 oylik',
@@ -123,9 +125,9 @@ export default {
     // Savol-javob (FAQ) — index.html JSON-LD bilan sinxron
     faqOverline: 'Savol-javob',
     faqTitle: "Ko'p beriladigan savollar",
-    faq1Q: '7 kunlik bepul sinov qanday ishlaydi?',
+    faq1Q: '{{days}} kunlik bepul sinov qanday ishlaydi?',
     faq1A:
-      "Ro'yxatdan o'tishingiz bilan barcha imkoniyatlar 7 kunga bepul ochiladi. Karta yoki to'lov talab qilinmaydi. Sinov tugagach, qulay tarifni tanlab davom etasiz.",
+      "Ro'yxatdan o'tishingiz bilan barcha imkoniyatlar {{days}} kunga bepul ochiladi. Karta yoki to'lov talab qilinmaydi. Sinov tugagach, qulay tarifni tanlab davom etasiz.",
     faq2Q: "Obuna tugasa, ma'lumotlarim o'chib ketadimi?",
     faq2A:
       "Yo'q. Ma'lumotlaringiz to'liq saqlanadi — faqat kirish vaqtincha yopiladi. To'lovdan so'ng tizim zudlik bilan qayta ochiladi va hammasi joyida bo'ladi.",
@@ -171,18 +173,19 @@ export default {
     // SEO meta (useDocumentHead)
     metaTitle: 'Billiard Club — система управления бильярдным клубом',
     metaDescription:
-      'Живые таймеры столов, бар POS, журнал долгов и финансовые отчёты — единая облачная система для вашего бильярдного клуба. Попробуйте 7 дней бесплатно.',
+      'Живые таймеры столов, бар POS, журнал долгов и финансовые отчёты — единая облачная система для вашего бильярдного клуба. Попробуйте {{days}} дней бесплатно.',
     metaLoginTitle: 'Вход — Billiard Club',
     metaLoginDescription:
       'Войдите в аккаунт Billiard Club и управляйте клубом с любого устройства.',
-    metaRegisterTitle: '7 дней бесплатно — Billiard Club',
+    metaRegisterTitle: '{{days}} дней бесплатно — Billiard Club',
     metaRegisterDescription:
-      'Зарегистрируйтесь за 1 минуту и управляйте бильярдным клубом 7 дней бесплатно. Карта не требуется.',
+      'Зарегистрируйтесь за 1 минуту и управляйте бильярдным клубом {{days}} дней бесплатно. Карта не требуется.',
     // Навигация
     navFeatures: 'Возможности',
     navPricing: 'Цены',
     navFaq: 'Вопросы',
     navContact: 'Контакты',
+    navDownload: 'Приложение',
     navLogin: 'Войти',
     navCta: 'Начать бесплатно',
     navMenu: 'Меню',
@@ -191,10 +194,11 @@ export default {
     heroTitle: 'Управляйте бильярдным клубом из одной системы',
     heroSubtitle:
       'Живые таймеры столов, бар POS, журнал долгов и финансовые отчёты — всё в одной надёжной облачной системе. Контролируйте клуб из любой точки.',
-    heroCta: 'Начать 7 дней бесплатно',
+    heroCta: 'Начать {{days}} дней бесплатно',
     heroSecondary: 'Смотреть возможности',
     heroNote: 'Карта не требуется · запуск за 5 минут',
     heroTableHint: 'Забейте шар в лузу 🎯',
+    heroTableAria: 'Интерактивный стол для русского бильярда',
     // Социальное доказательство — показатели
     stat1Value: 'Реальное время',
     stat1Label: 'живой контроль столов',
@@ -242,12 +246,12 @@ export default {
     step2Desc: 'Укажите количество столов, почасовые тарифы и меню бара.',
     step3Title: 'Начните работать',
     step3Desc: 'Открывайте сессии, принимайте заказы, следите за выручкой в реальном времени.',
-    howNote: 'После 7 дней бесплатного пробного периода выберите удобный тариф.',
+    howNote: 'После {{days}} дней бесплатного пробного периода выберите удобный тариф.',
     // Тарифы
     pricingOverline: 'Тарифы',
     pricingTitle: 'Простые и прозрачные цены',
     pricingSubtitle:
-      'Каждый тариф начинается с 7 дней бесплатного пробного периода. Все возможности во всех тарифах — без ограничений по столам и сотрудникам.',
+      'Каждый тариф начинается с {{days}} дней бесплатного пробного периода. Все возможности во всех тарифах — без ограничений по столам и сотрудникам.',
     planMonthlyName: 'Месячный',
     planMonthlyPeriod: '30 дней',
     planSemiName: 'Полугодовой',
@@ -286,9 +290,9 @@ export default {
     // Вопросы и ответы (FAQ)
     faqOverline: 'Вопросы',
     faqTitle: 'Часто задаваемые вопросы',
-    faq1Q: 'Как работает бесплатный период 7 дней?',
+    faq1Q: 'Как работает бесплатный период {{days}} дней?',
     faq1A:
-      'Сразу после регистрации все возможности открываются на 7 дней бесплатно. Карта и оплата не требуются. По окончании периода выберите удобный тариф и продолжайте.',
+      'Сразу после регистрации все возможности открываются на {{days}} дней бесплатно. Карта и оплата не требуются. По окончании периода выберите удобный тариф и продолжайте.',
     faq2Q: 'Пропадут ли мои данные после окончания подписки?',
     faq2A:
       'Нет. Данные полностью сохраняются — временно закрывается только доступ. После оплаты система мгновенно разблокируется, и всё будет на месте.',

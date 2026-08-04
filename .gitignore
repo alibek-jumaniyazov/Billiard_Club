@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Desktop qobiq: electron-builder chiqaradigan o'rnatgichlar (yuzlab MB)
+desktop/release
+
 # Environment secrets
 .env
 server/.env
@@ -26,3 +29,6 @@ server/.env
 *.njsproj
 *.sln
 *.sw?
+
+# Desktop o'rnatgichlari serverda (RELEASES_DIR) — binar fayllar git'ga tushmaydi
+server/uploads

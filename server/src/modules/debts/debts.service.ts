@@ -31,8 +31,17 @@ export class DebtsService {
       .leftJoinAndSelect('debt.user', 'user')
       .where('debt.clubId = :clubId', { clubId });
 
+    // "To'langan" filtri HISOBDAN CHIQARILGAN qarzlarni ATAYLAB istisno qiladi:
+    // ular ham `isPaid = true` bo'ladi, lekin PUL OLINMAGAN. Bir ro'yxatga
+    // qo'shilsa, "to'langan qarzlar" yig'indisi undirilmagan summani ham
+    // ko'rsatib, klub egasini chalg'itardi. Ular alohida 'written_off'
+    // filtrida ko'rinadi.
     if (status === 'unpaid') qb.andWhere('debt.isPaid = false');
-    else if (status === 'paid') qb.andWhere('debt.isPaid = true');
+    else if (status === 'paid') {
+      qb.andWhere('debt.isPaid = true').andWhere('debt."writtenOffAt" IS NULL');
+    } else if (status === 'written_off') {
+      qb.andWhere('debt."writtenOffAt" IS NOT NULL');
+    }
 
     if (query.search) {
       qb.andWhere(
@@ -61,8 +70,13 @@ export class DebtsService {
       .select('COALESCE(SUM(debt.remainingDebt), 0)', 'totalRemaining')
       .addSelect('COALESCE(SUM(debt.totalDebt), 0)', 'totalDebt')
       .where('debt.clubId = :clubId', { clubId });
+    // Yig'indi filtri ro'yxat filtri bilan AYNAN bir xil bo'lishi shart
     if (status === 'unpaid') totalsQb.andWhere('debt.isPaid = false');
-    else if (status === 'paid') totalsQb.andWhere('debt.isPaid = true');
+    else if (status === 'paid') {
+      totalsQb.andWhere('debt.isPaid = true').andWhere('debt."writtenOffAt" IS NULL');
+    } else if (status === 'written_off') {
+      totalsQb.andWhere('debt."writtenOffAt" IS NOT NULL');
+    }
     if (query.search) {
       totalsQb.andWhere(
         new Brackets((b) => {
@@ -165,16 +179,27 @@ export class DebtsService {
   }
 
   /**
-   * Qarzni o'chirish = UNDIRILMAGAN qarzni hisobdan chiqarish (faqat admin,
-   * faqat to'lovsiz qarzlar). To'lov tarixi bor qarz o'chirilmaydi — moliyaviy
-   * iz yo'qolmasligi uchun.
+   * UNDIRILMAGAN qarzni HISOBDAN CHIQARISH (faqat admin, faqat to'lovsiz
+   * qarzlar). To'lov tarixi bor qarz chiqarilmaydi — moliyaviy iz yo'qolmasligi
+   * uchun.
    *
-   * PUL NAZORATI: bu amal klubning haqiqiy debitor qarzini yo'q qiladi va
-   * hisobotlardagi "yaratilgan qarzlar" summasini kamaytiradi, shuning uchun
-   * kim, qaysi mijozning qancha qarzini, nima sababdan o'chirgani HAR DOIM
-   * audit jurnaliga yoziladi.
+   * QATOR O'CHIRILMAYDI (ataylab). Avval bu yerda `DELETE` bor edi va shu
+   * sababli o'tgan davr hisoboti keyinchalik o'zgarib ketardi: `debtsCreated`
+   * jonli jadvaldan `createdAt` oralig'i bo'yicha hisoblanadi, ya'ni iyulda
+   * yozilib avgustda o'chirilgan qarz IYUL hisobotidan ham yo'qolardi.
+   * Endi qator saqlanadi, faqat qoldiq nolga tushadi:
+   *   - `remainingDebt = 0` -> "joriy qarz" yig'indilari (boshqaruv paneli,
+   *     mijoz profili, qarzlar sahifasi) o'zi to'g'ri bo'lib qoladi;
+   *   - `isPaid = true`  -> qarz yopilgan hisoblanadi;
+   *   - `writtenOff*`    -> qachon, kim, nega.
+   *
+   * PUL NAZORATI: amal klubning haqiqiy debitor qarzini yo'q qiladi, shuning
+   * uchun kim, qaysi mijozning qancha qarzini, nima sababdan chiqargani
+   * HAR DOIM audit jurnaliga ham yoziladi.
    */
   async remove(clubId: number, user: User, debtId: number, dto: WriteOffDebtDto = {}) {
+    const reason = dto.reason?.trim() || null;
+
     const removed = await this.dataSource.transaction(async (manager) => {
       const debt = await manager.findOne(Debt, {
         where: { id: debtId, clubId },
@@ -186,8 +211,32 @@ export class DebtsService {
       if (paymentsCount > 0 || debt.paidAmount > 0) {
         throw new BadRequestException({ key: 'debts.hasPayments' });
       }
+      // Ikki marta chiqarilmasin (parallel so'rov qulf ostida ushlanadi)
+      if (debt.writtenOffAt || debt.isPaid) {
+        throw new BadRequestException({ key: 'debts.alreadyPaid' });
+      }
 
-      await manager.delete(Debt, debt.id);
+      const now = new Date();
+      await manager.update(Debt, debt.id, {
+        remainingDebt: 0,
+        isPaid: true,
+        writtenOffAt: now,
+        writtenOffReason: reason,
+        writtenOffById: user.id,
+      });
+
+      // Sessiyada boshqa ochiq qarz qolmagan bo'lsa u ham "to'langan" bo'ladi —
+      // `pay()` dagi bilan AYNAN bir xil qoida. Aks holda hisobdan chiqarilgan
+      // qarzli sessiya Excel eksportida abadiy "To'langan: Yo'q" bo'lib qolardi.
+      if (debt.sessionId) {
+        const stillOpen = await manager.count(Debt, {
+          where: { sessionId: debt.sessionId, isPaid: false },
+        });
+        if (stillOpen === 0) {
+          await manager.update(Session, { id: debt.sessionId, clubId }, { isPaid: true });
+        }
+      }
+
       return {
         totalDebt: debt.totalDebt,
         remainingDebt: debt.remainingDebt,
@@ -206,7 +255,7 @@ export class DebtsService {
       actorRole: user.role,
       entity: 'debt',
       entityId: debtId,
-      meta: { ...removed, reason: dto.reason?.trim() || null },
+      meta: { ...removed, reason },
     });
 
     return true;

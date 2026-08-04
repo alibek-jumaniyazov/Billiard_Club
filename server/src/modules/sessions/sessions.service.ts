@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { clubTimezone, parseDateParts, zonedMidnight } from '../../common/time/club-day';
 import { Customer } from '../../entities/customer.entity';
 import { Debt } from '../../entities/debt.entity';
 import {
@@ -33,6 +34,7 @@ import {
   CancelSessionDto,
   EndSessionDto,
   ListSessionsQueryDto,
+  OfflineAtDto,
   StartSessionDto,
   TransferSessionDto,
 } from './dto/sessions.dto';
@@ -57,6 +59,13 @@ const PAYMENT_DRIFT_SECONDS = 900;
  * qilish demakdir, shuning uchun admin/superadmin talab qilinadi.
  */
 const CASHIER_CANCEL_MAX_SECONDS = 600;
+
+/**
+ * Oflayn navbatdan kelgan vaqt muhri eng ko'pi bilan shuncha orqada bo'lishi
+ * mumkin (24 soat). Oflayn navbat bir smenadan uzoq kutmaydi; undan eskisi
+ * xato yoki suiiste'mol belgisi, shuning uchun chegaraga kesiladi.
+ */
+const OFFLINE_MAX_BACKDATE_MS = 24 * 60 * 60 * 1000;
 
 /** Segment bo'yicha hisoblangan bandning ko'rinishi (chek/receipt uchun) */
 interface SegmentBillingItem {
@@ -135,15 +144,30 @@ export class SessionsService {
         }),
       );
     }
-    if (query.from) {
-      const from = new Date(query.from);
-      if (Number.isNaN(from.getTime())) throw new BadRequestException({ key: 'reports.invalidRange' });
-      qb.andWhere('session.startTime >= :from', { from });
-    }
-    if (query.to) {
-      const to = new Date(query.to);
-      if (Number.isNaN(to.getTime())) throw new BadRequestException({ key: 'reports.invalidRange' });
-      qb.andWhere('session.startTime <= :to', { to });
+    // Sana filtri KLUB mintaqasida va YARIM OCHIQ oraliqda (hisobotlar/xarajatlar
+    // bilan bir xil ta'rif): avval 'YYYY-MM-DD' UTC yarim tun deb o'qilib, 'to'
+    // esa yopiq (<=) edi — shu sababli ?from=X&to=X bo'sh ro'yxat qaytarardi.
+    if (query.from || query.to) {
+      const tz = await clubTimezone(this.dataSource, clubId);
+      // 'YYYY-MM-DD' — klub mintaqasidagi yarim tun; to'liq ISO o'zgarishsiz o'tadi
+      const parseBound = (value: string, endExclusive = false): Date => {
+        const raw = value.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+          const { year, month, day } = parseDateParts(raw);
+          return zonedMidnight(tz, year, month, endExclusive ? day + 1 : day);
+        }
+        const date = new Date(raw);
+        if (Number.isNaN(date.getTime())) {
+          throw new BadRequestException({ key: 'reports.invalidRange' });
+        }
+        return date;
+      };
+      if (query.from) {
+        qb.andWhere('session.startTime >= :from', { from: parseBound(query.from) });
+      }
+      if (query.to) {
+        qb.andWhere('session.startTime < :to', { to: parseBound(query.to, true) });
+      }
     }
 
     const [rows, total] = await qb
@@ -268,6 +292,33 @@ export class SessionsService {
    * u yig'ilmagan pulni kassaga yozar va rol nazoratini chetlab o'tardi).
    * Poyga holatlaridan stol qatori qulfi + DB partial unique indeks himoya qiladi.
    */
+  /**
+   * Oflayn vaqt muhrini XAVFSIZ oraliqqa keltirish.
+   *
+   * Qiymat klientdan keladi, shuning uchun unga ko'r-ko'rona ishonilmaydi:
+   *  - kelajakdagi vaqt — hozirgi vaqtga kesiladi (kelajakka yozib qo'yib
+   *    bo'lmaydi);
+   *  - juda eski vaqt (24 soatdan orqada) — chegaraga kesiladi; bu oflayn
+   *    navbat uchun yetarlicha keng, lekin "o'tgan oy" deb yozishga yo'l qo'ymaydi;
+   *  - berilmagan yoki buzuq bo'lsa — hozirgi vaqt ishlatiladi.
+   *
+   * @returns [vaqt, kesilganmi] — kesilgan holat audit yozuviga tushadi
+   */
+  private clampOfflineAt(raw: string | undefined, floor?: Date): [Date, boolean] {
+    const now = new Date();
+    if (!raw) return [now, false];
+
+    const parsed = Date.parse(raw);
+    if (Number.isNaN(parsed)) return [now, true];
+
+    const earliest = Math.max(
+      now.getTime() - OFFLINE_MAX_BACKDATE_MS,
+      floor ? new Date(floor).getTime() : 0,
+    );
+    const clamped = Math.min(Math.max(parsed, earliest), now.getTime());
+    return [new Date(clamped), clamped !== parsed];
+  }
+
   async start(clubId: number, user: User, dto: StartSessionDto) {
     const result = await this.dataSource.transaction(async (manager) => {
       const table = await manager.findOne(Table, {
@@ -289,13 +340,31 @@ export class SessionsService {
       const customerName = dto.customerName?.trim() || null;
       const customerPhone = normalizePhone(dto.customerPhone);
 
+      // OFLAYN: o'yin internetsiz boshlangan bo'lsa HAQIQIY boshlanish vaqti
+      // klientdan keladi (chegaralangan — clampOfflineAt izohiga qarang).
+      // Bo'lmasa avvalgidek server vaqti ishlatiladi.
+      const [startTime, startClamped] = this.clampOfflineAt(dto.offlineAt);
+      // Kesilgan qiymat — kutilmagan holat (klient soati juda noto'g'ri yoki
+      // navbat 24 soatdan ko'p kutgan). Pulga ta'sir qilgani uchun iz qoldiramiz.
+      if (startClamped) {
+        this.auditService?.log({
+          action: 'session.offline_time_clamped',
+          clubId,
+          userId: user.id,
+          actorRole: user.role,
+          entity: 'session',
+          entityId: 0,
+          meta: { requested: dto.offlineAt ?? null, applied: startTime.toISOString() },
+        });
+      }
+
       const session = await manager.save(Session, {
         clubId,
         tableId: table.id,
         userId: user.id,
         customerName,
         customerPhone,
-        startTime: new Date(),
+        startTime,
         status: SessionStatus.ACTIVE,
         totalPausedMs: 0,
         // Narx muhrlanadi: keyin stol narxi o'zgarsa ham hisob shu narxda
@@ -337,15 +406,19 @@ export class SessionsService {
     return result;
   }
 
-  async pause(clubId: number, id: number) {
+  async pause(clubId: number, id: number, dto: OfflineAtDto = {}) {
     const result = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status !== SessionStatus.ACTIVE) {
         throw new BadRequestException({ key: 'sessions.onlyActivePausable' });
       }
+      // OFLAYN: pauza internetsiz bosilgan bo'lsa HAQIQIY vaqti klientdan
+      // keladi. Aks holda navbat yuborilgan payt yozilib, oflayn o'tgan pauza
+      // vaqti mijozga hisoblanib ketardi. Quyi chegara — sessiya boshlanishi.
+      const [pausedAt] = this.clampOfflineAt(dto.offlineAt, session.startTime);
       await manager.update(Session, id, {
         status: SessionStatus.PAUSED,
-        pausedAt: new Date(),
+        pausedAt,
       });
       const fresh = await manager.findOne(Session, { where: { id }, relations: { table: true } });
       return { ...fresh!, serverNow: new Date().toISOString() };
@@ -356,15 +429,19 @@ export class SessionsService {
     return result;
   }
 
-  async resume(clubId: number, id: number) {
+  async resume(clubId: number, id: number, dto: OfflineAtDto = {}) {
     const result = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status !== SessionStatus.PAUSED || !session.pausedAt) {
         throw new BadRequestException({ key: 'sessions.notPaused' });
       }
+      // OFLAYN: davom ettirish vaqti ham klientdan kelishi mumkin — aks holda
+      // pauza navbat yuborilgunicha davom etgan hisoblanib, mijozdan KAM pul
+      // olinardi. Quyi chegara — pauza boshlangan payt (manfiy davomiylik yo'q).
+      const [resumedAt] = this.clampOfflineAt(dto.offlineAt, session.pausedAt);
       const pausedDuration = Math.max(
         0,
-        Date.now() - new Date(session.pausedAt).getTime(),
+        resumedAt.getTime() - new Date(session.pausedAt).getTime(),
       );
       await manager.update(Session, id, {
         status: SessionStatus.ACTIVE,

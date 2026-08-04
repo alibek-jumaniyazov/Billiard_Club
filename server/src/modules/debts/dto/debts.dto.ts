@@ -54,7 +54,13 @@ export class ListDebtsQueryDto {
   @IsString()
   search?: string;
 
+  /**
+   * 'written_off' — HISOBDAN CHIQARILGAN qarzlar. Ular `isPaid = true` bo'lgani
+   * uchun 'paid' ro'yxatiga tushib qolmasligi kerak: pul olinmagan, qarzdan
+   * voz kechilgan. Alohida filtr klub egasiga "qancha pul kechirildi" degan
+   * savolga javob beradi.
+   */
   @IsOptional()
-  @IsIn(['unpaid', 'paid', 'all'])
-  status?: 'unpaid' | 'paid' | 'all';
+  @IsIn(['unpaid', 'paid', 'written_off', 'all'])
+  status?: 'unpaid' | 'paid' | 'written_off' | 'all';
 }

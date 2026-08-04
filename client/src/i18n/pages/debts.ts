@@ -23,6 +23,15 @@ export default {
     methodRequired: "To'lov usulini tanlang",
     payFull: "To'liq to'lash",
     acceptPayment: "To'lovni qabul qilish",
+    // Hisobdan chiqarish
+    writeOffTitle: 'Qarzni hisobdan chiqarish',
+    writeOffConfirm: 'Hisobdan chiqarish',
+    writeOffWarning:
+      "Qarz yozuvi butunlay o'chiriladi va uni QAYTARIB BO'LMAYDI. Qoldiq summa hech qachon undirilmagan hisoblanadi.",
+    writtenOff: 'Hisobdan chiqarilgan',
+    writeOffReasonLabel: 'Sabab (majburiy)',
+    writeOffReasonPlaceholder: "Masalan: mijoz topilmadi, summa juda kichik, kelishuv bo'yicha kechirildi",
+    writeOffReasonRequired: 'Hisobdan chiqarish sababini yozing',
     // To'lovlar tarixi
     historyTitle: "To'lovlar tarixi",
     amount: 'Summa',
@@ -56,6 +65,15 @@ export default {
     methodRequired: 'Выберите способ оплаты',
     payFull: 'Оплатить полностью',
     acceptPayment: 'Принять оплату',
+    // Списание долга
+    writeOffTitle: 'Списание долга',
+    writeOffConfirm: 'Списать',
+    writeOffWarning:
+      'Запись о долге будет удалена безвозвратно. Остаток суммы будет считаться так и не взысканным.',
+    writtenOff: 'Списан',
+    writeOffReasonLabel: 'Причина (обязательно)',
+    writeOffReasonPlaceholder: 'Например: клиент не найден, сумма незначительна, прощено по договорённости',
+    writeOffReasonRequired: 'Укажите причину списания',
     // История платежей
     historyTitle: 'История платежей',
     amount: 'Сумма',

@@ -83,6 +83,23 @@ export class LightHttpError extends Error {
 }
 
 /**
+ * SOZLAMA xatosi: manzil/entity/shablon URL ko'rsatilmagan yoki drayver bu
+ * rejimda ishlamaydi. ULANISH xatolaridan (HTTP status, ECONNREFUSED, timeout)
+ * ATAYLAB ajratilgan:
+ *  - ulanish sababi foydalanuvchiga KO'RSATILMAYDI — aks holda `lightError`
+ *    javobi ochiq/yopiq/filtrlangan portni aniqlaydigan skaner vositasiga
+ *    aylanardi (faqat server logiga yoziladi);
+ *  - sozlama xatosi esa tushunarli qoladi, aks holda klub egasi o'z relesini
+ *    sozlay olmaydi.
+ */
+export class LightConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'LightConfigError';
+  }
+}
+
+/**
  * IPv4 (portsiz) shakli — oktetlar qiymati alohida tekshiriladi.
  *
  * DIQQAT: boshida nol turgan oktet ATAYLAB rad etiladi ('010.010.010.010').
@@ -131,7 +148,7 @@ export async function applyLight(
   // Bu drayverlar HTTP emas (MQTT/xom TCP/Modbus/COM-port) — bulutdagi server
   // klub tarmog'iga bunday ulana olmaydi, ular faqat lokal agentda bajariladi
   if (BRIDGE_ONLY_SET.has(target.driver)) {
-    throw new Error('Bu drayver faqat lokal agent (bridge) rejimida ishlaydi');
+    throw new LightConfigError('Bu drayver faqat lokal agent (bridge) rejimida ishlaydi');
   }
 
   // NC rele uchun mantiqiy holat fizik holatga teskari
@@ -237,6 +254,10 @@ export async function readLight(
  * Shu sababli DIRECT rejimda relega DHCP reservation orqali doimiy IP berilishi shart
  * (docs/LIGHT-CONTROL.md da shunday yozilgan). BRIDGE rejimida bu cheklov qo'llanmaydi —
  * u yerda so'rovni klub tarmog'idagi agentning o'zi yuboradi.
+ *
+ * DIQQAT: bu tekshiruv YAGONA emas — uning USTIGA operator ochgan CIDR ro'yxati
+ * qo'shiladi (`isDirectAllowedHost`), chunki bulutli deployda serverning o'z
+ * ichki xizmatlari ham aynan shu xususiy oraliqlarda turadi.
  */
 export function isPrivateHost(host: string): boolean {
   const name = stripPort(host).toLowerCase();
@@ -252,6 +273,150 @@ export function isPrivateHost(host: string): boolean {
   if (a === 192 && b === 168) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
   return false;
+}
+
+/**
+ * DIRECT rejimda ruxsat etilgan tarmoqlar (operator qo'yadigan muhit
+ * o'zgaruvchisi `LIGHTS_DIRECT_ALLOWED_CIDRS`).
+ *
+ * STANDART QIYMAT — BO'SH, ya'ni operator ANIQ ruxsat bermaguncha DIRECT rejim
+ * hech qanday manzilga chiqmaydi. Sababi: `isPrivateHost()` ning o'zi yetarli
+ * emas — bulutli deployda (AWS/GCP/Hetzner VPC, Docker/K8s) serverning O'Z
+ * PostgreSQL i, Redis i va ichki panellari AYNAN 10/8, 172.16/12, 192.168/16
+ * oraliqlarida turadi, ya'ni "xususiy IP" belgisi ularni himoya qilmaydi.
+ * BRIDGE rejimi (tavsiya etilgan yo'l) bu cheklovga umuman tegishli emas —
+ * u yerda so'rovni klub tarmog'idagi agentning o'zi yuboradi.
+ */
+const DIRECT_ALLOWED_CIDRS_ENV = 'LIGHTS_DIRECT_ALLOWED_CIDRS';
+
+/** Bitta CIDR: tarmoq manzili va niqob (32 bitli butun sonlar) */
+interface CidrRange {
+  base: number;
+  mask: number;
+}
+
+/** Ro'yxat bir marta tahlil qilinadi (ogohlantirish ham bir marta chiqadi) */
+let directAllowedCache: CidrRange[] | null = null;
+
+/**
+ * driver='http' shabloni murojaat qilishi mumkin bo'lgan portlar.
+ * Bu ro'yxat port-skanerlashni cheklaydi: 5432 (PostgreSQL), 6379 (Redis),
+ * 9200 va h.k. manzil xususiy bo'lsa ham rad etiladi.
+ * 8123 — Home Assistant, 8080/8081 — ko'p relelarning muqobil web porti.
+ */
+const HTTP_ALLOWED_PORTS = new Set([80, 443, 8080, 8081, 8123]);
+
+/** '192.168.1.51' -> 32 bitli son (shakl noto'g'ri bo'lsa null) */
+function ipv4ToInt(value: string): number | null {
+  const match = IPV4_RE.exec(value.trim());
+  if (!match) return null;
+  const octets = [match[1], match[2], match[3], match[4]].map((part) => Number(part));
+  if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+  return ((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0;
+}
+
+/** '192.168.1.0/24' yoki '192.168.1.51' (=/32) -> oraliq; noto'g'ri bo'lsa null */
+function parseCidr(entry: string): CidrRange | null {
+  const slash = entry.indexOf('/');
+  const ip = ipv4ToInt(slash === -1 ? entry : entry.slice(0, slash));
+  if (ip === null) return null;
+
+  let bits = 32;
+  if (slash !== -1) {
+    const raw = entry.slice(slash + 1).trim();
+    if (!/^\d{1,2}$/.test(raw)) return null;
+    bits = Number(raw);
+    if (bits < 0 || bits > 32) return null;
+  }
+  const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+  return { base: (ip & mask) >>> 0, mask };
+}
+
+/**
+ * Muhit o'zgaruvchisidan CIDR ro'yxatini o'qish.
+ * Noto'g'ri yozilgan qiymat JIMGINA "hammasiga ruxsat" ga aylanmasligi kerak:
+ * u ogohlantirish bilan tashlab yuboriladi (bitta ham to'g'ri qiymat qolmasa —
+ * bo'sh ro'yxat, ya'ni DIRECT rejim ishlamaydi).
+ *
+ * Bu yerda NestJS Logger ishlatilmaydi: fayl ataylab NestJS ga bog'liq emas
+ * (uni klubdagi lokal agent ham ishlatadi).
+ */
+function directAllowedCidrs(): CidrRange[] {
+  if (directAllowedCache) return directAllowedCache;
+
+  const raw = (process.env[DIRECT_ALLOWED_CIDRS_ENV] ?? '').trim();
+  const ranges: CidrRange[] = [];
+  for (const item of raw.split(',')) {
+    const entry = item.trim();
+    if (!entry) continue;
+    const range = parseCidr(entry);
+    if (!range) {
+      console.warn(
+        `[lights] ${DIRECT_ALLOWED_CIDRS_ENV}: noto'g'ri CIDR e'tiborsiz qoldirildi: "${entry}"`,
+      );
+      continue;
+    }
+    ranges.push(range);
+  }
+
+  directAllowedCache = ranges;
+  return ranges;
+}
+
+/**
+ * DIRECT rejimda shu manzilga so'rov yuborish mumkinmi.
+ * Manzil BIR VAQTNING O'ZIDA ikkala shartga javob berishi kerak:
+ *   1) mavjud lokal-tarmoq tekshiruvi (`isPrivateHost`) — loopback/tashqi IP rad;
+ *   2) operator ochgan `LIGHTS_DIRECT_ALLOWED_CIDRS` ro'yxati ichida bo'lishi.
+ * Ro'yxat bo'sh bo'lsa (standart) DIRECT rejim hech qayerga chiqmaydi.
+ */
+export function isDirectAllowedHost(host: string): boolean {
+  if (!isPrivateHost(host)) return false;
+
+  const ranges = directAllowedCidrs();
+  if (ranges.length === 0) return false;
+
+  const ip = ipv4ToInt(stripPort(host));
+  if (ip === null) return false;
+  return ranges.some((range) => ((ip & range.mask) >>> 0) === range.base);
+}
+
+/**
+ * driver='http' shablon URL i ruxsat etilgan portga murojaat qiladimi.
+ * Port ko'rsatilmasa sxemaning standart porti olinadi (http=80, https=443).
+ */
+export function isAllowedHttpPort(template: string): boolean {
+  try {
+    const parsed = new URL(template);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    const port = parsed.port ? Number(parsed.port) : parsed.protocol === 'https:' ? 443 : 80;
+    return HTTP_ALLOWED_PORTS.has(port);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Manzildagi PORT ruxsat etilganmi ('192.168.1.50:8080' -> 8080).
+ *
+ * NEGA KERAK: port cheklovi avval FAQAT driver='http' shablon URL lariga
+ * qo'llanardi. Ammo Shelly/Tasmota/ESPHome/Home Assistant drayverlari ham
+ * manzilni `host[:port]` ko'rinishida oladi va u yerdagi portni hech kim
+ * tekshirmasdi — ya'ni drayverni almashtirib, ruxsat etilgan tarmoq ichida
+ * istalgan portni (PostgreSQL 5432, Redis 6379, ichki panel) tekshirib ko'rish
+ * mumkin edi. Endi cheklov BARCHA to'g'ridan-to'g'ri (DIRECT) chiqishlarga
+ * bir xil qo'llanadi.
+ *
+ * Port ko'rsatilmasa 80 deb qabul qilinadi (drayverlar HTTP bilan ishlaydi).
+ */
+export function isAllowedHostPort(host: string): boolean {
+  const raw = host?.trim();
+  if (!raw) return false;
+  const parts = raw.split(':');
+  if (parts.length === 1) return true; // port yo'q -> 80/443, ikkalasi ham ro'yxatda
+  if (parts.length !== 2) return false;
+  const port = Number(parts[1]);
+  return Number.isInteger(port) && HTTP_ALLOWED_PORTS.has(port);
 }
 
 /** Manzil formati to'g'rimi: IPv4[:port] yoki hostname[:port] (IPv6 qo'llab-quvvatlanmaydi) */
@@ -372,7 +537,9 @@ function buildCommandRequest(target: LightTarget, physical: boolean): DeviceRequ
       // ESPHome web server: POST /switch/<entity>/turn_on|turn_off
       const entity = readEsphomeEntity(target.config);
       if (!entity) {
-        throw new Error("esphome drayveri uchun config.entity ko'rsatilmagan yoki noto'g'ri");
+        throw new LightConfigError(
+          "esphome drayveri uchun config.entity ko'rsatilmagan yoki noto'g'ri",
+        );
       }
       return {
         url: `http://${requireHost(host)}/switch/${entity}/${physical ? 'turn_on' : 'turn_off'}`,
@@ -384,7 +551,7 @@ function buildCommandRequest(target: LightTarget, physical: boolean): DeviceRequ
       // HA REST: POST /api/services/<domain>/turn_on, tana: {"entity_id":"switch.stol_3"}
       const entityId = readHaEntityId(target.config);
       if (!entityId) {
-        throw new Error(
+        throw new LightConfigError(
           "home_assistant drayveri uchun config.entityId ko'rsatilmagan yoki noto'g'ri",
         );
       }
@@ -402,7 +569,9 @@ function buildCommandRequest(target: LightTarget, physical: boolean): DeviceRequ
     case LightDriver.HTTP: {
       const template = physical ? target.onUrl : target.offUrl;
       if (!template) {
-        throw new Error(`http drayveri uchun ${physical ? 'onUrl' : 'offUrl'} ko'rsatilmagan`);
+        throw new LightConfigError(
+          `http drayveri uchun ${physical ? 'onUrl' : 'offUrl'} ko'rsatilmagan`,
+        );
       }
       return {
         url: template
@@ -413,7 +582,7 @@ function buildCommandRequest(target: LightTarget, physical: boolean): DeviceRequ
     }
 
     default:
-      throw new Error(`Chiroq drayveri qo'llab-quvvatlanmaydi: ${target.driver}`);
+      throw new LightConfigError(`Chiroq drayveri qo'llab-quvvatlanmaydi: ${target.driver}`);
   }
 }
 
@@ -532,7 +701,7 @@ function readHaEntityId(config: LightDeviceConfig | null): string | null {
 
 /** Manzilsiz drayverlar uchun aniq xato matni */
 function requireHost(host: string | undefined): string {
-  if (!host) throw new Error("Rele manzili (host) ko'rsatilmagan");
+  if (!host) throw new LightConfigError("Rele manzili (host) ko'rsatilmagan");
   return host;
 }
 

@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -20,6 +21,9 @@ import { Session } from './session.entity';
  */
 @Entity('session_payments')
 @Index('IDX_session_payments_club_createdAt', ['clubId', 'createdAt'])
+// DB darajasidagi cheklov migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
+@Check('chk_session_payments_amount_nonneg', '"amount" >= 0')
 export class SessionPayment {
   @PrimaryGeneratedColumn()
   id: number;

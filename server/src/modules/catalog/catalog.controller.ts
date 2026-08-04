@@ -89,11 +89,12 @@ export class ProductsController {
   @Put(':id')
   async update(
     @ClubId() clubId: number,
+    @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateProductDto,
     @Lang() lang: Language,
   ) {
-    const data = await this.catalogService.updateProduct(clubId, id, dto);
+    const data = await this.catalogService.updateProduct(clubId, id, user, dto);
     return { success: true, message: t(lang, 'products.updated'), data };
   }
 

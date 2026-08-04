@@ -6,6 +6,7 @@ import { Club } from '../../entities/club.entity';
 import { ClubStatus, InvoiceStatus } from '../../entities/enums';
 import { Invoice } from '../../entities/invoice.entity';
 import { PlatformSetting } from '../../entities/platform-setting.entity';
+import { PlatformConfigService } from '../../common/platform-config/platform-config.service';
 import { TelegramService } from '../../telegram/telegram.service';
 import { DAY_MS } from './billing.util';
 
@@ -28,11 +29,12 @@ export const EXPIRY_NOTIFIED_SETTING_KEY = 'expiry_notified';
 const PENDING_INVOICE_TTL_DAYS = 30;
 
 /**
- * Eslatma chegaralari (kun), O'SISH tartibida — eng yaqin chegara tanlanadi.
+ * Eslatma chegaralari (kun) endi SOZLAMADA — superadmin panelidan
+ * o'zgartiriladi (common/platform-config). Ular O'SISH tartibida saqlanadi
+ * (PlatformConfigService.normalize) va eng yaqin chegara tanlanadi:
  * `daysLeft <= chegara` shakli aniq tenglikdan farqli o'laroq bitta
  * o'tkazib yuborilgan 03:00 ishida eslatmani butunlay yo'qotmaydi.
  */
-const EXPIRY_THRESHOLDS = [1, 3];
 
 /**
  * Obuna bo'yicha rejalashtirilgan ishlar (har kuni 03:00):
@@ -48,6 +50,7 @@ export class SubscriptionCronService {
 
   constructor(
     private readonly telegram: TelegramService,
+    private readonly platformConfig: PlatformConfigService,
     @InjectRepository(Club) private readonly clubRepo: Repository<Club>,
     @InjectRepository(Invoice) private readonly invoiceRepo: Repository<Invoice>,
     @InjectRepository(PlatformSetting)
@@ -115,6 +118,16 @@ export class SubscriptionCronService {
    * o'zgaradi — yangi davr uchun eslatmalar qaytadan ishlaydi.
    */
   private async notifyExpiringClubs(): Promise<void> {
+    // Chegaralar SOZLAMADAN (superadmin panelida o'zgartiriladi) — ilgari
+    // ular kodda qat'iy [1, 3] va SQL da qat'iy `interval '4 days'` edi.
+    const { expiryReminderDays } = await this.platformConfig.get();
+    if (expiryReminderDays.length === 0) return; // eslatmalar o'chirilgan
+
+    // SQL oynasi eng KATTA chegaradan bir kun kengroq: `daysLeft` yuqoriga
+    // yaxlitlanadi (Math.ceil), shuning uchun aniq chegaraga teng klub ham
+    // oynaga tushishi kerak.
+    const windowDays = Math.max(...expiryReminderDays) + 1;
+
     const clubs = await this.clubRepo
       .createQueryBuilder('club')
       .where('club.status NOT IN (:...skipStatuses)', {
@@ -122,7 +135,10 @@ export class SubscriptionCronService {
       })
       .andWhere(`COALESCE(club."subscriptionEndsAt", club."trialEndsAt") IS NOT NULL`)
       .andWhere(`COALESCE(club."subscriptionEndsAt", club."trialEndsAt") > now()`)
-      .andWhere(`COALESCE(club."subscriptionEndsAt", club."trialEndsAt") < now() + interval '4 days'`)
+      .andWhere(
+        `COALESCE(club."subscriptionEndsAt", club."trialEndsAt") < now() + make_interval(days => :windowDays)`,
+        { windowDays },
+      )
       .getMany();
     if (clubs.length === 0) return;
 
@@ -137,7 +153,7 @@ export class SubscriptionCronService {
       const daysLeft = Math.ceil((effectiveEnd.getTime() - Date.now()) / DAY_MS);
       // Eng yaqin (eng kichik) mos chegara: 1 kun qolganda 3 kunlik emas,
       // 1 kunlik eslatma ketadi
-      const threshold = EXPIRY_THRESHOLDS.find((limit) => daysLeft <= limit);
+      const threshold = expiryReminderDays.find((limit) => daysLeft <= limit);
       if (threshold === undefined) continue;
 
       // Shu davr + shu chegara bo'yicha allaqachon yuborilgan bo'lsa — o'tkazib yuboriladi

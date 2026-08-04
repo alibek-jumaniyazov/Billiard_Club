@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -17,7 +18,18 @@ import { Table } from './table.entity';
 import { User } from './user.entity';
 import { OrderItem } from './order-item.entity';
 
+// DB darajasidagi cheklovlar migratsiyada yaratilgan, lekin metadatada ham
+// e'lon qilinishi SHART: aks holda kelajakdagi `migration:generate` ularni
+// "ortiqcha" deb hisoblab DROP qiladigan migratsiya yozadi.
 @Entity('orders')
+@Check('chk_orders_amount_nonneg', '"totalAmount" >= 0')
+// Bitta sessiyada bir vaqtda faqat bitta OCHIQ buyurtma (poyga himoyasi)
+@Index('uq_orders_one_open_per_session', ['sessionId'], {
+  unique: true,
+  where: `"status" = 'open' AND "sessionId" IS NOT NULL`,
+})
+// Buyurtmalar sahifasi va hisobotlar klub + sana oynasi bo'yicha so'raydi
+@Index('IDX_orders_club_createdAt', ['clubId', 'createdAt'])
 export class Order {
   @PrimaryGeneratedColumn()
   id: number;

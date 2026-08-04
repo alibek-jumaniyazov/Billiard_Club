@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -19,7 +20,28 @@ import { PaymentMethod, SessionStatus } from '../../../entities/enums';
 /** Pul ustunlari numeric(14,2) — bitta yozuvdagi eng katta mumkin summa */
 const MAX_MONEY = 999_999_999_999;
 
-export class StartSessionDto {
+/**
+ * OFLAYN VAQT MUHRI — internet uzilganda bajarilgan amalning HAQIQIY vaqti.
+ *
+ * NEGA KERAK: klientning oflayn navbati amalni aloqa tiklangandan keyin
+ * yuboradi. Server vaqtni o'zi qo'yganida o'yin "hozir boshlangan" bo'lib
+ * yozilardi va klub oflayn o'tgan BUTUN vaqt uchun pul olmasdi (2 soatlik
+ * uzilish = 2 soatlik tushum yo'qolishi). Pauza uchun teskarisi: oflayn
+ * ayirilgan pauza serverda hisobga olinmay, mijozdan ORTIQCHA pul olinardi.
+ *
+ * ISHONCH CHEGARASI: qiymat klientdan keladi, shuning uchun server uni
+ * QAT'IY CHEGARALAYDI (sessions.service.ts: clampOfflineAt) —
+ * [hozir - 24 soat, hozir] oralig'idan tashqarisi kesiladi va kesilgan
+ * hollarda audit yozuvi qoldiriladi. Bu yangi ishonch yuzasi ochmaydi:
+ * kassir baribir "boshlash" tugmasini qachon bosishni o'zi tanlaydi.
+ */
+export class OfflineAtDto {
+  @IsOptional()
+  @IsISO8601()
+  offlineAt?: string;
+}
+
+export class StartSessionDto extends OfflineAtDto {
   @IsInt()
   @Type(() => Number)
   tableId: number;

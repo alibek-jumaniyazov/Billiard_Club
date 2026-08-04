@@ -7,7 +7,9 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -39,6 +41,14 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
+}
+
+/** Ochiq buyurtmani bekor qilish — sabab ixtiyoriy, lekin audit jurnaliga yoziladi */
+export class CancelOrderDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class ListOrdersQueryDto {

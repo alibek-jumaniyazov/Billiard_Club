@@ -13,9 +13,12 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { errorMessage, lightsApi, sessionsApi, tablesApi } from '../../api';
+import { errorMessage, isNetworkError, lightsApi, sessionsApi, tablesApi } from '../../api';
 import { EmptyState, PageHeader, PageTransition, StatCard } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
+import { useConnection } from '../../context/ConnectionContext';
+import { applyQueueToTables } from '../../offline/overlay';
+import { newActionKey, queuePauseResume } from '../../offline/pos';
 import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable, Session, TableLightConfig } from '../../types';
 import {
@@ -55,6 +58,7 @@ const TablesPage = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { hasRole, club } = useAuth();
+  const { online, entries, pending } = useConnection();
 
   const canCheckout = hasRole('admin', 'kassir', 'superadmin');
   const canManage = hasRole('admin', 'superadmin');
@@ -74,6 +78,21 @@ const TablesPage = () => {
   const knownSessionsRef = useRef<Set<number>>(new Set());
   // Sessiya oxirgi ko'rilgan stoli — boshqa terminal transferini aniqlash uchun
   const lastTableRef = useRef<Map<number, number>>(new Map());
+
+  /**
+   * POYGA HIMOYASI (sekin tarmoqda kritik).
+   *
+   * 15 soniyalik poll oldingi so'rov tugashini kutmaydi, shuning uchun sekin
+   * tarmoqda so'rovlar ustma-ust chiqadi va javoblar TARTIBSIZ keladi. Himoyasiz
+   * holatda ESKI javob yangisining ustiga yozilardi:
+   *  - yakunlangan sessiya ekranda yana "band" bo'lib ko'rinardi;
+   *  - eng yomoni, eskirgan `serverNow` bilan `offsetMs` ORQAGA siljib,
+   *    kartadagi taymer va JONLI SUMMA orqaga sakrardi — kassir uchun
+   *    bevosita chalg'ituvchi va pul bilan bog'liq.
+   * Yechim: monoton ketma-ketlik raqami + `serverNow` faqat oldinga siljiydi.
+   */
+  const reqSeqRef = useRef(0);
+  const lastServerNowRef = useRef(0);
 
   const [startTable, setStartTable] = useState<BilliardTable | null>(null);
   const [orderTable, setOrderTable] = useState<BilliardTable | null>(null);
@@ -149,16 +168,29 @@ const TablesPage = () => {
   const fetchTables = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
+      const seq = ++reqSeqRef.current;
       try {
         const res = await tablesApi.list();
+        // Bu javob eskirganmi — undan keyin yangi so'rov ketgan bo'lsa tashlanadi
+        if (seq !== reqSeqRef.current) return;
         setTables(res.data);
-        setOffsetMs(clockOffsetMs(res.serverNow));
+        // Soat siljishi FAQAT yangiroq server vaqti bilan yangilanadi:
+        // eskirgan `serverNow` taymerni orqaga qaytarmasin
+        const serverMs = res.serverNow ? Date.parse(res.serverNow) : NaN;
+        if (!Number.isNaN(serverMs) && serverMs >= lastServerNowRef.current) {
+          lastServerNowRef.current = serverMs;
+          setOffsetMs(clockOffsetMs(res.serverNow));
+        }
         setLoadError(false);
         void syncSegments(res.data);
       } catch (err) {
+        if (seq !== reqSeqRef.current) return;
         setLoadError(true);
         if (!silent) message.error(errorMessage(err, t('common.error')));
       } finally {
+        // Spinner HAR DOIM o'chiriladi (seq tekshiruvisiz): u ma'lumot
+        // tartibiga emas, foydalanuvchi bosgan amalga tegishli — aks holda
+        // qo'lda yangilash poll bilan ustma-ust tushganda spinner qotib qolardi
         if (!silent) setLoading(false);
       }
     },
@@ -172,6 +204,19 @@ const TablesPage = () => {
   }, [fetchTables]);
 
   const silentRefresh = useCallback(() => void fetchTables(true), [fetchTables]);
+
+  /**
+   * Navbat bo'shashi bilan serverdan darhol yangilaymiz.
+   *
+   * Aks holda qisqa "titrash" bo'lardi: amal yuborilgach navbatdan chiqadi va
+   * qoplama yo'qoladi, serverdan kelgan haqiqiy holat esa keyingi poll'gacha
+   * (15 soniya) kelmaydi — shu oraliqda band stol "bo'sh" bo'lib ko'rinardi.
+   */
+  const prevPendingRef = useRef(pending);
+  useEffect(() => {
+    if (pending < prevPendingRef.current) void fetchTables(true);
+    prevPendingRef.current = pending;
+  }, [pending, fetchTables]);
 
   /**
    * Chiroq holati amaldan keyin bir necha yuz millisekundda o'zgaradi (bridge
@@ -205,22 +250,58 @@ const TablesPage = () => {
   }, []);
 
   const handlePauseResume = useCallback(
-    async (session: Session) => {
+    async (session: Session, table: BilliardTable) => {
+      const resume = session.status === 'paused';
+
+      // Bir martalik kalit: onlayn urinish ham, navbatdagi takror ham AYNAN
+      // shuni ishlatadi — "server bajardi, javob yo'qoldi" holatida amal ikki
+      // marta yozilmaydi (offline/pos.ts va api/index.ts izohlariga qarang)
+      const key = newActionKey();
+
+      /**
+       * NAVBATGA ikki holatda tushadi:
+       *  1. internet yo'q;
+       *  2. sessiyaning O'ZI hali serverda YO'Q (oflayn boshlangan) — uning
+       *     `id` si manfiy sintetik qiymat, uni serverga yuborish 404 berardi.
+       *     Aloqa tiklangan bo'lsa ham bu amal sessiya yaratilgandan KEYIN
+       *     yuborilishi kerak, shuning uchun navbatdagi tartibga qo'shiladi
+       *     ($local havolasi orqali — offline/queue.ts).
+       */
+      if (!online || session.offlineLocalId) {
+        try {
+          await queuePauseResume(table, session, resume, key, offsetMs);
+          message.success(t('offline.savedOffline'));
+        } catch {
+          message.error(t('common.error'));
+        }
+        return;
+      }
+
       markPending(session.id, true);
       try {
-        const res =
-          session.status === 'paused'
-            ? await sessionsApi.resume(session.id)
-            : await sessionsApi.pause(session.id);
+        const res = resume
+          ? await sessionsApi.resume(session.id, key)
+          : await sessionsApi.pause(session.id, key);
         message.success(res.message);
         await fetchTables(true);
       } catch (err) {
+        // Aloqa aynan shu so'rovda uzildi (oflayn holat hali aniqlanmagan) —
+        // amalni yo'qotmasdan navbatga o'tkazamiz
+        if (isNetworkError(err)) {
+          try {
+            await queuePauseResume(table, session, resume, key, offsetMs);
+            message.success(t('offline.savedOffline'));
+            return;
+          } catch {
+            // navbatga ham yozib bo'lmadi — oddiy xato ko'rsatiladi
+          }
+        }
         message.error(errorMessage(err, t('common.error')));
       } finally {
         markPending(session.id, false);
       }
     },
-    [fetchTables, markPending, message, t],
+    [fetchTables, markPending, message, offsetMs, online, t],
   );
 
   const handleCancel = useCallback(
@@ -334,15 +415,32 @@ const TablesPage = () => {
 
   /* ---------------------------------------------------------- Statistika */
 
-  const busyCount = useMemo(() => tables.filter((tbl) => tbl.status === 'busy').length, [tables]);
-  const freeCount = tables.length - busyCount;
-  const occupancy = tables.length > 0 ? Math.round((busyCount / tables.length) * 100) : 0;
-  const todayGames = useMemo(
-    () => tables.reduce((sum, tbl) => sum + (tbl.todayCompletedSessions ?? 0), 0),
-    [tables],
+  /**
+   * EKRANGA CHIQADIGAN ro'yxat = serverdan/keshdan kelgan holat + hali
+   * yuborilmagan oflayn amallar qoplamasi. Shu tufayli internet yo'q paytda
+   * boshlangan o'yin darhol ko'rinadi va kassir amalni takrorlamaydi
+   * (offline/overlay.ts izohiga qarang).
+   */
+  const viewTables = useMemo(
+    () => applyQueueToTables(tables, entries),
+    [tables, entries],
   );
 
-  const freeTables = useMemo(() => tables.filter((tbl) => tbl.status === 'free'), [tables]);
+  const busyCount = useMemo(
+    () => viewTables.filter((tbl) => tbl.status === 'busy').length,
+    [viewTables],
+  );
+  const freeCount = viewTables.length - busyCount;
+  const occupancy = viewTables.length > 0 ? Math.round((busyCount / viewTables.length) * 100) : 0;
+  const todayGames = useMemo(
+    () => viewTables.reduce((sum, tbl) => sum + (tbl.todayCompletedSessions ?? 0), 0),
+    [viewTables],
+  );
+
+  const freeTables = useMemo(
+    () => viewTables.filter((tbl) => tbl.status === 'free'),
+    [viewTables],
+  );
 
   /* -------------------------------------------------------------- Render */
 
@@ -383,10 +481,10 @@ const TablesPage = () => {
             <Col xs={12} md={6}>
               <StatCard
                 label={t('tables.statBusy')}
-                value={`${busyCount} / ${tables.length}`}
+                value={`${busyCount} / ${viewTables.length}`}
                 icon={<FireOutlined />}
                 accent={TOKENS.color.neonGreen}
-                loading={loading && tables.length === 0}
+                loading={loading && viewTables.length === 0}
               />
             </Col>
             <Col xs={12} md={6}>
@@ -395,7 +493,7 @@ const TablesPage = () => {
                 value={freeCount}
                 icon={<CheckCircleOutlined />}
                 accent={TOKENS.color.emerald.bright}
-                loading={loading && tables.length === 0}
+                loading={loading && viewTables.length === 0}
               />
             </Col>
             <Col xs={12} md={6}>
@@ -403,7 +501,7 @@ const TablesPage = () => {
                 label={t('tables.statOccupancy')}
                 value={`${occupancy}%`}
                 icon={<PieChartOutlined />}
-                loading={loading && tables.length === 0}
+                loading={loading && viewTables.length === 0}
               />
             </Col>
             <Col xs={12} md={6}>
@@ -412,14 +510,14 @@ const TablesPage = () => {
                 value={todayGames}
                 icon={<HistoryOutlined />}
                 accent={TOKENS.color.semantic.info}
-                loading={loading && tables.length === 0}
+                loading={loading && viewTables.length === 0}
               />
             </Col>
           </Row>
         }
       />
 
-      {loading && tables.length === 0 ? (
+      {loading && viewTables.length === 0 ? (
         <Row gutter={[16, 16]}>
           {Array.from({ length: 8 }).map((_, i) => (
             <Col xs={24} sm={12} lg={8} xl={6} key={i}>
@@ -427,7 +525,7 @@ const TablesPage = () => {
             </Col>
           ))}
         </Row>
-      ) : loadError && tables.length === 0 ? (
+      ) : loadError && viewTables.length === 0 ? (
         <EmptyState
           icon={<WarningOutlined />}
           title={t('tables.loadError')}
@@ -438,7 +536,7 @@ const TablesPage = () => {
             </Button>
           }
         />
-      ) : tables.length === 0 ? (
+      ) : viewTables.length === 0 ? (
         <EmptyState
           icon={<TableOutlined />}
           title={t('tables.noTables')}
@@ -453,7 +551,7 @@ const TablesPage = () => {
         />
       ) : (
         <Row gutter={[16, 16]}>
-          {tables.map((table) => {
+          {viewTables.map((table) => {
             const session = table.sessions?.[0] ?? null;
             return (
               <Col xs={24} sm={12} lg={8} xl={6} key={table.id}>
@@ -481,7 +579,15 @@ const TablesPage = () => {
       )}
 
       {/* O'yin boshlash */}
-      <StartModal table={startTable} onClose={() => setStartTable(null)} onStarted={handleStarted} />
+      <StartModal
+        table={startTable}
+        onClose={() => setStartTable(null)}
+        onStarted={handleStarted}
+        // Oflayn boshlangan o'yin ekranda navbat qoplamasidan chiqadi —
+        // bu yerda faqat serverdan yangilashga urinib ko'ramiz
+        onQueuedOffline={silentRefresh}
+        offsetMs={offsetMs}
+      />
 
       {/* Bar buyurtmasi */}
       <OrderModal table={orderTable} onClose={() => setOrderTable(null)} onOrdered={silentRefresh} />

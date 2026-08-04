@@ -14,6 +14,13 @@ interface DashboardState {
   error: boolean;
   /** Qo'lda yangilash tugmasi aylanishi */
   refreshing: boolean;
+  /**
+   * Qo'lda "Yangilash" muvaffaqiyatsiz tugadi (eski holat ekranda qoldi) —
+   * bosish JIM ketmasin, foydalanuvchi ma'lumot eskirganini bilsin
+   */
+  refreshError: boolean;
+  /** Oxirgi MUVAFFAQIYATLI yangilanish vaqti (ms) — "oxirgi holat HH:mm" uchun */
+  lastUpdatedAt: number | null;
   /** serverNow - Date.now(): jonli taymerlar soat siljishisiz ishlashi uchun */
   clockOffset: number;
 }
@@ -29,13 +36,15 @@ export const useDashboardStats = () => {
     loading: true,
     error: false,
     refreshing: false,
+    refreshError: false,
+    lastUpdatedAt: null,
     clockOffset: 0,
   });
   const mountedRef = useRef(true);
 
   const fetchStats = useCallback(async (manual = false) => {
     if (manual && mountedRef.current) {
-      setState((s) => ({ ...s, refreshing: true }));
+      setState((s) => ({ ...s, refreshing: true, refreshError: false }));
     }
     try {
       const res = await dashboardApi.stats();
@@ -55,6 +64,8 @@ export const useDashboardStats = () => {
           loading: false,
           error: false,
           refreshing: false,
+          refreshError: false,
+          lastUpdatedAt: Date.now(),
           clockOffset: clockOffsetMs(res.serverNow),
         });
       }
@@ -66,6 +77,9 @@ export const useDashboardStats = () => {
           // Faqat hali hech narsa yuklanmagan bo'lsa xato paneli
           error: s.stats === null,
           refreshing: false,
+          // Qo'lda yangilash xatosi ko'rsatiladi; jim fon polli belgini
+          // o'zi yoqmaydi, lekin mavjudini ham o'chirmaydi
+          refreshError: s.stats === null ? false : manual || s.refreshError,
         }));
       }
     }
@@ -84,7 +98,7 @@ export const useDashboardStats = () => {
   const refresh = useCallback(() => void fetchStats(true), [fetchStats]);
 
   const retry = useCallback(() => {
-    setState((s) => ({ ...s, loading: true, error: false }));
+    setState((s) => ({ ...s, loading: true, error: false, refreshError: false }));
     void fetchStats();
   }, [fetchStats]);
 

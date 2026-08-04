@@ -1,0 +1,64 @@
+{
+  "name": "billiardclub-desktop",
+  "productName": "Billiard Club",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Billiard Club — klub boshqaruv tizimining desktop (Windows/macOS/Linux) qobig'i",
+  "main": "main.js",
+  "author": "Billiard Club",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env BILLIARDCLUB_URL=http://localhost:5173 electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "check": "node --check main.js && node --check preload.js && node --check offline.js && node --check updater.js"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "uz.billiardclub.desktop",
+    "productName": "Billiard Club",
+    "copyright": "Billiard Club",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": ["main.js", "preload.js", "offline.js", "updater.js", "build/icon.*"],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://billiardclub.uz/api/public/updates"
+      }
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Billiard Club"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.business",
+      "icon": "build/icon.icns"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Office",
+      "icon": "build/icon.png"
+    }
+  }
+}

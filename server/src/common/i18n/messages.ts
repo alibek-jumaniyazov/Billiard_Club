@@ -84,8 +84,10 @@ const messages: Record<Language, Record<string, string>> = {
     'debts.invalidAmount': "To'lov summasi noto'g'ri",
     'debts.amountExceedsRemaining': "To'lov qolgan qarzdan ({remaining}) oshib ketdi",
     'debts.paymentAccepted': "To'lov qabul qilindi",
-    'debts.deleted': "Qarz o'chirildi",
-    'debts.hasPayments': "To'lovlar tarixi bor qarzni o'chirib bo'lmaydi",
+    // Qator O'CHIRILMAYDI, hisobdan chiqariladi (qoldiq 0 bo'ladi) — xabar ham
+    // aynan shuni aytishi kerak, aks holda kassir yozuv yo'qolgan deb o'ylaydi
+    'debts.deleted': 'Qarz hisobdan chiqarildi',
+    'debts.hasPayments': "To'lovlar tarixi bor qarzni hisobdan chiqarib bo'lmaydi",
 
     // Kategoriyalar
     'categories.notFound': 'Kategoriya topilmadi',
@@ -170,6 +172,7 @@ const messages: Record<Language, Record<string, string>> = {
     'platform.unknownTelegramEvent': "Noma'lum Telegram hodisasi: {event}",
     'platform.invalidEventValue': "'{event}' hodisasi qiymati true/false bo'lishi kerak",
     'platform.telegramSettingsUpdated': 'Telegram xabarnoma sozlamalari yangilandi',
+    'platform.configUpdated': 'Platforma sozlamalari yangilandi',
 
     // Hisobotlar
     'reports.invalidRange': "Sana oralig'i noto'g'ri",
@@ -193,6 +196,11 @@ const messages: Record<Language, Record<string, string>> = {
     'reports.totalRow': 'JAMI:',
     'reports.paidYes': 'Ha',
     'reports.paidNo': "Yo'q (qarz)",
+
+    // To'lov usullari (Excel ustunlari uchun — xom enum o'rniga)
+    'payment.cash': 'Naqd',
+    'payment.card': 'Karta',
+    'payment.transfer': "O'tkazma",
 
     // Klublar (superadmin)
     'clubs.notFound': 'Klub topilmadi',
@@ -257,6 +265,9 @@ const messages: Record<Language, Record<string, string>> = {
     'common.serverError': 'Server xatosi',
     'common.notFound': 'Topilmadi',
     'common.conflict': "Ma'lumotlar ziddiyati — sahifani yangilab qayta urinib ko'ring",
+    // Aynan shu amal AYNI DAMDA bajarilmoqda (idempotentlik kaliti band) —
+    // klient birozdan keyin qayta uradi va tayyor javobni oladi
+    'common.tryAgain': "Amal bajarilmoqda — birozdan keyin qayta urinib ko'ring",
     'common.tooManyRequests': "So'rovlar juda ko'p. Birozdan keyin urinib ko'ring",
 
     // Mijozlar
@@ -280,6 +291,18 @@ const messages: Record<Language, Record<string, string>> = {
     'reservations.cancelled': 'Bron bekor qilindi',
     'reservations.invalidTransition': "Bron holatini bunday o'zgartirib bo'lmaydi",
     'reservations.overlapWarning': 'Diqqat: bu vaqtda stolda boshqa bron bor',
+
+    // Desktop relizlari
+    'releases.notFound': 'Reliz topilmadi',
+    'releases.fileMissing': "Reliz fayli serverda topilmadi",
+    'releases.fileRequired': 'Fayl yuklanmadi',
+    'releases.badVersion': "Versiya noto'g'ri (masalan: 1.0.1)",
+    'releases.badExtension': 'Bu platforma uchun ruxsat etilgan kengaytmalar: {allowed}',
+    'releases.versionExists': 'Bu platforma uchun bunday versiya allaqachon mavjud',
+    'releases.uploaded': 'Reliz yuklandi',
+    'releases.published': 'Reliz nashr etildi',
+    'releases.unpublished': 'Reliz nashrdan olindi',
+    'releases.deleted': "Reliz o'chirildi",
   },
   ru: {
     // Auth
@@ -358,8 +381,8 @@ const messages: Record<Language, Record<string, string>> = {
     'debts.invalidAmount': 'Неверная сумма платежа',
     'debts.amountExceedsRemaining': 'Платёж превышает остаток долга ({remaining})',
     'debts.paymentAccepted': 'Платёж принят',
-    'debts.deleted': 'Долг удалён',
-    'debts.hasPayments': 'Нельзя удалить долг с историей платежей',
+    'debts.deleted': 'Долг списан',
+    'debts.hasPayments': 'Нельзя списать долг с историей платежей',
 
     // Категории
     'categories.notFound': 'Категория не найдена',
@@ -444,6 +467,7 @@ const messages: Record<Language, Record<string, string>> = {
     'platform.unknownTelegramEvent': 'Неизвестное событие Telegram: {event}',
     'platform.invalidEventValue': "Значение события '{event}' должно быть true/false",
     'platform.telegramSettingsUpdated': 'Настройки уведомлений Telegram обновлены',
+    'platform.configUpdated': 'Настройки платформы обновлены',
 
     // Отчёты
     'reports.invalidRange': 'Неверный диапазон дат',
@@ -467,6 +491,11 @@ const messages: Record<Language, Record<string, string>> = {
     'reports.totalRow': 'ИТОГО:',
     'reports.paidYes': 'Да',
     'reports.paidNo': 'Нет (долг)',
+
+    // Способы оплаты (для колонок Excel — вместо сырого enum)
+    'payment.cash': 'Наличные',
+    'payment.card': 'Карта',
+    'payment.transfer': 'Перевод',
 
     // Клубы (superadmin)
     'clubs.notFound': 'Клуб не найден',
@@ -530,6 +559,7 @@ const messages: Record<Language, Record<string, string>> = {
     'common.serverError': 'Ошибка сервера',
     'common.notFound': 'Не найдено',
     'common.conflict': 'Конфликт данных — обновите страницу и попробуйте снова',
+    'common.tryAgain': 'Операция выполняется — повторите через несколько секунд',
     'common.tooManyRequests': 'Слишком много запросов. Попробуйте позже',
 
     // Клиенты
@@ -553,6 +583,18 @@ const messages: Record<Language, Record<string, string>> = {
     'reservations.cancelled': 'Бронь отменена',
     'reservations.invalidTransition': 'Недопустимое изменение статуса брони',
     'reservations.overlapWarning': 'Внимание: на это время у стола есть другая бронь',
+
+    // Релизы desktop-приложения
+    'releases.notFound': 'Релиз не найден',
+    'releases.fileMissing': 'Файл релиза не найден на сервере',
+    'releases.fileRequired': 'Файл не загружен',
+    'releases.badVersion': 'Неверная версия (например: 1.0.1)',
+    'releases.badExtension': 'Разрешённые расширения для этой платформы: {allowed}',
+    'releases.versionExists': 'Такая версия для этой платформы уже существует',
+    'releases.uploaded': 'Релиз загружен',
+    'releases.published': 'Релиз опубликован',
+    'releases.unpublished': 'Релиз снят с публикации',
+    'releases.deleted': 'Релиз удалён',
   },
 };
 

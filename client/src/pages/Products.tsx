@@ -42,7 +42,8 @@ import {
 import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import type { Category, Product } from '../types';
-import { formatNumber } from '../utils/format';
+import { formatNumber, moneyFormatter, moneyParser } from '../utils/format';
+import { isFormValidationError } from '../utils/formErrors';
 
 const { Text } = Typography;
 
@@ -181,9 +182,10 @@ const Products = () => {
   };
 
   const handleSaveProduct = async () => {
-    const values = await productForm.validateFields();
-    setSavingProduct(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await productForm.validateFields();
+      setSavingProduct(true);
       // Tahrirlashda QOLDIQ yuborilmaydi: sahifa ochilgandan beri bo'lgan bar
       // sotuvlarini eski suratdagi qiymat bilan qaytarib yubormaslik uchun
       const payload = {
@@ -201,7 +203,8 @@ const Products = () => {
       void fetchProducts();
       void fetchCategories();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setSavingProduct(false);
     }
@@ -215,9 +218,10 @@ const Products = () => {
 
   const handleAdjustStock = async () => {
     if (!stockProduct) return;
-    const values = await stockForm.validateFields();
-    setSavingStock(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await stockForm.validateFields();
+      setSavingStock(true);
       const res = await productsApi.adjustStock(
         stockProduct.id,
         values.delta,
@@ -227,7 +231,8 @@ const Products = () => {
       setStockProduct(null);
       void fetchProducts();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setSavingStock(false);
     }
@@ -261,9 +266,10 @@ const Products = () => {
   };
 
   const handleSaveCategory = async () => {
-    const values = await categoryForm.validateFields();
-    setSavingCategory(true);
     try {
+      // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
+      const values = await categoryForm.validateFields();
+      setSavingCategory(true);
       const res = editingCategory
         ? await categoriesApi.update(editingCategory.id, values)
         : await categoriesApi.create(values);
@@ -272,7 +278,8 @@ const Products = () => {
       void fetchCategories();
       void fetchProducts();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
     } finally {
       setSavingCategory(false);
     }
@@ -617,7 +624,16 @@ const Products = () => {
                 label={`${t('common.price')} (${currency})`}
                 rules={[{ required: true, message: t('products.priceRequired') }]}
               >
-                <InputNumber style={{ width: '100%' }} min={0} step={1000} />
+                {/* Ming ajratkichi + valyuta belgisi — boshqa pul maydonlari
+                    bilan bir xil (bitta ortiqcha nol darrov sezilsin) */}
+                <InputNumber
+                  style={{ width: '100%' }}
+                  min={0}
+                  step={1000}
+                  addonAfter={currency}
+                  formatter={moneyFormatter}
+                  parser={moneyParser}
+                />
               </Form.Item>
             </Col>
             {/* Qoldiq faqat YARATISHDA kiritiladi — tahrirlashda u eski suratdagi
