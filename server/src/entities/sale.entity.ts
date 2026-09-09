@@ -28,6 +28,9 @@ import { User } from './user.entity';
   'chk_sales_amounts_nonneg',
   '"tableAmount" >= 0 AND "barAmount" >= 0 AND "totalAmount" >= 0 AND "discount" >= 0',
 )
+// Tushum hisobotlari/dashboard clubId + createdAt oralig'i bo'yicha yig'adi —
+// alohida (clubId) va (createdAt) indekslari o'rniga kompozit (1784248200000)
+@Index('IDX_sales_club_createdAt', ['clubId', 'createdAt'])
 export class Sale {
   @PrimaryGeneratedColumn()
   id: number;

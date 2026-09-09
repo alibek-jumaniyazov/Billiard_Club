@@ -24,6 +24,8 @@ import { DebtPayment } from './debt-payment.entity';
   'chk_debts_amounts_nonneg',
   '"tableAmount" >= 0 AND "barAmount" >= 0 AND "totalDebt" >= 0 AND "paidAmount" >= 0 AND "remainingDebt" >= 0',
 )
+// Hisobotdagi "davr qarzlari" clubId + createdAt oralig'i bo'yicha yig'adi (1784248200000)
+@Index('IDX_debts_club_createdAt', ['clubId', 'createdAt'])
 export class Debt {
   @PrimaryGeneratedColumn()
   id: number;

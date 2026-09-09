@@ -40,6 +40,10 @@ import { SessionPayment } from './session-payment.entity';
 @Index('IDX_sessions_table_endTime_finished', ['tableId', 'endTime'], {
   where: `status IN ('completed', 'cancelled')`,
 })
+// Ro'yxat sahifasi: WHERE clubId ... ORDER BY createdAt DESC (1784248200000)
+@Index('IDX_sessions_club_createdAt', ['clubId', 'createdAt'])
+// Hisobot/dashboard: WHERE clubId AND status='completed' AND endTime oynasi (1784248200000)
+@Index('IDX_sessions_club_endTime', ['clubId', 'endTime'])
 export class Session {
   @PrimaryGeneratedColumn()
   id: number;

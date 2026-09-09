@@ -529,29 +529,38 @@ export class ClubsService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const yearStart = new Date(now.getFullYear(), 0, 1);
 
-    const [clubs, totalIncome, monthIncome, yearIncome, recentContracts] = await Promise.all([
-      this.clubRepo.find(),
-      contractRepo.sum('amount'),
-      contractRepo.sum('amount', { createdAt: Between(monthStart, now) }),
-      contractRepo.sum('amount', { createdAt: Between(yearStart, now) }),
-      contractRepo.find({
-        relations: { club: true },
-        order: { createdAt: 'DESC' },
-        take: 10,
-      }),
-    ]);
+    // So'nggi 12 oy oynalari (eng eskidan eng yangiga) — server-lokal oy
+    // chegaralari bilan, aynan avvalgidek. Between IKKI tomonlama yopiq.
+    const monthBuckets = Array.from({ length: 12 }, (_, k) => {
+      const i = 11 - k;
+      return {
+        mStart: new Date(now.getFullYear(), now.getMonth() - i, 1),
+        mEnd: new Date(now.getFullYear(), now.getMonth() - i + 1, 1),
+      };
+    });
 
-    // So'nggi 12 oy bo'yicha platforma daromadi
-    const incomeByMonth: Array<{ month: string; amount: number }> = [];
-    for (let i = 11; i >= 0; i--) {
-      const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-      const amount = await contractRepo.sum('amount', { createdAt: Between(mStart, mEnd) });
-      incomeByMonth.push({
-        month: `${mStart.getFullYear()}-${String(mStart.getMonth() + 1).padStart(2, '0')}`,
-        amount: amount ?? 0,
-      });
-    }
+    // Barcha agregatlar — shu jumladan 12 oylik daromad grafigi — BITTA
+    // parallel to'plamda. Avval 12 oy `for` sikli ichida KETMA-KET (waterfall)
+    // so'ralar edi: 12 marta borish-kelish. Endi bir vaqtda; natija bayt-bayt
+    // bir xil (o'sha tartib, o'sha oy kaliti, o'sha Between semantikasi).
+    const [clubs, totalIncome, monthIncome, yearIncome, recentContracts, incomeByMonth] =
+      await Promise.all([
+        this.clubRepo.find(),
+        contractRepo.sum('amount'),
+        contractRepo.sum('amount', { createdAt: Between(monthStart, now) }),
+        contractRepo.sum('amount', { createdAt: Between(yearStart, now) }),
+        contractRepo.find({
+          relations: { club: true },
+          order: { createdAt: 'DESC' },
+          take: 10,
+        }),
+        Promise.all(
+          monthBuckets.map(async ({ mStart, mEnd }) => ({
+            month: `${mStart.getFullYear()}-${String(mStart.getMonth() + 1).padStart(2, '0')}`,
+            amount: (await contractRepo.sum('amount', { createdAt: Between(mStart, mEnd) })) ?? 0,
+          })),
+        ),
+      ]);
 
     const withMeta = await Promise.all(clubs.map((c) => this.withMeta(c)));
     const byStatus = {

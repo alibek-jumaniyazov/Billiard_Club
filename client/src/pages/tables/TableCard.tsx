@@ -64,6 +64,12 @@ export interface TableCardProps {
   segments: SegmentLike[] | null;
   /** Server soat siljishi: shiftedNow = Date.now() + offsetMs */
   offsetMs: number;
+  /**
+   * Server bilan aloqa bormi. Oflaynda hisob-kitob/ko'chirish/bekor qilish
+   * ATAYLAB bloklangan (offline/pos.ts) — bu amallar tugmalari o'chiriladi.
+   * Pauza/davom/bar buyurtma tugmalariga TA'SIR QILMAYDI (ular navbatga tushadi).
+   */
+  online: boolean;
   /** Shu sessiya uchun amal bajarilmoqda (pause/resume/cancel) */
   pending: boolean;
   /** Hisob-kitob va bekor qilish huquqi (admin/kassir) */
@@ -98,6 +104,7 @@ const TableCard = memo(
     session,
     segments,
     offsetMs,
+    online,
     pending,
     canCheckout,
     canManage,
@@ -131,12 +138,20 @@ const TableCard = memo(
     const isOfflineSession = !!session?.offlineLocalId;
 
     /**
+     * Hisob-kitob/ko'chirish/bekor qilish BLOKLANADIGAN holat: yo sessiya oflayn
+     * boshlangan (serverda hali yo'q), yo hozir aloqa uzilgan. Ikkalasida ham bu
+     * amallar server tomonidagi haqiqiy, dolzarb yozuvni talab qiladi.
+     */
+    const offlineBlocked = !online || isOfflineSession;
+
+    /**
      * Bekor qilish huquqi — SERVERDAGI qoidaning aynan nusxasi
      * (sessions.service.ts CASHIER_CANCEL_MAX_SECONDS): kassir faqat adashib
      * boshlangan (qisqa va bar buyurtmasiz) o'yinni bekor qila oladi.
+     * Oflaynda umuman bloklanadi.
      */
     const canCancel =
-      !isOfflineSession &&
+      !offlineBlocked &&
       (canManage ||
         (!!session &&
           (session.barAmount ?? 0) <= 0 &&
@@ -293,7 +308,7 @@ const TableCard = memo(
                      shuning uchun adminGA ham to'g'ri sababni ko'rsatamiz */
                   <Tooltip
                     title={
-                      isOfflineSession
+                      offlineBlocked
                         ? t('offline.offlineBlocked')
                         : t('tables.cancelNeedsAdmin')
                     }
@@ -305,7 +320,7 @@ const TableCard = memo(
                       disabled
                       icon={<CloseCircleOutlined />}
                       aria-label={
-                        isOfflineSession
+                        offlineBlocked
                           ? t('offline.offlineBlocked')
                           : t('tables.cancelNeedsAdmin')
                       }
@@ -396,7 +411,7 @@ const TableCard = memo(
                 </Tooltip>
                 <Tooltip
                   title={
-                    isOfflineSession
+                    offlineBlocked
                       ? t('offline.offlineBlocked')
                       : isPaused
                         ? t('tables.transferPausedHint')
@@ -405,21 +420,22 @@ const TableCard = memo(
                 >
                   <Button
                     icon={<SwapOutlined />}
-                    disabled={isPaused || isOfflineSession}
+                    disabled={isPaused || offlineBlocked}
                     onClick={() => onTransfer(table)}
                     aria-label={t('tables.transfer')}
                     style={{ flex: 1 }}
                   />
                 </Tooltip>
                 {canCheckout && (
-                  /* Oflayn boshlangan sessiyada hisob-kitob tugmasi sababi
-                     bilan o'chirilgan holda turadi — bosilib xato chiqarish
-                     o'rniga kassir nima uchun ishlamayotganini KO'RADI */
-                  <Tooltip title={isOfflineSession ? t('offline.offlineBlocked') : ''}>
+                  /* Oflayn boshlangan sessiyada YOKI aloqa uzilganda hisob-kitob
+                     tugmasi sababi bilan o'chirilgan holda turadi — bosilib xato
+                     (yoki chala yuklangan chek) chiqarish o'rniga kassir nima
+                     uchun ishlamayotganini KO'RADI */
+                  <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : ''}>
                     <Button
                       type="primary"
                       icon={<DollarOutlined />}
-                      disabled={isOfflineSession}
+                      disabled={offlineBlocked}
                       onClick={() => onCheckout(table)}
                       style={{ flex: 2, minWidth: 0 }}
                     >

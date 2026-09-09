@@ -197,10 +197,24 @@ const TablesPage = () => {
     [message, t, syncSegments],
   );
 
+  // Poller FAQAT tab ko'rinib turganda ishlaydi (NotificationsContext bilan bir
+  // xil naqsh): fon rejimidagi/uxlab qolgan planshet serverni bekorga bosmaydi
+  // va batareyani yemaydi. Tabga qaytilganda darhol bir marta yangilanadi.
   useEffect(() => {
     void fetchTables();
-    const poll = setInterval(() => void fetchTables(true), POLL_INTERVAL_MS);
-    return () => clearInterval(poll);
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      void fetchTables(true);
+    };
+    const poll = setInterval(tick, POLL_INTERVAL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void fetchTables(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchTables]);
 
   const silentRefresh = useCallback(() => void fetchTables(true), [fetchTables]);
@@ -306,6 +320,13 @@ const TablesPage = () => {
 
   const handleCancel = useCallback(
     async (session: Session) => {
+      // Bekor qilish oflaynda ATAYLAB bloklangan (summa boshqa terminaldagi
+      // buyurtma/qarzga bog'liq — eskirgan ma'lumot ustida ishlamaydi). Tugma
+      // ham o'chiriladi; bu esa tugma holati eskirgan bo'lsa qo'shimcha himoya.
+      if (!online) {
+        message.warning(t('offline.offlineBlocked'));
+        return;
+      }
       markPending(session.id, true);
       try {
         const res = await sessionsApi.cancel(session.id);
@@ -317,7 +338,7 @@ const TablesPage = () => {
         markPending(session.id, false);
       }
     },
-    [fetchTables, markPending, message, t],
+    [fetchTables, markPending, message, online, t],
   );
 
   const handleStarted = useCallback(
@@ -560,6 +581,7 @@ const TablesPage = () => {
                   session={session}
                   segments={session ? (segmentsMap[session.id] ?? null) : null}
                   offsetMs={offsetMs}
+                  online={online}
                   pending={!!session && pendingIds.has(session.id)}
                   canCheckout={canCheckout}
                   canManage={canManage}

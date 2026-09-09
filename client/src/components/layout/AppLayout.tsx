@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Drawer, Grid, Layout } from 'antd';
 import { Outlet, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '../ErrorBoundary';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -12,6 +13,40 @@ import { TOKENS } from '../../theme/tokens';
 const { Content } = Layout;
 
 /**
+ * Marshrut -> tab sarlavhasi i18n kaliti (mavjud `menu.*` yorliqlaridan). Avval
+ * autentifikatsiyalangan sahifalar tab sarlavhasini UMUMAN qo'ymasdi — hamma tab
+ * bir xil statik nom bilan turardi va kassir /stollar tabini /hisobotdan ajrata
+ * olmasdi. Xaritada yo'q marshrutlar (masalan /game o'z to'liq sarlavhasini
+ * useDocumentHead bilan o'zi qo'yadi, NotFound) tegilmaydi.
+ */
+const ROUTE_TITLE_KEYS: Record<string, string> = {
+  '/dashboard': 'menu.dashboard',
+  '/tables': 'menu.tables',
+  '/sessions': 'menu.sessions',
+  '/orders': 'menu.orders',
+  '/products': 'menu.products',
+  '/debts': 'menu.debts',
+  '/reports': 'menu.reports',
+  '/customers': 'menu.customers',
+  '/reservations': 'menu.reservations',
+  '/expenses': 'menu.expenses',
+  '/feedback': 'menu.feedback',
+  '/notifications': 'menu.notifications',
+  '/subscription': 'menu.subscription',
+  '/profile': 'menu.profile',
+  '/staff': 'menu.staff',
+  '/settings': 'menu.settings',
+  '/admin': 'menu.adminDashboard',
+  '/admin/clubs': 'menu.clubs',
+  '/admin/releases': 'menu.adminReleases',
+  '/admin/billing': 'menu.adminBilling',
+  '/admin/feedback': 'menu.adminFeedback',
+  '/admin/notifications': 'menu.adminNotifications',
+  '/admin/logs': 'menu.adminLogs',
+  '/admin/settings': 'menu.adminSettings',
+};
+
+/**
  * Ilova qobig'i — moslashuvchan:
  *  - lg va undan keng: yopishqoq Sider (yig'ish tugmasi Headerda)
  *  - lg dan tor (mobil): Sider yashirin, menyu chapdan Drawer bo'lib ochiladi
@@ -21,9 +56,20 @@ const AppLayout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const screens = Grid.useBreakpoint();
   const location = useLocation();
+  const { t, i18n } = useTranslation();
 
   // Birinchi renderda screens bo'sh — desktop deb qaraladi (sakrashning oldini oladi)
   const isMobile = screens.lg === false;
+
+  // Tab sarlavhasi joriy marshrut + tilga qarab yangilanadi ("<Sahifa> — Billiard
+  // Club"). Til almashsa ham qayta o'rnatiladi (i18n.language bog'liqligi).
+  useEffect(() => {
+    const path = location.pathname.replace(/\/+$/, '') || '/';
+    const key =
+      ROUTE_TITLE_KEYS[path] ??
+      (path.startsWith('/admin/clubs') ? 'adminClubData.title' : null);
+    if (key) document.title = `${t(key)} — ${t('appName')}`;
+  }, [location.pathname, t, i18n.language]);
 
   return (
     /* Xabarnomalar holati SHU YERDA: header qo'ng'irog'i ham, /notifications

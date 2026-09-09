@@ -23,7 +23,7 @@ import { EmptyState, MoneyText, StatusTag } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable } from '../../types';
-import { moneyFormatter, moneyParser } from './money';
+import { moneyFormatter, moneyParser } from '../../utils/format';
 
 const { Text } = Typography;
 

@@ -256,6 +256,15 @@ const EVENTS_CLEANUP_MAX_STEPS = 400;
 /** reconcile(): DIRECT klublar shu hajmdagi bo'laklarda parallel yuritiladi */
 const RECONCILE_CHUNK = 5;
 
+/**
+ * syncClub(): bitta klub ICHIDAGI qurilmalar shu hajmda parallel qo'llanadi.
+ * Aks holda 40 stolli DIRECT klubda relelar javob bermay qolsa, har 30 soniyalik
+ * reconcile RECONCILE_CHUNK ta klubni parallel yuritganda ~40 tadan chiquvchi
+ * soket bir vaqtda ~12 s ushlanib, umumiy serverda file-descriptor portlashiga
+ * olib kelardi. Agentdagi MAX_PARALLEL=8 (bridge/agent.js) bilan atayin bir xil.
+ */
+const SYNC_DEVICE_CHUNK = 8;
+
 /** Sekin javob bergan qurilma — debug logga chiqadi */
 const SLOW_DEVICE_MS = 2000;
 
@@ -1041,17 +1050,22 @@ export class LightsService {
       });
       if (pending.length === 0) return;
 
-      // Parallel: javob bermaydigan bitta rele qolganlarini kutdirib qo'ymasin
-      await Promise.allSettled(
-        pending.map((device) =>
-          this.applyDevice(clubId, device, {
-            source,
-            userId: null,
-            verify: settings.verify,
-            forceSyncMs,
-          }),
-        ),
-      );
+      // Parallel, LEKIN bir klub ichida ≤ SYNC_DEVICE_CHUNK: javob bermaydigan
+      // rele qolganlarini kutdirib qo'ymasin, ammo bir vaqtda ochiladigan
+      // chiquvchi ulanishlar soni ham cheklanib tursin (agent runPool bilan mos).
+      for (let index = 0; index < pending.length; index += SYNC_DEVICE_CHUNK) {
+        const chunk = pending.slice(index, index + SYNC_DEVICE_CHUNK);
+        await Promise.allSettled(
+          chunk.map((device) =>
+            this.applyDevice(clubId, device, {
+              source,
+              userId: null,
+              verify: settings.verify,
+              forceSyncMs,
+            }),
+          ),
+        );
+      }
     } catch (err) {
       this.logger.error(
         `Klub chiroqlarini sinxronlash xatosi (club=${clubId}): ${(err as Error).message}`,

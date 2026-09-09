@@ -23,6 +23,8 @@ import { User } from './user.entity';
 // e'lon qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
 @Entity('debt_payments')
 @Check('chk_debt_payments_positive', '"amount" > 0')
+// Tushum = sales + debt_payments; clubId + createdAt oralig'i bo'yicha yig'adi (1784248200000)
+@Index('IDX_debt_payments_club_createdAt', ['clubId', 'createdAt'])
 export class DebtPayment {
   @PrimaryGeneratedColumn()
   id: number;

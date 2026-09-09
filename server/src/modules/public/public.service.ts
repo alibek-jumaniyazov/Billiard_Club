@@ -141,21 +141,10 @@ export class PublicService {
       return { club: newClub, admin: newAdmin };
     });
 
-    // Hodisa nomi bilan: 'new_trial' o'chirib qo'yilgan bo'lsa xabar ketmaydi
-    // (bir argumentli notify() sozlamani umuman tekshirmasdi)
-    void this.telegram.notify(
-      'new_trial',
-      [
-        '🆕 <b>Yangi sinov foydalanuvchi ro\'yxatdan o\'tdi!</b>',
-        '',
-        `🏢 Klub: <b>${this.escapeHtml(club.name)}</b>`,
-        `👤 Egasi: ${this.escapeHtml(club.ownerName ?? '-')}`,
-        `📞 Telefon: ${this.escapeHtml(club.phone ?? '-')}`,
-        `📍 Manzil: ${this.escapeHtml(club.address ?? '-')}`,
-        `🔑 Login: <code>${this.escapeHtml(admin.username)}</code>`,
-        `⏳ Sinov tugaydi: ${trialEndsAt.toLocaleDateString('uz-UZ')} (${trialDays} kun)`,
-      ].join('\n'),
-    );
+    // Xabar mantig'i TelegramService.notifyNewTrial da YAGONA manba (avval bu
+    // yerda takrorlanib, ikki nusxa bir-biridan uzoqlashib ketgan edi). Hodisa
+    // o'chirib qo'yilgan bo'lsa metod ichida yuborilmaydi. Fire-and-forget.
+    void this.telegram.notifyNewTrial(club, admin.username, trialDays);
 
     // Avto-login: login bilan bir xil yo'l — refresh sessiya saqlanadi,
     // cookie kontrollerda o'rnatiladi (aks holda 15 daqiqadan keyin chiqib ketardi)
@@ -173,9 +162,5 @@ export class PublicService {
       },
       ...tokens,
     };
-  }
-
-  private escapeHtml(text: string): string {
-    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 }

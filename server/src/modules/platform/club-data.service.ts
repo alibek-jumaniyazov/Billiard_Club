@@ -183,7 +183,15 @@ export class ClubDataService {
            WHERE s.status = 'completed' AND s."createdAt" > now() - interval '30 days'
          ), 0) AS "revenue30d"
        FROM users u
-       LEFT JOIN sessions s ON s."userId" = u.id AND s."clubId" = $1
+       LEFT JOIN sessions s
+         ON s."userId" = u.id
+        AND s."clubId" = $1
+        -- 30 kunlik oynani JOIN ga surdik: aks holda xodimning BUTUN sessiya
+        -- tarixi agregatdan oldin materiallashardi. FILTER lardagi 30 kun
+        -- ortiqcha bo'lib qoladi, lekin natija ayni bir xil; status FILTER da
+        -- QOLADI (sessions30d har qanday holatdagi sessiyani sanaydi). LEFT JOIN
+        -- bo'lgani uchun sessiyasiz xodim ham 0/0 bilan ko'rinaveradi.
+        AND s."createdAt" > now() - interval '30 days'
        WHERE u."clubId" = $1
        GROUP BY u.id
        ORDER BY "revenue30d" DESC`,

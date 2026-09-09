@@ -44,7 +44,13 @@ import type {
   PaymentMethod,
   SessionReceipt,
 } from '../../types';
-import { formatDateTime, formatNumber, formatSeconds } from '../../utils/format';
+import {
+  formatDateTime,
+  formatNumber,
+  formatSeconds,
+  moneyFormatter,
+  moneyParser,
+} from '../../utils/format';
 import {
   clockOffsetMs,
   round2,
@@ -55,7 +61,6 @@ import {
   type SegmentLike,
   type SessionTiming,
 } from '../../utils/session';
-import { moneyFormatter, moneyParser } from './money';
 
 const { Text, Title } = Typography;
 
@@ -555,8 +560,14 @@ const CheckoutDrawer = ({
   const splitTarget = splitTargetSnapshot ?? staticTotals?.toPay ?? 0;
   const splitRemaining = round2(splitTarget - paymentsSum);
   // Kichik farq (stol taymeri to'lov satrlari to'ldirilgunicha ishlab ketgani)
-  // serverda eng yirik satrga singdiriladi — kassirni bir so'm uchun bloklamaymiz
-  const splitOk = Math.abs(splitRemaining) <= splitTolerance(receipt, segments);
+  // serverda eng yirik satrga singdiriladi — kassirni bir so'm uchun bloklamaymiz.
+  // ASIMMETRIK (server bilan bir xil): singdirish FAQAT bir tomonlama — kam
+  // to'lovda (splitRemaining > 0, tolerans ichida) qoldiq singadi, ORTIQCHA
+  // to'lov (splitRemaining < 0) esa hech qachon qabul qilinmaydi. Avval abs()
+  // ishlatilib, ortiqcha summa ham "yashil" ko'rinar, so'ng server 400 qaytarib
+  // kassirga chalkash "mos kelmadi" xatosi chiqardi.
+  const splitOk =
+    splitRemaining >= -0.01 && splitRemaining <= splitTolerance(receipt, segments);
 
   // Chegirma / qo'lda tuzatish / qarz belgilari YOKI BAR SUMMASI o'zgarsa nishon
   // qayta muhrlanadi. Bar summasi ro'yxatda bo'lishi SHART: aks holda kassa
@@ -665,8 +676,11 @@ const CheckoutDrawer = ({
         .map((r) => ({ method: r.method, amount: round2(r.amount) }));
       const sum = round2(rows.reduce((acc, r) => acc + r.amount, 0));
       // Kichik vaqt farqini server eng yirik satrga singdiradi; kattarog'ini
-      // shu yerda ushlaymiz (server ham qayta tekshiradi)
-      if (Math.abs(sum - totals.toPay) > splitTolerance(receipt, segments)) {
+      // shu yerda ushlaymiz (server ham qayta tekshiradi). ASIMMETRIK: kam
+      // to'lov drifti (drift > 0) tolerans ichida singadi, ORTIQCHA to'lov
+      // (drift < -0.01) rad etiladi — server end() dagi shart bilan aynan bir xil.
+      const drift = round2(totals.toPay - sum);
+      if (drift < -0.01 || drift > splitTolerance(receipt, segments)) {
         message.error(t('tables.splitMismatch'));
         return;
       }

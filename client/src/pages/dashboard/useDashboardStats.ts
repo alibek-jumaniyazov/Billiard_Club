@@ -85,13 +85,25 @@ export const useDashboardStats = () => {
     }
   }, []);
 
+  // Poller FAQAT tab ko'rinib turganda so'raydi (NotificationsContext naqshi):
+  // fon rejimidagi/uxlab qolgan planshet dashboard statistikasini bekorga
+  // qayta-qayta yuklamaydi. Tabga qaytilganda darhol jim yangilanadi.
   useEffect(() => {
     mountedRef.current = true;
     void fetchStats();
-    const interval = setInterval(() => void fetchStats(), POLL_MS);
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      void fetchStats();
+    };
+    const interval = setInterval(tick, POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void fetchStats();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       mountedRef.current = false;
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [fetchStats]);
 

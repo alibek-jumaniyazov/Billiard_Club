@@ -110,8 +110,16 @@ export class TelegramService {
     return this.send(html);
   }
 
-  /** Landing orqali yangi sinov klubi ro'yxatdan o'tdi */
-  async notifyNewTrial(club: Club, adminUsername: string): Promise<void> {
+  /**
+   * Landing orqali yangi sinov klubi ro'yxatdan o'tdi.
+   * trialDays berilsa muddat yoniga "(N kun)" qo'shiladi (PublicService.register
+   * shu bilan chaqiradi — matn mantig'i shu yerda YAGONA manba).
+   */
+  async notifyNewTrial(club: Club, adminUsername: string, trialDays?: number): Promise<void> {
+    const trialLine =
+      trialDays !== undefined
+        ? `⏳ Sinov tugaydi: ${this.formatDate(club.trialEndsAt)} (${trialDays} kun)`
+        : `⏳ Sinov tugaydi: ${this.formatDate(club.trialEndsAt)}`;
     await this.notify(
       'new_trial',
       [
@@ -122,7 +130,7 @@ export class TelegramService {
         `📞 Telefon: ${this.escapeHtml(club.phone ?? '-')}`,
         `📍 Manzil: ${this.escapeHtml(club.address ?? '-')}`,
         `🔑 Login: <code>${this.escapeHtml(adminUsername)}</code>`,
-        `⏳ Sinov tugaydi: ${this.formatDate(club.trialEndsAt)}`,
+        trialLine,
       ].join('\n'),
     );
   }
