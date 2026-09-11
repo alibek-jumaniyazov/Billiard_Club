@@ -31,7 +31,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { debtsApi, errorMessage } from '../api';
+import { apiErrorMessage, debtsApi, errorMessage } from '../api';
 import {
   EmptyState,
   MoneyText,
@@ -93,8 +93,13 @@ const Debts = () => {
   const [writeOffReason, setWriteOffReason] = useState('');
   const [deleting, setDeleting] = useState(false);
 
-  const canPay = hasRole('admin', 'kassir');
-  const isAdmin = hasRole('admin');
+  // 'superadmin' ATAYLAB kiritilgan: server pay/write-off endpointlari uni
+  // @Roles(SUPERADMIN, ...) bilan ruxsat etadi va superadmin "klubni ko'rish"
+  // rejimida /debts sahifasiga kira oladi (App.tsx Protected bypass). Uni
+  // bu yerda tashlab ketilsa, superadminda tugmalar KO'RINMAY qolardi —
+  // qolgan barcha sahifalar (Customers/Expenses/Orders/...) superadminni kiritadi.
+  const canPay = hasRole('superadmin', 'admin', 'kassir');
+  const canWriteOff = hasRole('superadmin', 'admin');
 
   // `t` yuklash callbackining bog'liqligi EMAS: til almashganda ro'yxat
   // standart filtrlar bilan jimgina qayta yuklanib ketmasin
@@ -166,7 +171,7 @@ const Debts = () => {
       void fetchDebts({ page, limit: pageSize, search, status });
     } catch (err) {
       // Forma xatolari maydon ostida ko'rinadi — toast shart emas
-      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
     } finally {
       setPaying(false);
     }
@@ -181,7 +186,7 @@ const Debts = () => {
       const res = await debtsApi.payments(debt.id);
       setPayments(res.data);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(apiErrorMessage(err, t));
     } finally {
       setPaymentsLoading(false);
     }
@@ -202,7 +207,7 @@ const Debts = () => {
       setDeleteDebt(null);
       void fetchDebts({ page, limit: pageSize, search, status });
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(apiErrorMessage(err, t));
     } finally {
       setDeleting(false);
     }
@@ -311,7 +316,7 @@ const Debts = () => {
               qayta chiqarib bo'lmaydi — server ham rad etadi. Tugmani ochiq
               qoldirish foydalanuvchini majburiy sabab yozib, so'ng xato olishga
               olib borardi */}
-          {isAdmin && !debt.isPaid && (
+          {canWriteOff && !debt.isPaid && (
             <Button
               size="small"
               danger

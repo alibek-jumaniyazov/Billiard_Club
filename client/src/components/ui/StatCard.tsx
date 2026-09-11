@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { Card, Skeleton, Typography } from 'antd';
-import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons';
+import { Card, Skeleton, Tooltip, Typography } from 'antd';
+import { ArrowDownOutlined, ArrowUpOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { TOKENS } from '../../theme/tokens';
 
 const { Text } = Typography;
@@ -16,6 +16,17 @@ interface StatCardProps {
   trend?: number;
   /** Trend yonidagi izoh (masalan "o'tgan haftaga nisbatan") */
   trendLabel?: ReactNode;
+  /**
+   * Ko'rsatkich ma'nosini tushuntiruvchi izoh — nom yonida (i) ikonka ostida
+   * tooltip bo'lib chiqadi (masalan "tushum" nima ekanini aniqlashtiradi).
+   */
+  hint?: ReactNode;
+  /** Nom ostidagi mayda izoh (masalan "oxirgi 7 kun") */
+  sublabel?: ReactNode;
+  /** 0–100 to'ldirish paneli (masalan bandlik foizi) — qiymat ostida chiziq */
+  meter?: number;
+  /** Qiymat ustidagi to'liq matn (ellipsis bilan kesilsa native tooltip) */
+  valueTitle?: string;
   /** Yuklanish holati — skelet ko'rsatiladi */
   loading?: boolean;
   /** Urg'u rangi (standart: oltin) */
@@ -35,6 +46,10 @@ const StatCard = ({
   icon,
   trend,
   trendLabel,
+  hint,
+  sublabel,
+  meter,
+  valueTitle,
   loading = false,
   accent = TOKENS.color.gold.base,
   style,
@@ -84,11 +99,27 @@ const StatCard = ({
             </div>
           )}
           <div style={{ minWidth: 0, flex: 1 }}>
-            <Text type="secondary" style={{ fontSize: 13, display: 'block' }}>
+            <Text
+              type="secondary"
+              style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}
+            >
               {label}
+              {hint && (
+                <Tooltip title={hint}>
+                  <InfoCircleOutlined
+                    style={{ fontSize: 12, color: TOKENS.color.text.tertiary, cursor: 'help' }}
+                  />
+                </Tooltip>
+              )}
             </Text>
+            {sublabel && (
+              <Text type="secondary" style={{ fontSize: 11.5, display: 'block', opacity: 0.8 }}>
+                {sublabel}
+              </Text>
+            )}
             <div
               className="tabular-nums"
+              title={valueTitle}
               style={{
                 fontSize: 24,
                 fontWeight: 700,
@@ -102,6 +133,27 @@ const StatCard = ({
             >
               {value}
             </div>
+            {meter !== undefined && (
+              <div
+                aria-hidden
+                style={{
+                  marginTop: 8,
+                  height: 4,
+                  borderRadius: 999,
+                  background: TOKENS.color.border.subtle,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${Math.max(0, Math.min(100, meter))}%`,
+                    background: accent,
+                    borderRadius: 999,
+                  }}
+                />
+              </div>
+            )}
             {trend !== undefined && (
               <div style={{ marginTop: 4, fontSize: 12.5, display: 'flex', gap: 6 }}>
                 <span className="tabular-nums" style={{ color: trendColor, fontWeight: 600 }}>

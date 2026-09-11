@@ -48,6 +48,8 @@ export default {
     addRow: "Qator qo'shish",
     maxItemsHint: "Bitta buyurtmada ko'pi bilan {{max}} ta pozitsiya — qolganini alohida buyurtma qiling",
     orderTotal: 'Buyurtma summasi',
+    outOfStock: 'tugagan',
+    liveTotalCaption: 'jami (stol + bar)',
     submitOrder: "Hisobga qo'shish",
     noItems: 'Kamida bitta mahsulot tanlang',
     // Hisob-kitob (checkout)
@@ -325,6 +327,8 @@ export default {
     addRow: 'Добавить строку',
     maxItemsHint: 'В одном заказе не более {{max}} позиций — остальное оформите отдельным заказом',
     orderTotal: 'Сумма заказа',
+    outOfStock: 'нет в наличии',
+    liveTotalCaption: 'итого (стол + бар)',
     submitOrder: 'Добавить к счёту',
     noItems: 'Выберите хотя бы один товар',
     // Расчёт (checkout)

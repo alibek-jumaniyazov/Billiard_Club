@@ -4,7 +4,10 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import type { NextFunction, Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import { AppModule } from './app.module';
+import { requestContext } from './common/logging/request-context';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -20,6 +23,18 @@ async function bootstrap() {
   if (config.get<boolean>('TRUST_PROXY')) {
     app.set('trust proxy', 1);
   }
+
+  // So'rov correlation id — imkon qadar erta, hamma keyingi ishlov shu
+  // kontekst ichida ishlashi uchun. Klient X-Request-Id yuborsa (masalan
+  // reverse proxy) qayta ishlatiladi, aks holda yangi UUID beriladi; javob
+  // sarlavhasiga ham qaytariladi va xato javobi/logi shu id bilan bog'lanadi.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const headerId = req.headers['x-request-id'];
+    const requestId =
+      typeof headerId === 'string' && headerId.trim() ? headerId.trim().slice(0, 64) : randomUUID();
+    res.setHeader('X-Request-Id', requestId);
+    requestContext.run({ requestId }, () => next());
+  });
 
   app.use(helmet());
   // httpOnly 'refresh_token' cookie ni o'qish uchun (auth refresh oqimi)

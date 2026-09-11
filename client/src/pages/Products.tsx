@@ -31,7 +31,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import { categoriesApi, errorMessage, productsApi } from '../api';
+import { apiErrorMessage, categoriesApi, productsApi } from '../api';
 import {
   EmptyState,
   MoneyText,
@@ -128,7 +128,7 @@ const Products = () => {
       setProducts(res.data);
       setTotal(res.pagination?.total ?? res.data.length);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(apiErrorMessage(err, t));
     } finally {
       setProductsLoading(false);
       setProductsLoaded(true);
@@ -141,7 +141,7 @@ const Products = () => {
       const res = await categoriesApi.list();
       setCategories(res.data);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(apiErrorMessage(err, t));
     } finally {
       setCategoriesLoading(false);
       setCategoriesLoaded(true);
@@ -204,7 +204,7 @@ const Products = () => {
       void fetchCategories();
     } catch (err) {
       // Forma xatolari maydon ostida ko'rinadi — toast shart emas
-      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
     } finally {
       setSavingProduct(false);
     }
@@ -232,7 +232,7 @@ const Products = () => {
       void fetchProducts();
     } catch (err) {
       // Forma xatolari maydon ostida ko'rinadi — toast shart emas
-      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
     } finally {
       setSavingStock(false);
     }
@@ -245,7 +245,7 @@ const Products = () => {
       void fetchProducts();
       void fetchCategories();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(apiErrorMessage(err, t));
     }
   };
 
@@ -279,7 +279,7 @@ const Products = () => {
       void fetchProducts();
     } catch (err) {
       // Forma xatolari maydon ostida ko'rinadi — toast shart emas
-      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
     } finally {
       setSavingCategory(false);
     }
@@ -293,7 +293,7 @@ const Products = () => {
       void fetchCategories();
     } catch (err) {
       // Server mahsulotli kategoriyani o'chirishni bloklaydi — xabarini ko'rsatamiz
-      message.error(errorMessage(err, t('common.error')));
+      message.error(apiErrorMessage(err, t));
     }
   };
 

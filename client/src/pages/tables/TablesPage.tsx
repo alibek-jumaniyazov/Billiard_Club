@@ -521,7 +521,17 @@ const TablesPage = () => {
               <StatCard
                 label={t('tables.statOccupancy')}
                 value={`${occupancy}%`}
+                meter={occupancy}
                 icon={<PieChartOutlined />}
+                // Rang bandlikka qarab: bo'sh (zumrad) -> to'la (neon) — xonaning
+                // qanchalik gavjumligini raqamsiz ham bir qarashda ko'rsatadi
+                accent={
+                  occupancy < 50
+                    ? TOKENS.color.emerald.bright
+                    : occupancy <= 85
+                      ? TOKENS.color.gold.base
+                      : TOKENS.color.neonGreen
+                }
                 loading={loading && viewTables.length === 0}
               />
             </Col>

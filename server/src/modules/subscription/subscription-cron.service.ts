@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Club } from '../../entities/club.entity';
 import { ClubStatus, InvoiceStatus } from '../../entities/enums';
 import { Invoice } from '../../entities/invoice.entity';
 import { PlatformSetting } from '../../entities/platform-setting.entity';
 import { PlatformConfigService } from '../../common/platform-config/platform-config.service';
+import { CRON_LOCK, withCronLock } from '../../common/cron/cron-lock';
 import { TelegramService } from '../../telegram/telegram.service';
 import { DAY_MS } from './billing.util';
 
@@ -51,6 +52,7 @@ export class SubscriptionCronService {
   constructor(
     private readonly telegram: TelegramService,
     private readonly platformConfig: PlatformConfigService,
+    private readonly dataSource: DataSource,
     @InjectRepository(Club) private readonly clubRepo: Repository<Club>,
     @InjectRepository(Invoice) private readonly invoiceRepo: Repository<Invoice>,
     @InjectRepository(PlatformSetting)
@@ -60,21 +62,29 @@ export class SubscriptionCronService {
   /** Har kuni soat 03:00 da */
   @Cron('0 0 3 * * *')
   async handleDaily(): Promise<void> {
-    // Har bir bosqich mustaqil — bittasining xatosi qolganlarini to'xtatmaydi
-    try {
-      await this.flipExpiredClubs();
-    } catch (err) {
-      this.logger.error(`Muddati tugagan klublarni belgilashda xato: ${(err as Error).message}`);
-    }
-    try {
-      await this.expireStaleInvoices();
-    } catch (err) {
-      this.logger.error(`Eski PENDING fakturalarni yopishda xato: ${(err as Error).message}`);
-    }
-    try {
-      await this.notifyExpiringClubs();
-    } catch (err) {
-      this.logger.error(`Obuna eslatmalarini yuborishda xato: ${(err as Error).message}`);
+    // Leader election: ko'p instansiyada shu ish FAQAT bittasida bajariladi —
+    // aks holda notifyExpiringClubs "o'qi-o'zgartir-yoz" poygasi tufayli klubga
+    // DUBLIKAT eslatma ketishi mumkin. Yakka deploy'da lock doim olinadi.
+    const ran = await withCronLock(this.dataSource, CRON_LOCK.subscriptionDaily, async () => {
+      // Har bir bosqich mustaqil — bittasining xatosi qolganlarini to'xtatmaydi
+      try {
+        await this.flipExpiredClubs();
+      } catch (err) {
+        this.logger.error(`Muddati tugagan klublarni belgilashda xato: ${(err as Error).message}`);
+      }
+      try {
+        await this.expireStaleInvoices();
+      } catch (err) {
+        this.logger.error(`Eski PENDING fakturalarni yopishda xato: ${(err as Error).message}`);
+      }
+      try {
+        await this.notifyExpiringClubs();
+      } catch (err) {
+        this.logger.error(`Obuna eslatmalarini yuborishda xato: ${(err as Error).message}`);
+      }
+    });
+    if (!ran) {
+      this.logger.debug('Kunlik obuna ishi boshqa instansiyada bajarilmoqda — o‘tkazildi');
     }
   }
 

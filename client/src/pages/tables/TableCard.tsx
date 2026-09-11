@@ -352,6 +352,10 @@ const TableCard = memo(
                   offsetMs={offsetMs}
                   currency={currency}
                 />
+                {/* Katta raqam nima ekanini aniqlashtiradi (stol vaqti + bar) */}
+                <Text type="secondary" style={{ display: 'block', fontSize: 11.5, marginTop: 1 }}>
+                  {t('tables.liveTotalCaption')}
+                </Text>
               </div>
 
               {/* Mijoz + boshlanish vaqti + bar chip */}

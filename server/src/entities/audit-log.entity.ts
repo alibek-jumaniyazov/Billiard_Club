@@ -17,6 +17,10 @@ import { Club } from './club.entity';
 @Entity('audit_logs')
 @Index('IDX_audit_logs_club_createdAt', ['clubId', 'createdAt'])
 @Index('IDX_audit_logs_action_createdAt', ['action', 'createdAt'])
+// Ixtiyoriy saqlash-muddati tozalagichi (AuditCleanupService) createdAt bo'yicha
+// o'chiradi — mavjud kompozitlarda createdAt 2-ustun bo'lgani uchun ularga
+// tayanolmaydi; alohida indeks (1784248300000) to'liq skanning oldini oladi.
+@Index('IDX_audit_logs_createdAt', ['createdAt'])
 export class AuditLog {
   @PrimaryGeneratedColumn()
   id: number;

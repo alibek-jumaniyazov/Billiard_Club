@@ -18,6 +18,7 @@ import {
   Input,
   InputNumber,
   Row,
+  Segmented,
   Select,
   Skeleton,
   Switch,
@@ -31,6 +32,7 @@ import {
   PlusOutlined,
   PrinterOutlined,
 } from '@ant-design/icons';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, sessionsApi } from '../../api';
 import { MoneyText, useNow } from '../../components/ui';
@@ -404,6 +406,7 @@ const CheckoutDrawer = ({
   const [segments, setSegments] = useState<SegmentLike[]>([]);
   const [offsetMs, setOffsetMs] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const reduceMotion = useReducedMotion();
   const [result, setResult] = useState<EndSessionResult | null>(null);
   /** Bar summasi drawer ochiq turganda o'zgardi — kassir tasdiqlashi kerak */
   const [barChanged, setBarChanged] = useState<{ from: number; to: number } | null>(null);
@@ -759,12 +762,64 @@ const CheckoutDrawer = ({
   const live = receipt?.live !== false;
   const isPausedNow = timing?.status === 'paused';
 
+  // Klaviatura yorliqlari (POS tezligi): Enter — yakunlash (End tugmasi ruxsat
+  // bergandagina, TEXTAREA dan tashqari), 1/2/3 — naqd/karta/o'tkazma (faqat
+  // bo'linmagan to'lov va matn maydonidan tashqarida — summa yozishni buzmaydi).
+  // Eng so'nggi holat ref orqali o'qiladi — listener bir marta bog'lanadi.
+  const kbdRef = useRef<{ canConfirm: boolean; confirm: () => void; split: boolean }>({
+    canConfirm: false,
+    confirm: () => undefined,
+    split: false,
+  });
+  kbdRef.current = {
+    canConfirm: !result && live && !!timing && !barChanged && !(split && !splitOk) && !submitting,
+    confirm: () => void handleEnd(),
+    split,
+  };
+  useEffect(() => {
+    if (!table) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      const typing =
+        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el?.isContentEditable;
+      const s = kbdRef.current;
+      if (e.key === 'Enter' && tag !== 'TEXTAREA' && !e.isComposing) {
+        if (s.canConfirm) {
+          e.preventDefault();
+          s.confirm();
+        }
+        return;
+      }
+      if (!s.split && !typing && (e.key === '1' || e.key === '2' || e.key === '3')) {
+        const idx = Number(e.key) - 1;
+        if (idx < PAYMENT_METHODS.length) {
+          e.preventDefault();
+          form.setFieldValue('paymentMethod', PAYMENT_METHODS[idx]);
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [table, form]);
+
   /* ------------------------------------------------------------ Render */
 
   const successView = result && (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ textAlign: 'center', padding: '8px 0' }}>
-        <CheckCircleOutlined style={{ fontSize: 42, color: TOKENS.color.semantic.success }} />
+        {reduceMotion ? (
+          <CheckCircleOutlined style={{ fontSize: 42, color: TOKENS.color.semantic.success }} />
+        ) : (
+          <motion.span
+            initial={{ scale: 0.4, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 16 }}
+            style={{ display: 'inline-block' }}
+          >
+            <CheckCircleOutlined style={{ fontSize: 42, color: TOKENS.color.semantic.success }} />
+          </motion.span>
+        )}
         <Title level={4} style={{ marginTop: 12, marginBottom: 0 }}>
           {t('tables.endedTitle')}
         </Title>
@@ -982,7 +1037,11 @@ const CheckoutDrawer = ({
                     rules={[{ required: true, message: t('tables.paymentRequired') }]}
                     style={{ marginBottom: 12 }}
                   >
-                    <Select
+                    {/* Planshetda bitta katta teginish (dropdown emas); 1/2/3
+                        klavishlari ham shu tartibga mos tushadi */}
+                    <Segmented
+                      block
+                      size="large"
                       options={PAYMENT_METHODS.map((m) => ({ value: m, label: t(`payment.${m}`) }))}
                     />
                   </Form.Item>

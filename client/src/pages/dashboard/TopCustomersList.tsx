@@ -77,7 +77,7 @@ const TopCustomersList = memo(({ topCustomers, currency, loading }: TopCustomers
                 {customer.name ?? t('dashboard.anonymous')}
               </Text>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                {t('dashboard.gamesCount', { n: customer.sessions })}
+                {t('dashboard.gamesCount', { count: customer.sessions })}
               </Text>
             </div>
             <MoneyText amount={customer.totalSpent} currency={currency} size="sm" />

@@ -2,6 +2,8 @@ import { lazy, ReactNode, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Spin } from 'antd';
 import AppLayout from './components/layout/AppLayout';
+import BrandLogo from './components/ui/BrandLogo';
+import { TOKENS } from './theme/tokens';
 import { viewingClub } from './api/client';
 import { isSubscriptionOver } from './offline/license';
 import { useAuth } from './context/AuthContext';
@@ -40,16 +42,25 @@ const AdminNotifications = lazy(() => import('./pages/admin/AdminNotifications')
 const AdminLogs = lazy(() => import('./pages/admin/AdminLogs'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 
+/**
+ * Sovuq start (auth tekshiruvi) va har lazy-marshrut uchun YAGONA fallback.
+ * Yakka kulrang Spin "buzilganmi?" degan taassurot berardi — brend belgisi +
+ * nom + nozik yuklagich ilova ataylab yuklanayotganini ko'rsatadi.
+ */
 const FullScreenSpin = () => (
   <div
     style={{
-      minHeight: '60vh',
+      minHeight: '100vh',
       display: 'flex',
+      flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
+      gap: 18,
+      background: TOKENS.color.bg.bg0,
     }}
   >
-    <Spin size="large" />
+    <BrandLogo size={56} withWordmark />
+    <Spin />
   </div>
 );
 

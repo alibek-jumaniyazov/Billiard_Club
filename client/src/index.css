@@ -486,6 +486,59 @@ body {
   }
 }
 
+/* ------------------------------------------------------------ Teginish (tablet)
+   Kassirlar planshetda BARMOQ bilan ishlaydi, lekin boshqaruv elementlari
+   desktop zichligida (32px) render bo'ladi. `pointer: coarse` — FAQAT teginishli
+   qurilmalar: desktop/sichqoncha ko'rinishi umuman o'zgarmaydi. Nishonlarni
+   ~44px ga ko'taramiz (Apple/Material tavsiyasi) va 300ms tap-kechikishini
+   o'chiramiz — noto'g'ri teginishlar kamayadi, ish tezlashadi. */
+@media (pointer: coarse) {
+  .ant-btn,
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-input-number-input,
+  .ant-select-selector,
+  .ant-picker,
+  .ant-segmented-item-label {
+    min-height: 44px;
+  }
+
+  /* Input/Select ichidagi matn vertikal markazda tursin */
+  .ant-input-number-input,
+  .ant-select-single .ant-select-selector {
+    display: flex;
+    align-items: center;
+  }
+
+  /* Faqat ikonkali tugmalar (masalan stol kartasidagi pauza/bar/ko'chirish)
+     kvadrat 44px nishon olsin — 3 ta yonma-yon tugma xato bosilmasin */
+  .ant-btn-icon-only {
+    min-width: 44px;
+  }
+
+  /* Tasdiqlash/modal tugmalari ham barmoqbop */
+  .ant-modal .ant-btn,
+  .ant-popconfirm .ant-btn,
+  .ant-drawer .ant-btn {
+    min-height: 44px;
+  }
+
+  /* Mobil menyu (drawer) bandlari kattaroq */
+  .ant-drawer .ant-menu-item {
+    height: 46px;
+    line-height: 46px;
+  }
+
+  /* 300ms tap-kechikishi va double-tap zoomni o'chirish — teginish darhol ishlaydi */
+  .ant-btn,
+  .ant-segmented,
+  .ant-select,
+  a {
+    touch-action: manipulation;
+  }
+}
+
 /* Harakat kamaytirilgan rejim — barcha animatsiyalarni o'chirish */
 @media (prefers-reduced-motion: reduce) {
   *,

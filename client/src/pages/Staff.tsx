@@ -31,7 +31,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { errorMessage, staffApi } from '../api';
+import { apiErrorMessage, errorMessage, staffApi } from '../api';
 import {
   EmptyState,
   PageHeader,
@@ -172,7 +172,7 @@ const Staff = () => {
       refetchAll();
     } catch (err) {
       // Forma xatolari maydon ostida ko'rinadi — toast shart emas
-      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
     } finally {
       setCreating(false);
     }
@@ -205,7 +205,7 @@ const Staff = () => {
       setEditingStaff(null);
       refetchAll();
     } catch (err) {
-      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
     } finally {
       setSaving(false);
     }
@@ -218,7 +218,7 @@ const Staff = () => {
       message.success(res.message);
       refetchAll();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(apiErrorMessage(err, t));
     }
   };
 

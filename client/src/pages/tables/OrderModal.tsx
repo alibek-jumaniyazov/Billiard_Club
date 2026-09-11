@@ -92,7 +92,12 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
         .filter((p) => p.isActive)
         .map((p) => ({
           value: p.id,
-          label: `${p.name} · ${formatMoney(p.price, currency)} · ${p.stock} ${unitLabel(p.unit, t)}`,
+          // Tugagan mahsulot label'da belgilanadi (server ombor bo'yicha yakuniy
+          // hakam — bu faqat vizual ishora, tanlash taqiqlanmaydi). Label matn
+          // bo'lib qoladi, aks holda qidiruv (filterOption) buzilardi.
+          label: `${p.name} · ${formatMoney(p.price, currency)} · ${p.stock} ${unitLabel(p.unit, t)}${
+            p.stock <= 0 ? ` · ${t('tables.outOfStock')}` : ''
+          }`,
         })),
     [products, currency, t],
   );
@@ -251,6 +256,21 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
                       aria-label={t('btn.delete')}
                     />
                   </Col>
+                  {/* Qator subtotal (narx × miqdor) — chek o'zini-o'zi tekshiradi */}
+                  {(() => {
+                    const row = items?.[name];
+                    const product = row?.productId
+                      ? products.find((p) => p.id === row.productId)
+                      : null;
+                    if (!product || !row?.quantity) return null;
+                    return (
+                      <Col span={24} style={{ textAlign: 'right', marginTop: 2 }}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {formatMoney(product.price * row.quantity, currency)}
+                        </Text>
+                      </Col>
+                    );
+                  })()}
                 </Row>
               ))}
               <Form.Item style={{ marginBottom: 0 }}>

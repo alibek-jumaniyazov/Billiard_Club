@@ -42,6 +42,12 @@ export default {
     selectRangeHint:
       "Yuqoridagi maydonda boshlanish va tugash sanasini belgilang — hisobot shundan keyin hisoblanadi",
     exportDisabledHint: "Avval sana oralig'ini tanlang — hisobotsiz Excel yasab bo'lmaydi",
+    coveredPeriod: 'Davr',
+    paymentTotal: 'Jami',
+    hintCollected:
+      "Davr ichida HAQIQATDA olingan pul: sotuvlar + qarz to'lovlari (to'lov sanasi bo'yicha).",
+    hintBilled: "Hisoblangan umumiy summa — to'lanmagan qarzlar ham kiradi.",
+    hintProfit: 'Olingan tushum − Xarajatlar.',
   },
   ru: {
     title: 'Финансовые отчёты',
@@ -86,5 +92,11 @@ export default {
     selectRangeHint:
       'Укажите дату начала и окончания в поле выше — отчёт будет рассчитан после этого',
     exportDisabledHint: 'Сначала выберите диапазон дат — без отчёта Excel не сформировать',
+    coveredPeriod: 'Период',
+    paymentTotal: 'Итого',
+    hintCollected:
+      'РЕАЛЬНО полученные за период деньги: продажи + погашение долгов (по дате оплаты).',
+    hintBilled: 'Общая начисленная сумма — включает непогашенные долги.',
+    hintProfit: 'Полученная выручка − Расходы.',
   },
 };

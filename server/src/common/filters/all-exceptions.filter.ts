@@ -11,6 +11,7 @@ import { Response } from 'express';
 import { QueryFailedError } from 'typeorm';
 import { TelegramService } from '../../telegram/telegram.service';
 import { getRequestLang } from '../decorators/lang.decorator';
+import { currentRequestId } from '../logging/request-context';
 import { t } from '../i18n/messages';
 
 /** Bir xil xato uchun Telegram ogohlantirishi shu oraliqda faqat bir marta */
@@ -67,6 +68,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return;
     }
 
+    const requestId = currentRequestId();
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = t(lang, 'common.serverError');
     let code: string | undefined;
@@ -106,7 +108,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       } else if (driverError?.code === '23502') {
         // not_null_violation — DTO dan literal `null` o'tib ketgan bo'lsa 500
         // emas, validatsiya xatosi qaytsin. Logga chiqadi: bu servisdagi kamchilik
-        this.logger.warn(`NOT NULL buzilishi (23502): ${exception.message}`);
+        this.logger.warn(`${this.rid(requestId)}NOT NULL buzilishi (23502): ${exception.message}`);
         status = HttpStatus.BAD_REQUEST;
         message = t(lang, 'common.validationError');
       } else if (driverError?.code === '23503' || driverError?.code === '23514') {
@@ -114,21 +116,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
         status = HttpStatus.BAD_REQUEST;
         message = t(lang, 'common.validationError');
       } else {
-        this.logger.error(exception.message, (exception as Error).stack);
+        this.logger.error(`${this.rid(requestId)}${exception.message}`, (exception as Error).stack);
       }
     } else {
       const err = exception as Error;
-      this.logger.error(err?.message ?? String(exception), err?.stack);
+      this.logger.error(`${this.rid(requestId)}${err?.message ?? String(exception)}`, err?.stack);
     }
 
     // FAQAT kutilmagan 5xx — 4xx (validatsiya, ruxsat, topilmadi) xabar qilinmaydi
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      this.alertCriticalError(exception, request);
+      this.alertCriticalError(exception, request, requestId);
     }
 
     response.status(status).json({
       success: false,
       message,
+      // Correlation id: kassir/mijoz shu id ni aytsa, operator log'dan aynan
+      // shu so'rovni topadi (X-Request-Id sarlavhasida ham qaytadi)
+      ...(requestId ? { requestId } : {}),
       ...(code ? { code } : {}),
       ...(errors ? { errors } : {}),
     });
@@ -142,13 +147,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
    * "crash loop" chatni bosib ketmasin. Bundan tashqari imzodan qat'i nazar
    * umumiy pol bor (ALERT_MIN_INTERVAL_MS).
    */
-  private alertCriticalError(exception: unknown, request: { method?: string; url?: string }): void {
+  /** Log prefiksi: "[<requestId>] " yoki bo'sh */
+  private rid(requestId: string | null): string {
+    return requestId ? `[${requestId}] ` : '';
+  }
+
+  private alertCriticalError(
+    exception: unknown,
+    request: { method?: string; url?: string },
+    requestId: string | null,
+  ): void {
     if (!this.telegram) return;
 
     try {
       const err = exception instanceof Error ? exception : new Error(String(exception));
       const method = request?.method ?? '-';
       const path = String(request?.url ?? '-').split('?')[0];
+      const location = requestId ? `${method} ${path} [${requestId}]` : `${method} ${path}`;
       const signature = `${method} ${path} ${err.message}`;
 
       const now = Date.now();
@@ -181,7 +196,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.lastAlertAt = now;
 
       void this.telegram
-        .notifyCriticalError(`${method} ${path}`, err)
+        .notifyCriticalError(location, err)
         .catch((alertErr: Error) =>
           this.logger.error(`Kritik xato ogohlantirishi yuborilmadi: ${alertErr.message}`),
         );

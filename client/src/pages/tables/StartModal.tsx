@@ -142,7 +142,23 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
           ))}
         />
       )}
-      <Form form={form} layout="vertical" requiredMark={false}>
+      <Form
+        form={form}
+        layout="vertical"
+        requiredMark={false}
+        onKeyDown={(e) => {
+          // Enter — darhol boshlash (izoh maydonida esa yangi qator qoldiradi)
+          if (
+            e.key === 'Enter' &&
+            (e.target as HTMLElement).tagName !== 'TEXTAREA' &&
+            !e.nativeEvent.isComposing &&
+            !submitting
+          ) {
+            e.preventDefault();
+            void handleOk();
+          }
+        }}
+      >
         <Form.Item name="customerName" label={t('tables.customerNameOptional')}>
           <Input maxLength={100} autoFocus />
         </Form.Item>

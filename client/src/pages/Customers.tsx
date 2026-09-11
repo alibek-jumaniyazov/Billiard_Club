@@ -30,7 +30,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { customersApi, errorMessage } from '../api';
+import { apiErrorMessage, customersApi, errorMessage } from '../api';
 import { EmptyState, MoneyText, PageHeader, PageTransition, StatCard, StatusTag } from '../components/ui';
 import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
@@ -167,7 +167,7 @@ const Customers = () => {
       refresh();
     } catch (err) {
       // Forma xatolari maydon ostida ko'rinadi — toast shart emas
-      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
     } finally {
       setSaving(false);
     }
@@ -197,7 +197,7 @@ const Customers = () => {
         setProfile(res.data);
       } catch (err) {
         setProfileError(true);
-        message.error(errorMessage(err, t('common.error')));
+        message.error(apiErrorMessage(err, t));
       } finally {
         setProfileLoading(false);
       }

@@ -29,7 +29,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { errorMessage, expensesApi } from '../api';
+import { apiErrorMessage, errorMessage, expensesApi } from '../api';
 import { EmptyState, MoneyText, PageHeader, PageTransition, StatCard } from '../components/ui';
 import { EXPENSE_CATEGORY_SUGGESTIONS } from '../constants';
 import { useCurrency } from '../context/AppSettingsContext';
@@ -194,7 +194,7 @@ const Expenses = () => {
       refresh();
     } catch (err) {
       // Forma xatolari maydon ostida ko'rinadi — toast shart emas
-      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
     } finally {
       setSaving(false);
     }
@@ -206,7 +206,7 @@ const Expenses = () => {
       message.success(res.message);
       refresh();
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(apiErrorMessage(err, t));
     }
   };
 

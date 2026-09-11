@@ -6,7 +6,9 @@ import ErrorBoundary from '../ErrorBoundary';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import AnimatedBackground from '../ui/AnimatedBackground';
+import CommandPalette from '../ui/CommandPalette';
 import ConnectionBanner from '../ui/ConnectionBanner';
+import ShortcutsHelp from '../ui/ShortcutsHelp';
 import { NotificationsProvider } from '../../context/NotificationsContext';
 import { TOKENS } from '../../theme/tokens';
 
@@ -54,12 +56,38 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
 const AppLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const screens = Grid.useBreakpoint();
   const location = useLocation();
   const { t, i18n } = useTranslation();
 
   // Birinchi renderda screens bo'sh — desktop deb qaraladi (sakrashning oldini oladi)
   const isMobile = screens.lg === false;
+
+  // Global yorliqlar: Ctrl/Cmd+K — buyruq paneli; ? — yorliqlar yordami.
+  // '?' matn maydonida yozilsa ochilmasin (Ctrl+K modifikator bo'lgani uchun
+  // himoya shart emas).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+        return;
+      }
+      if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const el = e.target as HTMLElement | null;
+        const tag = el?.tagName;
+        const typing =
+          tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el?.isContentEditable;
+        if (typing) return;
+        e.preventDefault();
+        setHelpOpen((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   // Tab sarlavhasi joriy marshrut + tilga qarab yangilanadi ("<Sahifa> — Billiard
   // Club"). Til almashsa ham qayta o'rnatiladi (i18n.language bog'liqligi).
@@ -103,6 +131,8 @@ const AppLayout = () => {
             onToggle={() =>
               isMobile ? setDrawerOpen((open) => !open) : setCollapsed((c) => !c)
             }
+            onOpenSearch={() => setPaletteOpen(true)}
+            onOpenHelp={() => setHelpOpen(true)}
           />
           {/* Ulanish/sinxronizatsiya holati — faqat aytadigan gap bo'lganda
               ko'rinadi, normal ish holatida ekran toza qoladi */}
@@ -118,6 +148,9 @@ const AppLayout = () => {
           </Content>
         </Layout>
       </Layout>
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <ShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </NotificationsProvider>
   );
 };

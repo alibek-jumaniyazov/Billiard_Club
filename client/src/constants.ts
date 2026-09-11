@@ -215,6 +215,47 @@ export const TELEGRAM_EVENTS = [
 
 export type TelegramEvent = (typeof TELEGRAM_EVENTS)[number];
 
+// ==================== Navigatsiya (command palette + tab sarlavhalari) ====================
+
+/**
+ * Ilova sahifalari — YAGONA manba: command palette (Ctrl+K) ham, AppLayout tab
+ * sarlavhasi ham shundan o'qiydi (drift bo'lmasin). Rollar App.tsx dagi
+ * `<Protected roles={...}>` bilan bir xil — palette foydalanuvchi kira olmaydigan
+ * sahifani ko'rsatmaydi. Dinamik marshrutlar (masalan /admin/clubs/:id/data)
+ * bu yerda yo'q. `titleKey` — mavjud `menu.*` i18n kalitlari.
+ */
+export const NAV_DESTINATIONS: ReadonlyArray<{
+  path: string;
+  titleKey: string;
+  roles: readonly UserRole[];
+}> = [
+  { path: '/dashboard', titleKey: 'menu.dashboard', roles: ['admin', 'kassir'] },
+  { path: '/tables', titleKey: 'menu.tables', roles: ['admin', 'kassir', 'operator'] },
+  { path: '/sessions', titleKey: 'menu.sessions', roles: ['admin', 'kassir', 'operator'] },
+  { path: '/orders', titleKey: 'menu.orders', roles: ['admin', 'kassir', 'operator'] },
+  { path: '/products', titleKey: 'menu.products', roles: ['admin', 'kassir', 'operator'] },
+  { path: '/customers', titleKey: 'menu.customers', roles: ['admin', 'kassir', 'operator'] },
+  { path: '/reservations', titleKey: 'menu.reservations', roles: ['admin', 'kassir', 'operator'] },
+  { path: '/game', titleKey: 'menu.game', roles: ['admin', 'kassir', 'operator'] },
+  { path: '/debts', titleKey: 'menu.debts', roles: ['admin', 'kassir'] },
+  { path: '/reports', titleKey: 'menu.reports', roles: ['admin', 'kassir'] },
+  { path: '/expenses', titleKey: 'menu.expenses', roles: ['admin', 'kassir'] },
+  { path: '/feedback', titleKey: 'menu.feedback', roles: ['admin', 'kassir', 'operator'] },
+  { path: '/notifications', titleKey: 'menu.notifications', roles: ['admin'] },
+  { path: '/subscription', titleKey: 'menu.subscription', roles: ['admin'] },
+  { path: '/staff', titleKey: 'menu.staff', roles: ['admin'] },
+  { path: '/settings', titleKey: 'menu.settings', roles: ['admin'] },
+  { path: '/profile', titleKey: 'menu.profile', roles: ['superadmin', 'admin', 'kassir', 'operator'] },
+  { path: '/admin', titleKey: 'menu.adminDashboard', roles: ['superadmin'] },
+  { path: '/admin/clubs', titleKey: 'menu.clubs', roles: ['superadmin'] },
+  { path: '/admin/billing', titleKey: 'menu.adminBilling', roles: ['superadmin'] },
+  { path: '/admin/feedback', titleKey: 'menu.adminFeedback', roles: ['superadmin'] },
+  { path: '/admin/notifications', titleKey: 'menu.adminNotifications', roles: ['superadmin'] },
+  { path: '/admin/releases', titleKey: 'menu.adminReleases', roles: ['superadmin'] },
+  { path: '/admin/logs', titleKey: 'menu.adminLogs', roles: ['superadmin'] },
+  { path: '/admin/settings', titleKey: 'menu.adminSettings', roles: ['superadmin'] },
+];
+
 // ==================== Aloqa (avilab.uz) ====================
 // Yagona manba: barcha aloqa kanallari avilab.uz ga tegishli.
 // Env orqali qayta sozlash mumkin, aks holda quyidagi standart qiymatlar ishlatiladi.

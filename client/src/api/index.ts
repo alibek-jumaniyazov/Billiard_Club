@@ -582,3 +582,23 @@ export const errorMessage = (err: unknown, fallback: string): string => {
   }
   return fallback;
 };
+
+/**
+ * Foydalanuvchiga MA'NOLI xato matni: tarmoq uzilishida "internetni tekshiring",
+ * 429 da "juda ko'p urinish", aks holda serverning o'z xabari (yoki fallback).
+ * Umumiy "Xatolik yuz berdi" o'rniga — kassir aloqa muammosini server rad
+ * etishidan ajrata olsin. POS oqimidan tashqari sahifalar shu bilan chaqiradi.
+ */
+export const apiErrorMessage = (
+  err: unknown,
+  t: (key: string) => string,
+  fallback?: string,
+): string => {
+  if (isNetworkError(err)) return t('offline.networkError');
+  const status =
+    typeof err === 'object' && err !== null && 'response' in err
+      ? (err as { response?: { status?: number } }).response?.status
+      : undefined;
+  if (status === 429) return t('offline.rateLimited');
+  return errorMessage(err, fallback ?? t('common.error'));
+};

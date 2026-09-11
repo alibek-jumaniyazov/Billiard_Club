@@ -1,0 +1,81 @@
+# Billiard Club — uzluksiz integratsiya (CI).
+#
+# Har PR va main ga push'da: server va client ALOHIDA job'larda tekshiriladi.
+# Server job'i migratsiyalarni TOZA (bo'sh) Postgres'ga qo'llaydi — ishga
+# tushmagan yoki buzuq migratsiya production'ga yetib borishining oldini oladi
+# (README "npm run migrate MAJBURIY" deydi — bu darvoza shuni mexanik tekshiradi).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  server:
+    name: Server (typecheck · build · migrations)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: billiard_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Install
+        working-directory: server
+        run: npm ci
+      - name: Typecheck
+        working-directory: server
+        run: npm run typecheck
+      - name: Build
+        working-directory: server
+        run: npm run build
+      - name: Migrations apply cleanly on a fresh DB
+        working-directory: server
+        env:
+          NODE_ENV: development
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_NAME: billiard_ci
+          DB_USER: postgres
+          DB_PASS: postgres
+        run: npm run migration:run
+
+  client:
+    name: Client (typecheck · test · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install
+        working-directory: client
+        run: npm ci
+      - name: Typecheck
+        working-directory: client
+        run: npm run typecheck
+      - name: Test
+        working-directory: client
+        run: npm run test
+      - name: Build
+        working-directory: client
+        run: npm run build

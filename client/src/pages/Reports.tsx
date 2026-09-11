@@ -394,10 +394,19 @@ const Reports = () => {
         </Card>
       ) : (
       <>
+      {/* Hisobot QAYSI kunlarni qamrab olganini aniq ko'rsatamiz ("Haftalik"
+          o'zi yetarli emas). period.to yarim ochiq — 1 ms ayirib inklyuziv ko'rsatamiz. */}
+      {report?.period && (
+        <Text type="secondary" style={{ display: 'block', marginBottom: 14, fontSize: 13 }}>
+          <CalendarOutlined style={{ marginRight: 6 }} />
+          {t('reports.coveredPeriod')}: {dayjs(report.period.from).format('DD.MM.YYYY')} — {dayjs(report.period.to).subtract(1, 'millisecond').format('DD.MM.YYYY')}
+        </Text>
+      )}
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         <Col xs={24} sm={12} lg={6}>
           <StatCard
             label={t('reports.collectedRevenue')}
+            hint={t('reports.hintCollected')}
             value={money(summary?.collectedRevenue)}
             icon={<DollarOutlined />}
             accent={TOKENS.color.semantic.success}
@@ -407,6 +416,7 @@ const Reports = () => {
         <Col xs={24} sm={12} lg={6}>
           <StatCard
             label={t('reports.billedRevenue')}
+            hint={t('reports.hintBilled')}
             value={money(summary?.billedRevenue)}
             icon={<BarChartOutlined />}
             loading={loading}
@@ -441,6 +451,7 @@ const Reports = () => {
         <Col xs={24} sm={12} lg={6}>
           <StatCard
             label={t('reports.profit')}
+            hint={t('reports.hintProfit')}
             value={money(
               summary?.profit,
               (summary?.profit ?? 0) >= 0
@@ -503,20 +514,48 @@ const Reports = () => {
         {loading ? (
           <Skeleton active paragraph={{ rows: 1 }} title={false} />
         ) : (
-          <Row gutter={[16, 16]}>
-            {PAYMENT_METHODS.map((m) => (
-              <Col xs={24} sm={8} key={m}>
-                <Text type="secondary" style={{ fontSize: 13, display: 'block' }}>
-                  {t(`payment.${m}`)}
-                </Text>
-                <MoneyText
-                  amount={summary?.paymentBreakdown?.[m]}
-                  currency={currency}
-                  size="lg"
-                />
-              </Col>
-            ))}
-          </Row>
+          (() => {
+            // Har usulning ulushini (%) va umumiy summani ko'rsatamiz — egaga
+            // naqd/karta/o'tkazma nisbati bir qarashda ko'rinsin.
+            const total = PAYMENT_METHODS.reduce(
+              (s, m) => s + (summary?.paymentBreakdown?.[m] ?? 0),
+              0,
+            );
+            return (
+              <>
+                <Row gutter={[16, 16]}>
+                  {PAYMENT_METHODS.map((m) => {
+                    const amount = summary?.paymentBreakdown?.[m] ?? 0;
+                    const share = total > 0 ? Math.round((amount / total) * 100) : null;
+                    return (
+                      <Col xs={24} sm={8} key={m}>
+                        <Text type="secondary" style={{ fontSize: 13, display: 'block' }}>
+                          {t(`payment.${m}`)}
+                          {share !== null && (
+                            <span style={{ marginLeft: 6, opacity: 0.75 }}>({share}%)</span>
+                          )}
+                        </Text>
+                        <MoneyText amount={amount} currency={currency} size="lg" />
+                      </Col>
+                    );
+                  })}
+                </Row>
+                <div
+                  style={{
+                    marginTop: 14,
+                    paddingTop: 12,
+                    borderTop: `1px solid ${TOKENS.color.border.subtle}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text strong>{t('reports.paymentTotal')}</Text>
+                  <MoneyText amount={total} currency={currency} size="lg" />
+                </div>
+              </>
+            );
+          })()
         )}
       </Card>
 

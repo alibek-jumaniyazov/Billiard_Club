@@ -17,6 +17,8 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  QuestionCircleOutlined,
+  SearchOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -36,9 +38,13 @@ const { Text } = Typography;
 interface HeaderProps {
   collapsed: boolean;
   onToggle: () => void;
+  /** Buyruq panelini (Ctrl+K) ochish — planshet uchun teginiladigan yo'l */
+  onOpenSearch?: () => void;
+  /** Klaviatura yorliqlari yordamini ochish */
+  onOpenHelp?: () => void;
 }
 
-const Header = ({ collapsed, onToggle }: HeaderProps) => {
+const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) => {
   const { t } = useTranslation();
   const { lang, setLang } = useAppSettings();
   const { user, club, logout } = useAuth();
@@ -142,6 +148,22 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
       </Space>
 
       <Space size="middle">
+        {onOpenSearch && (
+          <Tooltip title={`${t('search.button')} (Ctrl+K)`}>
+            <Button
+              type="text"
+              icon={<SearchOutlined />}
+              onClick={onOpenSearch}
+              aria-label={t('search.button')}
+            >
+              {screens.md !== false && (
+                <Text type="secondary" style={{ fontSize: 13 }}>
+                  Ctrl+K
+                </Text>
+              )}
+            </Button>
+          </Tooltip>
+        )}
         <Segmented
           size="small"
           value={lang}
@@ -157,6 +179,20 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
               color={sub.color}
               icon={<CrownOutlined />}
               onClick={canOpenSub ? () => navigate('/subscription') : undefined}
+              // Klaviatura/skrinrider ham obuna pilyulasidan billingga o'ta olsin
+              role={canOpenSub ? 'button' : undefined}
+              tabIndex={canOpenSub ? 0 : undefined}
+              aria-label={canOpenSub ? `${sub.statusWord} · ${sub.full}` : undefined}
+              onKeyDown={
+                canOpenSub
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate('/subscription');
+                      }
+                    }
+                  : undefined
+              }
               style={{
                 margin: 0,
                 fontWeight: 600,
@@ -191,6 +227,16 @@ const Header = ({ collapsed, onToggle }: HeaderProps) => {
                         onClick: () => navigate('/download'),
                       },
                     ]),
+                ...(onOpenHelp
+                  ? [
+                      {
+                        key: 'help',
+                        icon: <QuestionCircleOutlined />,
+                        label: t('help.button'),
+                        onClick: onOpenHelp,
+                      },
+                    ]
+                  : []),
                 { type: 'divider' as const },
                 {
                   key: 'logout',

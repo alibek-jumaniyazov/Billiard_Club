@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Alert, Button, Card, Col, Row } from 'antd';
+import { Alert, Button, Card, Col, Row, Typography } from 'antd';
 import {
   CalendarOutlined,
   CreditCardOutlined,
@@ -19,6 +19,7 @@ import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
 import { formatClock, formatMoney } from '../../utils/format';
 import ActiveSessionsList from './ActiveSessionsList';
+import OnboardingChecklist from './OnboardingChecklist';
 import PeakHoursChart from './PeakHoursChart';
 import RecentPaymentsList from './RecentPaymentsList';
 import RevenueChart from './RevenueChart';
@@ -77,17 +78,35 @@ const DashboardPage = () => {
     return Math.round(((today - yesterday) / yesterday) * 1000) / 10;
   }, [stats?.last7Days]);
 
+  // Haftalik trend — oxirgi 7 kun vs oldingi 7 kun (last30Days dan; eski server
+  // last30Days bermasa jimgina o'tkazib yuboriladi)
+  const weekTrend = useMemo(() => {
+    const days = stats?.last30Days;
+    if (!days || days.length < 14) return undefined;
+    const last7 = days.slice(-7).reduce((s, d) => s + d.revenue, 0);
+    const prev7 = days.slice(-14, -7).reduce((s, d) => s + d.revenue, 0);
+    if (prev7 <= 0) return undefined;
+    return Math.round(((last7 - prev7) / prev7) * 1000) / 10;
+  }, [stats?.last30Days]);
+
   const header = (
     <PageHeader
       icon={<DashboardOutlined />}
       title={t('dashboard.title')}
       subtitle={t('dashboard.subtitle')}
       extra={
-        <Button
-          icon={<ReloadOutlined spin={refreshing} />}
-          onClick={refresh}
-          aria-label={t('btn.refresh')}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {lastUpdatedAt && (
+            <Typography.Text type="secondary" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+              {t('dashboard.updatedAt', { time: formatClock(lastUpdatedAt) })}
+            </Typography.Text>
+          )}
+          <Button
+            icon={<ReloadOutlined spin={refreshing} />}
+            onClick={refresh}
+            aria-label={t('btn.refresh')}
+          />
+        </div>
       }
     />
   );
@@ -138,6 +157,10 @@ const DashboardPage = () => {
         />
       )}
 
+      {/* Ishni boshlash checklist — yangi klub uchun (komponent o'zi qachon
+          ko'rinishini hal qiladi: admin, birinchi o'yingacha, yopilmagan) */}
+      <OnboardingChecklist stats={stats} />
+
       <motion.div
         variants={containerVariants}
         initial={reduceMotion ? false : 'hidden'}
@@ -150,7 +173,9 @@ const DashboardPage = () => {
               <StatCard
                 loading={loading}
                 label={t('dashboard.todayRevenue')}
+                hint={t('dashboard.hintTodayRevenue')}
                 value={formatMoney(stats?.dailyRevenue, currency)}
+                valueTitle={formatMoney(stats?.dailyRevenue, currency)}
                 icon={<DollarOutlined />}
                 accent={TOKENS.color.gold.base}
                 trend={todayTrend}
@@ -161,16 +186,24 @@ const DashboardPage = () => {
               <StatCard
                 loading={loading}
                 label={t('dashboard.weekRevenue')}
+                hint={t('dashboard.hintWeekRevenue')}
+                sublabel={t('dashboard.rangeLast7')}
                 value={formatMoney(stats?.weekRevenue, currency)}
+                valueTitle={formatMoney(stats?.weekRevenue, currency)}
                 icon={<RiseOutlined />}
                 accent={TOKENS.color.emerald.bright}
+                trend={weekTrend}
+                trendLabel={t('dashboard.vsLastWeek')}
               />
             </Col>
             <Col xs={24} sm={12} lg={8}>
               <StatCard
                 loading={loading}
                 label={t('dashboard.monthRevenue')}
+                hint={t('dashboard.hintMonthRevenue')}
+                sublabel={t('dashboard.rangeThisMonth')}
                 value={formatMoney(stats?.monthRevenue, currency)}
+                valueTitle={formatMoney(stats?.monthRevenue, currency)}
                 icon={<CalendarOutlined />}
                 accent={TOKENS.color.semantic.info}
               />
@@ -185,7 +218,9 @@ const DashboardPage = () => {
               <StatCard
                 loading={loading}
                 label={t('dashboard.occupancy')}
+                hint={t('dashboard.hintOccupancy')}
                 value={`${stats?.occupancyPercent ?? 0}%`}
+                meter={stats?.occupancyPercent ?? 0}
                 icon={<PieChartOutlined />}
                 accent={TOKENS.color.neonGreen}
               />
@@ -194,6 +229,7 @@ const DashboardPage = () => {
               <StatCard
                 loading={loading}
                 label={t('dashboard.activeSessions')}
+                hint={t('dashboard.hintActiveSessions')}
                 value={stats?.activeSessions ?? 0}
                 icon={<PlayCircleOutlined />}
                 accent={TOKENS.color.emerald.glow}
@@ -203,6 +239,7 @@ const DashboardPage = () => {
               <StatCard
                 loading={loading}
                 label={t('dashboard.openDebts')}
+                hint={t('dashboard.hintOpenDebts')}
                 value={
                   stats?.openDebtsTotal === undefined
                     ? '—'
@@ -216,6 +253,7 @@ const DashboardPage = () => {
               <StatCard
                 loading={loading}
                 label={t('dashboard.todayExpenses')}
+                hint={t('dashboard.hintTodayExpenses')}
                 value={formatMoney(stats?.expenses.today, currency)}
                 icon={<WalletOutlined />}
                 accent={TOKENS.color.semantic.warning}
