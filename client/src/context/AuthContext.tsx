@@ -32,6 +32,8 @@ interface RegisterPayload {
   address: string;
   username: string;
   password: string;
+  trialVerificationId: string;
+  trialVerificationToken: string;
   website?: string;
 }
 

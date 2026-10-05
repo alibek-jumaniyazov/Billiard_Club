@@ -32,6 +32,9 @@ export const envValidationSchema = Joi.object({
 
   TELEGRAM_BOT_TOKEN: Joi.string().allow('').optional(),
   TELEGRAM_CHAT_ID: Joi.string().allow('').optional(),
+  TRIAL_TELEGRAM_BOT_TOKEN: Joi.string().allow('').optional(),
+  TRIAL_TELEGRAM_BOT_USERNAME: Joi.string().pattern(/^[A-Za-z][A-Za-z0-9_]{4,31}$/).allow('').optional(),
+  TRIAL_TELEGRAM_WEBHOOK_SECRET: Joi.string().pattern(/^[A-Za-z0-9_-]{32,256}$/).allow('').optional(),
 
   SUPERADMIN_USERNAME: Joi.string().optional(),
   SUPERADMIN_PASSWORD: Joi.string().optional(),

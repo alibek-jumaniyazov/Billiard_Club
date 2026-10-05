@@ -258,7 +258,12 @@ const messages: Record<Language, Record<string, string>> = {
     // Ommaviy ro'yxatdan o'tish
     'public.phoneAlreadyRegistered':
       "Bu telefon raqam allaqachon ro'yxatdan o'tgan. Yordam uchun biz bilan bog'laning",
-    'public.invalidPhone': "Telefon raqam noto'g'ri — kamida bitta raqam bo'lishi kerak",
+    'public.invalidPhone': "Telefon raqam noto'g'ri formatda",
+    'public.verificationUnavailable': "Telegram orqali tasdiqlash hozir ishlamayapti. Administrator bilan bog'laning yoki mavjud hisobingizga kiring.",
+    'public.verificationInvalid': "Tasdiqlash topilmadi. Ro'yxatdan o'tish sahifasida qayta boshlang.",
+    'public.verificationRequired': "Telefoningizni Telegram orqali tasdiqlang. Tasdiqlash 10 daqiqa amal qiladi va bir marta ishlatiladi.",
+    'public.verifiedPhoneMismatch': 'Telefon raqami Telegram orqali tasdiqlangan raqamga mos emas.',
+    'public.trialAlreadyUsed': "Bu telefon yoki Telegram hisobi bepul sinovdan foydalangan. Mavjud hisobingizga kirib obunani uzaytiring yoki administrator bilan bog'laning.",
 
     // Umumiy
     'common.validationError': 'Validatsiya xatosi',
@@ -552,7 +557,12 @@ const messages: Record<Language, Record<string, string>> = {
     // Публичная регистрация
     'public.phoneAlreadyRegistered':
       'Этот номер телефона уже зарегистрирован. Свяжитесь с нами для помощи',
-    'public.invalidPhone': 'Неверный номер телефона — нужна хотя бы одна цифра',
+    'public.invalidPhone': 'Неверный формат номера телефона',
+    'public.verificationUnavailable': 'Подтверждение через Telegram сейчас недоступно. Свяжитесь с администратором или войдите в существующий аккаунт.',
+    'public.verificationInvalid': 'Подтверждение не найдено. Начните заново на странице регистрации.',
+    'public.verificationRequired': 'Подтвердите свой номер через Telegram. Подтверждение действует 10 минут и используется один раз.',
+    'public.verifiedPhoneMismatch': 'Номер телефона не совпадает с подтверждённым через Telegram.',
+    'public.trialAlreadyUsed': 'Этот телефон или Telegram-аккаунт уже использовал бесплатный период. Войдите в существующий аккаунт и продлите подписку или свяжитесь с администратором.',
 
     // Общее
     'common.validationError': 'Ошибка валидации',

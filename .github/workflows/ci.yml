@@ -46,6 +46,14 @@ jobs:
       - name: Build
         working-directory: server
         run: npm run build
+      - name: Unit tests
+        working-directory: server
+        run: npm test
+      - name: Trial protection integration tests (isolated database)
+        working-directory: server
+        env:
+          TEST_POSTGRES_URL: postgres://postgres:postgres@localhost:5432/postgres
+        run: npm run test:integration
       - name: Migrations apply cleanly on a fresh DB
         working-directory: server
         env:

@@ -14,7 +14,7 @@ export default {
       "Billiard Club hisobingizga kiring va klubingizni istalgan qurilmadan boshqaring.",
     metaRegisterTitle: "{{days}} kun bepul sinov — Billiard Club",
     metaRegisterDescription:
-      "1 daqiqada ro'yxatdan o'ting va billiard klubingizni {{days}} kun bepul boshqaring. Karta talab qilinmaydi.",
+      "Telegram orqali telefoningizni tasdiqlang va billiard klubingizni {{days}} kun bepul boshqaring. Sinov faqat yangi foydalanuvchilar uchun, bir marta.",
     // Navigatsiya
     navFeatures: 'Imkoniyatlar',
     navPricing: 'Narxlar',
@@ -86,7 +86,7 @@ export default {
     pricingOverline: 'Tariflar',
     pricingTitle: 'Oddiy va shaffof narxlar',
     pricingSubtitle:
-      "Har bir tarif {{days}} kunlik bepul sinov bilan boshlanadi. Barcha imkoniyatlar barcha tariflarda — stollar va xodimlar soni cheklanmagan.",
+      "Yangi foydalanuvchilar Telegram orqali tasdiqlashdan so'ng bir marta {{days}} kun bepul sinaydi. Barcha imkoniyatlar barcha tariflarda — stollar va xodimlar soni cheklanmagan.",
     planMonthlyName: 'Oylik',
     planMonthlyPeriod: '30 kun',
     planSemiName: '6 oylik',
@@ -127,7 +127,7 @@ export default {
     faqTitle: "Ko'p beriladigan savollar",
     faq1Q: '{{days}} kunlik bepul sinov qanday ishlaydi?',
     faq1A:
-      "Ro'yxatdan o'tishingiz bilan barcha imkoniyatlar {{days}} kunga bepul ochiladi. Karta yoki to'lov talab qilinmaydi. Sinov tugagach, qulay tarifni tanlab davom etasiz.",
+      "Bepul sinov faqat yangi foydalanuvchilar uchun bir marta beriladi. Telegram botida o'z telefon raqamingizni tasdiqlab, ro'yxatdan o'tganingizdan so'ng barcha imkoniyatlar {{days}} kunga ochiladi. Karta yoki SMS to'lovi talab qilinmaydi. Sinov tugagach, mavjud hisobingizda qulay tarifni tanlab davom etasiz.",
     faq2Q: "Obuna tugasa, ma'lumotlarim o'chib ketadimi?",
     faq2A:
       "Yo'q. Ma'lumotlaringiz to'liq saqlanadi — faqat kirish vaqtincha yopiladi. To'lovdan so'ng tizim zudlik bilan qayta ochiladi va hammasi joyida bo'ladi.",
@@ -179,7 +179,7 @@ export default {
       'Войдите в аккаунт Billiard Club и управляйте клубом с любого устройства.',
     metaRegisterTitle: '{{days}} дней бесплатно — Billiard Club',
     metaRegisterDescription:
-      'Зарегистрируйтесь за 1 минуту и управляйте бильярдным клубом {{days}} дней бесплатно. Карта не требуется.',
+      'Подтвердите телефон через Telegram и управляйте бильярдным клубом {{days}} дней бесплатно. Пробный период доступен новым пользователям один раз.',
     // Навигация
     navFeatures: 'Возможности',
     navPricing: 'Цены',
@@ -251,7 +251,7 @@ export default {
     pricingOverline: 'Тарифы',
     pricingTitle: 'Простые и прозрачные цены',
     pricingSubtitle:
-      'Каждый тариф начинается с {{days}} дней бесплатного пробного периода. Все возможности во всех тарифах — без ограничений по столам и сотрудникам.',
+      'Новые пользователи после подтверждения в Telegram могут один раз попробовать систему {{days}} дней бесплатно. Все возможности во всех тарифах — без ограничений по столам и сотрудникам.',
     planMonthlyName: 'Месячный',
     planMonthlyPeriod: '30 дней',
     planSemiName: 'Полугодовой',
@@ -292,7 +292,7 @@ export default {
     faqTitle: 'Часто задаваемые вопросы',
     faq1Q: 'Как работает бесплатный период {{days}} дней?',
     faq1A:
-      'Сразу после регистрации все возможности открываются на {{days}} дней бесплатно. Карта и оплата не требуются. По окончании периода выберите удобный тариф и продолжайте.',
+      'Пробный период доступен только новым пользователям один раз. Подтвердите свой номер телефона в боте Telegram и зарегистрируйтесь — все возможности откроются на {{days}} дней. Карта и оплата SMS не нужны. После окончания периода выберите тариф в существующем аккаунте и продолжайте.',
     faq2Q: 'Пропадут ли мои данные после окончания подписки?',
     faq2A:
       'Нет. Данные полностью сохраняются — временно закрывается только доступ. После оплаты система мгновенно разблокируется, и всё будет на месте.',

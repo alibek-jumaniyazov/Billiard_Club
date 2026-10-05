@@ -506,6 +506,17 @@ export const adminApi = {
     del<void>(`/admin/clubs/${id}/contracts/${contractId}`),
 };
 
+export interface TrialVerificationChallenge {
+  id: string;
+  token: string;
+  telegramUrl: string;
+  expiresAt: string;
+}
+
+export type TrialVerificationStatus =
+  | { status: 'verified'; phone: string }
+  | { status: 'pending' | 'expired' | 'used'; phone?: never };
+
 /** Landing sahifadan ro'yxatdan o'tish (autentifikatsiyasiz) */
 export const publicApi = {
   /** Ommaviy tariflar — superadmin boshqaradigan faol tariflar (landing narxlari) */
@@ -519,7 +530,15 @@ export const publicApi = {
    * Sayt matnlari ("N kun bepul") shu qiymatdan yig'iladi, shuning uchun
    * superadmin muddatni o'zgartirsa sayt ham darhol to'g'ri yozadi.
    */
-  config: () => get<{ trialDays: number }>('/public/config'),
+  config: () =>
+    get<{
+      trialDays: number;
+      trialVerification: { method: 'telegram'; available: boolean };
+    }>('/public/config'),
+  startTrialVerification: (body: { website?: string }) =>
+    post<TrialVerificationChallenge>('/public/trial-verification/start', body),
+  trialVerificationStatus: (body: { id: string; token: string }) =>
+    post<TrialVerificationStatus>('/public/trial-verification/status', body),
   register: (body: {
     clubName: string;
     ownerName: string;
@@ -527,6 +546,8 @@ export const publicApi = {
     address: string;
     username: string;
     password: string;
+    trialVerificationId: string;
+    trialVerificationToken: string;
     /** Honeypot maydoni — bo'sh bo'lishi kerak */
     website?: string;
   }) => post<AuthData>('/public/register', body),

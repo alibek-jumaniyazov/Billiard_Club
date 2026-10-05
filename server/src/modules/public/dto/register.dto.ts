@@ -2,6 +2,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
   MinLength,
@@ -44,6 +45,13 @@ export class RegisterDto {
   @MinLength(8)
   @MaxLength(100)
   password: string;
+
+  @IsUUID('4')
+  trialVerificationId: string;
+
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{43}$/)
+  trialVerificationToken: string;
 
   /**
    * Honeypot — odam ko'rmaydigan yashirin maydon. Botlar to'ldiradi;

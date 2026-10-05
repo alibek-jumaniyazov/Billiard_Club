@@ -5,10 +5,11 @@ import { User } from '../../entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { PublicController } from './public.controller';
 import { PublicService } from './public.service';
+import { TrialVerificationService } from './trial-verification.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, Plan]), AuthModule],
   controllers: [PublicController],
-  providers: [PublicService],
+  providers: [PublicService, TrialVerificationService],
 })
 export class PublicModule {}

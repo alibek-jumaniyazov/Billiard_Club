@@ -15,7 +15,8 @@ stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun k
 ### Biznes model
 - **Superadmin** (siz) — klublarni yaratadi, har biriga login/parol beradi, obunani istalgan muddatga
   (+1/+3/+6/+12 oy yoki aniq sana) uzaytiradi, bloklaydi, statistikasini ko'radi.
-- Har yangi klubga **bepul sinov muddati** (standart 7 kun) — uzunligi superadmin panelidan
+- Ommaviy registratsiyada yangi, Telegram orqali tasdiqlangan telefon va Telegram hisobiga
+  **bir martalik bepul sinov muddati** (standart 7 kun) — uzunligi superadmin panelidan
   o'zgartiriladi (*Sozlamalar → Platforma qoidalari*), kodga tegish shart emas. Landing
   sahifasidagi "N kun bepul" matnlari ham shu qiymatdan yig'iladi, ya'ni sayt va tizim
   hech qachon bir-biriga zid bo'lmaydi.
@@ -56,6 +57,11 @@ Superadmin: `.env` dagi `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`.
 3. `https://api.telegram.org/bot<TOKEN>/getUpdates` dan `chat.id` ni oling → `TELEGRAM_CHAT_ID`
 
 Shundan so'ng yangi klub qo'shilganda va obuna uzaytirilganda sizga xabar keladi.
+
+Ommaviy registratsiya uchun Telegram orqali **o‘z telefonini tasdiqlash** ham kerak.
+Pullik SMS ishlatilmaydi. Botni, webhookni va doimiy sinov tarixini sozlash:
+**[docs/TRIAL-PROTECTION.md](docs/TRIAL-PROTECTION.md)**.
+Bu sozlamalar bo‘lmasa, tasdiqlanmagan foydalanuvchiga bepul sinov ochilmaydi.
 
 ## Stol chiroqlarini avtomatik boshqarish
 
@@ -200,11 +206,17 @@ natija bir xil, alohida oyna va yorliq.
 ## Testlar
 
 ```bash
-npm test          # yoki: cd client && npm test
+npm test              # server va klient testlari
+npm run test:integration # alohida vaqtinchalik PostgreSQL bazasida sinov himoyasi
 ```
 
-Qamrov ataylab tor va PUL MANTIG'IGA qaratilgan — bu yerda xato bevosita
-mijozdan olinadigan summaga ta'sir qiladi:
+Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
+
+- `server/test/` — Telegram tasdiqlashi, telefon/Telegram uchun bir martalik
+  sinov, parallel registratsiya, tranzaksiya rollbacki va eski telefonlar tarixi.
+  Integratsiya runneri ilovaning `.env` yoki haqiqiy bazasidan foydalanmaydi:
+  mahalliy PostgreSQL binarlari bilan yangi vaqtinchalik bazani yaratadi va yopadi.
+  CI uchun `TEST_POSTGRES_URL` alohida test PostgreSQL serverini ko'rsatadi.
 
 - `client/src/utils/session.test.ts` — sessiya taymeri va summasi: pauza,
   transfer (segmentlar), kumulyativ yaxlitlash, muhrlangan narx. Bu fayl
@@ -218,12 +230,14 @@ mijozdan olinadigan summaga ta'sir qiladi:
 
 1. `npm run typecheck && npm test && npm run build`
 2. **`npm run migrate`** — MAJBURIY. Kutilayotgan migratsiyalar:
-   `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`.
-   Ularsiz qarzni hisobdan chiqarish ishlamaydi.
+   `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`, `TrialClaims`
+   va `TrialTelegramVerification`.
+   Ularsiz qarzni hisobdan chiqarish yoki yangi foydalanuvchini ro‘yxatdan o‘tkazish ishlamaydi.
 3. Chiroqning `DIRECT` rejimidan foydalanadigan klub bo'lsa —
    `LIGHTS_DIRECT_ALLOWED_CIDRS` ni to'ldiring (pastdagi izohga qarang),
    aks holda DIRECT rejim ishlamaydi. `BRIDGE` rejimi ta'sirlanmaydi.
 4. Serverni qayta ishga tushiring.
+5. Ommaviy registratsiya uchun [Telegram tekshiruv botini sozlang](docs/TRIAL-PROTECTION.md).
 
 ## Production eslatmalari
 

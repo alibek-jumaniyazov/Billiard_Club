@@ -1,5 +1,5 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Body, Controller, Get, Headers, HttpCode, Post, Req, Res } from '@nestjs/common';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { LicenseService } from '../../common/license/license.service';
@@ -9,6 +9,8 @@ import { t } from '../../common/i18n/messages';
 import { AuthService } from '../auth/auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { PublicService } from './public.service';
+import { TrialVerificationService } from './trial-verification.service';
+import { StartTrialVerificationDto, TrialVerificationStatusDto } from './dto/trial-verification.dto';
 
 @Controller('public')
 export class PublicController {
@@ -17,7 +19,37 @@ export class PublicController {
     private readonly authService: AuthService,
     private readonly license: LicenseService,
     private readonly platformConfig: PlatformConfigService,
+    private readonly trialVerification: TrialVerificationService,
   ) {}
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60 * 60 * 1000 } })
+  @Post('trial-verification/start')
+  async startTrialVerification(@Body() dto: StartTrialVerificationDto, @Res({ passthrough: true }) res: Response) {
+    res.setHeader('Cache-Control', 'no-store');
+    return { success: true, data: await this.trialVerification.start(dto.website) };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 60, ttl: 60 * 1000 } })
+  @HttpCode(200)
+  @Post('trial-verification/status')
+  async trialVerificationStatus(@Body() dto: TrialVerificationStatusDto, @Res({ passthrough: true }) res: Response) {
+    res.setHeader('Cache-Control', 'no-store');
+    return { success: true, data: await this.trialVerification.status(dto.id, dto.token) };
+  }
+
+  @Public()
+  @SkipThrottle() // Telegram shares delivery IPs. The secret authenticates this route.
+  @HttpCode(200)
+  @Post('trial-verification/telegram/webhook')
+  async trialTelegramWebhook(
+    @Headers('x-telegram-bot-api-secret-token') secret: string | undefined,
+    @Body() update: unknown,
+  ) {
+    // Validate the nested Telegram shape inside the service; never accept browser contact assertions.
+    return this.trialVerification.webhook(secret, update as Parameters<TrialVerificationService['webhook']>[1]);
+  }
 
   /** Landing dan ro'yxatdan o'tish — spam himoyasi: soatiga 5 ta urinish */
   @Public()
@@ -74,6 +106,6 @@ export class PublicController {
   @Get('config')
   async config() {
     const { trialDays } = await this.platformConfig.get();
-    return { success: true, data: { trialDays } };
+    return { success: true, data: { trialDays, trialVerification: this.trialVerification.availability() } };
   }
 }
