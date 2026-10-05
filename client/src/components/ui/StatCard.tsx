@@ -64,12 +64,12 @@ const StatCard = ({
 
   return (
     <Card
-      className={className}
+      className={['workspace-stat', className].filter(Boolean).join(' ')}
       style={{
         /* Diagonal nozik "sheen" + karbon gradient — chuqurlik hissi */
-        background: `linear-gradient(120deg, rgba(255, 255, 255, 0.03) 0%, transparent 42%), linear-gradient(150deg, ${TOKENS.color.bg.bg2} 0%, ${TOKENS.color.bg.bg1} 55%)`,
+        background: TOKENS.color.bg.bg1,
         borderColor: TOKENS.color.border.subtle,
-        boxShadow: `${TOKENS.shadow.level1}, ${TOKENS.shadow.cardHighlight}`,
+        boxShadow: 'none',
         height: '100%',
         ...style,
       }}
@@ -81,6 +81,7 @@ const StatCard = ({
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
           {icon && (
             <div
+              className="workspace-stat__icon"
               style={{
                 width: 42,
                 height: 42,

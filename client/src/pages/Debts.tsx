@@ -7,14 +7,17 @@ import {
   Col,
   Drawer,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Row,
   Segmented,
   Select,
   Skeleton,
   Space,
+  Spin,
   Table,
   Tag,
   Tooltip,
@@ -46,6 +49,7 @@ import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { Debt, DebtPayment, PaymentMethod } from '../types';
 import { isFormValidationError } from '../utils/formErrors';
+import '../styles/records-mobile.css';
 
 const { Text } = Typography;
 
@@ -68,6 +72,8 @@ const Debts = () => {
   const { message } = App.useApp();
   const { hasRole } = useAuth();
   const currency = useCurrency();
+  const screens = Grid.useBreakpoint();
+  const mobile = screens.md === false;
 
   const [debts, setDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,10 +111,13 @@ const Debts = () => {
   // standart filtrlar bilan jimgina qayta yuklanib ketmasin
   const tRef = useRef(t);
   tRef.current = t;
+  const debtsRequest = useRef(0);
 
   // Qiymatlar to'g'ridan-to'g'ri parametr sifatida uzatiladi (eski stale-closure xatosining oldini oladi)
   const fetchDebts = useCallback(
     async (params: FetchParams) => {
+      const request = ++debtsRequest.current;
+      const isCurrent = () => request === debtsRequest.current;
       setLoading(true);
       try {
         const res = await debtsApi.list({
@@ -117,6 +126,7 @@ const Debts = () => {
           search: params.search || undefined,
           status: params.status,
         });
+        if (!isCurrent()) return;
         // Mutatsiyadan keyin joriy sahifa bo'shab qolsa — bitta orqaga qaytamiz
         // (masalan 2-sahifadagi yagona qarz to'liq to'landi)
         if (res.data.length === 0 && params.page > 1 && (res.pagination?.total ?? 0) > 0) {
@@ -127,10 +137,14 @@ const Debts = () => {
         setTotal(res.pagination?.total ?? 0);
         setTotals(res.totals ?? null);
       } catch (err) {
+        if (!isCurrent()) return;
         message.error(errorMessage(err, tRef.current('common.error')));
       } finally {
-        setLoading(false);
-        setLoaded(true);
+        // A corrective fetch for an empty page owns its own loading state.
+        if (isCurrent()) {
+          setLoading(false);
+          setLoaded(true);
+        }
       }
     },
     [message],
@@ -138,6 +152,7 @@ const Debts = () => {
 
   useEffect(() => {
     void fetchDebts({ page: 1, limit: 10, search: '', status: 'unpaid' });
+    return () => { debtsRequest.current += 1; };
   }, [fetchDebts]);
 
   const applyStatus = (value: StatusFilter) => {
@@ -213,6 +228,32 @@ const Debts = () => {
     }
   };
 
+  const changePage = (nextPage: number, nextSize: number) => {
+    const targetPage = nextSize !== pageSize ? 1 : nextPage;
+    setPage(targetPage);
+    setPageSize(nextSize);
+    void fetchDebts({ page: targetPage, limit: nextSize, search, status });
+  };
+  const statusOptions = [
+    { label: t('status.unpaid'), value: 'unpaid' },
+    { label: t('status.paid'), value: 'paid' },
+    { label: t('debts.writtenOff'), value: 'written_off' },
+    { label: t('common.all'), value: 'all' },
+  ];
+  const debtStatus = (debt: Debt) => debt.writtenOffAt ? (
+    <Tooltip title={debt.writtenOffReason || t('debts.writeOffTitle')}><Tag color="warning">{t('debts.writtenOff')}</Tag></Tooltip>
+  ) : <StatusTag status={debt.isPaid ? 'paid' : 'debt'} label={t(debt.isPaid ? 'status.paid' : 'status.unpaid')} />;
+  const debtActions = (debt: Debt) => <Space wrap size={4}>
+    {canPay && !debt.isPaid && <Button type="primary" size="small" icon={<DollarOutlined />} onClick={() => openPay(debt)}>{t('debts.pay')}</Button>}
+    <Button size="small" icon={<HistoryOutlined />} aria-label={t('debts.historyTitle')} title={t('debts.historyTitle')} onClick={() => void openHistory(debt)}>
+      {mobile ? t('debts.historyTitle') : null}
+    </Button>
+    {canWriteOff && !debt.isPaid && <Button size="small" danger type="text" icon={<DeleteOutlined />}
+      aria-label={t('debts.writeOffTitle')} title={t('debts.writeOffTitle')}
+      onClick={() => { setWriteOffReason(''); setDeleteDebt(debt); }} />}
+  </Space>;
+  const emptyDebts = <EmptyState icon={<CreditCardOutlined />} title={t('debts.emptyTitle')} hint={t('debts.emptyHint')} />;
+
   const columns: ColumnsType<Debt> = [
     {
       title: t('common.customer'),
@@ -279,59 +320,13 @@ const Debts = () => {
       // Hisobdan chiqarilgan qarz ham `isPaid: true` bo'ladi, lekin u
       // TO'LANMAGAN — uni "To'langan" deb ko'rsatish klub egasini undirilmagan
       // pulni tushum deb o'ylashga olib kelardi. Shuning uchun alohida belgi.
-      render: (isPaid: boolean, debt) =>
-        debt.writtenOffAt ? (
-          <Tooltip title={debt.writtenOffReason || t('debts.writeOffTitle')}>
-            <Tag color="warning">{t('debts.writtenOff')}</Tag>
-          </Tooltip>
-        ) : isPaid ? (
-          <StatusTag status="paid" label={t('status.paid')} />
-        ) : (
-          <StatusTag status="debt" label={t('status.unpaid')} />
-        ),
+      render: (_, debt) => debtStatus(debt),
     },
     {
       title: t('common.actions'),
       key: 'actions',
       width: 220,
-      render: (_, debt) => (
-        <Space wrap size={4}>
-          {canPay && !debt.isPaid && (
-            <Button
-              type="primary"
-              size="small"
-              icon={<DollarOutlined />}
-              onClick={() => openPay(debt)}
-            >
-              {t('debts.pay')}
-            </Button>
-          )}
-          <Button
-            size="small"
-            icon={<HistoryOutlined />}
-            title={t('debts.historyTitle')}
-            onClick={() => void openHistory(debt)}
-          />
-          {/* Yopilgan qarzni (to'langan yoki allaqachon hisobdan chiqarilgan)
-              qayta chiqarib bo'lmaydi — server ham rad etadi. Tugmani ochiq
-              qoldirish foydalanuvchini majburiy sabab yozib, so'ng xato olishga
-              olib borardi */}
-          {canWriteOff && !debt.isPaid && (
-            <Button
-              size="small"
-              danger
-              type="text"
-              icon={<DeleteOutlined />}
-              aria-label={t('debts.writeOffTitle')}
-              title={t('debts.writeOffTitle')}
-              onClick={() => {
-                setWriteOffReason('');
-                setDeleteDebt(debt);
-              }}
-            />
-          )}
-        </Space>
-      ),
+      render: (_, debt) => debtActions(debt),
     },
   ];
 
@@ -369,18 +364,15 @@ const Debts = () => {
         subtitle={t('debts.subtitle')}
         extra={
           <>
-            <Segmented
-              options={[
-                { label: t('status.unpaid'), value: 'unpaid' },
-                { label: t('status.paid'), value: 'paid' },
-                { label: t('debts.writtenOff'), value: 'written_off' },
-                { label: t('common.all'), value: 'all' },
-              ]}
+            {mobile ? <Select<StatusFilter> aria-label={t('debts.status')} value={status}
+              options={statusOptions} onChange={applyStatus} style={{ flex: 1, minWidth: 180 }} /> : <Segmented
+              options={statusOptions}
               value={status}
               onChange={(value) => applyStatus(value as StatusFilter)}
-            />
+            />}
             <Button
               icon={<ReloadOutlined />}
+              aria-label={t('btn.refresh')}
               onClick={() => void fetchDebts({ page, limit: pageSize, search, status })}
             />
           </>
@@ -427,15 +419,41 @@ const Debts = () => {
           <Skeleton active paragraph={{ rows: 6 }} />
         </Card>
       ) : (
-        <Card>
+        <Card className="records-container">
           <Input.Search
+            aria-label={t('debts.searchPlaceholder')}
             placeholder={t('debts.searchPlaceholder')}
             allowClear
             enterButton
             onSearch={applySearch}
             style={{ maxWidth: 380, marginBottom: 16 }}
           />
-          <Table
+          {mobile ? <div className="records-mobile" aria-busy={loading}>
+            <Spin spinning={loading}>
+              {debts.length === 0 ? emptyDebts : <div className="records-mobile__list" role="list">
+                {debts.map((debt) => <article className="record-card" role="listitem" key={debt.id}>
+                  <header className="record-card__header">
+                    <div><h2>{debt.customerName}</h2><p>{debt.customerPhone ?? t('debts.noPhone')}</p></div>
+                    {debtStatus(debt)}
+                  </header>
+                  <div className="record-card__total"><span>{t('debts.remainingCol')}</span>
+                    <MoneyText amount={debt.remainingDebt} currency={currency} size="lg"
+                      color={debt.remainingDebt > 0 ? TOKENS.color.gold.base : undefined}
+                      style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }} /></div>
+                  <dl className="record-card__metadata">
+                    <div><dt>{t('debts.totalDebtCol')}</dt><dd><MoneyText amount={debt.totalDebt} currency={currency} size="sm" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }} /></dd></div>
+                    <div><dt>{t('debts.paidAmountCol')}</dt><dd><MoneyText amount={debt.paidAmount} currency={currency} size="sm" color={TOKENS.color.semantic.success} style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }} /></dd></div>
+                    <div><dt>{t('common.table')}</dt><dd>{debt.session?.table?.name ?? '—'}</dd></div>
+                    <div><dt>{t('common.date')}</dt><dd>{dayjs(debt.createdAt).format('DD.MM.YYYY HH:mm')}</dd></div>
+                  </dl>
+                  {debt.writtenOffAt && debt.writtenOffReason && <p className="record-card__note">{debt.writtenOffReason}</p>}
+                  <div className="record-card__actions">{debtActions(debt)}</div>
+                </article>)}
+              </div>}
+            </Spin>
+            <Pagination className="records-mobile__pagination" size="small" responsive current={page}
+              pageSize={pageSize} total={total} showSizeChanger onChange={changePage} />
+          </div> : <Table
             rowKey="id"
             size="middle"
             sticky
@@ -444,13 +462,7 @@ const Debts = () => {
             loading={loading}
             scroll={{ x: 1000 }}
             locale={{
-              emptyText: (
-                <EmptyState
-                  icon={<CreditCardOutlined />}
-                  title={t('debts.emptyTitle')}
-                  hint={t('debts.emptyHint')}
-                />
-              ),
+              emptyText: emptyDebts,
             }}
             pagination={{
               current: page,
@@ -458,15 +470,9 @@ const Debts = () => {
               total,
               showSizeChanger: true,
               position: ['bottomRight'],
-              onChange: (p, ps) => {
-                // pageSize o'zgarsa 1-sahifaga qaytamiz (boshqa sahifalar bilan bir xil)
-                const nextPage = ps !== pageSize ? 1 : p;
-                setPage(nextPage);
-                setPageSize(ps);
-                void fetchDebts({ page: nextPage, limit: ps, search, status });
-              },
+              onChange: changePage,
             }}
-          />
+          />}
         </Card>
       )}
 

@@ -1,7 +1,8 @@
 import { memo } from 'react';
 import { Typography } from 'antd';
-import { PlayCircleOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { ElapsedTime, StatusTag, useNow } from '../../components/ui';
 import { TOKENS } from '../../theme/tokens';
 import type { Session } from '../../types';
@@ -66,15 +67,7 @@ const SessionRow = memo(
     const paused = session.status === 'paused';
 
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: TOKENS.spacing.sm,
-          padding: '10px 4px',
-          borderBottom: `1px solid ${TOKENS.color.border.subtle}`,
-        }}
-      >
+      <Link to={`/tables?view=busy&table=${session.tableId}`} className="session-workspace-link" aria-label={`${session.table?.name ?? ''} — ${t('workspace.openTables')}`}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Text strong style={{ fontSize: 14 }}>
@@ -100,7 +93,8 @@ const SessionRow = memo(
           />
           <LiveAmount session={session} currency={currency} clockOffset={clockOffset} />
         </div>
-      </div>
+        <ArrowRightOutlined style={{ color: TOKENS.color.text.tertiary, fontSize: 12 }} />
+      </Link>
     );
   },
 );
@@ -144,6 +138,7 @@ const ActiveSessionsList = ({
         </span>
       }
       height={332}
+      extra={<Link to="/tables?view=busy" aria-label={t('workspace.openTables')}><ArrowRightOutlined /></Link>}
       loading={loading}
       empty={sessions.length === 0}
       emptyIcon={<PlayCircleOutlined />}

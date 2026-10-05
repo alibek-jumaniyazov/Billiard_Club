@@ -5,12 +5,13 @@ import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '../ErrorBoundary';
 import Header from './Header';
 import Sidebar from './Sidebar';
-import AnimatedBackground from '../ui/AnimatedBackground';
+import MobileNavigation from './MobileNavigation';
 import CommandPalette from '../ui/CommandPalette';
 import ConnectionBanner from '../ui/ConnectionBanner';
 import ShortcutsHelp from '../ui/ShortcutsHelp';
 import { NotificationsProvider } from '../../context/NotificationsContext';
 import { TOKENS } from '../../theme/tokens';
+import '../../styles/workspace.css';
 
 const { Content } = Layout;
 
@@ -65,6 +66,10 @@ const AppLayout = () => {
   // Birinchi renderda screens bo'sh — desktop deb qaraladi (sakrashning oldini oladi)
   const isMobile = screens.lg === false;
 
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname]);
+
   // Global yorliqlar: Ctrl/Cmd+K — buyruq paneli; ? — yorliqlar yordami.
   // '?' matn maydonida yozilsa ochilmasin (Ctrl+K modifikator bo'lgani uchun
   // himoya shart emas).
@@ -103,7 +108,8 @@ const AppLayout = () => {
     /* Xabarnomalar holati SHU YERDA: header qo'ng'irog'i ham, /notifications
        sahifasi ham shu qobiq ichida — ikkalasi bitta manbadan o'qiydi */
     <NotificationsProvider>
-      <Layout style={{ minHeight: '100vh' }}>
+      <Layout className="workspace-shell" style={{ minHeight: '100dvh' }}>
+        <a className="skip-link" href="#workspace-main">{t('workspace.skipContent')}</a>
         {!isMobile && <Sidebar collapsed={collapsed} />}
 
         {isMobile && (
@@ -111,8 +117,8 @@ const AppLayout = () => {
             placement="left"
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}
-            width={264}
-            closable={false}
+            width={296}
+            title={t('workspace.navigation')}
             styles={{
               body: { padding: 0, background: TOKENS.color.bg.bg1 },
               content: { background: TOKENS.color.bg.bg1 },
@@ -123,9 +129,7 @@ const AppLayout = () => {
         )}
 
         {/* isolation: aurora z-index'i qatlamdan tashqariga (modal/drawer) chiqmasin */}
-        <Layout style={{ position: 'relative', isolation: 'isolate' }}>
-          {/* Nozik aurora foni — kontent ORQASIDA suzadi (pointer-events: none, z-index: 0) */}
-          <AnimatedBackground variant="subtle" />
+        <Layout style={{ position: 'relative', isolation: 'isolate', minWidth: 0 }}>
           <Header
             collapsed={isMobile ? !drawerOpen : collapsed}
             onToggle={() =>
@@ -137,7 +141,7 @@ const AppLayout = () => {
           {/* Ulanish/sinxronizatsiya holati — faqat aytadigan gap bo'lganda
               ko'rinadi, normal ish holatida ekran toza qoladi */}
           <ConnectionBanner />
-          <Content className="page-container" style={{ position: 'relative', zIndex: 1 }}>
+          <Content id="workspace-main" tabIndex={-1} className="page-container" style={{ position: 'relative', zIndex: 1 }}>
             {/* Sahifa darajasidagi xato chegarasi: bitta sahifadagi render
                 xatosi yon menyu va sarlavhani O'LDIRMAYDI — kassir boshqa
                 sahifaga o'tib ishini davom ettiradi. `location.key` o'zgarganda
@@ -146,6 +150,7 @@ const AppLayout = () => {
               <Outlet />
             </ErrorBoundary>
           </Content>
+          {isMobile && <MobileNavigation onOpenMenu={() => setDrawerOpen(true)} menuOpen={drawerOpen} />}
         </Layout>
       </Layout>
 

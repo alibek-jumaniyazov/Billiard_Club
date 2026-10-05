@@ -23,7 +23,7 @@ interface PageHeaderProps {
  * "Title + subtitle + amallar" flex shablonining o'rnini bosadi.
  */
 const PageHeader = ({ title, subtitle, icon, extra, stats, style }: PageHeaderProps) => (
-  <div style={{ marginBottom: TOKENS.spacing.lg, ...style }}>
+  <div className="workspace-page-header" style={{ marginBottom: TOKENS.spacing.lg, ...style }}>
     <div
       style={{
         display: 'flex',
@@ -64,7 +64,7 @@ const PageHeader = ({ title, subtitle, icon, extra, stats, style }: PageHeaderPr
         )}
       </div>
       {extra && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div className="workspace-page-header__actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {extra}
         </div>
       )}

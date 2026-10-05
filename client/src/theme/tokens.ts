@@ -245,7 +245,7 @@ export const buildAntdTheme = (): ThemeConfig => ({
     Button: {
       /* Nozik oltin yog'du — asosiy tugma "jonli" ko'rinadi
          (oltin gradient esa index.css dagi .ant-btn-primary qoidasida) */
-      primaryShadow: '0 2px 8px rgba(212, 175, 55, 0.25)',
+      primaryShadow: 'none',
       primaryColor: gold.contrast,
       defaultBg: 'transparent',
       defaultBorderColor: border.strong,

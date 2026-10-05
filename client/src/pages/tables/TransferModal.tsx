@@ -66,8 +66,14 @@ const TransferModal = ({ table, freeTables, onClose, onTransferred }: TransferMo
   return (
     <Modal
       title={`${t('tables.transferTitle')} — ${t('common.table')} ${table?.number ?? ''}`}
+      className="table-session-modal"
+      width="min(520px, calc(100vw - 24px))"
+      centered
       open={!!table}
-      onCancel={onClose}
+      onCancel={() => { if (!submitting) onClose(); }}
+      maskClosable={!submitting}
+      closable={!submitting}
+      keyboard={!submitting}
       onOk={() => void handleOk()}
       confirmLoading={submitting}
       okText={t('tables.transferOk')}

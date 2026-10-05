@@ -1,0 +1,29 @@
+.records-mobile { min-width: 0; }
+.records-mobile__list { display: flex; flex-direction: column; gap: 12px; }
+.record-card { min-width: 0; padding: 16px; background: var(--bg2); border: 1px solid var(--border-base); border-radius: 12px; }
+.record-card__header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 16px; }
+.record-card__header > div { min-width: 0; flex: 1 1 140px; }
+.record-card__header h2 { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 650; overflow-wrap: anywhere; }
+.record-card__header p, .record-card__eyebrow { margin: 4px 0 0; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.record-card__eyebrow { display: block; margin: 0 0 4px; }
+.record-card__header .ant-tag { max-width: 100%; white-space: normal; margin: 0; }
+.record-card__total { display: flex; flex-direction: column; gap: 5px; padding-bottom: 14px; border-bottom: 1px solid var(--border-subtle); }
+.record-card__total > span:first-child, .record-card__label { font-size: 12px; color: var(--text-secondary); }
+.record-card__metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; }
+.record-card__metadata > div { min-width: 0; }
+.record-card__metadata dt { font-size: 11px; color: var(--text-secondary); margin: 0 0 4px; }
+.record-card__metadata dd { font-size: 12px; margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.record-card__items { margin-top: 14px; }
+.record-card__items ul { list-style: none; padding: 0; margin: 6px 0 0; }
+.record-card__items li { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; font-size: 13px; padding: 5px 0; }
+.record-card__items li span { min-width: 0; overflow-wrap: anywhere; }
+.record-card__items li strong { flex-shrink: 0; font-weight: 600; }
+.record-card__actions { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+.record-card__actions .ant-btn { min-height: 44px; }
+.record-card__actions .ant-space { row-gap: 8px !important; }
+.record-card__note { font-size: 12px; line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; margin: 12px 0 0; }
+.records-mobile__pagination { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 0; margin-top: 20px; }
+.records-mobile__pagination .ant-pagination-item, .records-mobile__pagination .ant-pagination-prev, .records-mobile__pagination .ant-pagination-next { min-width: 36px; min-height: 40px; line-height: 40px; }
+@media (max-width: 767px) {
+  .records-container > .ant-card-body { padding: 14px; }
+}

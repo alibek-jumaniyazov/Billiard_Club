@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App, Button, Col, Divider, Form, InputNumber, Modal, Row, Select, Typography } from 'antd';
-import { CoffeeOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { App, Button, Empty, Form, Input, InputNumber, Modal, Select, Skeleton, Typography } from 'antd';
+import { CoffeeOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, isNetworkError, ordersApi, productsApi } from '../../api';
 import { MoneyText } from '../../components/ui';
@@ -58,6 +58,8 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<number | 'all'>('all');
 
   const session = table?.sessions?.[0] ?? null;
   const items = Form.useWatch('items', form);
@@ -67,7 +69,10 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
   useEffect(() => {
     if (!table) return;
     form.resetFields();
-    form.setFieldsValue({ items: [{ productId: undefined, quantity: 1 }] });
+    form.setFieldsValue({ items: [] });
+    setSearch('');
+    setCategory('all');
+    setProducts([]);
     let alive = true;
     setLoading(true);
     productsApi
@@ -110,6 +115,23 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
       return acc + (product ? product.price * row.quantity : 0);
     }, 0);
   }, [items, products]);
+
+  const categories = useMemo(() => Array.from(new Map(products.filter((p) => p.isActive)
+    .map((p) => [p.categoryId, p.category?.name || t('tables.otherProducts')])).entries()), [products, t]);
+  const visibleProducts = useMemo(() => products.filter((p) => p.isActive
+    && (category === 'all' || p.categoryId === category)
+    && p.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [products, category, search]);
+  const itemCount = (items ?? []).reduce((sum, row) => sum + (row?.quantity || 0), 0);
+  const addProduct = (product: Product) => {
+    const rows: OrderRow[] = form.getFieldValue('items') ?? [];
+    const index = rows.findIndex((row) => row.productId === product.id);
+    if (index >= 0) {
+      form.setFieldValue('items', rows.map((row, i) => i === index
+        ? { ...row, quantity: Math.min(1000, (row.quantity || 0) + 1) } : row));
+    } else if (rows.length < MAX_ITEMS) {
+      form.setFieldValue('items', [...rows, { productId: product.id, quantity: 1 }]);
+    }
+  };
 
   const handleOk = async () => {
     if (!session || !table) return;
@@ -191,20 +213,54 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
       }
       open={!!table}
       onCancel={onClose}
-      onOk={() => void handleOk()}
-      confirmLoading={submitting}
-      okText={t('tables.submitOrder')}
-      cancelText={t('btn.cancel')}
-      width="min(600px, calc(100vw - 32px))"
+      className="table-pos-modal"
+      width="min(1040px, calc(100vw - 24px))"
+      centered
+      maskClosable={!submitting}
+      closable={!submitting}
+      keyboard={!submitting}
+      footer={<div className="table-pos-footer">
+        <div><span>{t('tables.orderTotal')} · {t('tables.basketItems', { n: itemCount })}</span>
+          <MoneyText amount={orderTotal} currency={currency} size="lg" color={TOKENS.color.text.primary} /></div>
+        <Button type="primary" size="large" icon={<PlusOutlined />} loading={submitting}
+          disabled={itemCount === 0 || loading} onClick={() => void handleOk()}>{t('tables.submitOrder')}</Button>
+      </div>}
       destroyOnHidden
     >
-      <Form form={form} layout="vertical">
+      <div className="table-pos-layout">
+        <section className="table-pos-catalog" aria-label={t('tables.productCatalog')}>
+          <Input prefix={<SearchOutlined />} placeholder={t('tables.searchProducts')} aria-label={t('tables.searchProducts')}
+            value={search} allowClear onChange={(event) => setSearch(event.target.value)} />
+          <div className="table-pos-categories" role="group" aria-label={t('tables.productCategories')}>
+            <button className={category === 'all' ? 'is-selected' : ''} aria-pressed={category === 'all'} onClick={() => setCategory('all')}>{t('tables.view_all')}</button>
+            {categories.map(([id, name]) => <button key={id} className={category === id ? 'is-selected' : ''}
+              aria-pressed={category === id} onClick={() => setCategory(id)}>{name}</button>)}
+          </div>
+          {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : visibleProducts.length ? <div className="table-pos-products">
+            {visibleProducts.map((product) => {
+              const quantity = (items ?? []).find((row) => row.productId === product.id)?.quantity ?? 0;
+              return <button key={product.id} className={`table-pos-product${quantity ? ' is-in-basket' : ''}`} onClick={() => addProduct(product)}
+                disabled={submitting || quantity >= 1000 || ((items?.length ?? 0) >= MAX_ITEMS && quantity === 0)}
+                aria-label={t('tables.addProduct', { name: product.name })}>
+                <span className="table-pos-product__top"><CoffeeOutlined />{quantity > 0 ? <b>{quantity}</b> : <PlusOutlined />}</span>
+                <strong>{product.name}</strong>
+                <span className="table-pos-product__price">{formatMoney(product.price, currency)}</span>
+                <span className={`table-pos-product__stock${product.stock <= 0 ? ' is-empty' : ''}`}>
+                  {product.stock <= 0 ? t('tables.outOfStock') : `${product.stock} ${unitLabel(product.unit, t)}`}
+                </span>
+              </button>;
+            })}
+          </div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('tables.noMatchingProducts')} />}
+        </section>
+        <aside className="table-pos-basket" aria-label={t('tables.basket')}>
+          <div className="table-pos-basket__header"><h3><ShoppingCartOutlined />{t('tables.basket')}</h3><span>{t('tables.basketItems', { n: itemCount })}</span></div>
+          {itemCount === 0 && <p className="table-pos-basket__empty">{t('tables.emptyBasket')}</p>}
+          <Form form={form} layout="vertical" disabled={submitting}>
         <Form.List name="items">
-          {(fields, { add, remove }) => (
+          {(fields, { remove }) => (
             <>
               {fields.map(({ key, name, ...rest }) => (
-                <Row key={key} gutter={8} align="middle" style={{ marginBottom: 8 }}>
-                  <Col flex="auto" style={{ minWidth: 0 }}>
+                <div key={key} className="table-pos-basket-row">
                     <Form.Item
                       {...rest}
                       name={[name, 'productId']}
@@ -223,8 +279,7 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
                         }
                       />
                     </Form.Item>
-                  </Col>
-                  <Col flex="90px">
+                  <div className="table-pos-basket-row__quantity">
                     <Form.Item
                       {...rest}
                       name={[name, 'quantity']}
@@ -244,18 +299,16 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
                         precision={0}
                         style={{ width: '100%' }}
                         placeholder={t('common.quantity')}
+                        aria-label={t('common.quantity')}
                       />
                     </Form.Item>
-                  </Col>
-                  <Col flex="40px">
                     <Button
                       danger
-                      block
                       icon={<DeleteOutlined />}
                       onClick={() => remove(name)}
                       aria-label={t('btn.delete')}
                     />
-                  </Col>
+                  </div>
                   {/* Qator subtotal (narx × miqdor) — chek o'zini-o'zi tekshiradi */}
                   {(() => {
                     const row = items?.[name];
@@ -264,25 +317,16 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
                       : null;
                     if (!product || !row?.quantity) return null;
                     return (
-                      <Col span={24} style={{ textAlign: 'right', marginTop: 2 }}>
+                      <div className="table-pos-basket-row__subtotal">
                         <Text type="secondary" style={{ fontSize: 12 }}>
                           {formatMoney(product.price * row.quantity, currency)}
                         </Text>
-                      </Col>
+                      </div>
                     );
                   })()}
-                </Row>
+                </div>
               ))}
               <Form.Item style={{ marginBottom: 0 }}>
-                <Button
-                  type="dashed"
-                  block
-                  icon={<PlusOutlined />}
-                  disabled={fields.length >= MAX_ITEMS}
-                  onClick={() => add({ quantity: 1 })}
-                >
-                  {t('tables.addRow')}
-                </Button>
                 {fields.length >= MAX_ITEMS && (
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
                     {t('tables.maxItemsHint', { max: MAX_ITEMS })}
@@ -293,10 +337,7 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
           )}
         </Form.List>
       </Form>
-      <Divider style={{ margin: '16px 0 12px' }} />
-      <div style={{ textAlign: 'right' }}>
-        <Text type="secondary">{t('tables.orderTotal')}: </Text>
-        <MoneyText amount={orderTotal} currency={currency} size="lg" color={TOKENS.color.gold.base} />
+        </aside>
       </div>
     </Modal>
   );

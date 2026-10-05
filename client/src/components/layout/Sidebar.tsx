@@ -118,7 +118,6 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
               label: collapsed ? null : t('menu.groupMain'),
               children: [
                 { key: '/dashboard', icon: <DashboardOutlined />, label: t('menu.dashboard') },
-                { key: '/reports', icon: <BarChartOutlined />, label: t('menu.reports') },
               ],
             },
           ]
@@ -126,12 +125,12 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
       {
         key: 'g-billiard',
         type: 'group' as const,
-        label: collapsed ? null : t('menu.groupBilliard'),
+        label: collapsed ? null : t('workspace.operations'),
         children: [
           { key: '/tables', icon: <TableOutlined />, label: t('menu.tables') },
-          { key: '/sessions', icon: <HistoryOutlined />, label: t('menu.sessions') },
+          { key: '/orders', icon: <CoffeeOutlined />, label: t('menu.orders') },
           { key: '/reservations', icon: <CalendarOutlined />, label: t('menu.reservations') },
-          { key: '/game', icon: <PlayCircleOutlined />, label: t('menu.game') },
+          { key: '/sessions', icon: <HistoryOutlined />, label: t('menu.sessions') },
         ],
       },
       {
@@ -153,7 +152,6 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
         label: collapsed ? null : t('menu.groupBar'),
         children: [
           { key: '/products', icon: <AppstoreOutlined />, label: t('menu.products') },
-          { key: '/orders', icon: <CoffeeOutlined />, label: t('menu.orders') },
         ],
       },
     ];
@@ -164,6 +162,7 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
         type: 'group' as const,
         label: collapsed ? null : t('menu.groupFinance'),
         children: [
+          { key: '/reports', icon: <BarChartOutlined />, label: t('menu.reports') },
           { key: '/debts', icon: <CreditCardOutlined />, label: t('menu.debts') },
           { key: '/expenses', icon: <WalletOutlined />, label: t('menu.expenses') },
         ],
@@ -189,6 +188,12 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
         ],
       });
     }
+
+    groups.push({
+      key: 'g-extra', type: 'group' as const,
+      label: collapsed ? null : t('workspace.more'),
+      children: [{ key: '/game', icon: <PlayCircleOutlined />, label: t('menu.game') }],
+    });
 
     return groups;
     // eslint-disable-next-line react-hooks/exhaustive-deps

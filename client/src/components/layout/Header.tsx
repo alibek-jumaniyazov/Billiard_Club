@@ -97,6 +97,7 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
 
   return (
     <AntHeader
+      className="workspace-header"
       style={{
         position: 'sticky',
         top: 0,
@@ -113,17 +114,18 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
         borderBottom: `1px solid ${TOKENS.color.border.subtle}`,
       }}
     >
-      <Space size="middle">
+      <div className="workspace-header__identity">
         <Button
           type="text"
           aria-label={t('btn.menu')}
           icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           onClick={onToggle}
         />
-        {screens.sm !== false && (
-          <Text type="secondary" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {now.format('HH:mm — DD.MM.YYYY')}
-          </Text>
+        {!viewing && (
+          <div className="workspace-header__club">
+            <Text strong ellipsis>{club?.name || t('appName')}</Text>
+            <span>{t('workspace.controlRoom')}{screens.lg && ` · ${now.format('DD.MM.YYYY')}`}</span>
+          </div>
         )}
         {viewing && (
           <Tag
@@ -145,9 +147,9 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
             </span>
           </Tag>
         )}
-      </Space>
+      </div>
 
-      <Space size="middle">
+      <div className="workspace-header__tools">
         {onOpenSearch && (
           <Tooltip title={`${t('search.button')} (Ctrl+K)`}>
             <Button
@@ -155,16 +157,16 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
               icon={<SearchOutlined />}
               onClick={onOpenSearch}
               aria-label={t('search.button')}
+              className="workspace-search-trigger"
             >
               {screens.md !== false && (
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Ctrl+K
-                </Text>
+                <><span>{t('workspace.search')}</span><kbd>Ctrl K</kbd></>
               )}
             </Button>
           </Tooltip>
         )}
         <Segmented
+          className="workspace-header__language"
           size="small"
           value={lang}
           onChange={(value) => setLang(value as 'uz' | 'ru')}
@@ -176,6 +178,7 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
         {sub && (
           <Tooltip title={`${sub.statusWord} · ${sub.full}`}>
             <Tag
+              className="workspace-header__subscription"
               color={sub.color}
               icon={<CrownOutlined />}
               onClick={canOpenSub ? () => navigate('/subscription') : undefined}
@@ -214,6 +217,17 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
                   label: t('menu.profile'),
                   onClick: () => navigate('/profile'),
                 },
+                {
+                  key: 'language',
+                  label: lang === 'uz' ? 'Русский' : 'O‘zbekcha',
+                  onClick: () => setLang(lang === 'uz' ? 'ru' : 'uz'),
+                },
+                ...(sub && canOpenSub ? [{
+                  key: 'subscription',
+                  icon: <CrownOutlined />,
+                  label: `${t('menu.subscription')} · ${sub.full}`,
+                  onClick: () => navigate('/subscription'),
+                }] : []),
                 // Desktop qobiqda YASHIRILADI: u yerda dastur allaqachon
                 // o'rnatilgan va o'zi yangilanadi — "yuklab olish" bandi
                 // faqat chalg'itardi.
@@ -249,10 +263,10 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
             }}
             trigger={['click']}
           >
-            <Button type="text" icon={<UserOutlined />}>
-              {screens.md !== false && (
+            <Button type="text" icon={<UserOutlined />} aria-label={t('menu.profile')}>
+              {screens.lg !== false && (
                 <Space size={6}>
-                  {user.name}
+                  <span className="workspace-header__username">{user.name}</span>
                   <Tag color={ROLE_TAG_COLORS[user.role]} style={{ marginInlineEnd: 0 }}>
                     {t(`role.${user.role}`)}
                   </Tag>
@@ -261,7 +275,7 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
             </Button>
           </Dropdown>
         )}
-      </Space>
+      </div>
     </AntHeader>
   );
 };

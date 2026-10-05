@@ -1,25 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { App, Button, Card, Col, Row, Tooltip } from 'antd';
+import { Alert, App, Button, Card, Input, Segmented, Select, Tooltip } from 'antd';
 import {
   BulbOutlined,
-  CheckCircleOutlined,
-  FireOutlined,
+  AppstoreOutlined,
+  BarsOutlined,
   HistoryOutlined,
-  PieChartOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SearchOutlined,
   SettingOutlined,
   TableOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { errorMessage, isNetworkError, lightsApi, sessionsApi, tablesApi } from '../../api';
-import { EmptyState, PageHeader, PageTransition, StatCard } from '../../components/ui';
+import { EmptyState, PageHeader, PageTransition } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { useConnection } from '../../context/ConnectionContext';
 import { applyQueueToTables } from '../../offline/overlay';
 import { newActionKey, queuePauseResume } from '../../offline/pos';
-import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable, Session, TableLightConfig } from '../../types';
 import {
   clockOffsetMs,
@@ -34,6 +34,8 @@ import OrderModal from './OrderModal';
 import StartModal from './StartModal';
 import TableCard from './TableCard';
 import TransferModal from './TransferModal';
+import { parseTableView, selectBoardTables, tableMatchesView, type TableSort, type TableView } from './table-board';
+import '../../styles/tables-workspace.css';
 
 /** Stollar ro'yxatini jimgina yangilash davri (ms) */
 const POLL_INTERVAL_MS = 15_000;
@@ -59,6 +61,18 @@ const TablesPage = () => {
   const { message } = App.useApp();
   const { hasRole, club } = useAuth();
   const { online, entries, pending } = useConnection();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedView = parseTableView(searchParams.get('view'));
+  const focusedTableId = Number(searchParams.get('table')) || null;
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<TableSort>('number');
+  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
+  const changeView = (view: TableView) => setSearchParams((previous) => {
+    const next = new URLSearchParams(previous);
+    if (view === 'all') next.delete('view');
+    else next.set('view', view);
+    return next;
+  }, { replace: true });
 
   const canCheckout = hasRole('admin', 'kassir', 'superadmin');
   const canManage = hasRole('admin', 'superadmin');
@@ -462,11 +476,27 @@ const TablesPage = () => {
     () => viewTables.filter((tbl) => tbl.status === 'free'),
     [viewTables],
   );
+  const displayedTables = useMemo(
+    () => selectBoardTables(viewTables, selectedView, search, sort),
+    [viewTables, selectedView, search, sort],
+  );
+  const focusedTableVisible = displayedTables.some((table) => table.id === focusedTableId);
+  useEffect(() => {
+    if (!focusedTableId || !focusedTableVisible) return;
+    const frame = requestAnimationFrame(() => {
+      const card = document.getElementById(`workspace-table-${focusedTableId}`);
+      card?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      card?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusedTableId, focusedTableVisible]);
+  const views: TableView[] = ['all', 'free', 'busy', 'paused', 'attention'];
 
   /* -------------------------------------------------------------- Render */
 
   return (
     <PageTransition>
+      <section className="tables-workspace">
       <PageHeader
         icon={<TableOutlined />}
         title={t('tables.title')}
@@ -497,65 +527,63 @@ const TablesPage = () => {
             </Tooltip>
           </>
         }
-        stats={
-          <Row gutter={[12, 12]}>
-            <Col xs={12} md={6}>
-              <StatCard
-                label={t('tables.statBusy')}
-                value={`${busyCount} / ${viewTables.length}`}
-                icon={<FireOutlined />}
-                accent={TOKENS.color.neonGreen}
-                loading={loading && viewTables.length === 0}
-              />
-            </Col>
-            <Col xs={12} md={6}>
-              <StatCard
-                label={t('tables.statFree')}
-                value={freeCount}
-                icon={<CheckCircleOutlined />}
-                accent={TOKENS.color.emerald.bright}
-                loading={loading && viewTables.length === 0}
-              />
-            </Col>
-            <Col xs={12} md={6}>
-              <StatCard
-                label={t('tables.statOccupancy')}
-                value={`${occupancy}%`}
-                meter={occupancy}
-                icon={<PieChartOutlined />}
-                // Rang bandlikka qarab: bo'sh (zumrad) -> to'la (neon) — xonaning
-                // qanchalik gavjumligini raqamsiz ham bir qarashda ko'rsatadi
-                accent={
-                  occupancy < 50
-                    ? TOKENS.color.emerald.bright
-                    : occupancy <= 85
-                      ? TOKENS.color.gold.base
-                      : TOKENS.color.neonGreen
-                }
-                loading={loading && viewTables.length === 0}
-              />
-            </Col>
-            <Col xs={12} md={6}>
-              <StatCard
-                label={t('tables.statTodayGames')}
-                value={todayGames}
-                icon={<HistoryOutlined />}
-                accent={TOKENS.color.semantic.info}
-                loading={loading && viewTables.length === 0}
-              />
-            </Col>
-          </Row>
-        }
       />
 
+      <div className="tables-overview" aria-label={t('tables.boardSummary')}>
+        <div className="tables-overview__occupancy">
+          <span className="tables-overview__label">{t('tables.statOccupancy')}</span>
+          <div className="tables-overview__value">{occupancy}<span>%</span></div>
+          <div className="tables-occupancy-track" role="meter" aria-label={t('tables.statOccupancy')} aria-valuenow={occupancy} aria-valuemin={0} aria-valuemax={100}>
+            <span style={{ width: `${occupancy}%` }} />
+          </div>
+        </div>
+        <button className="tables-overview__metric" onClick={() => changeView('busy')}>
+          <span className="tables-overview__label"><i className="tables-state-dot is-busy" />{t('tables.statBusy')}</span>
+          <strong>{busyCount}<small> / {viewTables.length}</small></strong>
+        </button>
+        <button className="tables-overview__metric" onClick={() => changeView('free')}>
+          <span className="tables-overview__label"><i className="tables-state-dot is-free" />{t('tables.statFree')}</span>
+          <strong>{freeCount}</strong>
+        </button>
+        <div className="tables-overview__metric">
+          <span className="tables-overview__label"><HistoryOutlined />{t('tables.statTodayGames')}</span>
+          <strong>{todayGames}</strong>
+        </div>
+      </div>
+
+      {loadError && viewTables.length > 0 && <Alert className="tables-load-warning" type="warning" showIcon message={t('tables.staleData')} />}
+
+      {viewTables.length > 0 && (
+        <div className="tables-board-controls">
+          <div className="tables-board-toolbar">
+            <Input className="tables-board-search" prefix={<SearchOutlined />} allowClear value={search}
+              onChange={(event) => setSearch(event.target.value)} placeholder={t('tables.searchTables')}
+              aria-label={t('tables.searchTables')} />
+            <Select className="tables-board-sort" value={sort} onChange={setSort} aria-label={t('tables.sortLabel')}
+              options={[{ value: 'number', label: t('tables.sortNumber') }, { value: 'busy', label: t('tables.sortBusy') }]} />
+            <Segmented className="tables-board-density" value={density} onChange={setDensity} aria-label={t('tables.densityLabel')}
+              options={[{ value: 'comfortable', label: <AppstoreOutlined aria-label={t('tables.densityComfortable')} /> },
+                { value: 'compact', label: <BarsOutlined aria-label={t('tables.densityCompact')} /> }]} />
+          </div>
+          <div className="tables-board-filter-row">
+            <div className="tables-board-filters" role="group" aria-label={t('tables.filterLabel')}>
+              {views.map((view) => <button key={view} className={`tables-filter${selectedView === view ? ' is-selected' : ''}`}
+                aria-pressed={selectedView === view} onClick={() => changeView(view)}>
+                {t(`tables.view_${view}`)}<span>{viewTables.filter((table) => tableMatchesView(table, view)).length}</span>
+              </button>)}
+            </div>
+            <span className="tables-result-count" aria-live="polite">{t('tables.showingTables', { shown: displayedTables.length, total: viewTables.length })}</span>
+          </div>
+          {selectedView === 'attention' && <p className="tables-filter-hint">{t('tables.attentionHint')}</p>}
+        </div>
+      )}
+
       {loading && viewTables.length === 0 ? (
-        <Row gutter={[16, 16]}>
+        <div className="tables-board-grid">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Col xs={24} sm={12} lg={8} xl={6} key={i}>
-              <Card loading style={{ minHeight: 180 }} />
-            </Col>
+            <Card key={i} loading style={{ minHeight: 260 }} />
           ))}
-        </Row>
+        </div>
       ) : loadError && viewTables.length === 0 ? (
         <EmptyState
           icon={<WarningOutlined />}
@@ -580,14 +608,18 @@ const TablesPage = () => {
             ) : undefined
           }
         />
+      ) : displayedTables.length === 0 ? (
+        <EmptyState icon={<SearchOutlined />} title={t('tables.noMatchingTables')} hint={t('tables.noMatchingHint')}
+          action={<Button onClick={() => { setSearch(''); changeView('all'); }}>{t('tables.clearFilters')}</Button>} />
       ) : (
-        <Row gutter={[16, 16]}>
-          {viewTables.map((table) => {
+        <div className={`tables-board-grid tables-board-grid--${density}`}>
+          {displayedTables.map((table) => {
             const session = table.sessions?.[0] ?? null;
             return (
-              <Col xs={24} sm={12} lg={8} xl={6} key={table.id}>
                 <TableCard
+                  key={table.id}
                   table={table}
+                  focused={table.id === focusedTableId}
                   session={session}
                   segments={session ? (segmentsMap[session.id] ?? null) : null}
                   offsetMs={offsetMs}
@@ -604,10 +636,9 @@ const TablesPage = () => {
                   onLightToggle={handleLightToggle}
                   onLightAuto={handleLightAuto}
                 />
-              </Col>
             );
           })}
-        </Row>
+        </div>
       )}
 
       {/* O'yin boshlash */}
@@ -657,6 +688,7 @@ const TablesPage = () => {
         onClose={() => setLightsOpen(false)}
         onChanged={silentRefresh}
       />
+      </section>
     </PageTransition>
   );
 };

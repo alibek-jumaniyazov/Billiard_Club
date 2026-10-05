@@ -21,6 +21,8 @@ import {
   CheckOutlined,
   ClockCircleOutlined,
   CloseOutlined,
+  LeftOutlined,
+  RightOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -446,7 +448,7 @@ const Reservations = () => {
         />
       )}
 
-      <Card style={{ marginBottom: TOKENS.spacing.md }}>
+      <Card className="reservation-toolbar" style={{ marginBottom: TOKENS.spacing.md }}>
         <div
           style={{
             display: 'flex',
@@ -455,12 +457,17 @@ const Reservations = () => {
             alignItems: 'center',
           }}
         >
+          <div className="reservation-day-picker">
+          <Button icon={<LeftOutlined />} onClick={() => applyDay(day.subtract(1, 'day'))} aria-label={t('workspace.previousDay')} />
           <DatePicker
             value={day}
             allowClear={false}
             onChange={applyDay}
             style={{ flex: '0 1 180px' }}
+            aria-label={t('workspace.reservationDay')}
           />
+          <Button icon={<RightOutlined />} onClick={() => applyDay(day.add(1, 'day'))} aria-label={t('workspace.nextDay')} />
+          </div>
           <Button size="small" onClick={() => applyDay(dayjs())}>
             {t('common.today')}
           </Button>
@@ -468,6 +475,7 @@ const Reservations = () => {
             allowClear
             value={status ?? undefined}
             placeholder={t('reservations.statusAll')}
+            aria-label={t('reservations.statusAll')}
             style={{ flex: '1 1 170px', maxWidth: 220 }}
             options={(['pending', 'confirmed', 'seated', 'cancelled', 'no_show'] as const).map(
               (value) => ({ value, label: t(`reservations.status.${value}`) }),
@@ -531,6 +539,7 @@ const Reservations = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: TOKENS.spacing.sm }}>
                 {group.items.map((reservation) => (
                   <div
+                    className="reservation-item"
                     key={reservation.id}
                     style={{
                       display: 'flex',

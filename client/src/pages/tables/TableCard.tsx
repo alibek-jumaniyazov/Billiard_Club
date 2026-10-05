@@ -1,21 +1,10 @@
 import { memo } from 'react';
-import { Button, Card, Popconfirm, Tag, Tooltip, Typography } from 'antd';
+import { App, Button, Card, Dropdown, Tag, Tooltip } from 'antd';
 import {
-  BulbOutlined,
-  CaretRightOutlined,
-  ClockCircleOutlined,
-  CloseCircleOutlined,
-  CloudSyncOutlined,
-  CoffeeOutlined,
-  DollarOutlined,
-  HistoryOutlined,
-  PauseCircleOutlined,
-  PlayCircleOutlined,
-  SwapOutlined,
-  SyncOutlined,
-  UserOutlined,
+  BulbOutlined, CaretRightOutlined, ClockCircleOutlined, CloseCircleOutlined,
+  CloudSyncOutlined, CoffeeOutlined, DollarOutlined, DownOutlined, HistoryOutlined,
+  PauseCircleOutlined, PlayCircleOutlined, SwapOutlined, SyncOutlined, UserOutlined,
 } from '@ant-design/icons';
-import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ElapsedTime, MoneyText, StatusTag, useNow } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
@@ -24,472 +13,139 @@ import type { BilliardTable, Session } from '../../types';
 import { formatClock, formatNumber } from '../../utils/format';
 import { sessionElapsedMs, sessionTableAmount, type SegmentLike } from '../../utils/session';
 
-const { Text, Title } = Typography;
-
-/**
- * Jonli summa — FAQAT shu barg komponent har soniyada qayta render bo'ladi.
- * Hisob serverdagi bilan bir xil: segmentlar bo'yicha sekundlik formula,
- * soat siljishi (offsetMs) hisobga olingan.
- */
-const LiveAmount = memo(
-  ({
-    session,
-    fallbackPrice,
-    segments,
-    offsetMs,
-    currency,
-  }: {
-    session: Session;
-    fallbackPrice: number;
-    segments: SegmentLike[] | null;
-    offsetMs: number;
-    currency: string;
-  }) => {
-    const now = useNow();
-    const amount =
-      sessionTableAmount(session, fallbackPrice, now + offsetMs, segments) +
-      (session.barAmount || 0);
-    return (
-      <MoneyText amount={amount} currency={currency} size="lg" color={TOKENS.color.gold.base} />
-    );
-  },
-);
+// Only these leaf components tick; card order and page state stay stable.
+const LiveAmount = memo(({ session, fallbackPrice, segments, offsetMs, currency }: {
+  session: Session; fallbackPrice: number; segments: SegmentLike[] | null; offsetMs: number; currency: string;
+}) => {
+  const now = useNow();
+  const amount = sessionTableAmount(session, fallbackPrice, now + offsetMs, segments) + (session.barAmount || 0);
+  return <MoneyText amount={amount} currency={currency} size="lg" color={TOKENS.color.text.primary} />;
+});
 LiveAmount.displayName = 'LiveAmount';
 
 export interface TableCardProps {
   table: BilliardTable;
-  /** Faol/pauzadagi sessiya (bo'lsa) */
+  focused?: boolean;
   session: Session | null;
-  /** Sessiya segmentlari keshi (transfer tarixi) — bo'lmasa legacy hisob */
   segments: SegmentLike[] | null;
-  /** Server soat siljishi: shiftedNow = Date.now() + offsetMs */
   offsetMs: number;
-  /**
-   * Server bilan aloqa bormi. Oflaynda hisob-kitob/ko'chirish/bekor qilish
-   * ATAYLAB bloklangan (offline/pos.ts) — bu amallar tugmalari o'chiriladi.
-   * Pauza/davom/bar buyurtma tugmalariga TA'SIR QILMAYDI (ular navbatga tushadi).
-   */
   online: boolean;
-  /** Shu sessiya uchun amal bajarilmoqda (pause/resume/cancel) */
   pending: boolean;
-  /** Hisob-kitob va bekor qilish huquqi (admin/kassir) */
   canCheckout: boolean;
-  /** Admin/superadmin — uzoq davom etgan yoki barli o'yinni bekor qila oladi */
   canManage: boolean;
   onStart: (table: BilliardTable) => void;
   onOrder: (table: BilliardTable) => void;
   onTransfer: (table: BilliardTable) => void;
   onCheckout: (table: BilliardTable) => void;
-  /** Stol ham uzatiladi: oflayn navbatga yozishda amal nomi uchun kerak */
   onPauseResume: (session: Session, table: BilliardTable) => void;
   onCancel: (session: Session) => void;
-  /**
-   * Chiroqni qo'lda yoqish/o'chirish (override). Berilmasa — lampochka
-   * indikatori umuman ko'rsatilmaydi (chiroq sozlanmagan klublarda karta
-   * AYNAN hozirgidek qoladi).
-   */
   onLightToggle?: (table: BilliardTable, on: boolean) => void;
-  /** Qo'lda boshqaruvni bekor qilib avtomatikaga qaytarish (override faol bo'lsa) */
   onLightAuto?: (table: BilliardTable) => void;
 }
 
-/**
- * Stol kartasi — React.memo bilan izolyatsiya qilingan: sahifa har tikda
- * QAYTA RENDER BO'LMAYDI, faqat ichidagi ElapsedTime/LiveAmount barglari
- * tiklaydi. Kartaning o'zi faqat poll/amaldan keyin yangilanadi.
- */
-const TableCard = memo(
-  ({
-    table,
-    session,
-    segments,
-    offsetMs,
-    online,
-    pending,
-    canCheckout,
-    canManage,
-    onStart,
-    onOrder,
-    onTransfer,
-    onCheckout,
-    onPauseResume,
-    onCancel,
-    onLightToggle,
-    onLightAuto,
-  }: TableCardProps) => {
-    const { t } = useTranslation();
-    const reduceMotion = useReducedMotion();
-    // Jonli summa bargi (LiveAmount) belgini PROP orqali oladi — hook shu yerda
-    // bir marta chaqiriladi
-    const currency = useCurrency();
+const TableCard = memo(({
+  table, focused, session, segments, offsetMs, online, pending, canCheckout, canManage,
+  onStart, onOrder, onTransfer, onCheckout, onPauseResume, onCancel, onLightToggle, onLightAuto,
+}: TableCardProps) => {
+  const { t } = useTranslation();
+  const { modal } = App.useApp();
+  const currency = useCurrency();
+  const isBusy = table.status === 'busy';
+  const isPaused = session?.status === 'paused';
+  const isOfflineSession = !!session?.offlineLocalId;
+  // Preserve online/role restrictions, including local synthetic sessions.
+  const offlineBlocked = !online || isOfflineSession;
+  const canCancel = !offlineBlocked && (canManage || (!!session &&
+    (session.barAmount ?? 0) <= 0 && sessionElapsedMs(session, Date.now() + offsetMs) <= 600_000));
+  const hasLight = !!onLightToggle && table.lightControl === true;
+  const lightState = table.lightState ?? null;
+  const lightError = table.lightError ?? null;
+  const lightOverride = !!table.lightOverrideUntil && new Date(table.lightOverrideUntil).getTime() > Date.now() + offsetMs;
+  const lightTarget = (lightOverride ? (table.lightOverrideOn ?? null) : null) ?? lightState ?? false;
+  const lightLabel = lightError ? `${t('tables.lightsStateError')}: ${lightError}`
+    : lightState === true ? t('tables.lightsStateOn')
+      : lightState === false ? t('tables.lightsStateOff') : t('tables.lightsStateUnknown');
+  const lightHint = lightState === null && !lightError
+    ? t(lightTarget ? 'tables.lightsStateUnknownOffHint' : 'tables.lightsStateUnknownOnHint')
+    : t(lightTarget ? 'tables.lightsToggleOff' : 'tables.lightsToggleOn');
 
-    const isBusy = table.status === 'busy' && !!session;
-    const isPaused = session?.status === 'paused';
-    const todayCompleted = table.todayCompletedSessions ?? 0;
+  const confirmCancel = () => {
+    if (!session || !canCheckout || !canCancel || pending) return;
+    modal.confirm({
+      title: t('tables.cancelConfirmTitle'), content: t('tables.cancelConfirmDesc'),
+      okText: t('common.yes'), cancelText: t('common.no'), okButtonProps: { danger: true },
+      onOk: () => onCancel(session),
+    });
+  };
+  const moreItems = [
+    ...(isBusy && session ? [{ key: 'transfer', icon: <SwapOutlined />,
+      label: <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : isPaused ? t('tables.transferPausedHint') : undefined}><span>{t('tables.transfer')}</span></Tooltip>,
+      disabled: isPaused || offlineBlocked || pending, onClick: () => onTransfer(table) }] : []),
+    ...(hasLight && lightOverride && onLightAuto ? [{ key: 'light-auto', icon: <SyncOutlined />,
+      label: t('tables.lightsOverrideAuto'), onClick: () => onLightAuto(table) }] : []),
+    ...(isBusy && session && canCheckout ? [{ key: 'cancel', icon: <CloseCircleOutlined />, danger: true,
+      label: <Tooltip title={!canCancel ? t(offlineBlocked ? 'offline.offlineBlocked' : 'tables.cancelNeedsAdmin') : undefined}><span>{t('tables.cancelTooltip')}</span></Tooltip>,
+      disabled: !canCancel || pending, onClick: confirmCancel }] : []),
+  ];
 
-    /**
-     * Sessiya OFLAYN boshlangan — serverda hali mavjud emas (uning haqiqiy
-     * ID si yo'q). Bunday sessiyada hisob-kitob, ko'chirish va bekor qilish
-     * bajarilmaydi: bu amallar server tomonidagi haqiqiy yozuvni talab qiladi
-     * va eskirgan ma'lumot ustida hisoblangan chek mijozdan noto'g'ri pul
-     * olishga olib kelardi (offline/pos.ts izohiga qarang).
-     * Taymer esa ishlayveradi — vaqt yo'qolmaydi.
-     */
-    const isOfflineSession = !!session?.offlineLocalId;
+  return (
+    <Card id={`workspace-table-${table.id}`} tabIndex={focused ? -1 : undefined}
+      className={`table-work-card ${isBusy ? isPaused ? 'is-paused' : 'is-busy' : 'is-free'}${focused ? ' is-focused' : ''}`}>
+      <div className="table-work-card__header">
+        <div className="table-work-card__identity">
+          <span className="table-work-card__number" aria-label={`${t('common.table')} ${table.number}`}>{String(table.number).padStart(2, '0')}</span>
+          <div><h2 title={table.name}>{table.name || `${t('common.table')} ${table.number}`}</h2>
+            <span className="table-work-card__rate">{formatNumber(table.pricePerHour)} {currency} / {t('tables.perHour')}</span></div>
+        </div>
+        <StatusTag status={isBusy ? isPaused ? 'paused' : 'active' : 'free'} label={t(isBusy ? isPaused ? 'status.paused' : 'status.active' : 'status.free')} />
+      </div>
 
-    /**
-     * Hisob-kitob/ko'chirish/bekor qilish BLOKLANADIGAN holat: yo sessiya oflayn
-     * boshlangan (serverda hali yo'q), yo hozir aloqa uzilgan. Ikkalasida ham bu
-     * amallar server tomonidagi haqiqiy, dolzarb yozuvni talab qiladi.
-     */
-    const offlineBlocked = !online || isOfflineSession;
-
-    /**
-     * Bekor qilish huquqi — SERVERDAGI qoidaning aynan nusxasi
-     * (sessions.service.ts CASHIER_CANCEL_MAX_SECONDS): kassir faqat adashib
-     * boshlangan (qisqa va bar buyurtmasiz) o'yinni bekor qila oladi.
-     * Oflaynda umuman bloklanadi.
-     */
-    const canCancel =
-      !offlineBlocked &&
-      (canManage ||
-        (!!session &&
-          (session.barAmount ?? 0) <= 0 &&
-          sessionElapsedMs(session, Date.now() + offsetMs) <= 600_000));
-
-    // Chiroq indikatori faqat rele sozlangan VA klub rejimi yoqilgan stolda
-    // ko'rinadi (rejim 'off' bo'lsa tugma bosilishi hech narsani o'zgartirmasdi)
-    const hasLight = !!onLightToggle && table.lightControl === true;
-    const lightState = table.lightState ?? null;
-    const lightOn = lightState === true;
-    const lightError = table.lightError ?? null;
-    // Qo'lda boshqaruv faol — chiroq avtomatikaga bo'ysunmayapti
-    const lightOverride =
-      !!table.lightOverrideUntil &&
-      new Date(table.lightOverrideUntil).getTime() > Date.now() + offsetMs;
-    /*
-     * Tugma QAYSI qiymatni yuborishi: FAOL override qiymati > oxirgi ma'lum
-     * holat > o'chiq. Ilgari faqat `lightState` ga tayanilgani uchun holat
-     * noma'lum (null) bo'lganda tugma DOIM "yoqish" yuborardi va chiroqni
-     * kartadan o'chirib bo'lmasdi.
-     */
-    const lightTarget =
-      (lightOverride ? (table.lightOverrideOn ?? null) : null) ?? lightState ?? false;
-    // Yoniq — oltin, o'chiq — kulrang, noma'lum — xira, xato — qizil
-    const lightColor = lightError
-      ? TOKENS.color.semantic.error
-      : lightOn
-        ? TOKENS.color.gold.base
-        : lightState === false
-          ? TOKENS.color.text.tertiary
-          : TOKENS.color.text.disabled;
-    const lightStateLabel = lightError
-      ? `${t('tables.lightsStateError')}: ${lightError}`
-      : lightOn
-        ? t('tables.lightsStateOn')
-        : lightState === false
-          ? t('tables.lightsStateOff')
-          : t('tables.lightsStateUnknown');
-    // Holat noma'lum bo'lsa — tugma nima qilishini aniq aytamiz
-    const lightActionHint =
-      lightState === null && !lightError
-        ? lightTarget
-          ? t('tables.lightsStateUnknownOffHint')
-          : t('tables.lightsStateUnknownOnHint')
-        : t('tables.lightsToggleHint');
-    const lightLabel = lightError
-      ? lightStateLabel
-      : `${lightStateLabel} · ${lightActionHint}`;
-
-    const surface = isBusy
-      ? isPaused
-        ? `linear-gradient(165deg, ${TOKENS.color.bg.bg2} 0%, ${TOKENS.color.bg.bg1} 65%)`
-        : `linear-gradient(165deg, ${TOKENS.color.emerald.deepest} 0%, ${TOKENS.color.bg.bg1} 70%)`
-      : TOKENS.color.bg.bg1;
-
-    return (
-      <motion.div
-        whileHover={reduceMotion ? undefined : { y: -3 }}
-        transition={{ duration: TOKENS.motion.duration.fast }}
-        style={{ height: '100%' }}
-      >
-        <Card
-          className={isBusy && !isPaused ? 'table-card-active' : undefined}
-          style={{
-            height: '100%',
-            background: surface,
-            borderColor: isPaused ? TOKENS.color.semantic.warning : undefined,
-          }}
-          styles={{ body: { padding: 16, display: 'flex', flexDirection: 'column', gap: 10 } }}
-        >
-          {/* Sarlavha: raqam + nom + holat */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-            <div style={{ minWidth: 0 }}>
-              <Title level={4} style={{ margin: 0, lineHeight: 1.2 }}>
-                {t('common.table')} {table.number}
-              </Title>
-              <Text type="secondary" style={{ fontSize: 12.5 }} ellipsis>
-                {table.name}
-              </Text>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              {hasLight && (
-                <>
-                  <Tooltip title={lightLabel}>
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<BulbOutlined style={{ color: lightColor }} />}
-                      onClick={() => onLightToggle?.(table, !lightTarget)}
-                      aria-label={lightLabel}
-                      style={{
-                        background: lightOn ? TOKENS.color.gold.subtle : undefined,
-                        border: lightOn ? `1px solid ${TOKENS.color.gold.line}` : undefined,
-                      }}
-                    />
-                  </Tooltip>
-                  {lightOverride && onLightAuto && (
-                    <Tooltip title={t('tables.lightsOverrideAuto')}>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<SyncOutlined style={{ color: TOKENS.color.text.tertiary }} />}
-                        onClick={() => onLightAuto(table)}
-                        aria-label={t('tables.lightsOverrideAuto')}
-                      />
-                    </Tooltip>
-                  )}
-                </>
-              )}
-              {isBusy ? (
-                <StatusTag
-                  status={isPaused ? 'paused' : 'active'}
-                  label={isPaused ? t('status.paused') : t('status.active')}
-                />
-              ) : (
-                <StatusTag status="free" label={t('status.free')} />
-              )}
-              {/* Oflayn boshlangan o'yin — kassir nima uchun ba'zi tugmalar
-                  o'chiqligini shu belgidan tushunadi */}
-              {isOfflineSession && (
-                <Tooltip title={t('offline.savedOffline')}>
-                  <Tag icon={<CloudSyncOutlined />} color="warning" style={{ margin: 0 }}>
-                    {t('offline.queuePending')}
-                  </Tag>
-                </Tooltip>
-              )}
-              {isBusy &&
-                canCheckout &&
-                (canCancel ? (
-                  <Popconfirm
-                    title={t('tables.cancelConfirmTitle')}
-                    description={t('tables.cancelConfirmDesc')}
-                    okText={t('common.yes')}
-                    cancelText={t('common.no')}
-                    okButtonProps={{ danger: true }}
-                    onConfirm={() => onCancel(session)}
-                  >
-                    <Tooltip title={t('tables.cancelTooltip')}>
-                      <Button
-                        type="text"
-                        danger
-                        size="small"
-                        loading={pending}
-                        icon={<CloseCircleOutlined />}
-                        aria-label={t('tables.cancelTooltip')}
-                      />
-                    </Tooltip>
-                  </Popconfirm>
-                ) : (
-                  /* Serverdagi qoida bilan bir xil: kassir uzoq davom etgan yoki
-                     bar buyurtmasi bor o'yinni bekor qila olmaydi — tugma bosilib
-                     xato chiqarish o'rniga sababi bilan o'chirilgan holda turadi.
-                     Oflayn sessiyada esa sabab BOSHQA: yozuv hali serverda yo'q,
-                     shuning uchun adminGA ham to'g'ri sababni ko'rsatamiz */
-                  <Tooltip
-                    title={
-                      offlineBlocked
-                        ? t('offline.offlineBlocked')
-                        : t('tables.cancelNeedsAdmin')
-                    }
-                  >
-                    <Button
-                      type="text"
-                      danger
-                      size="small"
-                      disabled
-                      icon={<CloseCircleOutlined />}
-                      aria-label={
-                        offlineBlocked
-                          ? t('offline.offlineBlocked')
-                          : t('tables.cancelNeedsAdmin')
-                      }
-                    />
-                  </Tooltip>
-                ))}
-            </div>
+      {isBusy && session ? <>
+        <div className="table-work-card__numbers">
+          <div><span className="table-work-card__caption">{t('common.duration')}</span>
+            <ElapsedTime from={session.startTime} computeMs={(now) => sessionElapsedMs(session, now + offsetMs)} paused={isPaused}
+              style={{ fontSize: 28, fontWeight: 650, color: isPaused ? TOKENS.color.semantic.warning : TOKENS.color.text.primary, display: 'block' }} />
           </div>
+          <div className="table-work-card__amount"><span className="table-work-card__caption">{t('tables.liveTotalCaption')}</span>
+            <LiveAmount session={session} fallbackPrice={table.pricePerHour} segments={segments} offsetMs={offsetMs} currency={currency} />
+          </div>
+        </div>
+        <div className="table-work-card__guest">
+          <span title={session.customerName || t('tables.guest')}><UserOutlined />{session.customerName || t('tables.guest')}</span>
+          <span><ClockCircleOutlined />{formatClock(session.startTime)}</span>
+        </div>
+        {(session.barAmount > 0 || isOfflineSession) && <div className="table-work-card__details">
+          {session.barAmount > 0 && <span><CoffeeOutlined />{formatNumber(session.barAmount)} {currency}</span>}
+          {isOfflineSession && <Tag icon={<CloudSyncOutlined />} color="warning">{t('offline.queuePending')}</Tag>}
+        </div>}
+        <div className="table-work-card__actions">
+          <Button icon={<CoffeeOutlined />} onClick={() => onOrder(table)}>{t('tables.addOrder')}</Button>
+          {canCheckout && <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : undefined}>
+            <Button type="primary" icon={<DollarOutlined />} disabled={offlineBlocked || pending} onClick={() => onCheckout(table)}>{t('tables.end')}</Button>
+          </Tooltip>}
+        </div>
+      </> : isBusy ? <p className="table-work-card__empty">{t('tables.sessionUnavailable')}</p> : <>
+        <div className="table-work-card__available"><span className="table-work-card__caption">{t('tables.readyForGame')}</span>
+          <strong>{t('tables.freeToStart')}</strong><span>{t('tables.startGuestHint')}</span></div>
+        <Button className="table-work-card__start" type="primary" ghost block icon={<PlayCircleOutlined />} onClick={() => onStart(table)}>{t('tables.start')}</Button>
+      </>}
 
-          {isBusy ? (
-            <>
-              {/* Jonli taymer + summa — barg komponentlar o'zi tiklaydi */}
-              <div style={{ textAlign: 'center', padding: '4px 0 2px' }}>
-                <ElapsedTime
-                  computeMs={(now) => sessionElapsedMs(session, now + offsetMs)}
-                  from={session.startTime}
-                  paused={isPaused}
-                  style={{
-                    fontSize: 30,
-                    fontWeight: 700,
-                    color: isPaused ? TOKENS.color.semantic.warning : TOKENS.color.neonGreen,
-                    display: 'block',
-                  }}
-                />
-                <LiveAmount
-                  session={session}
-                  fallbackPrice={table.pricePerHour}
-                  segments={segments}
-                  offsetMs={offsetMs}
-                  currency={currency}
-                />
-                {/* Katta raqam nima ekanini aniqlashtiradi (stol vaqti + bar) */}
-                <Text type="secondary" style={{ display: 'block', fontSize: 11.5, marginTop: 1 }}>
-                  {t('tables.liveTotalCaption')}
-                </Text>
-              </div>
-
-              {/* Mijoz + boshlanish vaqti + bar chip */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  justifyContent: 'center',
-                  fontSize: 12.5,
-                }}
-              >
-                <span style={{ color: TOKENS.color.text.secondary }}>
-                  <UserOutlined style={{ marginRight: 4 }} />
-                  {session.customerName || t('tables.guest')}
-                </span>
-                <span style={{ color: TOKENS.color.text.tertiary }}>
-                  <ClockCircleOutlined style={{ marginRight: 4 }} />
-                  {t('tables.startedAt')} {formatClock(session.startTime)}
-                </span>
-                {session.barAmount > 0 && (
-                  <span
-                    className="tabular-nums"
-                    style={{
-                      color: TOKENS.color.emerald.glow,
-                      background: TOKENS.color.emerald.deep,
-                      border: `1px solid ${TOKENS.color.emerald.felt}`,
-                      borderRadius: TOKENS.radius.pill,
-                      padding: '0 8px',
-                      lineHeight: '20px',
-                    }}
-                  >
-                    <CoffeeOutlined style={{ marginRight: 4 }} />
-                    {formatNumber(session.barAmount)} {currency}
-                  </span>
-                )}
-              </div>
-
-              {/* Amallar */}
-              <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
-                <Tooltip title={isPaused ? t('tables.resume') : t('tables.pause')}>
-                  <Button
-                    icon={isPaused ? <CaretRightOutlined /> : <PauseCircleOutlined />}
-                    loading={pending}
-                    onClick={() => onPauseResume(session, table)}
-                    aria-label={isPaused ? t('tables.resume') : t('tables.pause')}
-                    style={{ flex: 1 }}
-                  />
-                </Tooltip>
-                <Tooltip title={t('common.bar')}>
-                  <Button
-                    icon={<CoffeeOutlined />}
-                    onClick={() => onOrder(table)}
-                    aria-label={t('common.bar')}
-                    style={{ flex: 1 }}
-                  />
-                </Tooltip>
-                <Tooltip
-                  title={
-                    offlineBlocked
-                      ? t('offline.offlineBlocked')
-                      : isPaused
-                        ? t('tables.transferPausedHint')
-                        : t('tables.transfer')
-                  }
-                >
-                  <Button
-                    icon={<SwapOutlined />}
-                    disabled={isPaused || offlineBlocked}
-                    onClick={() => onTransfer(table)}
-                    aria-label={t('tables.transfer')}
-                    style={{ flex: 1 }}
-                  />
-                </Tooltip>
-                {canCheckout && (
-                  /* Oflayn boshlangan sessiyada YOKI aloqa uzilganda hisob-kitob
-                     tugmasi sababi bilan o'chirilgan holda turadi — bosilib xato
-                     (yoki chala yuklangan chek) chiqarish o'rniga kassir nima
-                     uchun ishlamayotganini KO'RADI */
-                  <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : ''}>
-                    <Button
-                      type="primary"
-                      icon={<DollarOutlined />}
-                      disabled={offlineBlocked}
-                      onClick={() => onCheckout(table)}
-                      style={{ flex: 2, minWidth: 0 }}
-                    >
-                      {t('tables.end')}
-                    </Button>
-                  </Tooltip>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Bo'sh stol: narx + tezkor boshlash */}
-              <div style={{ textAlign: 'center', padding: '10px 0 4px' }}>
-                <MoneyText
-                  amount={table.pricePerHour}
-                  currency={currency}
-                  size="lg"
-                  color={TOKENS.color.text.primary}
-                />
-                <Text type="secondary" style={{ display: 'block', fontSize: 12.5 }}>
-                  {t('tables.perHour')}
-                </Text>
-              </div>
-              <Button
-                type="primary"
-                ghost
-                block
-                icon={<PlayCircleOutlined />}
-                onClick={() => onStart(table)}
-                style={{ marginTop: 'auto' }}
-              >
-                {t('tables.start')}
-              </Button>
-            </>
-          )}
-
-          {/* Bugungi yakunlangan o'yinlar */}
-          {todayCompleted > 0 && (
-            <div style={{ textAlign: 'center' }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                <HistoryOutlined style={{ marginRight: 4 }} />
-                {t('tables.todayCompleted', { n: todayCompleted })}
-              </Text>
-            </div>
-          )}
-        </Card>
-      </motion.div>
-    );
-  },
-);
+      <div className="table-work-card__utilities">
+        {isBusy && session ? <Button type="text" icon={isPaused ? <CaretRightOutlined /> : <PauseCircleOutlined />} loading={pending}
+          onClick={() => onPauseResume(session, table)}>{t(isPaused ? 'tables.resume' : 'tables.pause')}</Button>
+          : <span className="table-work-card__history"><HistoryOutlined />{t('tables.todayCompleted', { n: table.todayCompletedSessions ?? 0 })}</span>}
+        <div className="table-work-card__utility-buttons">
+          {hasLight && <Tooltip title={`${lightLabel} · ${lightHint}`}><Button type="text" icon={<BulbOutlined />}
+            className={lightError ? 'has-light-error' : lightState ? 'is-light-on' : ''}
+            aria-label={`${lightLabel} · ${lightHint}`} onClick={() => onLightToggle?.(table, !lightTarget)} /></Tooltip>}
+          {moreItems.length > 0 && <Dropdown menu={{ items: moreItems }} trigger={['click']} placement="bottomRight">
+            <Button type="text" icon={<DownOutlined />}>{t('tables.moreActions')}</Button>
+          </Dropdown>}
+        </div>
+      </div>
+      {hasLight && lightError && <p className="table-work-card__warning" title={lightError}><BulbOutlined />{t('tables.lightAttention')}</p>}
+    </Card>
+  );
+});
 TableCard.displayName = 'TableCard';
-
 export default TableCard;

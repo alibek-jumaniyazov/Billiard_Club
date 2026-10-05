@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { Alert, Button, Card, Col, Row, Typography } from 'antd';
 import {
   CalendarOutlined,
+  ArrowRightOutlined,
+  CoffeeOutlined,
   CreditCardOutlined,
   DashboardOutlined,
   DollarOutlined,
@@ -14,8 +16,10 @@ import {
 } from '@ant-design/icons';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { EmptyState, PageHeader, PageTransition, StatCard } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
+import { useAuth } from '../../context/AuthContext';
 import { TOKENS } from '../../theme/tokens';
 import { formatClock, formatMoney } from '../../utils/format';
 import ActiveSessionsList from './ActiveSessionsList';
@@ -67,6 +71,8 @@ const DashboardPage = () => {
   // Klub puli — belgi klub sozlamasidan (barcha bolalarga shu qiymat uzatiladi,
   // shunda bitta klubda ikki xil belgi ko'rinmaydi)
   const currency = useCurrency();
+  const { club } = useAuth();
+  const pausedCount = stats?.activeSessionsData?.filter((session) => session.status === 'paused').length ?? 0;
 
   // Bugungi tushum trendi — kechagi kunga nisbatan (last7Days dan)
   const todayTrend = useMemo(() => {
@@ -161,56 +167,76 @@ const DashboardPage = () => {
           ko'rinishini hal qiladi: admin, birinchi o'yingacha, yopilmagan) */}
       <OnboardingChecklist stats={stats} />
 
+      <section className="workday-panel" aria-labelledby="workday-title">
+        <div className="workday-panel__heading">
+          <div>
+            <div className="workday-panel__eyebrow">{t('workspace.workday')}</div>
+            <h2 id="workday-title">{club?.name || t('appName')}</h2>
+            <p>{t('workspace.workdayHint')}</p>
+          </div>
+          <Link to="/tables?view=busy" className="workday-panel__live">
+            <PlayCircleOutlined /> {t('dashboard.activeSessions')}: {loading ? '—' : stats?.activeSessions ?? 0}
+          </Link>
+        </div>
+        <div className="workday-actions">
+          <Link className="workday-action workday-action--primary" to="/tables?view=free">
+            <PlayCircleOutlined /><span><strong>{t('workspace.startGame')}</strong><small>{t('workspace.startHint')}</small></span>
+          </Link>
+          <Link className="workday-action" to="/orders">
+            <CoffeeOutlined /><span><strong>{t('workspace.bar')}</strong><small>{t('workspace.barHint')}</small></span>
+          </Link>
+          <Link className="workday-action" to="/reservations">
+            <CalendarOutlined /><span><strong>{t('menu.reservations')}</strong><small>{t('workspace.reservationHint')}</small></span>
+          </Link>
+          <Link className="workday-action" to="/debts">
+            <CreditCardOutlined /><span><strong>{t('menu.debts')}</strong><small>{t('workspace.debtHint')}</small></span>
+          </Link>
+        </div>
+      </section>
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={8}>
+          <StatCard loading={loading} label={t('dashboard.todayRevenue')} hint={t('dashboard.hintTodayRevenue')}
+            value={formatMoney(stats?.dailyRevenue, currency)} valueTitle={formatMoney(stats?.dailyRevenue, currency)}
+            icon={<DollarOutlined />} accent={TOKENS.color.gold.base} trend={todayTrend} trendLabel={t('dashboard.vsYesterday')} />
+        </Col>
+        <Col xs={24} sm={12} lg={8}>
+          <StatCard loading={loading} label={t('dashboard.weekRevenue')} hint={t('dashboard.hintWeekRevenue')}
+            sublabel={t('dashboard.rangeLast7')} value={formatMoney(stats?.weekRevenue, currency)} valueTitle={formatMoney(stats?.weekRevenue, currency)}
+            icon={<RiseOutlined />} accent={TOKENS.color.emerald.bright} trend={weekTrend} trendLabel={t('dashboard.vsLastWeek')} />
+        </Col>
+        <Col xs={24} sm={12} lg={8}>
+          <StatCard loading={loading} label={t('dashboard.monthRevenue')} hint={t('dashboard.hintMonthRevenue')}
+            sublabel={t('dashboard.rangeThisMonth')} value={formatMoney(stats?.monthRevenue, currency)} valueTitle={formatMoney(stats?.monthRevenue, currency)}
+            icon={<CalendarOutlined />} accent={TOKENS.color.semantic.info} />
+        </Col>
+      </Row>
+
+      {pausedCount > 0 && (
+        <Alert type="warning" showIcon message={t('workspace.attentionHint', { count: pausedCount })}
+          action={<Link to="/tables?view=paused">{t('workspace.openTables')} <ArrowRightOutlined /></Link>}
+          style={{ marginBottom: 20 }} />
+      )}
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} lg={14}>
+          <ActiveSessionsList sessions={stats?.activeSessionsData ?? []} currency={currency} loading={loading} clockOffset={clockOffset} />
+        </Col>
+        <Col xs={24} lg={10}>
+          <RecentPaymentsList payments={stats?.recentPayments ?? []} currency={currency} loading={loading} />
+        </Col>
+      </Row>
+
+      <div className="workspace-section-heading">
+        <div><h2>{t('workspace.performance')}</h2><p>{t('workspace.performanceHint')}</p></div>
+        <Link to="/reports">{t('menu.reports')} <ArrowRightOutlined /></Link>
+      </div>
+
       <motion.div
         variants={containerVariants}
         initial={reduceMotion ? false : 'hidden'}
         animate="visible"
       >
-        {/* --- Tushum KPI qatori --- */}
-        <motion.div variants={itemVariants}>
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={24} sm={12} lg={8}>
-              <StatCard
-                loading={loading}
-                label={t('dashboard.todayRevenue')}
-                hint={t('dashboard.hintTodayRevenue')}
-                value={formatMoney(stats?.dailyRevenue, currency)}
-                valueTitle={formatMoney(stats?.dailyRevenue, currency)}
-                icon={<DollarOutlined />}
-                accent={TOKENS.color.gold.base}
-                trend={todayTrend}
-                trendLabel={t('dashboard.vsYesterday')}
-              />
-            </Col>
-            <Col xs={24} sm={12} lg={8}>
-              <StatCard
-                loading={loading}
-                label={t('dashboard.weekRevenue')}
-                hint={t('dashboard.hintWeekRevenue')}
-                sublabel={t('dashboard.rangeLast7')}
-                value={formatMoney(stats?.weekRevenue, currency)}
-                valueTitle={formatMoney(stats?.weekRevenue, currency)}
-                icon={<RiseOutlined />}
-                accent={TOKENS.color.emerald.bright}
-                trend={weekTrend}
-                trendLabel={t('dashboard.vsLastWeek')}
-              />
-            </Col>
-            <Col xs={24} sm={12} lg={8}>
-              <StatCard
-                loading={loading}
-                label={t('dashboard.monthRevenue')}
-                hint={t('dashboard.hintMonthRevenue')}
-                sublabel={t('dashboard.rangeThisMonth')}
-                value={formatMoney(stats?.monthRevenue, currency)}
-                valueTitle={formatMoney(stats?.monthRevenue, currency)}
-                icon={<CalendarOutlined />}
-                accent={TOKENS.color.semantic.info}
-              />
-            </Col>
-          </Row>
-        </motion.div>
-
         {/* --- Operatsion KPI qatori --- */}
         <motion.div variants={itemVariants}>
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
@@ -279,27 +305,6 @@ const DashboardPage = () => {
           </Row>
         </motion.div>
 
-        {/* --- Jonli sessiyalar + stollar reytingi --- */}
-        <motion.div variants={itemVariants}>
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={24} lg={14}>
-              <ActiveSessionsList
-                sessions={stats?.activeSessionsData ?? []}
-                currency={currency}
-                loading={loading}
-                clockOffset={clockOffset}
-              />
-            </Col>
-            <Col xs={24} lg={10}>
-              <TopTablesChart
-                mostUsedTables={stats?.mostUsedTables ?? []}
-                currency={currency}
-                loading={loading}
-              />
-            </Col>
-          </Row>
-        </motion.div>
-
         {/* --- Mijozlar reytingi + to'lovlar lentasi --- */}
         <motion.div variants={itemVariants}>
           <Row gutter={[16, 16]}>
@@ -311,8 +316,8 @@ const DashboardPage = () => {
               />
             </Col>
             <Col xs={24} lg={14}>
-              <RecentPaymentsList
-                payments={stats?.recentPayments ?? []}
+              <TopTablesChart
+                mostUsedTables={stats?.mostUsedTables ?? []}
                 currency={currency}
                 loading={loading}
               />

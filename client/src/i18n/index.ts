@@ -28,6 +28,7 @@ import offline from './pages/offline';
 import download from './pages/download';
 import adminClubData from './pages/adminClubData';
 import adminReleases from './pages/adminReleases';
+import workspace from './pages/workspace';
 
 export type Lang = 'uz' | 'ru';
 
@@ -35,6 +36,7 @@ export type Lang = 'uz' | 'ru';
 type PageDict = { uz: Record<string, string>; ru: Record<string, string> };
 
 const pages: Record<string, PageDict> = {
+  workspace,
   dashboard,
   tables,
   sessions,

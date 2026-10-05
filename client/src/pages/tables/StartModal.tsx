@@ -4,10 +4,11 @@ import { PlayCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, isNetworkError, reservationsApi, sessionsApi } from '../../api';
 import { useConnection } from '../../context/ConnectionContext';
+import { useCurrency } from '../../context/AppSettingsContext';
 import { newActionKey, queueStartSession } from '../../offline/pos';
 import { isFormValidationError } from '../../utils/formErrors';
 import type { BilliardTable, Reservation, Session } from '../../types';
-import { formatClock } from '../../utils/format';
+import { formatClock, formatMoney } from '../../utils/format';
 
 interface StartValues {
   customerName?: string;
@@ -42,6 +43,7 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { online } = useConnection();
+  const currency = useCurrency();
   const [form] = Form.useForm<StartValues>();
   const [submitting, setSubmitting] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -117,8 +119,14 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
   return (
     <Modal
       title={`${t('tables.startTitle')} — ${t('common.table')} ${table?.number ?? ''}`}
+      className="table-session-modal"
+      width="min(520px, calc(100vw - 24px))"
+      centered
       open={!!table}
-      onCancel={onClose}
+      onCancel={() => { if (!submitting) onClose(); }}
+      maskClosable={!submitting}
+      closable={!submitting}
+      keyboard={!submitting}
       onOk={() => void handleOk()}
       confirmLoading={submitting}
       okText={t('tables.start')}
@@ -126,6 +134,8 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
       cancelText={t('btn.cancel')}
       destroyOnHidden
     >
+      <div className="table-session-intro"><div><strong>{table?.name}</strong><small>{t('tables.startRate')}</small></div>
+        <strong>{formatMoney(table?.pricePerHour ?? 0, currency)}</strong></div>
       {reservations.length > 0 && (
         <Alert
           type="warning"
@@ -146,6 +156,7 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
         form={form}
         layout="vertical"
         requiredMark={false}
+        size="large"
         onKeyDown={(e) => {
           // Enter — darhol boshlash (izoh maydonida esa yangi qator qoldiradi)
           if (
@@ -163,7 +174,7 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
           <Input maxLength={100} autoFocus />
         </Form.Item>
         <Form.Item name="customerPhone" label={t('tables.customerPhoneOptional')}>
-          <Input maxLength={20} placeholder="+998" />
+          <Input maxLength={20} placeholder="+998" inputMode="tel" />
         </Form.Item>
         <Form.Item name="notes" label={t('tables.notesOptional')} style={{ marginBottom: 0 }}>
           <Input.TextArea maxLength={2000} rows={2} />

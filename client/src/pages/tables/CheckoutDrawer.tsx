@@ -151,6 +151,7 @@ const computeTotals = (
 /* --------------------------------------------------------- Jonli chek paneli */
 
 interface LiveReceiptProps {
+  compact?: boolean;
   timing: SessionTiming;
   segments: SegmentLike[];
   barAmount: number;
@@ -176,6 +177,7 @@ const rowStyle: CSSProperties = {
  */
 const LiveReceipt = memo(
   ({
+    compact,
     timing,
     segments,
     barAmount,
@@ -202,6 +204,11 @@ const LiveReceipt = memo(
     );
     const segmentLines =
       segments.length > 1 ? sessionSegmentBilling(timing, segments, shifted).items : null;
+
+    if (compact) return <div className="table-checkout-total">
+      <span>{t('tables.toPayNow')}</span>
+      <MoneyText amount={totals.toPay} currency={currency} size="lg" color={TOKENS.color.text.primary} />
+    </div>;
 
     return (
       <div
@@ -927,16 +934,21 @@ const CheckoutDrawer = ({
 
   return (
     <Drawer
+      rootClassName="table-checkout-drawer"
       title={`${t('tables.checkoutTitle')} — ${t('common.table')} ${table?.number ?? ''}`}
       open={!!table}
       onClose={handleClose}
-      width="min(480px, 100vw)"
+      width="min(560px, 100vw)"
       destroyOnHidden
       maskClosable={!submitting}
       closable={!submitting}
       keyboard={!submitting}
       footer={
         !result && live && timing ? (
+          <div>
+          {receipt && <LiveReceipt compact timing={timing} segments={segments} barAmount={receipt.barAmount}
+            fallbackPrice={fallbackPrice} discount={discount} adjustment={adjustmentAmount} flags={flags}
+            offsetMs={offsetMs} currency={currency} />}
           <Row gutter={8}>
             <Col span={10}>
               <Button block onClick={handleClose} disabled={submitting}>
@@ -947,7 +959,6 @@ const CheckoutDrawer = ({
               <Button
                 block
                 type="primary"
-                danger={!isDebt}
                 icon={<DollarOutlined />}
                 loading={submitting}
                 disabled={!!barChanged || (split && !splitOk)}
@@ -957,6 +968,7 @@ const CheckoutDrawer = ({
               </Button>
             </Col>
           </Row>
+          </div>
         ) : null
       }
     >
@@ -1018,7 +1030,7 @@ const CheckoutDrawer = ({
 
           <Form form={form} layout="vertical" requiredMark={false}>
             <Row gutter={12}>
-              <Col span={12}>
+              <Col xs={24} sm={12}>
                 <Form.Item name="discount" label={t('common.discount')} style={{ marginBottom: 12 }}>
                   <InputNumber
                     min={0}
@@ -1030,7 +1042,7 @@ const CheckoutDrawer = ({
                 </Form.Item>
               </Col>
               {!split && (
-                <Col span={12}>
+                <Col xs={24} sm={12}>
                   <Form.Item
                     name="paymentMethod"
                     label={t('payment.method')}
