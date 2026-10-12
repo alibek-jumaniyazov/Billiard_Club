@@ -89,7 +89,7 @@ const runTx = async <T>(
   return new Promise<T | null>((resolve) => {
     let tx: IDBTransaction;
     try {
-      tx = db.transaction(store, mode);
+      tx = db.transaction(store, mode, mode === 'readwrite' ? { durability: 'strict' } : undefined);
     } catch {
       resolve(null);
       return;
@@ -140,3 +140,25 @@ export const metaGet = async <T>(key: string): Promise<T | null> => {
 
 export const metaSet = <T>(key: string, value: T): Promise<IDBValidKey | null> =>
   idbPut(STORE_META, { key, value });
+
+/** An acknowledged action and its server-ID mapping must commit together. */
+export const completeQueueEntry = async (seq: number, localId: string, serverId?: number): Promise<boolean> => {
+  const db = await openDb();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction([STORE_QUEUE, STORE_META], 'readwrite', { durability: 'strict' });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = tx.onabort = () => resolve(false);
+      const meta = tx.objectStore(STORE_META);
+      const request = meta.get('localIdMap');
+      request.onsuccess = () => {
+        if (serverId !== undefined) {
+          const map = { ...(request.result?.value ?? {}), [localId]: serverId };
+          meta.put({ key: 'localIdMap', value: map });
+        }
+        tx.objectStore(STORE_QUEUE).delete(seq);
+      };
+    } catch { resolve(false); }
+  });
+};

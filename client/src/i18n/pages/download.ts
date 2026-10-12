@@ -1,9 +1,9 @@
 /** Desktop dasturni yuklab olish sahifasi */
 export default {
   uz: {
-    title: 'Desktop dastur',
+    title: 'Kompyuter va telefon uchun ilova',
     subtitle:
-      'Kassa kompyuteri uchun alohida dastur — o‘z oynasi, ish stolidagi yorlig‘i va internetsiz ishlash imkoni bilan.',
+      'Klubingiz bir hisobda: kompyuter, Android va iPhone. O‘rnatish, obuna va saqlash holatini shu yerda tekshiring.',
     metaTitle: 'Desktop dasturni yuklab olish — Billiard Club',
     metaDesc:
       'Billiard Club desktop dasturini Windows, macOS va Linux uchun yuklab oling. Avtomatik yangilanadi, internetsiz ishlaydi.',
@@ -42,7 +42,7 @@ export default {
     trustSigned:
       'Fayl aynan shu serverdan beriladi — boshqa saytdan yuklab olmang.',
     trustSmartScreen:
-      'Windows «noma’lum nashriyot» ogohlantirishini ko‘rsatsa: «Batafsil» → «Baribir ishga tushirish».',
+      'Windows nashriyotni tasdiqlay olmasa, o‘rnatishdan avval klub administratori bilan fayl manbasini tekshiring.',
     trustChecksum: 'SHA-512 nazorat summasi',
     copied: 'Nusxalandi',
 
@@ -52,7 +52,7 @@ export default {
     featureWindowDesc: 'Brauzer tabi emas — ish stolidan bir bosishda ochiladi.',
     featureOffline: 'Internetsiz ishlaydi',
     featureOfflineDesc:
-      'Aloqa uzilsa kassa to‘xtamaydi: taymer yuraveradi, amallar saqlanadi va aloqa tiklanishi bilan yuboriladi.',
+      'Amaldagi obuna va oflayn ruxsat bilan o‘yin hamda bar amallari saqlanadi. Hisob-kitob uchun internet kerak.',
     featureUpdates: 'O‘zi yangilanadi',
     featureUpdatesDesc: 'Yangi versiya chiqsa dastur uni o‘zi yuklab oladi va o‘rnatadi.',
     featureGuard: 'Tasodifiy yopilishdan himoya',
@@ -72,9 +72,9 @@ export default {
     openApp: 'Brauzerda ochish',
   },
   ru: {
-    title: 'Приложение для компьютера',
+    title: 'Приложение для компьютера и телефона',
     subtitle:
-      'Отдельная программа для кассового компьютера — своё окно, ярлык на рабочем столе и работа без интернета.',
+      'Ваш клуб в одном аккаунте: компьютер, Android и iPhone. Установка, подписка и состояние хранилища в одном месте.',
     metaTitle: 'Скачать приложение — Billiard Club',
     metaDesc:
       'Скачайте приложение Billiard Club для Windows, macOS и Linux. Обновляется автоматически, работает без интернета.',
@@ -109,7 +109,7 @@ export default {
     trustTitle: 'Перед загрузкой',
     trustSigned: 'Файл выдаётся именно этим сервером — не скачивайте с других сайтов.',
     trustSmartScreen:
-      'Если Windows покажет «неизвестный издатель»: «Подробнее» → «Выполнить в любом случае».',
+      'Если Windows не может подтвердить издателя, проверьте источник файла с администратором клуба перед установкой.',
     trustChecksum: 'Контрольная сумма SHA-512',
     copied: 'Скопировано',
 
@@ -118,7 +118,7 @@ export default {
     featureWindowDesc: 'Не вкладка браузера — открывается с рабочего стола одним кликом.',
     featureOffline: 'Работает без интернета',
     featureOfflineDesc:
-      'При обрыве связи касса не останавливается: таймер идёт, действия сохраняются и отправляются при восстановлении связи.',
+      'С активной подпиской и офлайн-разрешением действия с играми и баром сохраняются. Расчёты требуют интернета.',
     featureUpdates: 'Обновляется само',
     featureUpdatesDesc: 'Когда выходит новая версия, программа скачивает и устанавливает её сама.',
     featureGuard: 'Защита от случайного закрытия',

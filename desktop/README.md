@@ -129,3 +129,7 @@ node desktop/build/make-icons.mjs
 
 Bu buyruq veb tomondagi PWA ikonkalarini ham (`client/public/icon-*.png`,
 `apple-touch-icon.png`) yangilaydi.
+
+## 1.1 xavfsizlik va mobil ilova
+
+Desktop HTTPS/IPC/navigatsiya cheklovlari va Electron fuses bilan paketlanadi. Telefon uchun Android/iPhone PWA ham `/download` sahifasidan o‘rnatiladi. Oflayn ishlash 24 soatlik, foydalanuvchiga bog‘langan litsenziya bilan cheklangan; obuna oldin tugasa ruxsat ham tugaydi. Batafsil: [Desktop va mobile xavfsizligi](../docs/DESKTOP-MOBILE-SECURITY.md).

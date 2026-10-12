@@ -219,7 +219,28 @@ async function fetchWithTimeout(url, options, timeoutMs, signal) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, { redirect: 'manual', ...options, signal: controller.signal });
+    // fetch() resolves at headers. Keep the deadline and shutdown signal alive
+    // until the BODY finishes too, otherwise a half-open relay can stop all
+    // future polling forever. Bound memory for a faulty device/server response.
+    const chunks = [];
+    let length = 0;
+    if (response.body) {
+      const reader = response.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        length += value.length;
+        if (length > 2 * 1024 * 1024) {
+          await reader.cancel();
+          throw new Error('HTTP javobi juda katta');
+        }
+        chunks.push(Buffer.from(value));
+      }
+    }
+    return new Response([204, 205, 304].includes(response.status) ? null : Buffer.concat(chunks), {
+      status: response.status, statusText: response.statusText, headers: response.headers,
+    });
   } finally {
     clearTimeout(timer);
     if (signal) signal.removeEventListener('abort', onAbort);

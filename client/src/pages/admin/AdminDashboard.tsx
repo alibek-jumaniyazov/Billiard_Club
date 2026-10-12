@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card, Col, List, Row, Table, Tag, Typography, theme } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Button, Card, Col, List, Row, Table, Tag, theme } from 'antd';
 import {
   CheckCircleOutlined,
+  ArrowRightOutlined,
+  CreditCardOutlined,
   ClockCircleOutlined,
   DashboardOutlined,
   DollarOutlined,
@@ -32,8 +34,8 @@ import { EmptyState, PageHeader, PageTransition, StatCard } from '../../componen
 import { TOKENS } from '../../theme/tokens';
 import type { Contract, ContractType, PlatformOverview, PlatformStats } from '../../types';
 import { formatMoney, formatNumber } from '../../utils/format';
-
-const { Text } = Typography;
+import { clubDetailUrl, clubListUrl } from './adminWorkspace';
+import './admin-workspace.css';
 
 /** 'YYYY-MM' -> 'MM.YY' (grafik o'qi yorlig'i) */
 const monthLabel = (month: string): string => dayjs(`${month}-01`).format('MM.YY');
@@ -43,7 +45,9 @@ const monthLabel = (month: string): string => dayjs(`${month}-01`).format('MM.YY
  * o'sish/daromad grafiklari, sinov konversiyasi, tugayotgan obunalar.
  */
 const AdminDashboard = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const ru = i18n.language.startsWith('ru');
+  const copy = (uz: string, russian: string) => ru ? russian : uz;
   const { token } = theme.useToken();
   const navigate = useNavigate();
 
@@ -51,26 +55,27 @@ const AdminDashboard = () => {
   const [overview, setOverview] = useState<PlatformOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const requestId = useRef(0);
 
   const fetchAll = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
-    setError(null);
-    try {
-      const [statsRes, overviewRes] = await Promise.all([
-        platformApi.stats(),
-        adminApi.overview(),
-      ]);
-      setStats(statsRes.data);
-      setOverview(overviewRes.data);
-    } catch (err) {
-      setError(errorMessage(err, t('common.error')));
-    } finally {
-      setLoading(false);
-    }
+    const [statsRes, overviewRes] = await Promise.allSettled([platformApi.stats(), adminApi.overview()]);
+    if (id !== requestId.current) return;
+    const errors: string[] = [];
+    if (statsRes.status === 'fulfilled') setStats(statsRes.value.data);
+    else errors.push(`${t('admin.dash.title')}: ${errorMessage(statsRes.reason, t('common.error'))}`);
+    if (overviewRes.status === 'fulfilled') setOverview(overviewRes.value.data);
+    else errors.push(`${t('adminClubs.overviewTitle')}: ${errorMessage(overviewRes.reason, t('common.error'))}`);
+    setError(errors.length ? errors.join(' · ') : null);
+    if (!errors.length) setUpdatedAt(new Date().toISOString());
+    setLoading(false);
   }, [t]);
 
   useEffect(() => {
     void fetchAll();
+    return () => { requestId.current += 1; };
   }, [fetchAll]);
 
   const clubsByStatus = stats?.clubsByStatus ?? { trial: 0, active: 0, expired: 0, blocked: 0 };
@@ -92,7 +97,7 @@ const AdminDashboard = () => {
     {
       title: t('adminClubs.clubName'),
       key: 'club',
-      render: (_, c) => <Text strong>{c.club?.name ?? '—'}</Text>,
+      render: (_, c) => <Button type="link" style={{ padding: 0 }} onClick={() => navigate(clubDetailUrl(c.clubId, c.club?.name ?? '', 'contracts'))}>{c.club?.name ?? `#${c.clubId}`}</Button>,
     },
     {
       title: t('adminClubs.contractType'),
@@ -144,8 +149,9 @@ const AdminDashboard = () => {
           <Button
             icon={<ReloadOutlined />}
             aria-label={t('btn.refresh')}
+            loading={loading}
             onClick={() => void fetchAll()}
-          />
+          >{t('btn.refresh')}</Button>
         }
       />
 
@@ -154,6 +160,7 @@ const AdminDashboard = () => {
           type="error"
           showIcon
           message={error}
+          description={copy('Ko‘rsatilgan ma’lumotlar eskirgan bo‘lishi mumkin. Qayta yuklab ko‘ring.', 'Данные могут быть устаревшими. Попробуйте обновить.')}
           action={
             <Button size="small" onClick={() => void fetchAll()}>
               {t('admin.retry')}
@@ -163,13 +170,51 @@ const AdminDashboard = () => {
         />
       )}
 
+      <div className="admin-workspace" style={{ marginBottom: 20 }}>
+        <section className="admin-workspace__hero">
+          <div>
+            <span className="admin-workspace__eyebrow">Billiard Club / {copy('Platforma', 'Платформа')}</span>
+            <h2>{copy('Har bir klub — e’tiborda.', 'Каждый клуб — под контролем.')}</h2>
+            <p>{copy('Obunalar, mijozlar va to‘lovlar. Bugungi muhim ishlarni bir joydan boshqaring.', 'Подписки, клиенты и платежи. Управляйте важными задачами из одного места.')}</p>
+            <div className="admin-workspace__meta"><span><ClockCircleOutlined /> {loading ? copy('Yangilanmoqda…', 'Обновление…') : updatedAt ? `${copy('Yangilandi', 'Обновлено')} ${dayjs(updatedAt).format('HH:mm')}` : copy('Ma’lumot hali olinmadi', 'Данные ещё не получены')}</span></div>
+          </div>
+          <div className="admin-workspace__hero-actions">
+            <Button type="primary" size="large" icon={<ShopOutlined />} onClick={() => navigate('/admin/clubs')}>{copy('Klublar', 'Клубы')}</Button>
+            <Button size="large" icon={<CreditCardOutlined />} onClick={() => navigate('/admin/billing')}>{copy('To‘lovlar', 'Платежи')}</Button>
+          </div>
+        </section>
+        <div className="admin-workspace__tasks">
+          <button className="admin-workspace__task" onClick={() => document.getElementById('admin-renewals')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })}>
+            <span className="admin-workspace__task-heading">{copy('Yaqin 7 kunda', 'Ближайшие 7 дней')} <ClockCircleOutlined /></span>
+            <span className="admin-workspace__task-value">{overview ? formatNumber(overview.expiringSoon.length) : '—'}</span>
+            <p>{copy('Obunasi tugayotgan klublar', 'Клубы с истекающей подпиской')}</p>
+            <span className="admin-workspace__task-link">{copy('Uzaytirishlarni ko‘rish', 'Открыть продления')} <ArrowRightOutlined /></span>
+          </button>
+          <button className="admin-workspace__task" onClick={() => navigate(clubListUrl('', 'expired'))}>
+            <span className="admin-workspace__task-heading">{copy('Qayta bog‘lanish', 'Связаться с клиентами')} <WarningOutlined /></span>
+            <span className="admin-workspace__task-value">{overview ? formatNumber(overview.clubs.expired) : '—'}</span>
+            <p>{copy('Obunasi tugagan klublar', 'Клубы с завершённой подпиской')}</p>
+            <span className="admin-workspace__task-link">{copy('Klublarni ochish', 'Открыть клубы')} <ArrowRightOutlined /></span>
+          </button>
+          <button className="admin-workspace__task" onClick={() => navigate('/admin/billing')}>
+            <span className="admin-workspace__task-heading">{copy('To‘lov nazorati', 'Контроль платежей')} <CreditCardOutlined /></span>
+            <span className="admin-workspace__task-value"><FileTextOutlined /></span>
+            <p>{copy('Hisob-fakturalar, tariflar va kuponlar', 'Счета, тарифы и купоны')}</p>
+            <span className="admin-workspace__task-link">{copy('Hisob-fakturalarni tekshirish', 'Проверить счета')} <ArrowRightOutlined /></span>
+          </button>
+        </div>
+        <div className="admin-workspace__statuses" aria-label={t('adminClubs.statusFilter')}>
+          {(['trial', 'active', 'expired', 'blocked'] as const).map(status => <Button key={status} onClick={() => navigate(clubListUrl('', status))}>{t(`club.${status}`)} <strong>{stats ? formatNumber(clubsByStatus[status]) : '—'}</strong><ArrowRightOutlined /></Button>)}
+        </div>
+      </div>
+
       {/* Klublar holati */}
       <Row gutter={[16, 16]} style={{ marginBottom: TOKENS.spacing.md }}>
         <Col xs={12} sm={8} lg={4}>
           <StatCard
             loading={loading}
             label={t('admin.dash.totalClubs')}
-            value={formatNumber(totalClubs)}
+            value={stats ? formatNumber(totalClubs) : '—'}
             icon={<ShopOutlined />}
           />
         </Col>
@@ -177,7 +222,7 @@ const AdminDashboard = () => {
           <StatCard
             loading={loading}
             label={t('club.trial')}
-            value={formatNumber(clubsByStatus.trial)}
+            value={stats ? formatNumber(clubsByStatus.trial) : '—'}
             icon={<ExperimentOutlined />}
             accent={TOKENS.color.semantic.info}
           />
@@ -186,7 +231,7 @@ const AdminDashboard = () => {
           <StatCard
             loading={loading}
             label={t('club.active')}
-            value={formatNumber(clubsByStatus.active)}
+            value={stats ? formatNumber(clubsByStatus.active) : '—'}
             icon={<CheckCircleOutlined />}
             accent={TOKENS.color.semantic.success}
           />
@@ -195,7 +240,7 @@ const AdminDashboard = () => {
           <StatCard
             loading={loading}
             label={t('club.expired')}
-            value={formatNumber(clubsByStatus.expired)}
+            value={stats ? formatNumber(clubsByStatus.expired) : '—'}
             icon={<WarningOutlined />}
             accent={TOKENS.color.semantic.warning}
           />
@@ -204,7 +249,7 @@ const AdminDashboard = () => {
           <StatCard
             loading={loading}
             label={t('club.blocked')}
-            value={formatNumber(clubsByStatus.blocked)}
+            value={stats ? formatNumber(clubsByStatus.blocked) : '—'}
             icon={<StopOutlined />}
             accent={TOKENS.color.semantic.error}
           />
@@ -213,10 +258,10 @@ const AdminDashboard = () => {
           <StatCard
             loading={loading}
             label={t('admin.dash.conversion')}
-            value={`${stats?.conversion.ratePercent ?? 0}%`}
+            value={stats ? `${stats.conversion.ratePercent}%` : '—'}
             icon={<RiseOutlined />}
             accent={TOKENS.color.emerald.bright}
-            trendLabel={
+            hint={
               stats
                 ? t('admin.dash.conversionHint', {
                     converted: stats.conversion.convertedClubs,
@@ -224,7 +269,7 @@ const AdminDashboard = () => {
                   })
                 : undefined
             }
-            trend={stats ? stats.conversion.ratePercent : undefined}
+            meter={stats?.conversion.ratePercent}
           />
         </Col>
       </Row>
@@ -235,7 +280,7 @@ const AdminDashboard = () => {
           <StatCard
             loading={loading}
             label={t('adminClubs.incomeTotal')}
-            value={formatMoney(overview?.income.total ?? 0, t('common.sum'))}
+            value={overview ? formatMoney(overview.income.total, t('common.sum')) : '—'}
             icon={<DollarOutlined />}
           />
         </Col>
@@ -243,7 +288,7 @@ const AdminDashboard = () => {
           <StatCard
             loading={loading}
             label={t('adminClubs.incomeMonth')}
-            value={formatMoney(overview?.income.thisMonth ?? 0, t('common.sum'))}
+            value={overview ? formatMoney(overview.income.thisMonth, t('common.sum')) : '—'}
             icon={<DollarOutlined />}
             accent={TOKENS.color.emerald.bright}
           />
@@ -252,7 +297,7 @@ const AdminDashboard = () => {
           <StatCard
             loading={loading}
             label={t('admin.dash.activeSessions')}
-            value={formatNumber(stats?.sessions.activeNow ?? 0)}
+            value={stats ? formatNumber(stats.sessions.activeNow) : '—'}
             icon={<PlayCircleOutlined />}
             accent={TOKENS.color.neonGreen}
           />
@@ -261,7 +306,7 @@ const AdminDashboard = () => {
           <StatCard
             loading={loading}
             label={t('admin.dash.startedToday')}
-            value={formatNumber(stats?.sessions.startedToday ?? 0)}
+            value={stats ? formatNumber(stats.sessions.startedToday) : '—'}
             icon={<ClockCircleOutlined />}
             accent={TOKENS.color.semantic.info}
           />
@@ -272,7 +317,7 @@ const AdminDashboard = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: TOKENS.spacing.md }}>
         <Col xs={24} lg={12}>
           <Card title={t('admin.dash.revenueChart')} loading={loading}>
-            <ResponsiveContainer width="100%" height={260}>
+            {stats ? <ResponsiveContainer width="100%" height={260}>
               <BarChart data={revenueData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={token.colorSplit} vertical={false} />
                 <XAxis dataKey="label" {...chartAxisProps} />
@@ -294,12 +339,12 @@ const AdminDashboard = () => {
                   maxBarSize={32}
                 />
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer> : <EmptyState title={copy('Ma’lumot hali olinmadi', 'Данные ещё не получены')} />}
           </Card>
         </Col>
         <Col xs={24} lg={12}>
           <Card title={t('admin.dash.newClubsChart')} loading={loading}>
-            <ResponsiveContainer width="100%" height={260}>
+            {stats ? <ResponsiveContainer width="100%" height={260}>
               <BarChart data={newClubsData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={token.colorSplit} vertical={false} />
                 <XAxis dataKey="label" {...chartAxisProps} />
@@ -321,7 +366,7 @@ const AdminDashboard = () => {
                   maxBarSize={32}
                 />
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer> : <EmptyState title={copy('Ma’lumot hali olinmadi', 'Данные ещё не получены')} />}
           </Card>
         </Col>
       </Row>
@@ -330,6 +375,8 @@ const AdminDashboard = () => {
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={8}>
           <Card
+            id="admin-renewals"
+            style={{ scrollMarginTop: 90 }}
             title={
               <span>
                 <ClockCircleOutlined style={{ marginRight: 8 }} />
@@ -346,24 +393,25 @@ const AdminDashboard = () => {
                   emptyText: (
                     <EmptyState
                       icon={<CheckCircleOutlined />}
-                      title={t('adminClubs.expiringEmpty')}
+                      title={overview ? t('adminClubs.expiringEmpty') : copy('Ma’lumot hali olinmadi', 'Данные ещё не получены')}
                       style={{ padding: '24px 12px' }}
                     />
                   ),
                 }}
                 renderItem={(club) => (
                   <List.Item
-                    style={{ cursor: 'pointer', paddingInline: 0 }}
-                    onClick={() =>
-                      navigate(`/admin/clubs?search=${encodeURIComponent(club.name)}`)
-                    }
+                    style={{ paddingInline: 0, flexWrap: 'wrap', gap: 10 }}
                     extra={
                       <Tag color={(club.daysLeft ?? 99) <= 3 ? 'red' : 'orange'}>
                         {club.daysLeft} {t('adminClubs.daysLeft')}
                       </Tag>
                     }
                   >
-                    <Text>{club.name}</Text>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <Button type="link" style={{ padding: 0, whiteSpace: 'normal', textAlign: 'left', height: 'auto' }} onClick={() => navigate(clubDetailUrl(club.id, club.name))}>{club.name}</Button>
+                      <div style={{ fontSize: 12, color: token.colorTextSecondary }}>{club.effectiveEndsAt ? dayjs(club.effectiveEndsAt).format('DD.MM.YYYY') : '—'}</div>
+                      <Button size="small" icon={<FileTextOutlined />} style={{ marginTop: 8, minHeight: 36 }} onClick={() => navigate(clubDetailUrl(club.id, club.name, 'contracts'))}>{t('adminClubs.contractBtn')}</Button>
+                    </div>
                   </List.Item>
                 )}
               />
@@ -380,7 +428,7 @@ const AdminDashboard = () => {
             }
             loading={loading}
           >
-            <Table
+            <div className="admin-workspace__contracts-desktop"><Table
               rowKey="id"
               size="small"
               sticky
@@ -390,10 +438,16 @@ const AdminDashboard = () => {
               scroll={{ x: 640 }}
               locale={{
                 emptyText: (
-                  <EmptyState title={t('common.noData')} style={{ padding: '24px 12px' }} />
+                  <EmptyState title={overview ? t('common.noData') : copy('Ma’lumot hali olinmadi', 'Данные ещё не получены')} style={{ padding: '24px 12px' }} />
                 ),
               }}
-            />
+            /></div>
+            <div className="admin-workspace__contracts-mobile">
+              {!overview?.recentContracts.length ? <EmptyState title={overview ? t('common.noData') : copy('Ma’lumot hali olinmadi', 'Данные ещё не получены')} /> : overview.recentContracts.map(c => <article className="admin-workspace__contract" key={c.id}>
+                <div><Button type="link" style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => navigate(clubDetailUrl(c.clubId, c.club?.name ?? '', 'contracts'))}>{c.club?.name ?? `#${c.clubId}`}</Button><strong className="tabular-nums">{formatMoney(c.amount, t('common.sum'))}</strong></div>
+                <div><span>{contractTypeLabel(c.type)}</span><time>{dayjs(c.createdAt).format('DD.MM.YYYY HH:mm')}</time></div>
+              </article>)}
+            </div>
           </Card>
         </Col>
       </Row>

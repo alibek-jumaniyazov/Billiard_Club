@@ -32,6 +32,7 @@ let lastStatus = { state: 'idle' };
 let updater = null;
 let getWindow = () => null;
 let timer = null;
+let firstTimer = null;
 
 const send = (status) => {
   lastStatus = status;
@@ -73,18 +74,19 @@ const check = (manual) => {
  * @param {() => boolean} options.allowRestart  Hozir qayta ishga tushsa bo'ladimi
  *   (yuborilmagan oflayn amallar bo'lsa main.js `false` qaytaradi)
  */
-const initUpdater = ({ feedBase, getWindow: resolveWindow, allowRestart }) => {
+const initUpdater = ({ feedBase, getWindow: resolveWindow, allowRestart, isTrusted }) => {
   getWindow = resolveWindow;
 
   /* --- Renderer bilan aloqa: bular HAR DOIM ro'yxatdan o'tadi --- */
 
   // Holatni so'rash. `handle` (invoke) ishlatiladi — obuna bo'lgan komponent
   // joriy holatni DARHOL oladi va oradagi hodisani o'tkazib yubormaydi.
-  ipcMain.handle('billiardclub:update-status', () => lastStatus);
+  ipcMain.handle('billiardclub:update-status', (event) => isTrusted(event) ? lastStatus : null);
 
-  ipcMain.on('billiardclub:check-updates', () => check(true));
+  ipcMain.on('billiardclub:check-updates', (event) => { if (isTrusted(event)) check(true); });
 
-  ipcMain.on('billiardclub:quit-and-install', () => {
+  ipcMain.on('billiardclub:quit-and-install', (event) => {
+    if (!isTrusted(event)) return;
     if (!updater || lastStatus.state !== 'ready') return;
     // Yuborilmagan amal bo'lsa qayta ishga tushirmaymiz: ular IndexedDB da
     // saqlangan va yo'qolmaydi, lekin foydalanuvchi buni ko'rmasdan
@@ -131,14 +133,16 @@ const initUpdater = ({ feedBase, getWindow: resolveWindow, allowRestart }) => {
     send({ state: 'error', message: String(err && err.message ? err.message : err) });
   });
 
-  setTimeout(() => check(false), FIRST_CHECK_DELAY_MS);
+  firstTimer = setTimeout(() => check(false), FIRST_CHECK_DELAY_MS);
   timer = setInterval(() => check(false), CHECK_INTERVAL_MS);
 };
 
 /** Dastur yopilayotganda taymerni to'xtatish */
 const stopUpdater = () => {
   if (timer) clearInterval(timer);
+  if (firstTimer) clearTimeout(firstTimer);
   timer = null;
+  firstTimer = null;
 };
 
-module.exports = { initUpdater, stopUpdater };
+module.exports = { initUpdater, stopUpdater, checkForUpdates: () => check(true) };

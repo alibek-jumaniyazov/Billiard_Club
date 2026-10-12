@@ -1,7 +1,25 @@
-# Billiard Club — Bridge agenti (chiroq boshqaruvi) — v2
+# Billiard Club — Bridge agenti (chiroq boshqaruvi) — v2.1
 
 Bu kichik dastur **klubning o'z tarmog'ida** ishlaydi va bulutdagi server (`billiardclub.uz`) bilan
 lokal relelar (Shelly, Tasmota, ESPHome, MQTT, Modbus, USB rele) o'rtasida ko'prik vazifasini bajaradi.
+
+## v2.1 — ishonchli natija va tiklanish
+
+Server bilan birga **klub kompyuteridagi agentni ham yangilang**. Sayt deployi lokal agentni avtomatik yangilamaydi. `.env` fayli va amaldagi bridge tokenini saqlang; agent fayllarini yangilab xizmatni qayta ishga tushiring. Paneldagi agent versiyasi `2.1.0` bo'lishi kerak.
+
+- HTTP 200 yoki MQTT jo'natishning o'zi chiroq yonganini bildirmaydi. `actual` faqat qurilmadan o'qilgan holat; o'qish o'chirilgan yoki drayver qo'llamasa holat **tasdiqlanmagan** bo'ladi.
+- Tekshirish yoqilgan o'qiladigan releda javob yo'q/mos emas bo'lsa xato ko'rsatiladi. Buyruq uch martagacha qayta uriniladi; barcha qo'shimcha kanallar tekshiriladi.
+- IP, kanal yoki tekshirish sozlamasi o'zgarsa, kerakli ON/OFF holat avvalgidek bo'lsa ham yangi ulanish qo'llanadi. Bir xil holatdagi qayta sinov ham yangi buyruq hisoblanadi.
+- Yo'qolgan hisobot keyingi siklda qayta tekshiriladi. Eskirgan buyruq/ulanishga tegishli `commandRevision` yangi holat ustiga yozilmaydi. Eski agent bilan moslik saqlanadi, ammo to'liq revision himoyasi uchun v2.1 kerak.
+- Timeout javob sarlavhasidan keyin ham ishlaydi: tugallanmagan HTTP tanasi butun boshqaruv siklini to'xtatib qo'ymaydi. Bridge so'rovlari redirect'larni kuzatmaydi.
+
+`npm run check` va `npm test` sintaksis hamda lokal simulyatsiya tekshiruvlarini bajaradi. Testlar haqiqiy rele yoki ishlab turgan saytga ulanmaydi.
+
+**Amaliy tekshiruv:** avval bitta stolni ulang. Kanalni tanlab saqlang; yoqish va o'chirishni sinang, paneldagi yangi hisobot bilan lampaning o'zini solishtiring. So'ng sessiyani boshlash/pauza/davom ettirish/yakunlash va bridge xizmatini qayta ishga tushirishni tekshiring. Internet uzilganda yangi server amallari klub agentiga yetib bormaydi; agent oxirgi ma'lum holatni saqlaydi. Elektr ulanishini mos malakali mutaxassis bajaradi.
+
+Qurilma modeli, lokal IP, kanal va klub tarmog'ida ishlayotgan agent ma'lum bo'lmasdan haqiqiy lampani ulash yakunlangan deb hisoblamang. Qurilma chiqishining ON hisoboti lampaning fizik yonishini yoki kabel holatini o'lchamaydi.
+
+Protokol manbalari: [Shelly Switch.Set va Switch.GetStatus](https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Switch/), [Tasmota buyruqlari](https://tasmota.github.io/docs/Commands/).
 
 ## Nega kerak?
 

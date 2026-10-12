@@ -1,0 +1,43 @@
+.light-control-drawer .ant-drawer-body { padding: 20px; }
+.light-readiness { border: 1px solid var(--color-border, rgba(202,164,86,.24)); border-radius: 18px; padding: 22px; background: linear-gradient(125deg, rgba(202,164,86,.1), transparent 75%); }
+.light-readiness-heading { display:flex; align-items:center; justify-content:space-between; gap: 14px; }
+.light-eyebrow { font-size: 10px; letter-spacing: .16em; font-weight: 700; color: #b89551; }
+.light-readiness-heading h3.ant-typography { margin: 5px 0 8px; font-size: 25px; }
+.light-readiness-icon { font-size: 30px; color: #b89551; }
+.light-readiness .ant-typography-secondary { font-size: 13px; margin-bottom: 18px; }
+.light-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.light-metrics > div { min-width:0; display:flex; flex-direction:column; gap:4px; padding: 12px; border:1px solid rgba(128,128,128,.18); border-radius: 12px; }
+.light-metrics strong { font-size: 25px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.light-metrics small { font-size:13px; opacity:.5; font-weight:400; }
+.light-metrics span { font-size:11px; opacity:.7; overflow-wrap:anywhere; }
+.light-readiness .ant-collapse { margin-top:12px; }
+.light-readiness .ant-collapse-header { padding-left: 0 !important; }
+.light-setup-steps { display:flex; flex-direction:column; gap:16px; }
+.light-setup-steps > div { display:flex; align-items:flex-start; gap:8px; }
+.light-setup-steps p { font-size:12px; opacity:.7; line-height:1.6; margin:5px 0 0; }
+.light-setting-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
+.light-table-toolbar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.light-table-toolbar .ant-input-affix-wrapper { flex:1 1 200px; }
+.light-state-strip { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; font-size:12px; padding:10px 12px; margin-top:12px; border-radius:8px; background:rgba(128,128,128,.06); }
+.light-control-drawer .ant-radio-group { display:flex; flex-wrap:wrap; gap:5px; }
+.light-control-drawer .ant-radio-button-wrapper { border-radius:7px; border-inline-start:1px solid rgba(128,128,128,.2); }
+.light-control-drawer .ant-radio-button-wrapper::before { display:none; }
+.light-table-card .ant-alert-message, .light-table-card .ant-alert-description { overflow-wrap:anywhere; }
+.light-event-cards { display:flex; flex-direction:column; gap:8px; max-height:480px; overflow-y:auto; }
+.light-event-card { display:flex; flex-direction:column; gap:7px; border:1px solid rgba(128,128,128,.18); padding:12px; border-radius:10px; }
+.light-event-card > div { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+@media (max-width: 520px) {
+ .light-control-drawer .ant-drawer-body { padding:12px; }
+ .light-readiness { padding:16px; }
+ .light-readiness-heading h3.ant-typography { font-size:22px; }
+ .light-metrics { gap:6px; }
+ .light-metrics > div { padding:10px 8px; }
+ .light-metrics strong { font-size:23px; }
+ .light-setting-row { align-items:flex-start; flex-wrap:wrap; padding-top:12px; border-top:1px solid rgba(128,128,128,.12); }
+ .light-setting-row > div:first-child { flex:1 1 150px; }
+ .light-table-card label { max-width:100%; }
+ .light-card-actions .ant-btn { min-height:40px; }
+ .light-card-actions { row-gap:12px !important; }
+ .light-control-drawer .ant-select, .light-control-drawer .ant-input-number, .light-control-drawer .ant-input { max-width:100%; }
+ .light-control-drawer .ant-segmented-item-label { padding-inline:8px; font-size:12px; }
+}

@@ -30,7 +30,7 @@ interface DashboardState {
  * so'raydi (toast/spinner yo'q). Faqat birinchi yuklash skelet/xato
  * ko'rsatadi; keyingi xatolarda oxirgi muvaffaqiyatli holat qoladi.
  */
-export const useDashboardStats = () => {
+export const useDashboardStats = (scope?: number) => {
   const [state, setState] = useState<DashboardState>({
     stats: null,
     loading: true,
@@ -41,8 +41,10 @@ export const useDashboardStats = () => {
     clockOffset: 0,
   });
   const mountedRef = useRef(true);
+  const requestRef = useRef(0);
 
   const fetchStats = useCallback(async (manual = false) => {
+    const request = ++requestRef.current;
     if (manual && mountedRef.current) {
       setState((s) => ({ ...s, refreshing: true, refreshError: false }));
     }
@@ -58,7 +60,7 @@ export const useDashboardStats = () => {
           // Jim — karta "—" ko'rsatadi
         }
       }
-      if (mountedRef.current) {
+      if (mountedRef.current && request === requestRef.current) {
         setState({
           stats,
           loading: false,
@@ -70,16 +72,15 @@ export const useDashboardStats = () => {
         });
       }
     } catch {
-      if (mountedRef.current) {
+      if (mountedRef.current && request === requestRef.current) {
         setState((s) => ({
           ...s,
           loading: false,
           // Faqat hali hech narsa yuklanmagan bo'lsa xato paneli
           error: s.stats === null,
           refreshing: false,
-          // Qo'lda yangilash xatosi ko'rsatiladi; jim fon polli belgini
-          // o'zi yoqmaydi, lekin mavjudini ham o'chirmaydi
-          refreshError: s.stats === null ? false : manual || s.refreshError,
+          // A failed background refresh also means the displayed numbers are old.
+          refreshError: s.stats !== null,
         }));
       }
     }
@@ -90,6 +91,8 @@ export const useDashboardStats = () => {
   // qayta-qayta yuklamaydi. Tabga qaytilganda darhol jim yangilanadi.
   useEffect(() => {
     mountedRef.current = true;
+    setState({ stats: null, loading: true, error: false, refreshing: false,
+      refreshError: false, lastUpdatedAt: null, clockOffset: 0 });
     void fetchStats();
     const tick = () => {
       if (document.visibilityState !== 'visible') return;
@@ -100,12 +103,15 @@ export const useDashboardStats = () => {
       if (document.visibilityState === 'visible') void fetchStats();
     };
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
     return () => {
       mountedRef.current = false;
+      requestRef.current += 1;
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onVisible);
     };
-  }, [fetchStats]);
+  }, [fetchStats, scope]);
 
   const refresh = useCallback(() => void fetchStats(true), [fetchStats]);
 

@@ -4,13 +4,16 @@
   "description": "Billiard klublari uchun bulutli boshqaruv tizimi: stol taymerlari, bar POS, hisobotlar.",
   "lang": "uz",
   "dir": "ltr",
-  "start_url": "/",
+  "start_url": "/?source=installed",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0e1513",
   "theme_color": "#0e1513",
-  "categories": ["business", "productivity"],
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "/favicon.svg",
@@ -35,6 +38,29 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "id": "/",
+  "shortcuts": [
+    {
+      "name": "Stollar",
+      "url": "/tables",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Klub holati",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

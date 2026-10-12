@@ -2,18 +2,19 @@
   "name": "billiard-club",
   "private": true,
   "version": "1.0.0",
-  "description": "Billiard Club — billiard klublar uchun multi-tenant boshqaruv tizimi (SaaS)",
+  "description": "Billiard Club вЂ” billiard klublar uchun multi-tenant boshqaruv tizimi (SaaS)",
   "scripts": {
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "build": "npm --prefix server run build && npm --prefix client run build",
     "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck",
-    "test": "npm --prefix server run test && npm --prefix client run test",
+    "test": "npm --prefix server run test && npm --prefix client run test && npm --prefix bridge run test && npm --prefix desktop test",
     "test:integration": "npm --prefix server run test:integration",
     "migrate": "npm --prefix server run migration:run",
     "seed": "npm --prefix server run seed",
     "desktop": "npm --prefix desktop start",
     "desktop:dist": "npm --prefix desktop run dist:win",
-    "icons": "node desktop/build/make-icons.mjs"
+    "icons": "node desktop/build/make-icons.mjs",
+    "desktop:check": "npm --prefix desktop run check"
   }
 }

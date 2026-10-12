@@ -3,7 +3,8 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Club } from '../../entities/club.entity';
-import { ClubStatus } from '../../entities/enums';
+import { ClubStatus, UserRole } from '../../entities/enums';
+import { User } from '../../entities/user.entity';
 
 /**
  * OFLAYN OBUNA RUXSATNOMASI (litsenziya).
@@ -22,8 +23,7 @@ import { ClubStatus } from '../../entities/enums';
  *    kalit klientda bo'lardi va uni ochib olgan odam o'ziga xohlagan muddatli
  *    ruxsatnoma yozib olardi.
  *  - P-256 + SHA-256 — brauzer WebCrypto da o'n yildan beri qo'llab-quvvatlanadi
- *    (Ed25519 ancha yangi va eski Chromium'da yo'q; qobiq Electron 33 =
- *    Chromium 130 bilan ketadi).
+ *    (Ed25519 ancha yangi va eski Chromium'da yo'q; mavjud desktop va mobil brauzerlarda mavjud).
  *  - Imzo IEEE P1363 (r||s, 64 bayt) formatida — WebCrypto AYNAN shuni kutadi,
  *    Node ning standart DER formatini u qabul qilmaydi.
  *
@@ -37,7 +37,7 @@ import { ClubStatus } from '../../entities/enums';
  */
 
 /** Ruxsatnomaning yashash muddati — klient shundan keyin yangisini kutadi */
-const LICENSE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const LICENSE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export interface SignedLicense {
   /** base64url(JSON) — LicensePayload */
@@ -49,6 +49,9 @@ export interface SignedLicense {
 }
 
 interface LicensePayload {
+  version: 2;
+  userId: number;
+  role: UserRole;
   clubId: number;
   status: ClubStatus;
   /** Obuna tugash sanasi (ISO) yoki null — cheklovsiz */
@@ -80,18 +83,21 @@ export class LicenseService implements OnModuleInit {
    * Klub uchun ruxsatnoma. Klub yo'q bo'lsa (superadmin) — null:
    * superadmin obunaga bog'liq emas va oflayn blok unga tegishli emas.
    */
-  issue(club: Club | null): SignedLicense | null {
-    if (!club || !this.privateKey) return null;
+  issue(club: Club | null, user: Pick<User, 'id' | 'role' | 'clubId'>): SignedLicense | null {
+    if (!club || !this.privateKey || user.clubId !== club.id || user.role === UserRole.SUPERADMIN) return null;
 
     const now = Date.now();
     const payload: LicensePayload = {
+      version: 2,
+      userId: user.id,
+      role: user.role,
       clubId: club.id,
-      status: club.status,
-      // `effectiveEndsAt` — sinov va obuna muddatlaridan KEYINGISI
+      status: club.status === ClubStatus.BLOCKED ? ClubStatus.BLOCKED : club.isExpired ? ClubStatus.EXPIRED : club.status,
+      // `effectiveEndsAt` — to‘langan obuna bo‘lsa shu, aks holda sinov muddati
       // (club.entity.ts dagi getter). Klient boshqa hech narsani hisoblamaydi.
       endsAt: club.effectiveEndsAt ? new Date(club.effectiveEndsAt).toISOString() : null,
       issuedAt: new Date(now).toISOString(),
-      expiresAt: new Date(now + LICENSE_TTL_MS).toISOString(),
+      expiresAt: new Date(Math.min(now + LICENSE_TTL_MS, club.effectiveEndsAt?.getTime() ?? now + LICENSE_TTL_MS)).toISOString(),
     };
 
     const encoded = b64url(Buffer.from(JSON.stringify(payload), 'utf8'));
@@ -154,8 +160,8 @@ export class LicenseService implements OnModuleInit {
       this.logger.log(`Litsenziya kaliti yaratildi: ${file}`);
     } catch (err) {
       // Kalit bo'lmasa ruxsatnoma berilmaydi. Bu FALOKAT EMAS: onlayn ishlash
-      // avvalgidek davom etadi (server tekshiruvi o'z joyida), faqat oflayn
-      // muddat nazorati o'chadi. Shuning uchun error darajasida log.
+      // avvalgidek davom etadi (server tekshiruvi o'z joyida), oflayn kirish
+      // tasdiqlanmagani uchun yopiladi. Shuning uchun error darajasida log.
       this.logger.error(`Litsenziya kalitini tayyorlab bo'lmadi: ${(err as Error).message}`);
       this.privateKey = null;
     }

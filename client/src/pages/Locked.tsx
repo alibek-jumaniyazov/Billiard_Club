@@ -38,8 +38,8 @@ const PAGE_BG = [
  * tomonidan tasdiqlangach "Tekshirish" tugmasi darhol ochib yuboradi.
  */
 const Locked = () => {
-  const { t } = useTranslation();
-  const { user, club, loading, refreshMe, logout } = useAuth();
+  const { t, i18n } = useTranslation();
+  const { user, club, loading, refreshMe, logout, subscriptionLocked, offlineLicense, offlineAccess } = useAuth();
   const { message } = App.useApp();
   const navigate = useNavigate();
 
@@ -49,11 +49,11 @@ const Locked = () => {
   const [plansError, setPlansError] = useState(false);
 
   const isAdmin = user?.role === 'admin';
-  const isBlocked = club?.status === 'blocked';
-  const isLocked =
-    !!club && (club.status === 'blocked' || club.status === 'expired' || club.isExpired);
+  const isBlocked = club?.status === 'blocked' || offlineLicense?.reason === 'blocked';
+  const isLocked = subscriptionLocked || (user?.role === 'superadmin' && offlineAccess);
+  const needsVerification = isLocked && !isBlocked && club?.status !== 'expired' && !club?.isExpired && offlineLicense?.reason !== 'expired';
   // Faqat admin va bloklanmagan klub uchun xarid oqimi ko'rsatiladi
-  const canPurchase = isAdmin && !isBlocked;
+  const canPurchase = isAdmin && !isBlocked && !needsVerification;
 
   useDocumentHead('locked.docTitle');
 
@@ -98,12 +98,18 @@ const Locked = () => {
   }
 
   const wasTrial = !club?.subscriptionEndsAt;
-  const title = isBlocked
+  const title = needsVerification
+    ? (i18n.language === 'ru' ? 'Подтвердите доступ через интернет' : 'Internet orqali ruxsatni tekshiring')
+    : isBlocked
     ? t('locked.blockedTitle')
     : wasTrial
       ? t('locked.trialEnded')
       : t('locked.expiredTitle');
-  const desc = isBlocked
+  const desc = needsVerification
+    ? (i18n.language === 'ru'
+      ? 'Офлайн-разрешение не подтверждено, истекло или изменилось время устройства. Подключитесь к интернету и нажмите «Проверить». Новые операции приостановлены, сохранённая очередь остаётся на устройстве.'
+      : 'Oflayn ruxsat tasdiqlanmadi, eskirdi yoki qurilma vaqti o‘zgardi. Internetga ulaning va «Tekshirish»ni bosing. Yangi amallar to‘xtatilgan, saqlangan navbat qurilmada qoladi.')
+    : isBlocked
     ? t('locked.blockedDesc')
     : wasTrial
       ? t('locked.trialEndedDesc')
@@ -223,7 +229,7 @@ const Locked = () => {
                   <Text type="secondary" style={{ display: 'block', marginTop: 10 }}>
                     {desc}
                   </Text>
-                  {club?.effectiveEndsAt && !isBlocked && (
+                  {club?.effectiveEndsAt && !isBlocked && !needsVerification && (
                     <Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
                       {t('locked.endedAt')}:{' '}
                       <span className="tabular-nums" style={{ color: text.primary }}>

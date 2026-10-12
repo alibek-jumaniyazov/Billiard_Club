@@ -33,12 +33,15 @@ import {
 import dayjs, { Dayjs } from 'dayjs';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { customersApi, errorMessage, reservationsApi, tablesApi } from '../api';
 import { EmptyState, PageHeader, PageTransition, StatusTag } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { BilliardTable, Reservation, ReservationStatus } from '../types';
 import { isFormValidationError } from '../utils/formErrors';
+import { clubWallTimeToIso, inClubTime } from '../utils/club-time';
+import '../styles/operations.css';
 
 const { Text } = Typography;
 
@@ -95,13 +98,18 @@ const Reservations = () => {
   const { message } = App.useApp();
   const { hasRole } = useAuth();
   const reduceMotion = useReducedMotion();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dateParam = searchParams.get('date');
+  const focusedReservation = Number(searchParams.get('reservation')) || null;
+  const [timezone, setTimezone] = useState('Asia/Tashkent');
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
   /** Kun bo'yicha JAMI bronlar (serverning pagination.total i) */
   const [dayTotal, setDayTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [day, setDay] = useState<Dayjs>(() => dayjs());
+  const [day, setDay] = useState<Dayjs>(() => dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+    && dayjs(dateParam).format('YYYY-MM-DD') === dateParam ? dayjs(dateParam) : inClubTime(undefined, timezone));
   const [status, setStatus] = useState<ReservationStatus | null>(null);
   const [overlapAlert, setOverlapAlert] = useState<OverlapAlert | null>(null);
   /** Holat o'tishi ketayotgan bron IDsi (tugma loading holati uchun) */
@@ -144,6 +152,7 @@ const Reservations = () => {
         // aks holda band kunda bronlarning bir qismi ko'rinmay qolardi
         const first = await reservationsApi.list({ ...query, page: 1, limit: PAGE_LIMIT });
         if (isStale()) return;
+        if (first.timezone) setTimezone(first.timezone);
         const total = first.pagination?.total ?? first.data.length;
         const rows = [...first.data];
         const pages = Math.min(first.pagination?.pages ?? 1, MAX_PAGES);
@@ -169,15 +178,31 @@ const Reservations = () => {
   );
 
   useEffect(() => {
-    void fetchReservations({ day: dayjs(), status: null });
-  }, [fetchReservations]);
+    const selected = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+      && dayjs(dateParam).format('YYYY-MM-DD') === dateParam ? dayjs(dateParam) : inClubTime(undefined, timezone);
+    setDay(selected);
+    setStatus(null);
+    void fetchReservations({ day: selected, status: null });
+    return () => { requestIdRef.current += 1; };
+  }, [fetchReservations, dateParam, timezone]);
+
+  useEffect(() => {
+    if (loading || !focusedReservation) return;
+    const element = document.getElementById(`reservation-${focusedReservation}`);
+    element?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    element?.focus({ preventScroll: true });
+  }, [loading, focusedReservation, reservations]);
 
   const refresh = () => void fetchReservations({ day, status });
 
   const applyDay = (value: Dayjs | null) => {
-    const next = value ?? dayjs();
-    setDay(next);
-    void fetchReservations({ day: next, status });
+    const next = value ?? inClubTime(undefined, timezone);
+    setSearchParams((previous) => {
+      const params = new URLSearchParams(previous);
+      params.set('date', next.format('YYYY-MM-DD'));
+      params.delete('reservation');
+      return params;
+    }, { replace: true });
   };
 
   const applyStatus = (value: ReservationStatus | undefined) => {
@@ -220,8 +245,8 @@ const Reservations = () => {
   const openCreate = () => {
     form.resetFields();
     form.setFieldsValue({
-      startsAt: day.isSame(dayjs(), 'day')
-        ? dayjs().add(1, 'hour').startOf('hour')
+      startsAt: day.format('YYYY-MM-DD') === inClubTime(undefined, timezone).format('YYYY-MM-DD')
+        ? inClubTime(undefined, timezone).add(1, 'hour').startOf('hour')
         : day.hour(12).minute(0).second(0),
     });
     setCreateOpen(true);
@@ -275,7 +300,7 @@ const Reservations = () => {
         customerId: values.customerId,
         customerName: values.customerName || undefined,
         customerPhone: values.customerPhone || undefined,
-        startsAt: values.startsAt.toISOString(),
+        startsAt: clubWallTimeToIso(values.startsAt, timezone),
         durationMinutes: values.durationMinutes ?? undefined,
         notes: values.notes || undefined,
       });
@@ -289,10 +314,9 @@ const Reservations = () => {
       setCreateOpen(false);
       form.resetFields();
       // Yangi bron boshqa kunga tegishli bo'lsa — o'sha kunga o'tamiz
-      const createdDay = dayjs(res.data.startsAt);
-      if (!createdDay.isSame(day, 'day')) {
-        setDay(createdDay);
-        void fetchReservations({ day: createdDay, status });
+      const createdDay = inClubTime(res.data.startsAt, timezone);
+      if (createdDay.format('YYYY-MM-DD') !== day.format('YYYY-MM-DD')) {
+        applyDay(createdDay);
       } else {
         refresh();
       }
@@ -305,7 +329,7 @@ const Reservations = () => {
   };
 
   const timeChip = (reservation: Reservation) => {
-    const start = dayjs(reservation.startsAt);
+    const start = inClubTime(reservation.startsAt, timezone);
     const end = start.add(reservation.durationMinutes ?? DEFAULT_DURATION_MIN, 'minute');
     return (
       <Tag
@@ -418,8 +442,8 @@ const Reservations = () => {
                 <ul style={{ margin: '6px 0 0', paddingInlineStart: 18 }}>
                   {overlapAlert.overlaps.map((overlap) => (
                     <li key={overlap.id} className="tabular-nums" style={{ fontSize: 13 }}>
-                      {dayjs(overlap.startsAt).format('HH:mm')}–
-                      {dayjs(overlap.startsAt)
+                      {inClubTime(overlap.startsAt, timezone).format('HH:mm')}–
+                      {inClubTime(overlap.startsAt, timezone)
                         .add(overlap.durationMinutes ?? DEFAULT_DURATION_MIN, 'minute')
                         .format('HH:mm')}
                       {' — '}
@@ -468,7 +492,7 @@ const Reservations = () => {
           />
           <Button icon={<RightOutlined />} onClick={() => applyDay(day.add(1, 'day'))} aria-label={t('workspace.nextDay')} />
           </div>
-          <Button size="small" onClick={() => applyDay(dayjs())}>
+          <Button size="small" onClick={() => applyDay(inClubTime(undefined, timezone))}>
             {t('common.today')}
           </Button>
           <Select
@@ -483,6 +507,7 @@ const Reservations = () => {
             onChange={applyStatus}
           />
           <Text type="secondary" style={{ fontSize: 13, marginInlineStart: 'auto' }}>
+            <span style={{ marginInlineEnd: 12 }}>{timezone}</span>
             {t('reservations.totalForDay')}:{' '}
             <span className="tabular-nums">{dayTotal}</span>
           </Text>
@@ -539,7 +564,9 @@ const Reservations = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: TOKENS.spacing.sm }}>
                 {group.items.map((reservation) => (
                   <div
-                    className="reservation-item"
+                    id={`reservation-${reservation.id}`}
+                    tabIndex={reservation.id === focusedReservation ? -1 : undefined}
+                    className={`reservation-item${reservation.id === focusedReservation ? ' is-focused' : ''}`}
                     key={reservation.id}
                     style={{
                       display: 'flex',

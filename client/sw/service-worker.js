@@ -29,18 +29,9 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE_NAME);
-      // Bitta fayl tushmasa ham butun o'rnatish yiqilmasin: har birini
-      // alohida qo'shamiz (cache.addAll bitta 404 da hammasini bekor qiladi)
-      await Promise.all(
-        PRECACHE.map(async (url) => {
-          try {
-            const res = await fetch(url, { cache: 'reload', credentials: 'same-origin' });
-            if (res.ok) await cache.put(url, res);
-          } catch {
-            /* bu fayl offline'da mavjud bo'lmaydi — qolganlari ishlaydi */
-          }
-        }),
-      );
+      // Installation is atomic: a partially downloaded shell must never replace
+      // the last complete version (especially before an offline restart).
+      await cache.addAll(PRECACHE);
       // Yangi versiya darhol kutish holatiga o'tadi; almashtirish
       // foydalanuvchi tasdiqlagach (SKIP_WAITING) bo'ladi — kassir ish
       // o'rtasida kutilmaganda qayta yuklanib qolmaydi.
@@ -54,7 +45,7 @@ self.addEventListener('activate', (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key.startsWith('billiardclub-shell-') && key !== CACHE_NAME)
+          .filter((key) => key.startsWith('billiardclub-shell-') && key !== CACHE_NAME && key !== keys.filter((k) => k.startsWith('billiardclub-shell-') && k !== CACHE_NAME).at(-1))
           .map((key) => caches.delete(key)),
       );
       // Navigation preload — tarmoq bor paytda navigatsiyani tezlashtiradi
@@ -99,8 +90,10 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         try {
           const preload = await event.preloadResponse;
-          if (preload) return preload;
-          return await fetch(request);
+          if (preload?.ok) return preload;
+          const response = await fetch(request);
+          if (response.status >= 500) throw new Error('server unavailable');
+          return response;
         } catch {
           const cache = await caches.open(CACHE_NAME);
           const shell = await cache.match(APP_SHELL);
@@ -124,7 +117,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE_NAME);
-        const hit = await cache.match(request);
+        const hit = await cache.match(request) || await caches.match(request);
         if (hit) return hit;
         const res = await fetch(request);
         if (res.ok) cache.put(request, res.clone());

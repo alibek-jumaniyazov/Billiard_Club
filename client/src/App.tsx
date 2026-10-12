@@ -5,7 +5,6 @@ import AppLayout from './components/layout/AppLayout';
 import BrandLogo from './components/ui/BrandLogo';
 import { TOKENS } from './theme/tokens';
 import { viewingClub } from './api/client';
-import { isSubscriptionOver } from './offline/license';
 import { useAuth } from './context/AuthContext';
 import type { UserRole } from './types';
 import Login from './pages/Login';
@@ -86,7 +85,7 @@ const SUPERADMIN_VIEW_BLOCKED = ['/feedback', '/notifications', '/subscription']
  *  3) rol tekshiruvi (superadmin "klubni ko'rish" rejimida klub sahifalariga kira oladi)
  */
 const Protected = ({ roles, children }: { roles?: UserRole[]; children: ReactNode }) => {
-  const { user, club, loading, hasRole, offlineLicense } = useAuth();
+  const { user, loading, hasRole, subscriptionLocked, offlineAccess } = useAuth();
   const location = useLocation();
 
   if (loading) return <FullScreenSpin />;
@@ -104,14 +103,8 @@ const Protected = ({ roles, children }: { roles?: UserRole[]; children: ReactNod
    *     dagi keshni tahrirlab (2) ni chetlab o'tishga urinilsa, imzo mos
    *     kelmaydi va bu qatlam baribir bloklaydi.
    */
-  const clubLocked =
-    user.role !== 'superadmin' &&
-    club &&
-    (club.status === 'blocked' ||
-      club.status === 'expired' ||
-      isSubscriptionOver(club.effectiveEndsAt) ||
-      offlineLicense?.locked === true);
-  if (clubLocked) return <Navigate to="/locked" replace />;
+  if (subscriptionLocked) return <Navigate to="/locked" replace />;
+  if (user.role === 'superadmin' && offlineAccess) return <Navigate to="/locked" replace />;
 
   // Superadmin klub ichini ko'rayotganda klub sahifalari ochiq —
   // server 403 qaytaradigan sahifalar (blocklist) bundan mustasno

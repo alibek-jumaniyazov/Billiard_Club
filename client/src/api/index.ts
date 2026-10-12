@@ -595,6 +595,12 @@ export const isNetworkError = (err: unknown): boolean =>
 
 /** Server xatosidan foydalanuvchiga ko'rsatiladigan xabarni ajratib oladi */
 export const errorMessage = (err: unknown, fallback: string): string => {
+  if (err instanceof Error && ['OFFLINE_LICENSE_REQUIRED', 'OFFLINE_QUEUE_WRITE_FAILED'].includes(err.message)) {
+    const ru = localStorage.getItem('lang') === 'ru';
+    return err.message === 'OFFLINE_LICENSE_REQUIRED'
+      ? (ru ? 'Нужно подтвердить офлайн-доступ через интернет.' : 'Oflayn ruxsatni internet orqali tasdiqlash kerak.')
+      : (ru ? 'Операция не сохранена: хранилище устройства недоступно или заполнено.' : 'Amal saqlanmadi: qurilma xotirasi mavjud emas yoki to‘lgan.');
+  }
   if (typeof err === 'object' && err !== null && 'response' in err) {
     const res = (err as { response?: { data?: { message?: unknown } } }).response;
     // Faqat satr xabar ko'rsatiladi: blob/binar tana yoki obyekt kelsa

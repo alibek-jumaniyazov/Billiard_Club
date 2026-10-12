@@ -1,9 +1,9 @@
 {
   "name": "billiardclub-desktop",
   "productName": "Billiard Club",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "Billiard Club — klub boshqaruv tizimining desktop (Windows/macOS/Linux) qobig'i",
+  "description": "Billiard Club РІР‚вЂќ klub boshqaruv tizimining desktop (Windows/macOS/Linux) qobig'i",
   "main": "main.js",
   "author": "Billiard Club",
   "license": "UNLICENSED",
@@ -13,15 +13,16 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
-    "check": "node --check main.js && node --check preload.js && node --check offline.js && node --check updater.js"
+    "check": "node --check main.js && node --check preload.js && node --check offline.js && node --check updater.js && node --check security.js",
+    "test": "node --test test/*.test.cjs"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "electron-updater": "6.8.9"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
   },
   "build": {
     "appId": "uz.billiardclub.desktop",
@@ -31,7 +32,14 @@
       "output": "release",
       "buildResources": "build"
     },
-    "files": ["main.js", "preload.js", "offline.js", "updater.js", "build/icon.*"],
+    "files": [
+      "main.js",
+      "preload.js",
+      "offline.js",
+      "updater.js",
+      "build/icon.*",
+      "security.js"
+    ],
     "publish": [
       {
         "provider": "generic",
@@ -39,7 +47,14 @@
       }
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.ico"
     },
     "nsis": {
@@ -51,14 +66,28 @@
       "shortcutName": "Billiard Club"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "category": "public.app-category.business",
       "icon": "build/icon.icns"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "category": "Office",
       "icon": "build/icon.png"
+    },
+    "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "enableCookieEncryption": true,
+      "grantFileProtocolExtraPrivileges": false
     }
   }
 }

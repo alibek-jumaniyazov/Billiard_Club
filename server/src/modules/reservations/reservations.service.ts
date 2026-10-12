@@ -100,6 +100,7 @@ export class ReservationsService {
 
     return {
       data: rows,
+      timezone: tz,
       pagination: { total, page, limit, pages: Math.ceil(total / limit) },
     };
   }

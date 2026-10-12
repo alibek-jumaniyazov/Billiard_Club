@@ -74,14 +74,17 @@ describe('oflayn ruxsatnoma', () => {
     vi.useRealTimers();
   });
 
-  const licenseFor = (endsAt: string | null, status = 'active', clubId = 1) =>
-    signer.sign({
+  const licenseFor = (endsAt: string | null, status = 'active', clubId = 1) => {
+    const now = Date.now();
+    return signer.sign({
+      version: 2, userId: 11, role: 'admin',
       clubId,
       status,
       endsAt,
-      issuedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * HOUR).toISOString(),
+      issuedAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + 24 * HOUR).toISOString(),
     });
+  };
 
   it('haqiqiy, muddati kelmagan ruxsatnoma — ochiq', async () => {
     await mod.storeLicense(await licenseFor(new Date(Date.now() + 5 * HOUR).toISOString()));
@@ -123,8 +126,8 @@ describe('oflayn ruxsatnoma', () => {
 
     // Imzo mos kelmagani uchun tarkib O'QILMAYDI
     expect(await mod.readLicense()).toBeNull();
-    // Va bu holat "ochiq" emas, "noma'lum" — server yakuniy hakam bo'lib qoladi
-    expect(await mod.offlineVerdict(1)).toEqual({ locked: false, reason: 'unknown' });
+    // Imzosiz ma’lumot oflayn ishlashga huquq bermaydi.
+    expect(await mod.offlineVerdict(1)).toEqual({ locked: true, reason: 'unverified', endsAt: null });
   });
 
   it('BOSHQA kalit bilan imzolangan ruxsatnoma — rad etiladi', async () => {
@@ -142,11 +145,56 @@ describe('oflayn ruxsatnoma', () => {
 
   it('BOSHQA klubning ruxsatnomasi ishlatilmaydi', async () => {
     await mod.storeLicense(await licenseFor(new Date(Date.now() + 5 * HOUR).toISOString(), 'active', 7));
-    expect(await mod.offlineVerdict(1)).toEqual({ locked: false, reason: 'unknown' });
+    expect(await mod.offlineVerdict(1)).toEqual({ locked: true, reason: 'unverified', endsAt: null });
   });
 
-  it('ruxsatnoma yo‘q — bloklanmaydi (server hakam)', async () => {
-    expect(await mod.offlineVerdict(1)).toEqual({ locked: false, reason: 'unknown' });
+  it('ruxsatnoma yo‘q — oflayn kirish yopiq', async () => {
+    expect(await mod.offlineVerdict(1)).toEqual({ locked: true, reason: 'unverified', endsAt: null });
+  });
+
+  it('same club but another user cannot reuse an offline lease', async () => {
+    await mod.storeLicense(await licenseFor(null));
+    expect((await mod.offlineVerdict(1, 12)).locked).toBe(true);
+    expect((await mod.offlineVerdict(1, 11)).locked).toBe(false);
+    expect((await mod.offlineVerdict(null, 11)).locked).toBe(true);
+  });
+
+  it('24-hour lease expires even with an unlimited subscription', async () => {
+    await mod.storeLicense(await licenseFor(null));
+    mod.noteServerTime(Date.now() + 24 * HOUR + 1);
+    expect(await mod.offlineVerdict(1, 11)).toEqual({ locked: true, reason: 'leaseExpired', endsAt: null });
+  });
+
+  it('expired status cannot be reopened by a future subscription date', async () => {
+    await mod.storeLicense(await licenseFor(new Date(Date.now() + HOUR).toISOString(), 'expired'));
+    expect((await mod.offlineVerdict(1)).locked).toBe(true);
+  });
+
+  it.each([
+    { expiresAt: 'invalid' }, { issuedAt: 'invalid' }, { endsAt: 'invalid' },
+    { role: 'superadmin' }, { clubId: -1 }, { userId: 0 }, { version: 1 },
+    { expiresAt: new Date(Date.now() + 48 * HOUR).toISOString() },
+  ])('rejects signed but malformed claims: %j', async (override) => {
+    await mod.storeLicense(await signer.sign({ version: 2, userId: 11, role: 'admin', clubId: 1,
+      status: 'active', endsAt: null, issuedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + HOUR).toISOString(), ...override }));
+    expect(await mod.readLicense()).toBeNull();
+    expect((await mod.offlineVerdict(1)).locked).toBe(true);
+  });
+
+  it('wrong algorithm cannot be accepted as ES256', async () => {
+    const lease = await licenseFor(null);
+    await mod.storeLicense({ ...lease, alg: 'none' as 'ES256' });
+    expect(await mod.readLicense()).toBeNull();
+  });
+
+  it('restart with a rolled-back device clock requires a server check', async () => {
+    await mod.storeLicense(await licenseFor(null));
+    store.set('maxSeenTime', Date.now() + HOUR);
+    await mod.initClock();
+    expect((await mod.offlineVerdict(1)).reason).toBe('clock');
+    mod.noteServerTime(Date.now());
+    expect((await mod.offlineVerdict(1)).locked).toBe(false);
   });
 
   it('server null bersa — eski ruxsatnoma O‘CHIRILADI', async () => {
@@ -201,5 +249,15 @@ describe('monoton soat — orqaga surishga qarshi', () => {
     expect(mod.isSubscriptionOver(new Date(Date.now() + HOUR).toISOString())).toBe(false);
     expect(mod.isSubscriptionOver(new Date(Date.now() - HOUR).toISOString())).toBe(true);
     expect(mod.isSubscriptionOver(null)).toBe(false);
+  });
+
+  it('first server response corrects an incorrectly fast device clock', async () => {
+    const actual = Date.now();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(actual + 365 * 24 * HOUR);
+    mod.effectiveNow();
+    mod.noteServerTime(actual);
+    expect(mod.effectiveNow()).toBeLessThan(actual + 1000);
+    expect(mod.isSubscriptionOver(new Date(actual + 30_000).toISOString())).toBe(false);
   });
 });

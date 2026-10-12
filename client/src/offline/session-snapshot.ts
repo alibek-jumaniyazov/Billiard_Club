@@ -21,6 +21,7 @@
  */
 
 import type { ClubInfo, User } from '../types';
+import { effectiveNow, readLicense } from './license';
 
 const PREFIX = 'offlineSession:';
 
@@ -75,14 +76,14 @@ const OFFLINE_GRACE_MS = 24 * 60 * 60 * 1000;
 export const isTokenExpired = (token: string): boolean => {
   const payload = decodeJwt(token);
   if (!payload?.exp) return true;
-  return payload.exp * 1000 <= Date.now();
+  return payload.exp * 1000 <= effectiveNow();
 };
 
 /** Oflayn surat uchun yaroqlimi — muddat + muhlat */
 const isWithinOfflineGrace = (token: string): boolean => {
   const payload = decodeJwt(token);
   if (!payload?.exp) return false;
-  return payload.exp * 1000 + OFFLINE_GRACE_MS > Date.now();
+  return payload.exp * 1000 + OFFLINE_GRACE_MS > effectiveNow();
 };
 
 const keyFor = (token: string): string | null => {
@@ -100,7 +101,7 @@ export const saveSessionSnapshot = (
   const key = keyFor(token);
   if (!key) return;
   try {
-    localStorage.setItem(key, JSON.stringify({ user, club, at: Date.now() } satisfies Snapshot));
+    localStorage.setItem(key, JSON.stringify({ user, club, at: effectiveNow() } satisfies Snapshot));
   } catch {
     // Kvota to'lgan — oflayn suratsiz ishlayveramiz
   }
@@ -110,9 +111,9 @@ export const saveSessionSnapshot = (
  * Oflayn tiklash. Token yo'q, muhlat ham o'tib ketgan yoki surat topilmasa — null.
  * Klubning muddati suratdagi sanadan HOZIRGI vaqtga qarab qayta baholanadi.
  */
-export const loadSessionSnapshot = (
+export const loadSessionSnapshot = async (
   token: string | null,
-): { user: User; club: ClubInfo | null } | null => {
+): Promise<{ user: User; club: ClubInfo | null } | null> => {
   if (!token || !isWithinOfflineGrace(token)) return null;
   const key = keyFor(token);
   if (!key) return null;
@@ -120,13 +121,18 @@ export const loadSessionSnapshot = (
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const snap = JSON.parse(raw) as Snapshot;
-    if (!snap?.user) return null;
+    if (!snap?.user || snap.user.role === 'superadmin') return null;
+    const lease = await readLicense();
+    // Snapshot fields and decoded JWT are not a source of authority.
+    if (!lease || lease.userId !== snap.user.id || lease.role !== snap.user.role ||
+        lease.clubId !== snap.user.clubId || lease.clubId !== snap.club?.id ||
+        String(decodeJwt(token)?.sub) !== String(lease.userId)) return null;
 
-    let club = snap.club;
+    let club = snap.club ? { ...snap.club, status: lease.status, effectiveEndsAt: lease.endsAt, isExpired: lease.status === 'expired' } : null;
     if (club) {
       // Muddat oflayn ham HOZIRGI vaqt bo'yicha tekshiriladi
       const endsAt = club.effectiveEndsAt ? Date.parse(club.effectiveEndsAt) : NaN;
-      const expired = !Number.isNaN(endsAt) && endsAt <= Date.now();
+      const expired = !Number.isNaN(endsAt) && endsAt <= effectiveNow();
       club = { ...club, isExpired: club.isExpired || expired };
     }
     return { user: snap.user, club };

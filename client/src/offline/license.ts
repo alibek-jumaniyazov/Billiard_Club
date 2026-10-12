@@ -1,145 +1,117 @@
-/**
- * OFLAYN OBUNA NAZORATI — imzolangan ruxsatnoma + monoton soat.
- *
- * MUAMMO. Obuna serverda tekshiriladi. Internet uzilganda server umuman
- * so'ralmaydi va klient keshdagi `club.isExpired` ni ko'radi — u esa
- * KESHLASH PAYTIDAGI qiymat. Muddati bugun tugaydigan klub internetni uzib
- * qo'yib cheksiz ishlashda davom eta olardi.
- *
- * YECHIM — uch qatlam:
- *
- *  1. IMZO. Server ECDSA P-256 (ES256) bilan imzolangan ruxsatnoma beradi.
- *     Klientda faqat OCHIQ kalit bor: u tekshira oladi, lekin o'ziga yangi
- *     muddat yozib OLA OLMAYDI. IndexedDB dagi qiymatni DevTools bilan
- *     o'zgartirish endi ish bermaydi — imzo mos kelmaydi va ruxsatnoma
- *     butunlay rad etiladi.
- *
- *  2. MONOTON SOAT. Kompyuter soatini orqaga surish ham yordam bermaydi:
- *     "hozir" qiymati `performance.now()` (soat o'zgarishidan mustaqil,
- *     faqat oldinga yuradi) bilan surib boriladi va eng katta ko'rilgan
- *     vaqt diskda saqlanadi. Soatni orqaga surish vaqtni TO'XTATMAYDI.
- *
- *  3. SERVER — YAKUNIY HAKAM. Oflaynda yozilgan amallar aloqa tiklanganda
- *     yuboriladi va muddati tugagan klub uchun server ularni RAD ETADI.
- *     Ya'ni birinchi ikki qatlamni chetlab o'tgan taqdirda ham "oflaynda
- *     ishlab olingan" pul haqiqiy yozuvga aylanmaydi.
- *
- * REJIM QAT'IY: muddat tugadi = darhol blok, hech qanday qo'shimcha muhlat yo'q.
- */
-
+/** Signed, user-bound offline leases. Unverifiable state never grants offline access. */
 import { metaGet, metaSet } from './db';
 
 const KEY_LICENSE = 'license';
 const KEY_PUBKEY = 'licensePublicKey';
 const KEY_MAX_TIME = 'maxSeenTime';
+const KEY_CLOCK_INVALID = 'clockNeedsSync';
+const KEY_CLOCK_OFFSET = 'serverClockOffset';
+const CLOCK_TOLERANCE_MS = 60_000;
+export const MAX_OFFLINE_MS = 24 * 60 * 60 * 1000;
 
-/** Monoton vaqt diskka shu oraliqda yoziladi */
-const PERSIST_INTERVAL_MS = 30_000;
-
-export interface SignedLicense {
-  payload: string;
-  signature: string;
-  alg: 'ES256';
-}
-
+export interface SignedLicense { payload: string; signature: string; alg: 'ES256' }
 export interface LicensePayload {
+  version: 2;
+  userId: number;
+  role: 'admin' | 'kassir' | 'operator';
   clubId: number;
   status: 'trial' | 'active' | 'expired' | 'blocked';
   endsAt: string | null;
   issuedAt: string;
   expiresAt: string;
 }
-
 export type LicenseVerdict =
   | { locked: false; reason: 'ok' }
-  /** Ruxsatnoma yo'q yoki tekshirib bo'lmadi — bloklamaymiz, sababi pastda */
-  | { locked: false; reason: 'unknown' }
-  | { locked: true; reason: 'expired' | 'blocked'; endsAt: string | null };
+  | { locked: true; reason: 'expired' | 'blocked' | 'unverified' | 'leaseExpired' | 'clock'; endsAt: string | null };
 
-/* ------------------------------------------------------- Monoton vaqt */
+const validPayload = (value: unknown): value is LicensePayload => {
+  if (!value || typeof value !== 'object') return false;
+  const p = value as LicensePayload;
+  return p.version === 2 && Number.isSafeInteger(p.clubId) && p.clubId > 0 &&
+    Number.isSafeInteger(p.userId) && p.userId > 0 &&
+    ['admin', 'kassir', 'operator'].includes(p.role) &&
+    ['trial', 'active', 'expired', 'blocked'].includes(p.status) &&
+    (p.endsAt === null || (typeof p.endsAt === 'string' && Number.isFinite(Date.parse(p.endsAt)))) &&
+    typeof p.issuedAt === 'string' && Number.isFinite(Date.parse(p.issuedAt)) &&
+    typeof p.expiresAt === 'string' && Number.isFinite(Date.parse(p.expiresAt)) &&
+    Date.parse(p.expiresAt) <= Date.parse(p.issuedAt) + MAX_OFFLINE_MS;
+};
 
-/**
- * Eng katta ko'rilgan vaqt (ms). Diskdan o'qiladi va faqat OSHADI.
- *
- * Nega kerak: `Date.now()` foydalanuvchi nazoratida. Uni orqaga surish
- * muddati tugagan obunani "hali tugamagan" qilib ko'rsatardi.
- */
 let maxSeenMs = 0;
+let anchorMs = Date.now();
+let anchorPerf = performance.now();
+let lastWall = Date.now();
+let lastPerf = performance.now();
+let clockInvalid = false;
+let clockInit: Promise<void> | null = null;
+let serverRevision = 0;
+let serverOffsetMs = 0;
 
-/** Shu sessiya boshlangandagi langar — `performance.now()` soatdan mustaqil */
-let anchorPerf = 0;
-let anchorMs = 0;
-let persistTimer: ReturnType<typeof setInterval> | null = null;
-
-/**
- * "Hozir" — uchta manbaning ENG KATTASI:
- *   - tizim soati (odatdagi holat)
- *   - sessiya langari + monoton o'tgan vaqt (soat o'zgarsa ham to'g'ri yuradi)
- *   - diskdagi eng katta ko'rilgan vaqt (brauzer yopilib ochilsa ham saqlanadi)
- */
 export const effectiveNow = (): number => {
-  const bySession = anchorMs + (performance.now() - anchorPerf);
-  return Math.max(Date.now(), bySession, maxSeenMs);
+  const wall = Date.now();
+  const perf = performance.now();
+  // Detect rollback during a session too; a frozen clock cannot pause the lease.
+  if (wall < lastWall - CLOCK_TOLERANCE_MS ||
+      wall - lastWall < perf - lastPerf - CLOCK_TOLERANCE_MS) {
+    clockInvalid = true;
+    void metaSet(KEY_CLOCK_INVALID, true);
+  }
+  lastWall = wall;
+  lastPerf = perf;
+  maxSeenMs = Math.max(maxSeenMs, wall + serverOffsetMs, anchorMs + (perf - anchorPerf));
+  return maxSeenMs;
 };
 
-const persistMaxSeen = (): void => {
-  const now = effectiveNow();
-  if (now <= maxSeenMs) return;
-  maxSeenMs = now;
-  void metaSet(KEY_MAX_TIME, maxSeenMs);
+const persistClock = (): void => { void metaSet(KEY_MAX_TIME, effectiveNow()); };
+
+export const initClock = (): Promise<void> => {
+  clockInit ??= (async () => {
+    const revision = serverRevision;
+    const saved = await metaGet<number>(KEY_MAX_TIME);
+    const invalid = await metaGet<boolean>(KEY_CLOCK_INVALID);
+    const offset = await metaGet<number>(KEY_CLOCK_OFFSET);
+    // An HTTP response may already have established authoritative time.
+    if (revision === serverRevision) {
+      serverOffsetMs = Number.isFinite(offset) ? offset! : 0;
+      clockInvalid = invalid === true || (saved != null && (!Number.isFinite(saved) || Date.now() + serverOffsetMs < saved - CLOCK_TOLERANCE_MS));
+      maxSeenMs = Math.max(maxSeenMs, Number.isFinite(saved) ? saved! : 0);
+      anchorMs = Math.max(Date.now() + serverOffsetMs, maxSeenMs);
+      anchorPerf = performance.now();
+    }
+    if (typeof window !== 'undefined') {
+      setInterval(persistClock, 10_000);
+      window.addEventListener('pagehide', persistClock);
+      document.addEventListener('visibilitychange', persistClock);
+    }
+  })();
+  return clockInit;
 };
 
-/**
- * Vaqt langarini ishga tushirish. Ilova yuklanganda bir marta chaqiriladi.
- *
- * Diskdagi qiymat kelajakda bo'lsa ham hurmat qilinadi — bu ATAYLAB:
- * u faqat SERVER vaqtidan yoki o'tgan monoton vaqtdan kelib chiqqan bo'lishi
- * mumkin, ya'ni undan orqaga qaytish har doim manipulyatsiya belgisi.
- */
-export const initClock = async (): Promise<void> => {
-  maxSeenMs = (await metaGet<number>(KEY_MAX_TIME)) ?? 0;
-  anchorMs = Math.max(Date.now(), maxSeenMs);
-  anchorPerf = performance.now();
-
-  if (persistTimer) clearInterval(persistTimer);
-  persistTimer = setInterval(persistMaxSeen, PERSIST_INTERVAL_MS);
-
-  // Sahifa yopilishidan oldin oxirgi holatni saqlab qolamiz: aks holda
-  // brauzer yopilganda oxirgi 30 soniya "yo'qolib", qayta ochilganda
-  // vaqt biroz orqaga sakrardi.
-  window.addEventListener('pagehide', persistMaxSeen);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') persistMaxSeen();
-  });
-};
-
-/** Serverdan kelgan vaqtni langarga qo'shish (u eng ishonchli manba) */
+/** Only a real HTTP response may reset an untrusted device clock. */
 export const noteServerTime = (iso: string | number | undefined | null): void => {
-  if (iso === undefined || iso === null) return;
+  if (iso == null) return;
   const ms = typeof iso === 'number' ? iso : Date.parse(iso);
-  if (!Number.isFinite(ms) || ms <= maxSeenMs) return;
-  maxSeenMs = ms;
-  anchorMs = Math.max(anchorMs, ms);
+  if (!Number.isFinite(ms) || ms <= 0) return;
+  serverRevision += 1;
+  // Preserve elapsed monotonic time when another same/older Date header arrives.
+  const current = anchorMs + (performance.now() - anchorPerf);
+  anchorMs = clockInvalid || serverRevision === 1 ? ms : Math.max(ms, Math.min(current, ms + CLOCK_TOLERANCE_MS));
   anchorPerf = performance.now();
+  maxSeenMs = anchorMs;
+  serverOffsetMs = anchorMs - Date.now();
+  lastWall = Date.now();
+  lastPerf = performance.now();
+  clockInvalid = false;
   void metaSet(KEY_MAX_TIME, maxSeenMs);
+  void metaSet(KEY_CLOCK_INVALID, false);
+  void metaSet(KEY_CLOCK_OFFSET, serverOffsetMs);
 };
 
-/**
- * Obuna muddati o'tganmi — SINXRON tekshiruv (marshrut himoyasi uchun).
- *
- * `effectiveNow()` ishlatiladi, ya'ni kompyuter soatini orqaga surish yordam
- * bermaydi. Bu tekshiruv imzolangan ruxsatnomadan MUSTAQIL: ruxsatnoma hali
- * hisoblanmagan (asinxron) bir necha millisekundlik oynada ham muddati
- * tugagan klub ilovaga kira olmasligi kerak.
- */
 export const isSubscriptionOver = (endsAt: string | null | undefined): boolean => {
   if (!endsAt) return false;
   const ms = Date.parse(endsAt);
-  if (!Number.isFinite(ms)) return false;
-  return effectiveNow() >= ms;
+  return !Number.isFinite(ms) || effectiveNow() >= ms;
 };
-
-/* --------------------------------------------------------- Ruxsatnoma */
 
 let cachedKey: CryptoKey | null = null;
 
@@ -208,7 +180,7 @@ export const clearLicense = async (): Promise<void> => {
  */
 export const readLicense = async (): Promise<LicensePayload | null> => {
   const license = await metaGet<SignedLicense | null>(KEY_LICENSE);
-  if (!license?.payload || !license.signature) return null;
+  if (license?.alg !== 'ES256' || typeof license.payload !== 'string' || typeof license.signature !== 'string' || license.payload.length > 4096) return null;
 
   if (!cachedKey) {
     const spki = await metaGet<string>(KEY_PUBKEY);
@@ -225,42 +197,35 @@ export const readLicense = async (): Promise<LicensePayload | null> => {
       new TextEncoder().encode(license.payload),
     );
     if (!ok) return null;
-    return JSON.parse(new TextDecoder().decode(bytesFromB64(license.payload))) as LicensePayload;
+    const payload: unknown = JSON.parse(new TextDecoder().decode(bytesFromB64(license.payload)));
+    return validPayload(payload) ? payload : null;
   } catch {
     return null;
   }
 };
 
-/**
- * Klub oflaynda ishlashga haqlimi.
- *
- * `unknown` — ruxsatnoma yo'q yoki tekshirib bo'lmadi. Bunda BLOKLANMAYDI:
- * yangi qurilmada ilova birinchi marta ochilganda yoki ochiq kalit hali
- * olinmaganda kassa noo'rin to'xtab qolmasligi kerak. Bu holatda ham xavf
- * yo'q — server yakuniy hakam bo'lib qolaveradi (navbatdagi amallar
- * muddati tugagan klub uchun rad etiladi).
- *
- * @param clubId joriy foydalanuvchining klubi — begona ruxsatnoma o'tmasin
- */
-export const offlineVerdict = async (clubId: number | null): Promise<LicenseVerdict> => {
-  const payload = await readLicense();
-  if (!payload) return { locked: false, reason: 'unknown' };
-
-  // Boshqa klubning ruxsatnomasi (bir kompyuterda ikki hisob ishlatilgan)
-  if (clubId !== null && payload.clubId !== clubId) return { locked: false, reason: 'unknown' };
-
-  if (payload.status === 'blocked') {
-    return { locked: true, reason: 'blocked', endsAt: payload.endsAt };
+/** The subscription deadline and the shorter refresh deadline are both mandatory. */
+export const offlineVerdict = async (clubId: number | null, userId?: number): Promise<LicenseVerdict> => {
+  const p = await readLicense();
+  if (!p || clubId === null || p.clubId !== clubId || (userId !== undefined && p.userId !== userId)) {
+    return { locked: true, reason: 'unverified', endsAt: null };
   }
-
-  if (!payload.endsAt) return { locked: false, reason: 'ok' };
-
-  const endsMs = Date.parse(payload.endsAt);
-  if (!Number.isFinite(endsMs)) return { locked: false, reason: 'unknown' };
-
-  // QAT'IY: muddat o'tdi = blok. Qo'shimcha muhlat yo'q.
-  if (effectiveNow() >= endsMs) {
-    return { locked: true, reason: 'expired', endsAt: payload.endsAt };
+  const now = effectiveNow();
+  if (p.status === 'blocked') return { locked: true, reason: 'blocked', endsAt: p.endsAt };
+  if (p.status === 'expired' || (p.endsAt && now >= Date.parse(p.endsAt))) {
+    return { locked: true, reason: 'expired', endsAt: p.endsAt };
   }
+  if (clockInvalid || now < Date.parse(p.issuedAt) - CLOCK_TOLERANCE_MS) {
+    return { locked: true, reason: 'clock', endsAt: p.endsAt };
+  }
+  if (now >= Date.parse(p.expiresAt)) return { locked: true, reason: 'leaseExpired', endsAt: p.endsAt };
   return { locked: false, reason: 'ok' };
+};
+
+/** Called at the storage boundary, including after a network request times out. */
+export const requireOfflineLease = async (scope: string): Promise<void> => {
+  const match = /^u([1-9][0-9]*)\|c([1-9][0-9]*)$/.exec(scope);
+  if (!match || (await offlineVerdict(Number(match[2]), Number(match[1]))).locked) {
+    throw new Error('OFFLINE_LICENSE_REQUIRED');
+  }
 };

@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { cacheGet, cachePut, isCacheable } from '../offline/cache';
-import { noteServerTime } from '../offline/license';
+import { cacheGet, cachePut, fullScope, isCacheable } from '../offline/cache';
+import { clearLicense, noteServerTime, requireOfflineLease } from '../offline/license';
 import { markOffline, markOnline } from '../offline/net-status';
 
 /**
@@ -237,6 +237,9 @@ client.interceptors.response.use(
       if (original && original.method?.toLowerCase() === 'get') {
         const url = original.url ?? '';
         if (isCacheable(url)) {
+          const scope = fullScope();
+          if (!scope) return Promise.reject(error);
+          try { await requireOfflineLease(scope); } catch { return Promise.reject(error); }
           const hit = await cacheGet(url, original.params as object | undefined);
           if (hit) return cachedResponse(original, hit.payload, hit.at);
         }
@@ -264,6 +267,7 @@ client.interceptors.response.use(
 
     // Obuna tugagan / klub bloklangan — blok ekraniga
     if (status === 403 && (code === 'SUBSCRIPTION_EXPIRED' || code === 'CLUB_BLOCKED')) {
+      await clearLicense();
       if (!window.location.pathname.startsWith('/locked')) {
         window.location.assign('/locked');
       }

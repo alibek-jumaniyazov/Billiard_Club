@@ -24,6 +24,7 @@ import { TOKENS } from '../../theme/tokens';
 import { formatClock, formatMoney } from '../../utils/format';
 import ActiveSessionsList from './ActiveSessionsList';
 import OnboardingChecklist from './OnboardingChecklist';
+import OperationsPanel from './OperationsPanel';
 import PeakHoursChart from './PeakHoursChart';
 import RecentPaymentsList from './RecentPaymentsList';
 import RevenueChart from './RevenueChart';
@@ -55,6 +56,7 @@ const itemVariants = {
  */
 const DashboardPage = () => {
   const { t } = useTranslation();
+  const { club } = useAuth();
   const {
     stats,
     loading,
@@ -65,14 +67,12 @@ const DashboardPage = () => {
     clockOffset,
     refresh,
     retry,
-  } = useDashboardStats();
+  } = useDashboardStats(club?.id);
   const reduceMotion = useReducedMotion();
 
   // Klub puli — belgi klub sozlamasidan (barcha bolalarga shu qiymat uzatiladi,
   // shunda bitta klubda ikki xil belgi ko'rinmaydi)
   const currency = useCurrency();
-  const { club } = useAuth();
-  const pausedCount = stats?.activeSessionsData?.filter((session) => session.status === 'paused').length ?? 0;
 
   // Bugungi tushum trendi — kechagi kunga nisbatan (last7Days dan)
   const todayTrend = useMemo(() => {
@@ -109,6 +109,7 @@ const DashboardPage = () => {
           )}
           <Button
             icon={<ReloadOutlined spin={refreshing} />}
+            disabled={loading || refreshing}
             onClick={refresh}
             aria-label={t('btn.refresh')}
           />
@@ -212,11 +213,7 @@ const DashboardPage = () => {
         </Col>
       </Row>
 
-      {pausedCount > 0 && (
-        <Alert type="warning" showIcon message={t('workspace.attentionHint', { count: pausedCount })}
-          action={<Link to="/tables?view=paused">{t('workspace.openTables')} <ArrowRightOutlined /></Link>}
-          style={{ marginBottom: 20 }} />
-      )}
+      <OperationsPanel stats={stats} clockOffset={clockOffset} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} lg={14}>

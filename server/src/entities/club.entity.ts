@@ -56,6 +56,6 @@ export class Club {
 
   get isExpired(): boolean {
     const end = this.effectiveEndsAt;
-    return !!end && new Date(end).getTime() < Date.now();
+    return this.status === ClubStatus.EXPIRED || (!!end && new Date(end).getTime() <= Date.now());
   }
 }

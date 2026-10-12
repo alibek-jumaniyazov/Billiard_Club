@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import '@fontsource-variable/inter'; // Inter Variable — o'z-o'zidan xosting (tokens.ts: FONT_FAMILY)
 import './i18n';
 import './index.css';
+import './offline/install';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import { TickerProvider } from './components/ui';

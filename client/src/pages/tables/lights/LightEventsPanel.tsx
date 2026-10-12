@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { App, Button, Table, Tag, Tooltip, Typography } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, App, Button, Grid, Segmented, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -25,31 +25,43 @@ export interface LightEventsPanelProps {
  * o'zgargani. Panel ochilganda BIR MARTA yuklanadi (Collapse ichida).
  */
 const LightEventsPanel = ({ tableId }: LightEventsPanelProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const ru = i18n.language.startsWith('ru');
+  const screens = Grid.useBreakpoint();
   const { message } = App.useApp();
 
   const [rows, setRows] = useState<LightEventView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failedOnly, setFailedOnly] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const request = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
+    const version = ++request.current;
     try {
       const res = await lightsApi.events({
         limit: EVENTS_LIMIT,
         ...(tableId !== undefined ? { tableId } : {}),
       });
+      if (version !== request.current) return;
       setRows(res.data);
+      setLoadError(false);
     } catch (err) {
+      if (version !== request.current) return;
+      setLoadError(true);
       message.error(errorMessage(err, t('common.error')));
     } finally {
-      setLoading(false);
+      if (version === request.current) setLoading(false);
     }
   }, [message, t, tableId]);
 
   useEffect(() => {
     void load();
+    return () => { request.current += 1; };
   }, [load]);
 
+  const visibleRows = rows.filter((row) => !failedOnly || !row.ok);
   const columns: ColumnsType<LightEventView> = [
     {
       title: t('tables.lightsEventTime'),
@@ -104,11 +116,12 @@ const LightEventsPanel = ({ tableId }: LightEventsPanelProps) => {
             {t('tables.lightsEventOk')}
           </Tag>
         ) : (
-          <Tooltip title={row.error ?? undefined}>
+          <div>
             <Tag color="error" style={{ marginInlineEnd: 0 }}>
               {t('tables.lightsEventFail')}
             </Tag>
-          </Tooltip>
+            {row.error && <Text type="danger" style={{ display: 'block', fontSize: 12, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{row.error}</Text>}
+          </div>
         ),
     },
     {
@@ -148,15 +161,30 @@ const LightEventsPanel = ({ tableId }: LightEventsPanelProps) => {
         </Tooltip>
       </div>
 
-      {!loading && rows.length === 0 ? (
+      <Segmented style={{ marginBottom: 12 }} value={failedOnly ? 'errors' : 'all'} onChange={(value) => setFailedOnly(value === 'errors')} options={[
+        { value: 'all', label: ru ? 'Все события' : 'Barcha hodisalar' },
+        { value: 'errors', label: ru ? 'Ошибки' : 'Xatolar' },
+      ]} />
+      {loadError && <Alert type="warning" showIcon message={ru ? 'Не удалось обновить журнал.' : 'Jurnalni yangilab bo‘lmadi.'} style={{ marginBottom: 12 }} />}
+
+      {!loading && visibleRows.length === 0 ? (
         <EmptyState title={t('tables.lightsEventsEmpty')} style={{ padding: '24px 12px' }} />
+      ) : !screens.sm ? (
+        <div className="light-event-cards" aria-busy={loading}>
+          {visibleRows.map((row) => <article key={row.id} className="light-event-card">
+            <div><Text strong>{row.tableNumber} · {row.tableName}</Text><Tag color={row.ok ? 'success' : 'error'}>{row.ok ? t('tables.lightsEventOk') : t('tables.lightsEventFail')}</Tag></div>
+            <Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(row.at)} · {EVENT_SOURCE_KEYS[row.source] ? t(EVENT_SOURCE_KEYS[row.source]) : row.source}</Text>
+            <div><Text>{row.isOn === null ? (ru ? 'Нет подтверждения' : 'Tasdiq yo‘q') : row.isOn ? t('tables.lightsStateOn') : t('tables.lightsStateOff')}</Text><Text type="secondary">{row.userName ?? '—'}</Text></div>
+            {row.error && <Text type="danger" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{row.error}</Text>}
+          </article>)}
+        </div>
       ) : (
         <Table<LightEventView>
           rowKey="id"
           size="small"
           loading={loading}
           columns={columns}
-          dataSource={rows}
+          dataSource={visibleRows}
           pagination={false}
           scroll={{ x: 720, y: 320 }}
         />

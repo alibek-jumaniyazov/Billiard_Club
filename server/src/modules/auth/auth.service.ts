@@ -361,7 +361,7 @@ export class AuthService {
     return {
       user: this.sanitize(user),
       club: this.clubInfo(club),
-      license: this.license.issue(club),
+      license: this.license.issue(club, user),
       ...tokens,
     };
   }
@@ -494,7 +494,7 @@ export class AuthService {
       return {
         user: this.sanitize(user),
         club: this.clubInfo(club),
-        license: this.license.issue(club),
+        license: this.license.issue(club, user),
         accessToken: result.accessToken,
         refreshToken: null as string | null,
       };
@@ -503,7 +503,7 @@ export class AuthService {
     return {
       user: this.sanitize(user),
       club: this.clubInfo(club),
-      license: this.license.issue(club),
+      license: this.license.issue(club, user),
       accessToken: result.tokens.accessToken,
       refreshToken: result.tokens.refreshToken as string | null,
     };
@@ -722,7 +722,7 @@ export class AuthService {
     // Ruxsatnoma AYNAN shu yerda ham beriladi: klient ilova ochilganda
     // /auth/me ni chaqiradi va oflayn nazorat uchun eng yangi muddatni
     // shundan oladi (login har kuni takrorlanmaydi).
-    return { user: this.sanitize(user), club: this.clubInfo(club), license: this.license.issue(club) };
+    return { user: this.sanitize(user), club: this.clubInfo(club), license: this.license.issue(club, user) };
   }
 
   /** Klientga kerakli klub obuna ma'lumotlari (blok ekrani uchun ham) */

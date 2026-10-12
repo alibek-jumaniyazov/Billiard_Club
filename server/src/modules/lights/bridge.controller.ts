@@ -139,7 +139,7 @@ export class BridgeController {
         // Majburiy qayta qo'llash oralig'i va holatni tekshirish — klub sozlamasidan
         forceSyncMs: state.settings.forceSyncSec * 1000,
         verify: state.settings.verify,
-        devices: state.devices,
+        devices: state.devices.map(({ reportVersion: _internal, ...device }) => device),
         // Vazifa BERILADI, lekin navbatdan O'CHIRILMAYDI: natija kelmaguncha
         // (yoki muddati o'tmaguncha) saqlanadi — javob yo'qolsa qayta beriladi
         tasks: await this.lightsService.takeTasks(clubId),
@@ -167,6 +167,7 @@ export class BridgeController {
       bridge.clubId,
       (dto.results ?? []).map((item) => ({
         tableId: item.tableId,
+        commandRevision: item.commandRevision,
         ok: item.ok,
         on: item.on ?? null,
         actual: item.actual ?? null,

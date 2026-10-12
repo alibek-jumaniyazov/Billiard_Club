@@ -5,6 +5,7 @@ import {
   Collapse,
   Input,
   InputNumber,
+  Popconfirm,
   Select,
   Space,
   Switch,
@@ -25,6 +26,8 @@ import {
   panelStyle,
   type TableDraft,
 } from './shared';
+import { hasLightChanges, lightDraftIssue, lightHealth } from './light-health';
+import { lightCopy } from './light-copy';
 
 const { Text } = Typography;
 
@@ -43,12 +46,12 @@ const Field = ({
   width?: number;
   children: ReactNode;
 }) => (
-  <div style={{ ...fieldStyle, flex: grow ? '1 1 180px' : `0 0 ${width ?? 120}px` }}>
+  <label style={{ ...fieldStyle, flex: grow ? '1 1 180px' : `0 1 ${width ?? 120}px` }}>
     <Text type="secondary" style={{ fontSize: 11.5 }}>
       {label}
     </Text>
     {children}
-  </div>
+  </label>
 );
 
 export interface TableLightCardProps {
@@ -56,6 +59,10 @@ export interface TableLightCardProps {
   draft: TableDraft;
   /** Klub rejimi — 'off' da sinov tugmalari o'chirilgan */
   mode: LightMode;
+  bridgeOnline: boolean;
+  forceSyncSec: number;
+  serverNow: number;
+  busy?: boolean;
   /** Sozlamalarni tahrirlash huquqi (admin/superadmin) */
   canEdit: boolean;
   /** Qidiruvdan qoralama yozilgan karta — foydalanuvchi diqqatini tortish uchun ajratiladi */
@@ -66,6 +73,7 @@ export interface TableLightCardProps {
   onPatch: (patch: Partial<TableDraft>) => void;
   onPatchConfig: (patch: Partial<LightDeviceConfig>) => void;
   onSave: () => void;
+  onReset: () => void;
   onTest: (on: boolean) => void;
   /** on=null — avtomatikaga qaytaradi */
   onOverride: (on: boolean | null) => void;
@@ -80,6 +88,10 @@ const TableLightCard = ({
   row,
   draft,
   mode,
+  bridgeOnline,
+  forceSyncSec,
+  serverNow,
+  busy = false,
   canEdit,
   highlight = false,
   saving,
@@ -88,20 +100,28 @@ const TableLightCard = ({
   onPatch,
   onPatchConfig,
   onSave,
+  onReset,
   onTest,
   onOverride,
 }: TableLightCardProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const copy = lightCopy(i18n.language.startsWith('ru'));
 
   const fields = driverFields(draft.driver);
   const configured = draft.driver !== 'none';
   const bridgeOnly = isBridgeOnly(draft.driver);
   /** 'direct' rejimda bridge-only drayver ishlamaydi — server ham rad etadi */
   const driverBlocked = bridgeOnly && mode === 'direct';
-  const testDisabled = !canEdit || !configured || mode === 'off' || driverBlocked;
-  const testHint = testDisabled ? t('tables.lightsTestDisabled') : t('tables.lightsTestHint');
+  const dirty = hasLightChanges(row, draft);
+  const issue = lightDraftIssue(draft);
+  const unavailable = mode === 'bridge' && !bridgeOnline;
+  const testDisabled = !canEdit || row.driver === 'none' || mode === 'off' || driverBlocked || unavailable || dirty || busy || !row.isActive;
+  const testHint = dirty ? copy.unsaved : testDisabled ? t('tables.lightsTestDisabled') : t('tables.lightsTestHint');
   /** Qo'lda yoqish/o'chirish kassir va operatorga ham ochiq (canEdit shart emas) */
-  const toggleDisabled = mode === 'off' || !configured;
+  const toggleDisabled = mode === 'off' || row.driver === 'none' || driverBlocked || unavailable || dirty || busy || !row.isActive;
+  const health = lightHealth(row, mode, bridgeOnline, forceSyncSec, serverNow);
+  const healthColor = health === 'confirmed' ? 'success' : health === 'error' ? 'error'
+    : ['unconfigured', 'disabled'].includes(health) ? 'default' : 'warning';
 
   /* Oxirgi ma'lum holat: yoniq — oltin, o'chiq — kulrang, xato — qizil */
   const stateColor = row.error
@@ -111,13 +131,11 @@ const TableLightCard = ({
       : row.state === false
         ? TOKENS.color.text.tertiary
         : TOKENS.color.text.disabled;
-  const stateLabel = row.error
-    ? t('tables.lightsStateError')
-    : row.state === true
+  const stateLabel = row.state === true
       ? t('tables.lightsStateOn')
       : row.state === false
         ? t('tables.lightsStateOff')
-        : t('tables.lightsStateUnknown');
+        : copy.unknown;
   const stateHint =
     row.error ??
     (row.syncedAt ? `${t('tables.lightsSyncedAt')}: ${formatDateTime(row.syncedAt)}` : undefined);
@@ -138,7 +156,7 @@ const TableLightCard = ({
         <Input
           value={draft.host}
           maxLength={120}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder={draft.driver === 'tcp' ? '192.168.1.60:8080' : '192.168.1.51'}
           onChange={(e) => onPatch({ host: e.target.value })}
         />
@@ -152,7 +170,7 @@ const TableLightCard = ({
           value={draft.channel}
           min={0}
           max={32}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           onChange={(value) => onPatch({ channel: value ?? 0 })}
           style={{ width: '100%' }}
         />
@@ -165,7 +183,7 @@ const TableLightCard = ({
         <Input
           value={draft.config.entityId ?? ''}
           maxLength={120}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="switch.stol_3"
           onChange={(e) => onPatchConfig({ entityId: e.target.value })}
         />
@@ -178,7 +196,7 @@ const TableLightCard = ({
         <Input
           value={draft.config.entity ?? ''}
           maxLength={60}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="relay_1"
           onChange={(e) => onPatchConfig({ entity: e.target.value })}
         />
@@ -191,7 +209,7 @@ const TableLightCard = ({
         <Input
           value={draft.config.topic ?? ''}
           maxLength={200}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="zigbee2mqtt/stol3/set"
           onChange={(e) => onPatchConfig({ topic: e.target.value })}
         />
@@ -200,7 +218,7 @@ const TableLightCard = ({
         <Input
           value={draft.config.onPayload ?? ''}
           maxLength={120}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="ON"
           onChange={(e) => onPatchConfig({ onPayload: e.target.value })}
         />
@@ -209,7 +227,7 @@ const TableLightCard = ({
         <Input
           value={draft.config.offPayload ?? ''}
           maxLength={120}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="OFF"
           onChange={(e) => onPatchConfig({ offPayload: e.target.value })}
         />
@@ -218,7 +236,7 @@ const TableLightCard = ({
         <Input
           value={draft.config.stateTopic ?? ''}
           maxLength={200}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="zigbee2mqtt/stol3"
           onChange={(e) => onPatchConfig({ stateTopic: e.target.value })}
         />
@@ -232,7 +250,7 @@ const TableLightCard = ({
           value={draft.config.unitId ?? null}
           min={0}
           max={247}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="1"
           onChange={(value) => onPatchConfig({ unitId: value ?? undefined })}
           style={{ width: '100%' }}
@@ -243,7 +261,7 @@ const TableLightCard = ({
           value={draft.config.coil ?? null}
           min={0}
           max={65535}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           onChange={(value) => onPatchConfig({ coil: value ?? undefined })}
           style={{ width: '100%' }}
         />
@@ -256,7 +274,7 @@ const TableLightCard = ({
         <Input
           value={draft.config.serialPort ?? ''}
           maxLength={60}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="COM3"
           onChange={(e) => onPatchConfig({ serialPort: e.target.value })}
         />
@@ -269,7 +287,7 @@ const TableLightCard = ({
         <Input
           value={draft.config.onHex ?? ''}
           maxLength={200}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="A0 01 01 A2"
           onChange={(e) => onPatchConfig({ onHex: e.target.value })}
         />
@@ -278,7 +296,7 @@ const TableLightCard = ({
         <Input
           value={draft.config.offHex ?? ''}
           maxLength={200}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           placeholder="A0 01 00 A1"
           onChange={(e) => onPatchConfig({ offHex: e.target.value })}
         />
@@ -294,7 +312,7 @@ const TableLightCard = ({
           <Input
             value={draft.channelsText}
             maxLength={40}
-            disabled={!canEdit}
+            disabled={!canEdit || busy}
             placeholder="1, 2"
             onChange={(e) => onPatch({ channelsText: e.target.value })}
           />
@@ -308,7 +326,7 @@ const TableLightCard = ({
               value={draft.auth}
               /* Server DTO va `tables."lightAuth"` ustuni — 200 belgi */
               maxLength={200}
-              disabled={!canEdit}
+              disabled={!canEdit || busy}
               autoComplete="new-password"
               placeholder={row.hasAuth ? '••••••••' : fields.authHa ? 'eyJhbGci…' : 'admin:parol'}
               onChange={(e) => onPatch({ auth: e.target.value })}
@@ -320,7 +338,7 @@ const TableLightCard = ({
       <Field label={t('tables.lightsVerify')} width={160}>
         <Select<'inherit' | 'on' | 'off'>
           value={verifyValue}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           onChange={(value) =>
             onPatchConfig({ verify: value === 'inherit' ? undefined : value === 'on' })
           }
@@ -339,7 +357,7 @@ const TableLightCard = ({
             <Input
               value={draft.config.stateOnValue ?? ''}
               maxLength={120}
-              disabled={!canEdit}
+              disabled={!canEdit || busy}
               placeholder="ON"
               onChange={(e) => onPatchConfig({ stateOnValue: e.target.value })}
             />
@@ -347,7 +365,7 @@ const TableLightCard = ({
           <Field label={t('tables.lightsQos')} width={90}>
             <Select<0 | 1>
               value={draft.config.qos === 1 ? 1 : 0}
-              disabled={!canEdit}
+              disabled={!canEdit || busy}
               onChange={(value) => onPatchConfig({ qos: value })}
               options={[
                 { value: 0, label: '0' },
@@ -359,7 +377,7 @@ const TableLightCard = ({
           <Field label={t('tables.lightsRetain')} width={90}>
             <Switch
               checked={draft.config.retain === true}
-              disabled={!canEdit}
+              disabled={!canEdit || busy}
               onChange={(checked) => onPatchConfig({ retain: checked })}
             />
           </Field>
@@ -372,7 +390,7 @@ const TableLightCard = ({
             <Input
               value={draft.config.onAscii ?? ''}
               maxLength={200}
-              disabled={!canEdit}
+              disabled={!canEdit || busy}
               placeholder="ON\r\n"
               onChange={(e) => onPatchConfig({ onAscii: e.target.value })}
             />
@@ -381,7 +399,7 @@ const TableLightCard = ({
             <Input
               value={draft.config.offAscii ?? ''}
               maxLength={200}
-              disabled={!canEdit}
+              disabled={!canEdit || busy}
               placeholder="OFF\r\n"
               onChange={(e) => onPatchConfig({ offAscii: e.target.value })}
             />
@@ -390,7 +408,7 @@ const TableLightCard = ({
             <Input
               value={draft.config.expectHex ?? ''}
               maxLength={200}
-              disabled={!canEdit}
+              disabled={!canEdit || busy}
               onChange={(e) => onPatchConfig({ expectHex: e.target.value })}
             />
           </Field>
@@ -403,7 +421,7 @@ const TableLightCard = ({
             value={draft.config.baudRate ?? null}
             min={300}
             max={921600}
-            disabled={!canEdit}
+            disabled={!canEdit || busy}
             placeholder="9600"
             onChange={(value) => onPatchConfig({ baudRate: value ?? undefined })}
             style={{ width: '100%' }}
@@ -415,7 +433,7 @@ const TableLightCard = ({
         <Switch
           size="small"
           checked={draft.inverted}
-          disabled={!canEdit}
+          disabled={!canEdit || busy}
           onChange={(checked) => onPatch({ inverted: checked })}
         />
         <Text style={{ fontSize: 12.5 }}>{t('tables.lightsInverted')}</Text>
@@ -425,6 +443,7 @@ const TableLightCard = ({
 
   return (
     <div
+      className="light-table-card"
       style={
         /* Ajratilgan karta — qidiruvdan qoralama tushgani ko'rinib tursin */
         highlight
@@ -437,7 +456,7 @@ const TableLightCard = ({
       }
     >
       {/* Sarlavha: raqam + nom + oxirgi holat */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div style={numberStyle} className="tabular-nums">
           {row.tableNumber}
         </div>
@@ -445,6 +464,7 @@ const TableLightCard = ({
           <Text strong ellipsis style={{ display: 'block' }}>
             {row.tableName}
           </Text>
+          <Tag color={healthColor} style={{ marginTop: 5, whiteSpace: 'normal' }}>{copy.health[health]}</Tag>
           <Tooltip title={stateHint}>
             <span
               style={{
@@ -456,7 +476,7 @@ const TableLightCard = ({
               }}
             >
               <BulbOutlined />
-              {stateLabel}
+              {copy.reported}: {stateLabel}
             </span>
           </Tooltip>
           {row.syncedAt && (
@@ -473,7 +493,7 @@ const TableLightCard = ({
           >
             <Tag
               color="gold"
-              closable
+              closable={!busy}
               style={{ marginInlineEnd: 0 }}
               onClose={(e) => {
                 e.preventDefault();
@@ -486,13 +506,23 @@ const TableLightCard = ({
         )}
       </div>
 
+      {row.driver !== 'none' && (
+        <div className="light-state-strip">
+          <span>{copy.desired}: <strong>{typeof row.desired === 'boolean' ? row.desired ? copy.on : copy.off : '—'}</strong></span>
+          <span>{row.overrideActive ? `${row.overrideOn ? copy.on : copy.off} → ${formatDateTime(row.overrideUntil)}` : copy.auto}</span>
+        </div>
+      )}
+      {row.error && <Alert type="error" showIcon style={{ marginTop: 10 }} message={row.error} description={copy.errorsHint} />}
+      {dirty && <Alert type="info" showIcon style={{ marginTop: 10 }} message={copy.unsaved} />}
+      {dirty && issue && <Alert type="warning" showIcon style={{ marginTop: 10 }} message={copy.issues[issue]} />}
+
       {/* Drayver + unga MOS maydonlar */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
         <Field label={t('tables.lightsDriverPreset')} width={186}>
           <Select<LightDriver>
             value={draft.driver}
             options={driverOptions}
-            disabled={!canEdit}
+            disabled={!canEdit || busy}
             onChange={(value) => onPatch({ driver: value })}
             style={{ width: '100%' }}
           />
@@ -505,7 +535,7 @@ const TableLightCard = ({
           <Input
             value={draft.onUrl}
             maxLength={500}
-            disabled={!canEdit}
+            disabled={!canEdit || busy}
             addonBefore={t('tables.lightsOnUrl')}
             placeholder="http://192.168.1.51/relay/{channel}?turn=on"
             onChange={(e) => onPatch({ onUrl: e.target.value })}
@@ -513,7 +543,7 @@ const TableLightCard = ({
           <Input
             value={draft.offUrl}
             maxLength={500}
-            disabled={!canEdit}
+            disabled={!canEdit || busy}
             addonBefore={t('tables.lightsOffUrl')}
             placeholder="http://192.168.1.51/relay/{channel}?turn=off"
             onChange={(e) => onPatch({ offUrl: e.target.value })}
@@ -547,6 +577,7 @@ const TableLightCard = ({
 
       {/* Amallar */}
       <div
+        className="light-card-actions"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -561,7 +592,6 @@ const TableLightCard = ({
           <Tooltip title={toggleDisabled ? t('tables.lightsTestDisabled') : t('tables.lightsToggleOn')}>
             <span style={{ display: 'inline-flex' }}>
               <Button
-                size="small"
                 icon={<BulbOutlined />}
                 disabled={toggleDisabled}
                 loading={overriding}
@@ -571,29 +601,30 @@ const TableLightCard = ({
               </Button>
             </span>
           </Tooltip>
-          <Tooltip title={toggleDisabled ? t('tables.lightsTestDisabled') : t('tables.lightsToggleOff')}>
+          <Tooltip title={dirty ? copy.unsaved : toggleDisabled ? t('tables.lightsTestDisabled') : t('tables.lightsToggleOff')}>
             <span style={{ display: 'inline-flex' }}>
+              <Popconfirm title={copy.activeOff} disabled={!row.sessionStatus || toggleDisabled} onConfirm={() => onOverride(false)} okText={t('common.yes')} cancelText={t('common.no')}>
               <Button
-                size="small"
                 icon={<PoweroffOutlined />}
                 disabled={toggleDisabled}
                 loading={overriding}
-                onClick={() => onOverride(false)}
+                onClick={() => { if (!row.sessionStatus) onOverride(false); }}
               >
                 {t('tables.lightsToggleOff')}
               </Button>
+              </Popconfirm>
             </span>
           </Tooltip>
           {row.overrideActive && (
             <Tooltip title={t('tables.lightsOverrideAuto')}>
               <Button
-                size="small"
                 type="text"
                 icon={<SyncOutlined />}
                 loading={overriding}
+                disabled={busy}
                 onClick={() => onOverride(null)}
               >
-                {t('tables.lightsOverrideAuto')}
+                {copy.auto}
               </Button>
             </Tooltip>
           )}
@@ -605,42 +636,46 @@ const TableLightCard = ({
                 Tooltip span ichidagi tugmani o'raydi */}
             <Tooltip title={testHint}>
               <span style={{ display: 'inline-flex' }}>
+                <Popconfirm title={copy.activeTest} disabled={!row.sessionStatus || testDisabled} onConfirm={() => onTest(true)} okText={t('common.yes')} cancelText={t('common.no')}>
                 <Button
-                  size="small"
                   icon={<BulbOutlined />}
                   disabled={testDisabled}
                   loading={testing}
-                  onClick={() => onTest(true)}
+                  onClick={() => { if (!row.sessionStatus) onTest(true); }}
                 >
-                  {t('tables.lightsTestOn')}
+                  {copy.testOn}
                 </Button>
+                </Popconfirm>
               </span>
             </Tooltip>
             <Tooltip title={testHint}>
               <span style={{ display: 'inline-flex' }}>
+                <Popconfirm title={copy.activeTest} disabled={!row.sessionStatus || testDisabled} onConfirm={() => onTest(false)} okText={t('common.yes')} cancelText={t('common.no')}>
                 <Button
-                  size="small"
                   icon={<PoweroffOutlined />}
                   disabled={testDisabled}
                   loading={testing}
-                  onClick={() => onTest(false)}
+                  onClick={() => { if (!row.sessionStatus) onTest(false); }}
                 >
-                  {t('tables.lightsTestOff')}
+                  {copy.testOff}
                 </Button>
+                </Popconfirm>
               </span>
             </Tooltip>
             <Button
-              size="small"
               type="primary"
               icon={<SaveOutlined />}
               loading={saving}
+              disabled={!dirty || !!issue || busy}
               onClick={onSave}
             >
               {t('btn.save')}
             </Button>
+            {dirty && <Button type="text" disabled={busy} onClick={onReset}>{copy.discard}</Button>}
           </div>
         )}
       </div>
+      {row.driver !== 'none' && <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 8 }}>{copy.overrideHint}</Text>}
     </div>
   );
 };

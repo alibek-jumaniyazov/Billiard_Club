@@ -123,6 +123,8 @@ export interface BilliardTable {
   /** Oxirgi ma'lum HAQIQIY holat (agent/server hisobotidan) */
   lightState?: boolean | null;
   lightSyncedAt?: string | null;
+  /** Confirmed report expiry, also bounded by bridge heartbeat freshness. */
+  lightFreshUntil?: string | null;
   lightError?: string | null;
   /**
    * Chiroq boshqaruvi shu stolda haqiqatan ishlaydimi: klub rejimi 'off' emas
@@ -1004,6 +1006,8 @@ export interface ApiResponse<T> {
   errors?: unknown;
   /** Tanlangan javoblarda: server vaqti (soat siljishini hisoblash uchun) */
   serverNow?: string;
+  /** Club timezone for date-filtered records such as reservations. */
+  timezone?: string;
   /** GET /notifications va har bir xabarnoma mutatsiyasi: o'qilmaganlar soni */
   unreadCount?: number;
   /** GET /expenses: filtrga mos xarajatlar yig'indisi */

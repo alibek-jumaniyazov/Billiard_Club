@@ -10,6 +10,7 @@ import {
   IsString,
   Max,
   MaxLength,
+  Matches,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -328,6 +329,11 @@ export class IssueBridgeTokenDto {
 
 /** Agent hisobotining bitta qatori */
 export class BridgeReportItemDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  commandRevision?: string;
+
   @IsInt()
   @Min(1)
   @Type(() => Number)

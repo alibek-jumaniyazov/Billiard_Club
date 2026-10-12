@@ -14,10 +14,12 @@ import {
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Popconfirm,
   Row,
   Select,
   Space,
+  Spin,
   Table,
   Tabs,
   Tag,
@@ -61,6 +63,8 @@ import type {
 } from '../../types';
 import { formatMoney, formatNumber } from '../../utils/format';
 import { isFormValidationError } from '../../utils/formErrors';
+import { readClubFilters } from './adminWorkspace';
+import './admin-workspace.css';
 
 const { Text } = Typography;
 
@@ -98,10 +102,11 @@ const PAGE_SIZE_DEFAULT = 20;
  * bloklash, shartnoma tuzish, kirish ma'lumotlarini nusxalash, klub panelini ochish.
  */
 const AdminClubsPage = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const copy = (uz: string, ru: string) => i18n.language.startsWith('ru') ? ru : uz;
   const { message, modal } = App.useApp();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ---------- Ro'yxat holati ----------
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -111,8 +116,14 @@ const AdminClubsPage = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
-  const [status, setStatus] = useState<ClubStatus | undefined>(undefined);
+  const [status, setStatus] = useState<ClubStatus | undefined>(readClubFilters(searchParams).status);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listRequestId = useRef(0);
+  const detailRequestId = useRef(0);
+  const detailClubId = useRef<number | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [contractsError, setContractsError] = useState<string | null>(null);
+  const [invoicesError, setInvoicesError] = useState<string | null>(null);
 
   /**
    * Yangi klub formasidagi sinov muddatining boshlang'ich qiymati.
@@ -167,6 +178,7 @@ const AdminClubsPage = () => {
   // ---------- Ma'lumot yuklash ----------
   const fetchClubs = useCallback(
     async (params: { page: number; pageSize: number; search: string; status?: ClubStatus }) => {
+      const id = ++listRequestId.current;
       setLoading(true);
       setError(null);
       try {
@@ -176,25 +188,36 @@ const AdminClubsPage = () => {
           page: params.page,
           limit: params.pageSize,
         });
+        if (id !== listRequestId.current) return;
         setClubs(res.data);
         setTotal(res.pagination?.total ?? res.data.length);
       } catch (err) {
-        setError(errorMessage(err, t('common.error')));
+        if (id === listRequestId.current) {
+          setClubs([]);
+          setTotal(0);
+          setError(errorMessage(err, t('common.error')));
+        }
       } finally {
-        setLoading(false);
+        if (id === listRequestId.current) setLoading(false);
       }
     },
     [t],
   );
 
   useEffect(() => {
-    void fetchClubs({ page: 1, pageSize: PAGE_SIZE_DEFAULT, search: searchParams.get('search') ?? '' });
+    const filters = readClubFilters(searchParams);
+    setSearch(filters.search);
+    setStatus(filters.status);
+    setPage(1);
+    void fetchClubs({ page: 1, pageSize: PAGE_SIZE_DEFAULT, ...filters });
+    setPageSize(PAGE_SIZE_DEFAULT);
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
+      listRequestId.current += 1;
     };
-    // Faqat birinchi renderda — keyingi yuklashlar aniq parametrlar bilan
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchClubs, searchParams]);
+
+  useEffect(() => () => { detailRequestId.current += 1; detailClubId.current = null; }, []);
 
   const refreshList = useCallback(() => {
     void fetchClubs({ page, pageSize, search, status });
@@ -204,15 +227,19 @@ const AdminClubsPage = () => {
     setSearch(value);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      setPage(1);
-      void fetchClubs({ page: 1, pageSize, search: value, status });
+      const params = new URLSearchParams();
+      if (value.trim()) params.set('search', value.trim());
+      if (status) params.set('status', status);
+      setSearchParams(params, { replace: true });
     }, 400);
   };
 
   const onStatusChange = (value: ClubStatus | undefined) => {
-    setStatus(value);
-    setPage(1);
-    void fetchClubs({ page: 1, pageSize, search, status: value });
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const params = new URLSearchParams();
+    if (search.trim()) params.set('search', search.trim());
+    if (value) params.set('status', value);
+    setSearchParams(params, { replace: true });
   };
 
   // ---------- Kirish ma'lumotlari modal ----------
@@ -430,6 +457,10 @@ const AdminClubsPage = () => {
   // ---------- Batafsil drawer ----------
   const fetchDetail = useCallback(
     async (club: Club) => {
+      const id = ++detailRequestId.current;
+      setDetailError(null);
+      setContractsError(null);
+      setInvoicesError(null);
       setDetailStatsLoading(true);
       setContractsLoading(true);
       setInvoicesLoading(true);
@@ -438,10 +469,13 @@ const AdminClubsPage = () => {
         adminApi.contracts(club.id),
         adminBillingApi.invoices({ clubId: club.id, limit: 100 }),
       ]);
+      if (id !== detailRequestId.current || detailClubId.current !== club.id) return;
       if (statsRes.status === 'fulfilled') setDetailStats(statsRes.value.data);
-      else message.error(errorMessage(statsRes.reason, t('common.error')));
+      else setDetailError(errorMessage(statsRes.reason, t('common.error')));
       if (contractsRes.status === 'fulfilled') setContracts(contractsRes.value.data);
+      else setContractsError(errorMessage(contractsRes.reason, t('common.error')));
       if (invoicesRes.status === 'fulfilled') setInvoices(invoicesRes.value.data);
+      else setInvoicesError(errorMessage(invoicesRes.reason, t('common.error')));
       setDetailStatsLoading(false);
       setContractsLoading(false);
       setInvoicesLoading(false);
@@ -450,6 +484,7 @@ const AdminClubsPage = () => {
   );
 
   const openDetail = (club: Club, tab = 'overview') => {
+    detailClubId.current = club.id;
     setDetailStats(null);
     setContracts([]);
     setInvoices([]);
@@ -459,20 +494,43 @@ const AdminClubsPage = () => {
   };
 
   const closeDetail = () => {
+    detailRequestId.current += 1;
+    detailClubId.current = null;
     setDetailClub(null);
     contractForm.resetFields();
   };
 
+  // Dashboard renewal links identify the exact club; duplicate names never open another account.
+  const linkedClub = searchParams.get('club');
+  const linkedTab = searchParams.get('tab');
+  useEffect(() => {
+    const id = Number(linkedClub);
+    if (!linkedClub || !Number.isSafeInteger(id) || id <= 0) return;
+    let alive = true;
+    const request = ++detailRequestId.current;
+    void adminApi.club(id).then(res => {
+      if (alive && request === detailRequestId.current) openDetail(res.data, linkedTab === 'contracts' ? 'contracts' : 'overview');
+    }).catch(err => {
+      if (alive && request === detailRequestId.current) message.error(errorMessage(err, t('common.error')));
+    });
+    return () => { alive = false; };
+    // Only navigation opens the linked club; refreshing the list does not reopen a closed drawer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedClub, linkedTab]);
+
   // ---------- Shartnomalar ----------
   const reloadContracts = async (clubId: number) => {
+    if (detailClubId.current !== clubId) return;
+    const request = detailRequestId.current;
     setContractsLoading(true);
+    setContractsError(null);
     try {
       const res = await adminApi.contracts(clubId);
-      setContracts(res.data);
+      if (detailClubId.current === clubId && request === detailRequestId.current) setContracts(res.data);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      if (detailClubId.current === clubId && request === detailRequestId.current) setContractsError(errorMessage(err, t('common.error')));
     } finally {
-      setContractsLoading(false);
+      if (detailClubId.current === clubId && request === detailRequestId.current) setContractsLoading(false);
     }
   };
 
@@ -516,6 +574,35 @@ const AdminClubsPage = () => {
 
   const contractTypeLabel = (type: ContractType): string => t(`adminClubs.ct_${type}`);
 
+  const moreMenuItems = (club: Club) => [
+    { key: 'data', icon: <DatabaseOutlined />, label: t('adminClubs.data'), onClick: () => navigate(`/admin/clubs/${club.id}/data`) },
+    { key: 'panel', icon: <LoginOutlined />, label: t('adminClubs.viewAsClub'), onClick: () => handleEnterClub(club) },
+    { key: 'contracts', icon: <FileTextOutlined />, label: t('adminClubs.contractBtn'), onClick: () => openDetail(club, 'contracts') },
+    { key: 'edit', icon: <EditOutlined />, label: t('adminClubs.editClub'), onClick: () => {
+      editForm.setFieldsValue({ name: club.name, ownerName: club.ownerName, phone: club.phone, address: club.address, notes: club.notes });
+      setEditClub(club);
+    } },
+    { key: 'password', icon: <KeyOutlined />, label: t('adminClubs.resetPassword'), onClick: () => setPasswordClub(club) },
+    { type: 'divider' as const },
+    { key: 'block', icon: club.status === 'blocked' ? <UnlockOutlined /> : <LockOutlined />, label: t(club.status === 'blocked' ? 'adminClubs.unblock' : 'adminClubs.block'), danger: club.status !== 'blocked', onClick: () => confirmBlockToggle(club) },
+    { key: 'delete', icon: <DeleteOutlined />, label: t('btn.delete'), danger: true, onClick: () => confirmDelete(club) },
+  ];
+
+  const paginationChange = (next: number, size: number) => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (search.trim() !== readClubFilters(searchParams).search.trim()) {
+      const params = new URLSearchParams();
+      if (search.trim()) params.set('search', search.trim());
+      if (status) params.set('status', status);
+      setSearchParams(params, { replace: true });
+      return;
+    }
+    const nextPage = size !== pageSize ? 1 : next;
+    setPage(nextPage);
+    setPageSize(size);
+    void fetchClubs({ page: nextPage, pageSize: size, search, status });
+  };
+
   // ---------- Ustunlar ----------
   const columns: ColumnsType<Club> = [
     {
@@ -523,7 +610,7 @@ const AdminClubsPage = () => {
       dataIndex: 'name',
       render: (name: string, club) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{name}</Text>
+          <Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => openDetail(club)}>{name}</Button>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {club.ownerName} {club.phone ? `· ${club.phone}` : ''}
           </Text>
@@ -540,8 +627,6 @@ const AdminClubsPage = () => {
       title: t('adminClubs.endsAt'),
       dataIndex: 'effectiveEndsAt',
       width: 210,
-      sorter: (a, b) =>
-        new Date(a.effectiveEndsAt ?? 0).getTime() - new Date(b.effectiveEndsAt ?? 0).getTime(),
       render: (endsAt: string | null, club) => {
         if (!endsAt) return t('adminClubs.noEnd');
         const date = dayjs(endsAt).format('DD.MM.YYYY');
@@ -604,61 +689,7 @@ const AdminClubsPage = () => {
             aria-label={t('adminClubs.viewAsClub')}
             onClick={() => handleEnterClub(club)}
           />
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: 'contracts',
-                  icon: <FileTextOutlined />,
-                  label: t('adminClubs.contractBtn'),
-                  onClick: () => openDetail(club, 'contracts'),
-                },
-                {
-                  key: 'edit',
-                  icon: <EditOutlined />,
-                  label: t('adminClubs.editClub'),
-                  onClick: () => {
-                    editForm.setFieldsValue({
-                      name: club.name,
-                      ownerName: club.ownerName,
-                      phone: club.phone,
-                      address: club.address,
-                      notes: club.notes,
-                    });
-                    setEditClub(club);
-                  },
-                },
-                {
-                  key: 'password',
-                  icon: <KeyOutlined />,
-                  label: t('adminClubs.resetPassword'),
-                  onClick: () => setPasswordClub(club),
-                },
-                { type: 'divider' as const },
-                club.status === 'blocked'
-                  ? {
-                      key: 'unblock',
-                      icon: <UnlockOutlined />,
-                      label: t('adminClubs.unblock'),
-                      onClick: () => confirmBlockToggle(club),
-                    }
-                  : {
-                      key: 'block',
-                      icon: <LockOutlined />,
-                      danger: true,
-                      label: t('adminClubs.block'),
-                      onClick: () => confirmBlockToggle(club),
-                    },
-                {
-                  key: 'delete',
-                  icon: <DeleteOutlined />,
-                  danger: true,
-                  label: t('btn.delete'),
-                  onClick: () => confirmDelete(club),
-                },
-              ],
-            }}
-          >
+          <Dropdown menu={{ items: moreMenuItems(club) }} trigger={['click']}>
             <Button size="small" icon={<MoreOutlined />} aria-label={t('common.actions')} />
           </Dropdown>
         </Space>
@@ -753,6 +784,7 @@ const AdminClubsPage = () => {
           label: t('adminClubs.tabOverview'),
           children: (
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              {detailError && <Alert type="error" showIcon message={detailError} action={<Button size="small" onClick={() => void fetchDetail(detailClub)}>{t('admin.retry')}</Button>} />}
               <Descriptions column={1} bordered size="small">
                 <Descriptions.Item label={t('adminClubs.clubName')}>
                   {detailClub.name}
@@ -800,7 +832,7 @@ const AdminClubsPage = () => {
                 <Descriptions.Item label={t('adminClubs.lastActivity')}>
                   {detailStats?.lastActivityAt
                     ? dayjs(detailStats.lastActivityAt).format('DD.MM.YYYY HH:mm')
-                    : t('adminClubs.never')}
+                    : detailStats ? t('adminClubs.never') : '—'}
                 </Descriptions.Item>
                 {detailClub.notes && (
                   <Descriptions.Item label={t('adminClubs.notes')}>
@@ -813,21 +845,21 @@ const AdminClubsPage = () => {
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.users')}
-                    value={formatNumber(detailStats?.users ?? 0)}
+                    value={detailStats ? formatNumber(detailStats.users) : '—'}
                   />
                 </Col>
                 <Col xs={24} sm={12}>
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.tables')}
-                    value={formatNumber(detailStats?.tables ?? 0)}
+                    value={detailStats ? formatNumber(detailStats.tables) : '—'}
                   />
                 </Col>
                 <Col xs={24} sm={12}>
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.activeSessions')}
-                    value={formatNumber(detailStats?.activeSessions ?? 0)}
+                    value={detailStats ? formatNumber(detailStats.activeSessions) : '—'}
                     accent={TOKENS.color.neonGreen}
                   />
                 </Col>
@@ -835,14 +867,14 @@ const AdminClubsPage = () => {
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.totalSessions')}
-                    value={formatNumber(detailStats?.totalSessions ?? 0)}
+                    value={detailStats ? formatNumber(detailStats.totalSessions) : '—'}
                   />
                 </Col>
                 <Col span={24}>
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.monthlyRevenue')}
-                    value={formatMoney(detailStats?.monthlyRevenue ?? 0, t('common.sum'))}
+                    value={detailStats ? formatMoney(detailStats.monthlyRevenue, t('common.sum')) : '—'}
                     accent={TOKENS.color.emerald.bright}
                   />
                 </Col>
@@ -850,7 +882,7 @@ const AdminClubsPage = () => {
                   <StatCard
                     loading={detailStatsLoading}
                     label={t('adminClubs.unpaidDebts')}
-                    value={formatMoney(detailStats?.unpaidDebts ?? 0, t('common.sum'))}
+                    value={detailStats ? formatMoney(detailStats.unpaidDebts, t('common.sum')) : '—'}
                     accent={
                       (detailStats?.unpaidDebts ?? 0) > 0
                         ? TOKENS.color.semantic.error
@@ -867,6 +899,7 @@ const AdminClubsPage = () => {
           label: t('adminClubs.contractsTitle'),
           children: (
             <div>
+              {contractsError && <Alert type="error" showIcon message={contractsError} action={<Button size="small" onClick={() => void reloadContracts(detailClub.id)}>{t('admin.retry')}</Button>} style={{ marginBottom: 12 }} />}
               <Table
                 rowKey="id"
                 size="small"
@@ -879,7 +912,7 @@ const AdminClubsPage = () => {
                 locale={{
                   emptyText: (
                     <EmptyState
-                      title={t('adminClubs.contractsEmpty')}
+                      title={contractsError ? copy('Ma’lumot yuklanmadi', 'Данные не загружены') : t('adminClubs.contractsEmpty')}
                       style={{ padding: '20px 12px' }}
                     />
                   ),
@@ -981,8 +1014,9 @@ const AdminClubsPage = () => {
               locale={{
                 emptyText: (
                   <EmptyState
-                    title={t('adminClubs.invoicesEmpty')}
-                    hint={t('adminClubs.invoicesHint')}
+                    title={invoicesError ? copy('Ma’lumot yuklanmadi', 'Данные не загружены') : t('adminClubs.invoicesEmpty')}
+                    hint={invoicesError ?? t('adminClubs.invoicesHint')}
+                    action={invoicesError ? <Button onClick={() => void fetchDetail(detailClub)}>{t('admin.retry')}</Button> : undefined}
                     style={{ padding: '20px 12px' }}
                   />
                 ),
@@ -1004,6 +1038,7 @@ const AdminClubsPage = () => {
             <Button
               icon={<ReloadOutlined />}
               aria-label={t('btn.refresh')}
+              loading={loading}
               onClick={refreshList}
             />
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
@@ -1027,27 +1062,32 @@ const AdminClubsPage = () => {
         />
       )}
 
-      <Card>
-        <Space wrap style={{ marginBottom: TOKENS.spacing.md }}>
+      <Card className="admin-clubs__container">
+        <div className="admin-clubs__toolbar">
           <Input
+            className="admin-clubs__search"
+            size="large"
             allowClear
             prefix={<SearchOutlined style={{ color: TOKENS.color.text.tertiary }} />}
             placeholder={t('adminClubs.searchPlaceholder')}
+            aria-label={t('adminClubs.searchPlaceholder')}
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            style={{ width: 260 }}
           />
           <Select
+            size="large"
             allowClear
             placeholder={t('adminClubs.statusFilter')}
+            aria-label={t('adminClubs.statusFilter')}
             value={status}
             onChange={(v) => onStatusChange(v)}
-            style={{ width: 180 }}
             options={CLUB_STATUSES.map((s) => ({ value: s, label: t(`club.${s}`) }))}
           />
-        </Space>
+          {(search || status) && <Button size="large" onClick={() => { if (searchTimer.current) clearTimeout(searchTimer.current); setSearchParams({}, { replace: true }); }}>{copy('Tozalash', 'Сбросить')}</Button>}
+        </div>
+        <div className="admin-clubs__results" role="status">{loading ? copy('Klublar yuklanmoqda…', 'Загрузка клубов…') : error ? copy('Ro‘yxat yuklanmadi', 'Список не загружен') : `${t('common.total')}: ${formatNumber(total)}`}</div>
 
-        <Table
+        <div className="admin-clubs__desktop"><Table
           rowKey="id"
           size="small"
           sticky
@@ -1060,24 +1100,34 @@ const AdminClubsPage = () => {
             total,
             showSizeChanger: true,
             showTotal: (n) => `${t('common.total')}: ${formatNumber(n)}`,
-            onChange: (p, ps) => {
-              const nextPage = ps !== pageSize ? 1 : p;
-              setPage(nextPage);
-              setPageSize(ps);
-              void fetchClubs({ page: nextPage, pageSize: ps, search, status });
-            },
+            onChange: paginationChange,
           }}
           scroll={{ x: 1000 }}
           locale={{
             emptyText: (
               <EmptyState
                 icon={<ShopOutlined />}
-                title={t('adminClubs.emptyTitle')}
-                hint={t('adminClubs.emptyHint')}
+                title={error ? copy('Ma’lumot yuklanmadi', 'Данные не загружены') : t('adminClubs.emptyTitle')}
+                hint={error ? undefined : t('adminClubs.emptyHint')}
               />
             ),
           }}
-        />
+        /></div>
+        <div className="admin-clubs__mobile">
+          <Spin spinning={loading}>
+            {!clubs.length ? <EmptyState icon={<ShopOutlined />} title={error ? copy('Ma’lumot yuklanmadi', 'Данные не загружены') : loading ? copy('Yuklanmoqda…', 'Загрузка…') : t('adminClubs.emptyTitle')} hint={error || loading ? undefined : t('adminClubs.emptyHint')} /> : clubs.map(club => <article className="admin-clubs__card" key={club.id}>
+              <div className="admin-clubs__card-top"><button className="admin-clubs__card-name" onClick={() => openDetail(club)}>{club.name}</button><StatusTag status={club.status} label={t(`club.${club.status}`)} /></div>
+              <div className="admin-clubs__card-owner">{club.ownerName || '—'}{club.phone ? <> · <a href={`tel:${club.phone.replace(/[^+\d]/g, '')}`}>{club.phone}</a></> : ''}</div>
+              <div className="admin-clubs__card-expiry"><span>{t('adminClubs.endsAt')}</span><strong>{club.effectiveEndsAt ? dayjs(club.effectiveEndsAt).format('DD.MM.YYYY') : '—'}</strong>{club.isExpired ? <Tag color="red">{t('adminClubs.expiredAgo')}</Tag> : club.daysLeft !== null && <Tag color={club.daysLeft <= 3 ? 'orange' : 'green'}>{club.daysLeft} {t('adminClubs.daysLeft')}</Tag>}</div>
+              <div className="admin-clubs__card-actions">
+                <Button onClick={() => openDetail(club)}>{t('adminClubs.view')}</Button>
+                <Dropdown menu={{ items: extendMenuItems(club) }} trigger={['click']}><Button type="primary" loading={extending}>{t('adminClubs.extend')}</Button></Dropdown>
+                <Dropdown menu={{ items: moreMenuItems(club) }} trigger={['click']}><Button style={{ flex: '0 0 42px' }} icon={<MoreOutlined />} aria-label={`${club.name}: ${t('common.actions')}`} /></Dropdown>
+              </div>
+            </article>)}
+          </Spin>
+          {total > 0 && <Pagination simple current={page} pageSize={pageSize} total={total} onChange={paginationChange} showSizeChanger={false} />}
+        </div>
       </Card>
 
       {/* Yangi klub */}
@@ -1276,6 +1326,7 @@ const AdminClubsPage = () => {
 
       {/* Batafsil drawer */}
       <Drawer
+        className="admin-club-drawer"
         title={
           detailClub && (
             <Space size={10}>

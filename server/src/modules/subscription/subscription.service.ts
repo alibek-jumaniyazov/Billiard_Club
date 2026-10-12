@@ -43,7 +43,7 @@ export class SubscriptionService {
     if (!club) throw new NotFoundException({ key: 'subscription.clubNotFound' });
 
     const effectiveEndsAt = club.subscriptionEndsAt ?? club.trialEndsAt ?? null;
-    const isExpired = !!effectiveEndsAt && new Date(effectiveEndsAt).getTime() < Date.now();
+    const isExpired = club.isExpired;
     const daysLeft = effectiveEndsAt
       ? Math.max(0, Math.ceil((new Date(effectiveEndsAt).getTime() - Date.now()) / DAY_MS))
       : null;

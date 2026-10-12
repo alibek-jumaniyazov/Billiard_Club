@@ -10,6 +10,7 @@
 
 type UpdateListener = () => void;
 
+let updateRequested = false;
 let waitingWorker: ServiceWorker | null = null;
 const updateListeners = new Set<UpdateListener>();
 
@@ -28,6 +29,7 @@ export const applyUpdate = (): void => {
     window.location.reload();
     return;
   }
+  updateRequested = true;
   waitingWorker.postMessage({ type: 'SKIP_WAITING' });
 };
 
@@ -57,7 +59,7 @@ export const registerServiceWorker = (): void => {
   const hadControllerAtStart = navigator.serviceWorker.controller !== null;
 
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading || !hadControllerAtStart) return;
+    if (reloading || !hadControllerAtStart || !updateRequested) return;
     reloading = true;
     window.location.reload();
   });

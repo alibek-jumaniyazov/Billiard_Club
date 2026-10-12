@@ -8,7 +8,7 @@ import {
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'crypto';
-import { DataSource, IsNull, Not, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, Raw, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
 import { ClubBridge } from '../../entities/club-bridge.entity';
 import { BRIDGE_ONLY_DRIVERS, LightDriver, LightMode } from '../../entities/enums';
@@ -28,8 +28,10 @@ import {
   LightHttpError,
   LightTarget,
   readLight,
+  supportsLightReadback,
 } from './drivers/light-driver';
 import { LightConfigDto, UpdateLightSettingsDto, UpdateTableLightDto } from './dto/lights.dto';
+import { lightOutputKeys } from './device-outputs';
 
 /** Bitta stol chirog'ining kerakli holati + rele ulanish ma'lumotlari */
 export interface LightDeviceState extends LightTarget {
@@ -39,6 +41,10 @@ export interface LightDeviceState extends LightTarget {
   host: string;
   /** Kerakli holat: chiroq yonishi kerakmi */
   desired: boolean;
+  /** Echo in bridge reports to reject results for an obsolete command/config. */
+  commandRevision?: string;
+  /** Internal optimistic write guard, stripped from the bridge response. */
+  reportVersion?: string;
 }
 
 /** Agent (yoki server) hisobotining bitta qatori */
@@ -54,6 +60,7 @@ export interface LightReportItem {
   /** Qurilma javobining kechikishi, ms */
   latencyMs?: number | null;
   error?: string | null;
+  commandRevision?: string;
 }
 
 /**
@@ -188,7 +195,7 @@ export interface ClubLightSettings {
 }
 
 /** Sinov natijasining sababi (klientga tushunarli xabar tanlash uchun) */
-export type LightTestReason = 'not_configured' | 'mode_off' | 'unreachable' | 'queued' | null;
+export type LightTestReason = 'not_configured' | 'mode_off' | 'unreachable' | 'queued' | 'unconfirmed' | null;
 
 /** Relega so'rov timeouti */
 const LIGHT_TIMEOUT_MS = 3000;
@@ -274,6 +281,7 @@ const SLOW_DEVICE_MS = 2000;
  * relening holatini ushlab turibdi. Matnda manzil YO'Q (panelga chiqadi).
  */
 const DRIFT_REJECTED = "Rele buyruqni qabul qilmadi (holat mos kelmadi)";
+const VERIFICATION_FAILED = "Rele holatini tasdiqlab bo'lmadi";
 
 /**
  * ULANISH xatosining foydalanuvchiga ko'rinadigan YAGONA matni.
@@ -318,12 +326,14 @@ interface DesiredRow {
   config: LightDeviceConfig | null;
   overrideOn: boolean | null;
   overrideActive: boolean;
+  overrideUntil?: Date | null;
   sessionStatus: string | null;
   offOnPause: boolean;
   graceActive: boolean;
   preOnActive: boolean;
   offDelaySec: number;
   preOnMinutes: number;
+  reportVersion?: string;
 }
 
 /**
@@ -389,6 +399,8 @@ export class LightsService {
 
   /** DIRECT rejimda bir klub bir vaqtda faqat bir marta sinxronlansin */
   private readonly syncingClubs = new Set<number>();
+  /** Serialize writes per table; reread desired after waiting behind old work. */
+  private readonly deviceOperations = new Map<string, Promise<unknown>>();
 
   /**
    * clubId -> uyg'otishni kutayotgan resolverlar.
@@ -459,7 +471,9 @@ export class LightsService {
               t."lightOnUrl"                         AS "onUrl",
               t."lightOffUrl"                        AS "offUrl",
               t."lightConfig"                        AS "config",
+              t."updatedAt"::text                    AS "reportVersion",
               t."lightOverrideOn"                    AS "overrideOn",
+              t."lightOverrideUntil"                 AS "overrideUntil",
               (t."lightOverrideUntil" IS NOT NULL
                  AND t."lightOverrideUntil" > now()) AS "overrideActive",
               s.status                               AS "sessionStatus",
@@ -531,6 +545,7 @@ export class LightsService {
       offUrl: row.offUrl,
       config: row.config ?? null,
       desired: this.resolveDesired(row),
+      reportVersion: row.reportVersion,
     };
   }
 
@@ -554,7 +569,13 @@ export class LightsService {
     }
 
     const rows = await this.desiredRows(clubId);
-    const devices = rows.map((row) => this.toDeviceState(row));
+    const devices = rows.map((row) => {
+      const device = this.toDeviceState(row);
+      device.commandRevision = createHash('sha256')
+        .update(`${this.stateVersion([device], tag)}:${row.overrideUntil ? new Date(row.overrideUntil).toISOString() : ''}`)
+        .digest('hex');
+      return device;
+    });
     return {
       settings,
       devices,
@@ -586,6 +607,7 @@ export class LightsService {
       .map((device) =>
         [
           device.tableId,
+          device.commandRevision ?? '',
           device.desired ? 1 : 0,
           device.driver,
           device.host,
@@ -942,7 +964,25 @@ export class LightsService {
     table.lightSyncedAt = null;
     table.lightError = null;
 
-    const saved = await this.tableRepo.save(table);
+    const saved = await this.dataSource.transaction(async (manager) => {
+      // Concurrent setup requests for one club must not assign one relay output
+      // twice. Independent clubs remain isolated and do not block one another.
+      await manager.query('SELECT pg_advisory_xact_lock($1, $2)', [23918, clubId]);
+      const requested = new Set(lightOutputKeys(this.toDevice(table, false)));
+      if (requested.size > 0) {
+        const others = await manager.getRepository(Table).createQueryBuilder('t')
+          .addSelect(['t.lightHost', 't.lightConfig'])
+          .where('t."clubId" = :clubId AND t.id <> :tableId AND t."lightDriver" <> :none',
+            { clubId, tableId, none: LightDriver.NONE })
+          .getMany();
+        for (const other of others) {
+          if (lightOutputKeys(this.toDevice(other, false)).some((key) => requested.has(key))) {
+            throw new BadRequestException(`Bu rele chiqishi ${other.number}-stolga ulangan. Boshqa kanalni tanlang yoki avval eski ulanishni olib tashlang.`);
+          }
+        }
+      }
+      return manager.getRepository(Table).save(table);
+    });
     // Sozlama o'zgardi (masalan `inverted` to'g'rilandi) — drift "tinch qo'yish"
     // belgisi ham bekor qilinadi, aks holda tuzatish keyingi oynagacha kutardi
     this.driftGuard.delete(this.driftKey(clubId, tableId));
@@ -1292,12 +1332,13 @@ export class LightsService {
       // Sinovdan keyin qurilma holati kerakli holatdan farq qilishi mumkin —
       // paneldagi/agentdagi kuzatuvchilar buni darhol ko'rsin
       this.pokeClub(clubId);
-      return { ok: error === null, error, reason: error === null ? null : 'unreachable' };
+      const verified = (table.lightConfig?.verify ?? settings.verify) && supportsLightReadback(this.toDevice(table, on));
+      return { ok: error === null, error, reason: error !== null ? 'unreachable' : verified ? null : 'unconfirmed' };
     }
 
     // BRIDGE: buyruqni agentga override orqali yetkazamiz
     await this.setOverride(clubId, tableId, on, TEST_OVERRIDE_MINUTES, userId);
-    return { ok: table.lightError === null, error: table.lightError, reason: 'queued' };
+    return { ok: false, error: null, reason: 'queued' };
   }
 
   // ---------------------------------------------------------------------------
@@ -1547,32 +1588,32 @@ export class LightsService {
    * jurnalga faqat holat o'zgargan yoki xato paydo bo'lgan qatorlar tushadi.
    */
   async applyReport(clubId: number, results: LightReportItem[]): Promise<number> {
+    const current = await this.bridgeState(clubId);
+    if (current.settings.mode !== LightMode.BRIDGE) return 0;
+    const devices = new Map(current.devices.map((device) => [device.tableId, device]));
     let accepted = 0;
     for (const item of results) {
       const tableId = Number(item.tableId);
-      if (!Number.isInteger(tableId) || tableId <= 0) continue;
-
-      const actual = item.actual ?? null;
-      const on = item.ok ? (actual !== null ? actual : item.on ?? null) : null;
-      // 'drift' — qurilmadagi haqiqiy holat kerakli holatdan farq qilgan
-      const drifted = item.ok && actual !== null && item.on != null && actual !== item.on;
-
-      if (typeof item.latencyMs === 'number' && item.latencyMs >= SLOW_DEVICE_MS) {
-        this.logger.debug(
-          `Rele sekin javob berdi (table=${tableId}): ${item.latencyMs} ms, ` +
-            `urinishlar: ${item.attempts ?? 1}`,
-        );
-      }
-
-      const ok = await this.recordResult(
-        clubId,
-        tableId,
-        item.ok,
-        on,
-        item.ok ? null : this.withAttempts(item.error, item.attempts),
-        { source: drifted ? 'drift' : 'sync', userId: null },
+      const device = devices.get(tableId);
+      if (!device) continue; // Includes cross-club, disabled and removed devices.
+      if (item.commandRevision && item.commandRevision !== device.commandRevision) continue;
+      // Old agents cannot echo revisions, but a result for the opposite desired
+      // state is still obsolete. Never promote delivery into readback evidence.
+      if (item.on != null && item.on !== device.desired) continue;
+      const actual = typeof item.actual === 'boolean' ? item.actual : null;
+      const drifted = actual !== null && actual !== device.desired;
+      const verificationMissing = (device.config?.verify ?? current.settings.verify)
+        && supportsLightReadback(device) && actual === null;
+      const success = item.ok && !drifted && !verificationMissing;
+      const error = drifted ? DRIFT_REJECTED
+        : item.ok && verificationMissing ? VERIFICATION_FAILED
+        : this.withAttempts(item.error, item.attempts);
+      const saved = await this.recordResult(
+        clubId, tableId, success, actual, success ? null : error,
+        { source: drifted ? 'drift' : 'sync', userId: null }, actual,
+        device.reportVersion,
       );
-      if (ok) accepted += 1;
+      if (saved) accepted += 1;
     }
     return accepted;
   }
@@ -1963,6 +2004,38 @@ export class LightsService {
       forceSyncMs?: number;
     },
   ): Promise<string | null> {
+    const key = this.driftKey(clubId, device.tableId);
+    const previous = this.deviceOperations.get(key) ?? Promise.resolve();
+    const operation = previous.catch(() => undefined).then(async () => {
+      const settings = await this.clubLightSettings(clubId);
+      if (settings.mode !== LightMode.DIRECT) return null;
+      // A queued reconcile may contain a snapshot from before a session end.
+      // Resolve it after the previous command completes so it cannot turn an
+      // already-finished table back on. Manual tests keep their explicit target.
+      const latest = options.source === 'test' ? device
+        : (await this.desiredState(clubId)).find((item) => item.tableId === device.tableId);
+      if (!latest) return null;
+      return this.applyDeviceNow(clubId, latest, { ...options, verify: settings.verify });
+    });
+    this.deviceOperations.set(key, operation);
+    try { return await operation; }
+    finally {
+      if (this.deviceOperations.get(key) === operation) this.deviceOperations.delete(key);
+    }
+  }
+
+  private async applyDeviceNow(
+    clubId: number,
+    device: LightDeviceState,
+    options: {
+      source: LightEventSource;
+      userId?: number | null;
+      verify: boolean;
+      always?: boolean;
+      /** Drift uchun qayta qo'llash oynasi (ms) — klub sozlamasidan */
+      forceSyncMs?: number;
+    },
+  ): Promise<string | null> {
     const event = {
       source: options.source,
       userId: options.userId ?? null,
@@ -2035,10 +2108,11 @@ export class LightsService {
     try {
       await applyLight(device, device.desired, LIGHT_TIMEOUT_MS);
 
-      let applied = device.desired;
+      let applied: boolean | null = null;
       // Holatni o'qib tekshirish: stol sozlamasi klub sozlamasidan ustun
-      if (device.config?.verify ?? options.verify) {
-        const actual = await readLight(device, LIGHT_TIMEOUT_MS);
+      if ((device.config?.verify ?? options.verify) && supportsLightReadback(device)) {
+        const actual = await readLight(device, LIGHT_TIMEOUT_MS, device.desired);
+        if (actual === null) return this.fail(clubId, device.tableId, VERIFICATION_FAILED, event, { state: null });
         if (actual !== null && actual !== device.desired) {
           // Drift jurnalga FAQAT holat oldingi ma'lum holatdan farq qilganda
           // yoziladi — aks holda har majburiy sinxronizatsiyada (30 s) bir xil
@@ -2053,14 +2127,15 @@ export class LightsService {
 
           // Bir marta qayta qo'llanadi
           await applyLight(device, device.desired, LIGHT_TIMEOUT_MS);
-          const recheck = await readLight(device, LIGHT_TIMEOUT_MS);
+          const recheck = await readLight(device, LIGHT_TIMEOUT_MS, device.desired);
+          if (recheck === null) return this.fail(clubId, device.tableId, VERIFICATION_FAILED, event, { state: null });
           if (recheck !== null && recheck !== device.desired) {
             // Rele buyruqni qabul qilmadi: `inverted` noto'g'ri qo'yilgan yoki
             // mexanik kalit holatni ushlab turibdi. Keyingi oynagacha tinch qo'yamiz.
             this.driftGuard.set(guardKey, Date.now() + guardMs);
             return this.fail(clubId, device.tableId, DRIFT_REJECTED, event, { state: recheck });
           }
-          applied = recheck ?? device.desired;
+          applied = recheck;
           this.driftGuard.delete(guardKey);
         } else if (actual !== null) {
           applied = actual;
@@ -2167,6 +2242,7 @@ export class LightsService {
     error: string | null,
     event: { source: LightEventSource; userId: number | null; always?: boolean } | null = null,
     failedState?: boolean | null,
+    expectedVersion?: string,
   ): Promise<boolean> {
     const message = (error ?? "Noma'lum xato").slice(0, 300);
     try {
@@ -2176,18 +2252,24 @@ export class LightsService {
       });
       if (!previous) return false;
 
-      await this.tableRepo.update(
-        { id: tableId, clubId },
+      const updated = await this.tableRepo.update(
+        { id: tableId, clubId,
+          ...(expectedVersion ? { updatedAt: Raw((alias) => `${alias} = CAST(:lightReportVersion AS timestamptz)`,
+            { lightReportVersion: expectedVersion }) } : {}),
+        },
         ok
           ? { lightState: on, lightSyncedAt: new Date(), lightError: null }
           : {
               lightError: message,
-              ...(failedState !== undefined ? { lightState: failedState } : {}),
+              lightState: failedState ?? null,
             },
       );
+      // Configuration/session/another report changed after revision validation.
+      // Keep its evidence intact and let the agent fetch/retry the new target.
+      if (updated.affected === 0) return false;
 
       if (event) {
-        const changed = ok ? previous.lightState !== on : previous.lightError !== message;
+        const changed = ok ? previous.lightState !== on || previous.lightError !== null : previous.lightError !== message;
         if (changed || event.always) {
           void this.logEvent({
             clubId,

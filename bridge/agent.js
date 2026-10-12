@@ -46,19 +46,17 @@ const rawtcp = require('./lib/rawtcp');
 const serial = require('./lib/serial');
 const { MqttClient } = require('./lib/mqtt');
 const { discover } = require('./lib/discover');
+const { logicalState, executeDevice } = require('./lib/control');
 
 /* ------------------------------------------------------------------ */
 /*  Konstantalar                                                       */
 /* ------------------------------------------------------------------ */
 
 /** Agent versiyasi — serverga /api/bridge/report da yuboriladi */
-const AGENT_VERSION = '2.0.0';
+const AGENT_VERSION = '2.1.0';
 
 /** Uzun-polling uchun timeout — server javobni 25s ushlab turadi, biroz zaxira qo'shamiz */
 const POLL_TIMEOUT_MS = 30000;
-
-/** Bitta qurilmaga buyruq yuborishga urinishlar oralig'i (ms) — jami 3 urinish */
-const RETRY_DELAYS_MS = [0, 400, 1200];
 
 /** Bir vaqtda nechta qurilma bilan ishlanadi */
 const MAX_PARALLEL = 8;
@@ -295,7 +293,7 @@ process.on('uncaughtException', (err) => {
 /*  Umumiy holat                                                       */
 /* ------------------------------------------------------------------ */
 
-/** Oxirgi MUVAFFAQIYATLI qo'llangan mantiqiy holat: tableId -> boolean */
+/** Oxirgi muvaffaqiyatli buyruq va ulanish nusxasi: tableId -> fingerprint */
 const appliedState = new Map();
 
 /** Oxirgi majburiy (to'liq) sinxronizatsiya vaqti */
@@ -373,6 +371,7 @@ async function sendReport(results) {
 
   const payload = results.map((item) => ({
     tableId: item.tableId,
+    ...(item.commandRevision ? { commandRevision: item.commandRevision } : {}),
     ok: item.ok,
     on: item.on,
     actual: item.actual,
@@ -404,15 +403,24 @@ async function sendReport(results) {
       );
 
       if (!res.ok) {
+        for (const item of chunk) appliedState.delete(item.tableId);
         log('error', `Hisobot yuborilmadi: HTTP ${res.status}`);
         // Token bekor qilingan bo'lsa qolgan bo'laklar ham o'tmaydi — to'xtaymiz;
         // boshqa xatolarda esa QOLGAN bo'laklar yuboriladi (bir stolning xatosi
         // tufayli boshqa stollarning holati eskirib qolmasin)
-        if (res.status === 401 || res.status === 403) return;
+        if (res.status === 401 || res.status === 403) {
+          for (const item of results) appliedState.delete(item.tableId);
+          return;
+        }
         continue;
+      }
+      const response = await res.json();
+      if (response?.success !== true || response.data?.accepted !== chunk.length) {
+        for (const item of chunk) appliedState.delete(item.tableId);
       }
       log('debug', `Hisobot yuborildi: ${chunk.length} ta natija`);
     } catch (err) {
+      for (const item of chunk) appliedState.delete(item.tableId);
       log('error', `Hisobot yuborishda xato: ${errText(err)}`);
       continue;
     }
@@ -811,13 +819,7 @@ async function readLogical(device, desired, options = {}) {
     return null; // holatni o'qish majburiy emas
   }
 
-  const known = values
-    .filter((item) => item === true || item === false)
-    .map((item) => (device.inverted === true ? !item : item));
-
-  if (!known.length) return null;
-  if (known.some((item) => item !== known[0])) return !desired;
-  return known[0];
+  return logicalState(values, device.inverted === true, desired);
 }
 
 /** Shu stol uchun holatni tekshirish yoqilganmi (stol sozlamasi klubdan ustun) */
@@ -835,101 +837,31 @@ function deviceLabel(device) {
 /*  Sinxronizatsiya                                                    */
 /* ------------------------------------------------------------------ */
 
-/** Buyruqni 3 martagacha qayta urinib yuboradi; urinishlar sonini qaytaradi */
-async function writeWithRetry(device, physical, label) {
-  let lastError = null;
-
-  for (let index = 0; index < RETRY_DELAYS_MS.length; index += 1) {
-    if (stopping) {
-      const stopErr = new Error("agent to'xtatilmoqda");
-      stopErr.attempts = index;
-      throw stopErr;
-    }
-    if (RETRY_DELAYS_MS[index] > 0) {
-      // eslint-disable-next-line no-await-in-loop
-      await sleep(RETRY_DELAYS_MS[index]);
-    }
-    try {
-      // eslint-disable-next-line no-await-in-loop
+/** Delivery and readback are recorded separately; mismatches remain retryable. */
+async function handleDevice(device, forced) {
+  const startedAt = Date.now();
+  const result = await executeDevice(device, {
+    verify: resolveVerify(device), forced, sleep,
+    write: async (physical) => {
+      if (stopping) throw new Error("agent to'xtatilmoqda");
       await writeDevice(device, physical);
-      return index + 1;
-    } catch (err) {
-      lastError = err;
-      log('debug', `${label}: ${index + 1}-urinish muvaffaqiyatsiz — ${errText(err)}`);
-    }
-  }
-
-  const error = new Error(errText(lastError));
-  error.attempts = RETRY_DELAYS_MS.length;
-  throw error;
+    },
+    read: (options) => readLogical(device, device.desired === true, options),
+  });
+  const message = result.error ? String(result.error).replace(/\s+/g, ' ').trim().slice(0, 200) : null;
+  log(result.ok ? 'debug' : 'error', `${deviceLabel(device)}: ${result.ok
+    ? (result.actual === null ? 'buyruq yuborildi, holat tasdiqlanmagan' : 'rele holati tasdiqlandi')
+    : message}`);
+  return { ...result, tableId: device.tableId, commandRevision: device.commandRevision,
+    latencyMs: Date.now() - startedAt, error: message };
 }
 
-/**
- * Bitta qurilmani kerakli holatga keltiradi.
- * HECH QACHON throw qilmaydi — hisobot yozuvini qaytaradi.
- */
-async function handleDevice(device, forced) {
-  const label = deviceLabel(device);
-  const desired = device.desired === true;
-  const physical = device.inverted === true ? !desired : desired;
-  const verify = resolveVerify(device);
-  const startedAt = Date.now();
-  // Holat avvalgidek qolsa log "debug" ga tushadi — majburiy sinxronizatsiya
-  // har daqiqada bir xil qatorlarni yozib jurnalni to'ldirmasin
-  const known = appliedState.get(device.tableId);
-
-  let attempts = 0;
-  let actual = null;
-
-  try {
-    // 1) Majburiy sinxronizatsiyada avval HAQIQIY holatni o'qiymiz
-    if (forced && verify) {
-      actual = await readLogical(device, desired);
-      if (actual !== null && actual !== desired) {
-        log('info', `${label}: holat mos emas (qurilmada ${actual ? 'yoniq' : "o'chiq"}) — tuzatilmoqda`);
-      }
-    }
-
-    // 2) Holat noma'lum yoki farq qilsa — buyruq yuboramiz
-    const needWrite = actual === null || actual !== desired;
-    if (needWrite) {
-      const writtenAt = Date.now();
-      attempts = await writeWithRetry(device, physical, label);
-
-      // 3) Tekshirish yoqilgan bo'lsa — yozgandan keyin qayta o'qiymiz.
-      //    `since` — buyruqdan OLDINGI holat xabari qabul qilinmasligi uchun (MQTT).
-      actual = verify ? await readLogical(device, desired, { since: writtenAt }) : null;
-      log(
-        known === desired ? 'debug' : 'info',
-        `${label}: chiroq ${desired ? 'YONDI' : "O'CHDI"} (${device.driver})`,
-      );
-    } else {
-      log('debug', `${label}: holat allaqachon to'g'ri (${desired ? 'yoniq' : "o'chiq"})`);
-    }
-
-    return {
-      tableId: device.tableId,
-      ok: true,
-      on: desired,
-      actual,
-      attempts,
-      latencyMs: Date.now() - startedAt,
-      error: null,
-    };
-  } catch (err) {
-    // Xato matni panelga chiqadi — bir qatorga jamlanadi va qisqartiriladi
-    const message = errText(err).replace(/\s+/g, ' ').trim();
-    log('error', `${label}: xato — ${message}`);
-    return {
-      tableId: device.tableId,
-      ok: false,
-      on: null,
-      actual: null,
-      attempts: Number.isInteger(err && err.attempts) ? err.attempts : attempts,
-      latencyMs: Date.now() - startedAt,
-      error: message.slice(0, 200),
-    };
-  }
+// Include connection/verification settings for compatibility with older servers.
+// Desired alone is insufficient: changing a relay IP must be applied immediately.
+function deviceFingerprint(device) {
+  return JSON.stringify([device.commandRevision, device.desired, device.driver, device.host,
+    device.channel, device.inverted, device.auth, device.onUrl, device.offUrl,
+    device.config, resolveVerify(device)]);
 }
 
 /** Ro'yxatni parallellik chegarasi bilan qayta ishlaydi (≤ MAX_PARALLEL) */
@@ -948,6 +880,7 @@ async function runPool(items, limit, worker) {
         // worker o'zi throw qilmaydi, lekin har ehtimolga qarshi
         results.push({
           tableId: items[current].tableId,
+          commandRevision: items[current].commandRevision,
           ok: false,
           on: null,
           actual: null,
@@ -982,7 +915,7 @@ async function syncDevices(devices, options = {}) {
   if (forced) lastForceSyncAt = now;
 
   const pending = active.filter(
-    (item) => forced || appliedState.get(item.tableId) !== (item.desired === true),
+    (item) => forced || appliedState.get(item.tableId) !== deviceFingerprint(item),
   );
   if (!pending.length) {
     log('debug', `O'zgarish yo'q (${active.length} ta qurilma)`);
@@ -995,9 +928,10 @@ async function syncDevices(devices, options = {}) {
   );
 
   const results = await runPool(pending, MAX_PARALLEL, (device) => handleDevice(device, forced));
+  const fingerprints = new Map(pending.map((device) => [device.tableId, deviceFingerprint(device)]));
 
   for (const result of results) {
-    if (result.ok) appliedState.set(result.tableId, result.on === true);
+    if (result.ok) appliedState.set(result.tableId, fingerprints.get(result.tableId));
     else appliedState.delete(result.tableId); // xato bo'lsa keyingi siklda qayta urinamiz
   }
 

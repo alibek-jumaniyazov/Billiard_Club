@@ -38,7 +38,7 @@ const HTTP_DRIVERS = new Set([
  */
 async function apply(device, physical, channel, ctx) {
   const request = buildCommandRequest(device, physical, channel);
-  ctx.log('debug', `${deviceLabel(device)}: ${request.method} ${request.url}`);
+  ctx.log('debug', `${deviceLabel(device)}: ${request.method} (${device.driver})`);
   const res = await send(request, device, ctx);
 
   if (!res.ok) {
@@ -256,7 +256,7 @@ async function send(request, device, ctx) {
 function buildAuthHeader(device) {
   if (!device.auth) return {};
   if (device.driver === 'home_assistant') {
-    return { Authorization: `Bearer ${String(device.auth).trim()}` };
+    return { Authorization: `Bearer ${String(device.auth).trim().replace(/^Bearer\s+/i, '')}` };
   }
   return { Authorization: `Basic ${Buffer.from(String(device.auth), 'utf8').toString('base64')}` };
 }

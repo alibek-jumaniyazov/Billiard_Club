@@ -22,7 +22,9 @@
 
 import type { AxiosError } from 'axios';
 import client from '../api/client';
-import { idbDelete, idbGet, idbGetAll, idbPut, metaGet, metaSet, STORE_QUEUE } from './db';
+import { completeQueueEntry, idbDelete, idbGet, idbGetAll, idbPut, metaGet, STORE_QUEUE } from './db';
+import { fullScope } from './cache';
+import { effectiveNow, requireOfflineLease } from './license';
 
 export type QueueMethod = 'post' | 'put' | 'delete';
 
@@ -80,17 +82,6 @@ export const newId = (): string => {
 type LocalMap = Record<string, number>;
 
 const readLocalMap = async (): Promise<LocalMap> => (await metaGet<LocalMap>(LOCAL_MAP_KEY)) ?? {};
-
-const rememberLocalId = async (localId: string, serverId: number): Promise<void> => {
-  const map = await readLocalMap();
-  map[localId] = serverId;
-  // Xarita cheksiz o'smasin — oxirgi 200 ta bog'lanish yetarli
-  const keys = Object.keys(map);
-  if (keys.length > 200) {
-    for (const k of keys.slice(0, keys.length - 200)) delete map[k];
-  }
-  await metaSet(LOCAL_MAP_KEY, map);
-};
 
 /** URL/tanadagi `$local:<id>` o'rin egallovchilarini haqiqiy ID ga almashtiradi */
 const resolveRefs = <T>(value: T, map: LocalMap): T => {
@@ -153,12 +144,14 @@ export const enqueue = async (
   entry: Omit<QueueEntry, 'seq' | 'createdAt' | 'attempts' | 'status' | 'idempotencyKey' | 'localId'> &
     Partial<Pick<QueueEntry, 'localId' | 'idempotencyKey'>>,
 ): Promise<string> => {
+  await requireOfflineLease(entry.scope);
+  if (fullScope() !== entry.scope) throw new Error('OFFLINE_SCOPE_MISSING');
   const localId = entry.localId ?? newId();
   const row: QueueEntry = {
     ...entry,
     localId,
     idempotencyKey: entry.idempotencyKey ?? newId(),
-    createdAt: Date.now(),
+    createdAt: effectiveNow(),
     attempts: 0,
     status: 'pending',
   };
@@ -255,13 +248,14 @@ let flushing = false;
  * @param scope joriy foydalanuvchi+klub doirasi — faqat SHU doiradagi
  *   yozuvlar yuboriladi (boshqa hisobning amali begona hisobga tushmasin)
  */
-export const flushQueue = async (scope: string): Promise<FlushResult> => {
+const flushWithLock = async (scope: string): Promise<FlushResult> => {
   if (flushing) return { sent: 0, blocked: false, offline: false };
   flushing = true;
   let sent = 0;
   try {
     const rows = await queueList();
     for (const row of rows) {
+      if (fullScope() !== scope) return { sent, blocked: true, offline: false };
       if (row.scope !== scope) continue;
       // Oldida hal qilinmagan xato yozuv bo'lsa — undan keyingilar kutadi
       if (row.status === 'failed') return { sent, blocked: true, offline: false };
@@ -296,6 +290,7 @@ export const flushQueue = async (scope: string): Promise<FlushResult> => {
       }
 
       try {
+        if (fullScope() !== scope) return { sent, blocked: true, offline: false };
         const res = await client.request({
           method: row.method,
           url,
@@ -316,8 +311,10 @@ export const flushQueue = async (scope: string): Promise<FlushResult> => {
         });
         // Javobdagi haqiqiy ID ni lokal havolaga bog'laymiz
         const id = (res.data as { data?: { id?: number } })?.data?.id;
-        if (typeof id === 'number') await rememberLocalId(row.localId, id);
-        if (row.seq !== undefined) await idbDelete(STORE_QUEUE, row.seq);
+        if (row.seq === undefined || !(await completeQueueEntry(row.seq, row.localId, typeof id === 'number' ? id : undefined))) {
+          // Keep the original idempotency key; replay recovers an acknowledged response.
+          return { sent, blocked: true, offline: false };
+        }
         sent += 1;
         notify();
       } catch (err) {
@@ -366,6 +363,15 @@ export const flushQueue = async (scope: string): Promise<FlushResult> => {
   } finally {
     flushing = false;
   }
+};
+
+/** Serialize replay across tabs/windows as well as within this module. */
+export const flushQueue = async (scope: string): Promise<FlushResult> => {
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return await navigator.locks.request('billiardclub-queue-replay', { ifAvailable: true },
+      (lock) => lock ? flushWithLock(scope) : Promise.resolve({ sent: 0, blocked: false, offline: false }));
+  }
+  return flushWithLock(scope);
 };
 
 /** Chiqishda navbatni tozalash MUMKIN EMAS — yuborilmagan pul amallari

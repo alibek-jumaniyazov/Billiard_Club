@@ -34,8 +34,8 @@ export class ReservationsController {
 
   @Get()
   async findAll(@ClubId() clubId: number, @Query() query: ListReservationsQueryDto) {
-    const { data, pagination } = await this.reservationsService.findAll(clubId, query);
-    return { success: true, data, pagination };
+    const { data, pagination, timezone } = await this.reservationsService.findAll(clubId, query);
+    return { success: true, data, pagination, timezone };
   }
 
   @Get(':id')

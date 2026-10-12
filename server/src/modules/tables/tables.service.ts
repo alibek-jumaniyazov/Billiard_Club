@@ -14,6 +14,7 @@ import { Table } from '../../entities/table.entity';
 import { User } from '../../entities/user.entity';
 import { safeTimezone } from '../settings/timezones';
 import { CreateTableDto, UpdateTableDto } from './dto/tables.dto';
+import { lightFreshUntil } from './light-freshness';
 
 @Injectable()
 export class TablesService {
@@ -32,15 +33,21 @@ export class TablesService {
    *    tugmasini KO'RSATISH/YASHIRISH uchun ishlatadi (rejim 'off' bo'lsa
    *    tugma bosilganda hech narsa o'zgarmasdi — shuning uchun ko'rsatilmaydi).
    */
-  private async clubSettings(clubId: number): Promise<{ timezone: string; lightMode: string }> {
-    const rows: Array<{ timezone: string | null; lightMode: string | null }> =
+  private async clubSettings(clubId: number) {
+    const rows: Array<{ timezone: string | null; lightMode: string | null; lightForceSyncSec: number;
+      bridgeSeenAt: Date | null; bridgeActive: boolean | null }> =
       await this.dataSource.query(
-        `SELECT s.timezone, s."lightMode" FROM settings s WHERE s."clubId" = $1`,
+        `SELECT s.timezone, s."lightMode", s."lightForceSyncSec",
+                b."lastSeenAt" AS "bridgeSeenAt", b."isActive" AS "bridgeActive"
+         FROM settings s LEFT JOIN club_bridges b ON b."clubId" = s."clubId" WHERE s."clubId" = $1`,
         [clubId],
       );
     return {
       timezone: safeTimezone(rows[0]?.timezone),
       lightMode: rows[0]?.lightMode ?? LightMode.OFF,
+      lightForceSyncSec: rows[0]?.lightForceSyncSec ?? 60,
+      bridgeSeenAt: rows[0]?.bridgeSeenAt ?? null,
+      bridgeActive: rows[0]?.bridgeActive === true,
     };
   }
 
@@ -63,7 +70,7 @@ export class TablesService {
     const activeByTable = new Map(activeSessions.map((s) => [s.tableId, s]));
 
     // "Bugun" — klub vaqt mintaqasida (server-lokal yarim tun EMAS)
-    const { timezone: tz, lightMode } = await this.clubSettings(clubId);
+    const { timezone: tz, lightMode, lightForceSyncSec, bridgeSeenAt, bridgeActive } = await this.clubSettings(clubId);
     const lightsEnabled = lightMode !== LightMode.OFF;
     const counts: Array<{ tableId: number; cnt: string }> = await this.sessionRepo
       .createQueryBuilder('session')
@@ -85,6 +92,8 @@ export class TablesService {
       todayCompletedSessions: countByTable.get(table.id) ?? 0,
       // Chiroq boshqaruvi shu stolda haqiqatan ishlaydimi (rejim + rele sozlangan)
       lightControl: lightsEnabled && table.lightDriver !== LightDriver.NONE,
+      lightFreshUntil: lightFreshUntil({ syncedAt: table.lightSyncedAt, state: table.lightState,
+        error: table.lightError, mode: lightMode, forceSyncSec: lightForceSyncSec, bridgeSeenAt, bridgeActive }),
     }));
   }
 

@@ -116,15 +116,19 @@ export class LightsController {
       const bridge = await this.lightsService.bridgeStatus(clubId);
       return {
         success: true,
-        message: t(lang, bridge.online ? 'lights.tested' : 'lights.bridgeOffline'),
-        data: { ok: true, queued: true, error: result.error, bridgeOnline: bridge.online },
+        message: bridge.online
+          ? (lang === 'ru' ? 'Команда отправлена агенту, ожидается подтверждение реле' : 'Buyruq agentga yuborildi, rele tasdig‘i kutilmoqda')
+          : t(lang, 'lights.bridgeOffline'),
+        data: { ok: false, queued: true, reason: result.reason, error: result.error, bridgeOnline: bridge.online },
       };
     }
 
     return {
       success: true,
-      message: t(lang, result.ok ? 'lights.tested' : 'lights.deviceUnreachable'),
-      data: { ok: result.ok, queued: false, error: result.error, bridgeOnline: null },
+      message: result.reason === 'unconfirmed'
+        ? (lang === 'ru' ? 'Команда отправлена; состояние реле не подтверждено' : 'Buyruq yuborildi; rele holati tasdiqlanmadi')
+        : t(lang, result.ok ? 'lights.tested' : 'lights.deviceUnreachable'),
+      data: { ok: result.ok, queued: false, reason: result.reason, error: result.error, bridgeOnline: null },
     };
   }
 

@@ -31,6 +31,7 @@ export interface TableCardProps {
   offsetMs: number;
   online: boolean;
   pending: boolean;
+  lightPending?: boolean;
   canCheckout: boolean;
   canManage: boolean;
   onStart: (table: BilliardTable) => void;
@@ -44,10 +45,11 @@ export interface TableCardProps {
 }
 
 const TableCard = memo(({
-  table, focused, session, segments, offsetMs, online, pending, canCheckout, canManage,
+  table, focused, session, segments, offsetMs, online, pending, lightPending, canCheckout, canManage,
   onStart, onOrder, onTransfer, onCheckout, onPauseResume, onCancel, onLightToggle, onLightAuto,
 }: TableCardProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const ru = i18n.language.startsWith('ru');
   const { modal } = App.useApp();
   const currency = useCurrency();
   const isBusy = table.status === 'busy';
@@ -58,7 +60,8 @@ const TableCard = memo(({
   const canCancel = !offlineBlocked && (canManage || (!!session &&
     (session.barAmount ?? 0) <= 0 && sessionElapsedMs(session, Date.now() + offsetMs) <= 600_000));
   const hasLight = !!onLightToggle && table.lightControl === true;
-  const lightState = table.lightState ?? null;
+  const lightFresh = table.lightFreshUntil && Date.parse(table.lightFreshUntil) > Date.now() + offsetMs;
+  const lightState = online && lightFresh && !table.lightError ? table.lightState ?? null : null;
   const lightError = table.lightError ?? null;
   const lightOverride = !!table.lightOverrideUntil && new Date(table.lightOverrideUntil).getTime() > Date.now() + offsetMs;
   const lightTarget = (lightOverride ? (table.lightOverrideOn ?? null) : null) ?? lightState ?? false;
@@ -77,12 +80,24 @@ const TableCard = memo(({
       onOk: () => onCancel(session),
     });
   };
+  const toggleLight = () => {
+    if (!online || lightPending) return;
+    if (isBusy && lightTarget) {
+      modal.confirm({
+        title: ru ? 'Выключить свет на занятом столе?' : 'O‘yin ketayotgan stolda chiroq o‘chirilsinmi?',
+        content: ru ? 'Игра и расчёт времени продолжатся. Чтобы вернуть управление по игре, выберите «Авто».'
+          : 'O‘yin va vaqt hisobi davom etadi. O‘yinga mos boshqaruvni qaytarish uchun «Avto» ni tanlang.',
+        okText: t('common.yes'), cancelText: t('common.no'),
+        onOk: () => onLightToggle?.(table, false),
+      });
+    } else onLightToggle?.(table, !lightTarget);
+  };
   const moreItems = [
     ...(isBusy && session ? [{ key: 'transfer', icon: <SwapOutlined />,
       label: <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : isPaused ? t('tables.transferPausedHint') : undefined}><span>{t('tables.transfer')}</span></Tooltip>,
       disabled: isPaused || offlineBlocked || pending, onClick: () => onTransfer(table) }] : []),
     ...(hasLight && lightOverride && onLightAuto ? [{ key: 'light-auto', icon: <SyncOutlined />,
-      label: t('tables.lightsOverrideAuto'), onClick: () => onLightAuto(table) }] : []),
+      label: t('tables.lightsOverrideAuto'), disabled: !online || lightPending, onClick: () => onLightAuto(table) }] : []),
     ...(isBusy && session && canCheckout ? [{ key: 'cancel', icon: <CloseCircleOutlined />, danger: true,
       label: <Tooltip title={!canCancel ? t(offlineBlocked ? 'offline.offlineBlocked' : 'tables.cancelNeedsAdmin') : undefined}><span>{t('tables.cancelTooltip')}</span></Tooltip>,
       disabled: !canCancel || pending, onClick: confirmCancel }] : []),
@@ -136,8 +151,9 @@ const TableCard = memo(({
           : <span className="table-work-card__history"><HistoryOutlined />{t('tables.todayCompleted', { n: table.todayCompletedSessions ?? 0 })}</span>}
         <div className="table-work-card__utility-buttons">
           {hasLight && <Tooltip title={`${lightLabel} · ${lightHint}`}><Button type="text" icon={<BulbOutlined />}
+            loading={lightPending} disabled={!online}
             className={lightError ? 'has-light-error' : lightState ? 'is-light-on' : ''}
-            aria-label={`${lightLabel} · ${lightHint}`} onClick={() => onLightToggle?.(table, !lightTarget)} /></Tooltip>}
+            aria-label={`${lightLabel} · ${lightHint}`} onClick={toggleLight} /></Tooltip>}
           {moreItems.length > 0 && <Dropdown menu={{ items: moreItems }} trigger={['click']} placement="bottomRight">
             <Button type="text" icon={<DownOutlined />}>{t('tables.moreActions')}</Button>
           </Dropdown>}

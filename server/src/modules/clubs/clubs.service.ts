@@ -650,7 +650,7 @@ export class ClubsService {
   private async withMeta(club: Club) {
     const effectiveEndsAt = club.subscriptionEndsAt ?? club.trialEndsAt ?? null;
     const isExpired =
-      !!effectiveEndsAt && new Date(effectiveEndsAt).getTime() < Date.now();
+      club.status === ClubStatus.EXPIRED || (!!effectiveEndsAt && new Date(effectiveEndsAt).getTime() <= Date.now());
     const daysLeft = effectiveEndsAt
       ? Math.max(0, Math.ceil((new Date(effectiveEndsAt).getTime() - Date.now()) / DAY_MS))
       : null;

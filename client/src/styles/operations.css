@@ -1,0 +1,67 @@
+.club-operations { margin-bottom: 24px; border: 1px solid var(--border-base); border-radius: 16px; background: var(--bg1); overflow: hidden; }
+.club-operations__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px; border-bottom: 1px solid var(--border-subtle); }
+.club-operations__eyebrow { font-size: 10px; font-weight: 750; color: var(--gold); letter-spacing: .12em; }
+.club-operations__heading h2 { font-size: 21px; font-weight: 650; letter-spacing: -.025em; margin: 6px 0; }
+.club-operations__heading p, .club-operations__caption { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+.club-operations__grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+.club-operations__room, .club-operations__arrivals { padding: 24px; min-width: 0; }
+.club-operations__room { border-right: 1px solid var(--border-subtle); }
+.club-operations__arrivals { display: flex; flex-direction: column; }
+.club-operations__section-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.club-operations__section-title h3 { font-size: 15px; font-weight: 650; }
+.club-operations__section-title a, .club-operations__footer-link { font-size: 12px; min-height: 32px; display: inline-flex; align-items: center; gap: 8px; }
+.club-room-legend { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.club-room-legend a { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px; }
+.club-room-legend b { color: var(--text-primary); margin-left: 3px; }
+.club-room-legend i { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald-glow); }
+.club-room-legend i.is-busy { background: var(--gold); }
+.club-room-legend i.is-paused { background: var(--warning); }
+.club-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 18px 12px; }
+.club-room-table { min-width: 0; color: var(--text-secondary); display: flex; flex-direction: column; gap: 3px; text-align: center; border-radius: 8px; padding: 3px; }
+.club-room-table:hover { color: var(--text-primary); background: var(--bg2); }
+.club-room-table__rail { position: relative; display: flex; align-items: center; justify-content: center; height: 54px; border-radius: 10px; border: 4px solid var(--border-base); outline: 1px solid var(--border-strong); background: var(--emerald-deep); color: var(--emerald-glow); margin-bottom: 5px; box-shadow: inset 0 0 0 1px #ffffff0d; }
+.club-room-table__rail b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.club-room-table__rail > .anticon { position: absolute; right: 5px; top: 5px; font-size: 11px; }
+.club-room-table.is-busy .club-room-table__rail { background: var(--gold-subtle); color: var(--gold); }
+.club-room-table.is-paused .club-room-table__rail { background: var(--bg3); color: var(--warning); border-style: dashed; }
+.club-room-table strong { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.club-room-table small { font-size: 10px; }
+.club-light-summary { display: flex; gap: 12px; align-items: center; padding: 14px; border: 1px solid var(--border-subtle); background: var(--bg2); border-radius: 10px; margin-top: 24px; color: var(--text-primary); }
+.club-light-summary > .anticon:first-child { color: var(--gold); font-size: 21px; }
+.club-light-summary > span:nth-child(2) { flex: 1; min-width: 0; }
+.club-light-summary strong, .club-light-summary small { display: block; }
+.club-light-summary strong { font-size: 12px; }
+.club-light-summary small { font-size: 11px; line-height: 1.6; margin-top: 4px; color: var(--text-secondary); }
+.club-light-summary.needs-attention { border-color: var(--warning); }
+.club-room-table .needs-attention { color: var(--warning); }
+.club-arrivals { flex: 1; }
+.club-arrival { display: flex; align-items: center; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); }
+.club-arrival__time { flex-shrink: 0; min-width: 58px; }
+.club-arrival__time b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.club-arrival__time small { display: block; color: var(--text-secondary); font-size: 10px; margin-top: 3px; }
+.club-arrival__time.is-late b { color: var(--warning); }
+.club-arrival__guest { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+.club-arrival__guest strong { font-size: 13px; overflow-wrap: anywhere; }
+.club-arrival__guest span, .club-arrival__guest small { font-size: 11px; color: var(--text-secondary); }
+.club-arrival > .anticon { font-size: 11px; color: var(--text-tertiary); }
+.club-operations__footer-link { margin-top: 16px; }
+.club-operations__empty { display: flex; align-items: center; flex-direction: column; justify-content: center; gap: 10px; padding: 26px 10px; text-align: center; font-size: 12px; color: var(--text-secondary); }
+.club-operations__empty > .anticon { font-size: 28px; color: var(--text-tertiary); }
+.club-operations__attention, .club-operations__quiet { display: flex; align-items: center; gap: 10px 20px; flex-wrap: wrap; padding: 14px 24px; border-top: 1px solid var(--border-subtle); background: var(--bg2); font-size: 12px; }
+.club-operations__attention strong { color: var(--warning); }
+.club-operations__attention a { color: var(--text-primary); display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.club-operations__quiet { color: var(--text-secondary); }
+.club-operations__quiet > .anticon { color: var(--emerald-glow); }
+.club-operations__quiet > span:last-child { margin-left: auto; font-size: 11px; }
+.reservation-item.is-focused { outline: 2px solid var(--gold); outline-offset: 3px; scroll-margin-top: 100px; }
+@media (min-width: 1600px) { .club-room-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); } }
+@media (max-width: 767px) {
+  .club-operations__grid { grid-template-columns: 1fr; }
+  .club-operations__heading, .club-operations__room, .club-operations__arrivals { padding: 18px 16px; }
+  .club-operations__heading { flex-wrap: wrap; align-items: flex-start; }
+  .club-operations__heading h2 { font-size: 20px; }
+  .club-operations__room { border-right: 0; border-bottom: 1px solid var(--border-subtle); }
+  .club-room-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 14px 8px; }
+  .club-operations__attention, .club-operations__quiet { padding: 12px 16px; }
+  .club-operations__attention strong { width: 100%; }
+}

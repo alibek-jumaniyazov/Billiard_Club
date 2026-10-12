@@ -68,9 +68,11 @@ export const swPlugin = (): Plugin => {
 
       // Versiya build tarkibidan chiqadi: fayllar o'zgarmasa SW ham o'zgarmaydi
       // (foydalanuvchiga bejiz "yangilanish bor" deyilmaydi)
-      const version = createHash('sha256').update(precache.join('|')).digest('hex').slice(0, 12);
-
       const template = readFileSync(resolve(root, 'sw/service-worker.js'), 'utf8');
+      const hash = createHash('sha256').update(precache.join('|')).update(template);
+      for (const file of PUBLIC_ASSETS) hash.update(readFileSync(resolve(root, `public${file}`)));
+      for (const item of Object.values(bundle)) hash.update(item.type === 'chunk' ? item.code : item.source);
+      const version = hash.digest('hex').slice(0, 12);
       const source = template
         .replace("'__SW_VERSION__'", JSON.stringify(version))
         .replace("'__SW_PRECACHE__'", JSON.stringify(precache));

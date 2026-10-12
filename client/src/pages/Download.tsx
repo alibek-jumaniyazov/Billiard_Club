@@ -24,6 +24,8 @@ import { desktopBridge, isDesktop, type DesktopUpdateStatus } from '../offline/d
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { TOKENS } from '../theme/tokens';
 import type { AppReleaseInfo, ReleasePlatform } from '../types';
+import AppInstallCard from '../components/ui/AppInstallCard';
+import { mobilePlatform } from '../offline/install';
 
 const { Paragraph, Text, Title } = Typography;
 const { gold, emerald, semantic, text } = TOKENS.color;
@@ -59,7 +61,8 @@ const REQUIREMENT_KEY: Record<ReleasePlatform, string> = {
  * yomon narsa bo'lmaydi: boshqa tizimlar ro'yxati baribir pastda turadi,
  * shunchaki katta tugma boshqa platformani ko'rsatgan bo'ladi.
  */
-const detectPlatform = (): ReleasePlatform => {
+const detectPlatform = (): ReleasePlatform | null => {
+  if (mobilePlatform(navigator.userAgent, navigator.maxTouchPoints)) return null;
   const uaData = (navigator as { userAgentData?: { platform?: string } }).userAgentData;
   const raw = `${uaData?.platform ?? ''} ${navigator.userAgent}`.toLowerCase();
   if (raw.includes('mac')) return 'mac';
@@ -307,6 +310,8 @@ const Download = () => {
             {t('download.subtitle')}
           </Paragraph>
 
+          <AppInstallCard />
+
           {loading && (
             <div style={{ textAlign: 'center', padding: 48 }}>
               <Spin size="large" />
@@ -335,7 +340,7 @@ const Download = () => {
                   platforma egasi esa buni O'ZI hal qila olishini va qayerdan
                   boshlashni ko'radi — aks holda sahifa boshi berk ko'chaga
                   o'xshab qolardi. */}
-              {!inDesktop && !primary && releases?.length === 0 && (
+              {!inDesktop && detected !== null && !primary && releases?.length === 0 && (
                 <GlassCard style={{ padding: 28, textAlign: 'center' }}>
                   <Space direction="vertical" size={8}>
                     <Text style={{ color: text.primary, fontSize: 16 }}>

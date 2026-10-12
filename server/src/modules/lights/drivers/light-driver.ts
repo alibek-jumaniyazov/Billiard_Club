@@ -164,12 +164,32 @@ export async function applyLight(
  * Relening HAQIQIY holatini o'qish (mantiqiy qiymatda, inverted hisobga olingan).
  * O'qish majburiy emas: qurilma javob bermasa yoki formatni tushunmasak — null.
  *
- * Ko'p kanalli sozlamada faqat ASOSIY kanal o'qiladi — u stolning holatini
- * bildiradi (qolgan kanallar unga birga qo'llanadi).
+ * Ko'p kanalli sozlamada BARCHA kanallar o'qiladi. Bitta noma'lum kanal ham
+ * tasdiqni bekor qiladi; aralash holat desired berilganda uning teskarisi.
  */
 export async function readLight(
   target: LightTarget,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  desired?: boolean,
+): Promise<boolean | null> {
+  const states: Array<boolean | null> = [];
+  for (const channel of resolveChannels(target)) {
+    states.push(await readSingleLight({ ...target, channel }, timeoutMs));
+  }
+  if (states.length === 0 || states.some((state) => state === null)) return null;
+  if (states.some((state) => state !== states[0])) return desired === undefined ? null : !desired;
+  return states[0];
+}
+
+export function supportsLightReadback(target: LightTarget): boolean {
+  return [LightDriver.SHELLY_GEN1, LightDriver.SHELLY_GEN2, LightDriver.TASMOTA,
+    LightDriver.ESPHOME, LightDriver.HOME_ASSISTANT, LightDriver.MODBUS_TCP].includes(target.driver)
+    || (target.driver === LightDriver.MQTT && Boolean(target.config?.stateTopic?.trim()));
+}
+
+async function readSingleLight(
+  target: LightTarget,
+  timeoutMs: number,
 ): Promise<boolean | null> {
   try {
     // Bridge drayverlarining holatini faqat agent o'qiy oladi
@@ -200,7 +220,7 @@ export async function readLight(
         const data = await fetchJson(`http://${host}/cm?cmnd=Power${index}`, target, timeoutMs);
         // Ko'p kanalli qurilmada {"POWER2":"ON"}, bir kanallida {"POWER":"ON"}
         const value = data?.[`POWER${index}`] ?? data?.['POWER'];
-        physical = typeof value === 'string' ? value.toUpperCase() === 'ON' : null;
+        physical = parseOnOff(value);
         break;
       }
       case LightDriver.ESPHOME: {
@@ -503,6 +523,8 @@ async function sendCommand(
       body ? body.slice(0, 300) : null,
     );
   }
+  // Drain the body while the request deadline still applies; release sockets.
+  await res.text();
 }
 
 /** Drayver bo'yicha so'rovni yig'ish (`physical` — relega yuboriladigan qiymat) */

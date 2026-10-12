@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { App, Button, Input, Select, Space, Tag, Tooltip, Typography } from 'antd';
+import { Alert, App, Button, Input, Select, Space, Tag, Tooltip, Typography } from 'antd';
 import { LinkOutlined, RadarChartOutlined, SearchOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, lightsApi } from '../../../api';
 import { TOKENS } from '../../../theme/tokens';
 import type { DiscoveredDevice, LightDriver, TableLightConfig } from '../../../types';
 import { formatDateTime } from '../../../utils/format';
-import { canAssignDirectly, DRIVER_OPTIONS } from './shared';
+import { DRIVER_OPTIONS } from './shared';
 
 const { Text } = Typography;
 
@@ -16,29 +16,26 @@ const POLL_MS = 3000;
 export interface LightDiscoverPanelProps {
   /** Biriktirish uchun stollar ro'yxati */
   tables: TableLightConfig[];
-  /** Agent onlayn emas — skan navbatga qo'yiladi, lekin bajarilmaydi */
+  /** Skan faqat agent onlayn bo'lganda boshlanadi. */
   bridgeOnline: boolean;
-  /** Qurilma stolga SAQLANDI — serverdan qaytgan yozuv bilan yangilash */
-  onAssigned: (applied: TableLightConfig) => void;
   /**
-   * Qurilma qo'shimcha maydon talab qiladi — serverga yubormasdan stol
-   * kartasining QORALAMASIGA yozamiz (foydalanuvchi qolganini to'ldirib saqlaydi).
+   * Qurilma stol qoralamasiga yoziladi; foydalanuvchi kanalni tanlab saqlaydi.
    */
   onPrefill: (tableId: number, driver: LightDriver, host: string) => void;
 }
 
 /**
  * Qurilma qidirish sehrgari: lokal agent klub tarmog'ini skanerlaydi,
- * topilgan relelar ro'yxati shu yerda ko'rinadi va bir bosishda stolga
- * biriktiriladi (drayver + manzil stolga yoziladi).
+ * topilgan rele uchun stol sozlamalarini tayyorlaydi. Saqlashdan oldin
+ * kanalni tekshirish kerak; qidiruv natijasi jonli sozlamani almashtirmaydi.
  */
 const LightDiscoverPanel = ({
   tables,
   bridgeOnline,
-  onAssigned,
   onPrefill,
 }: LightDiscoverPanelProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const ru = i18n.language.startsWith('ru');
   const { message } = App.useApp();
 
   const [subnet, setSubnet] = useState('');
@@ -50,7 +47,8 @@ const LightDiscoverPanel = ({
   const [starting, setStarting] = useState(false);
   /** host -> tanlangan stol */
   const [targets, setTargets] = useState<Record<string, number | undefined>>({});
-  const [assigning, setAssigning] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const pollBusy = useRef(false);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -61,6 +59,8 @@ const LightDiscoverPanel = ({
   }, []);
 
   const loadDiscovered = useCallback(async () => {
+    if (pollBusy.current) return;
+    pollBusy.current = true;
     try {
       const res = await lightsApi.discovered();
       if (!mountedRef.current) return;
@@ -68,8 +68,11 @@ const LightDiscoverPanel = ({
       setScannedAt(res.data.scannedAt);
       setScannedSubnet(res.data.subnet ?? null);
       setRunning(res.data.running);
+      setLoadFailed(false);
     } catch {
-      // Qidiruv — qo'shimcha imkoniyat: xatosi asosiy panelni buzmaydi
+      if (mountedRef.current) setLoadFailed(true);
+    } finally {
+      pollBusy.current = false;
     }
   }, []);
 
@@ -85,6 +88,7 @@ const LightDiscoverPanel = ({
   }, [running, loadDiscovered]);
 
   const startScan = async () => {
+    if (running || starting || !bridgeOnline) return;
     setStarting(true);
     try {
       const res = await lightsApi.discover(subnet.trim() || undefined);
@@ -102,35 +106,14 @@ const LightDiscoverPanel = ({
     }
   };
 
-  /**
-   * Topilgan qurilmani stolga biriktirish.
-   * Server ba'zi drayverlar uchun qo'shimcha maydon talab qiladi (esphome —
-   * `entity`, http — onUrl/offUrl), shuning uchun ular SERVERGA YUBORILMAYDI:
-   * manzil va tur stol kartasining qoralamasiga yoziladi va foydalanuvchi
-   * qolgan maydonlarni to'ldirib "Saqlash"ni bosadi. Aks holda PUT doim 400
-   * bilan tugardi.
-   */
-  const assign = async (device: DiscoveredDevice) => {
+  /** Qurilma manzilini qoralamaga yozish; to'g'ri kanalni egasi tanlaydi. */
+  const assign = (device: DiscoveredDevice) => {
     const tableId = targets[device.host];
     if (!tableId) return;
     const driver: LightDriver = device.driver ?? 'http';
 
-    if (!canAssignDirectly(driver)) {
-      onPrefill(tableId, driver, device.host);
-      message.info(t('tables.lightsDiscoverPrefilled'));
-      return;
-    }
-
-    setAssigning(device.host);
-    try {
-      const res = await lightsApi.updateTable(tableId, { driver, host: device.host });
-      message.success(res.message);
-      onAssigned(res.data);
-    } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
-    } finally {
-      setAssigning(null);
-    }
+    onPrefill(tableId, driver, device.host);
+    message.info(t('tables.lightsDiscoverPrefilled'));
   };
 
   const driverLabel = (driver: LightDriver | undefined): string => {
@@ -139,7 +122,7 @@ const LightDiscoverPanel = ({
     return opt.brand ?? t(opt.i18nKey ?? '');
   };
 
-  const tableOptions = tables.map((row) => ({
+  const tableOptions = tables.filter((row) => row.isActive).map((row) => ({
     value: row.tableId,
     label: `${row.tableNumber} · ${row.tableName}`,
   }));
@@ -178,7 +161,7 @@ const LightDiscoverPanel = ({
             <Button
               icon={<SearchOutlined />}
               loading={starting}
-              disabled={!bridgeOnline}
+              disabled={!bridgeOnline || running}
               onClick={() => void startScan()}
             >
               {t('tables.lightsDiscover')}
@@ -186,6 +169,8 @@ const LightDiscoverPanel = ({
           </span>
         </Tooltip>
       </div>
+
+      {loadFailed && <Alert type="warning" showIcon style={{ marginTop: 10 }} message={ru ? 'Результат поиска не обновлён. Проверьте соединение и повторите поиск.' : 'Qidiruv natijasi yangilanmadi. Aloqani tekshirib qayta qidiring.'} />}
 
       {scannedAt && (
         <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 8 }}>
@@ -209,8 +194,6 @@ const LightDiscoverPanel = ({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
           {devices.map((device) => {
-            const driver: LightDriver = device.driver ?? 'http';
-            const direct = canAssignDirectly(driver);
             const target = targets[device.host];
             return (
               <div
@@ -244,7 +227,7 @@ const LightDiscoverPanel = ({
                 )}
                 {/* Qo'shimcha maydon talab qiladigan drayver — biriktirish
                     qoralamaga yoziladi, serverga darhol yuborilmaydi */}
-                {!direct && (
+                {(
                   <Tag color="default" style={{ marginInlineEnd: 0 }}>
                     {t('tables.lightsDiscoverNeedsFields')}
                   </Tag>
@@ -263,9 +246,7 @@ const LightDiscoverPanel = ({
                     title={
                       !target
                         ? t('tables.lightsDiscoverSelectTable')
-                        : direct
-                          ? undefined
-                          : t('tables.lightsDiscoverPrefilled')
+                        : t('tables.lightsDiscoverPrefilled')
                     }
                   >
                     <span style={{ display: 'inline-flex' }}>
@@ -274,10 +255,9 @@ const LightDiscoverPanel = ({
                         type="primary"
                         icon={<LinkOutlined />}
                         disabled={!target}
-                        loading={assigning === device.host}
-                        onClick={() => void assign(device)}
+                        onClick={() => assign(device)}
                       >
-                        {t('tables.lightsDiscoverAssign')}
+                        {ru ? 'Настроить' : 'Sozlash'}
                       </Button>
                     </span>
                   </Tooltip>

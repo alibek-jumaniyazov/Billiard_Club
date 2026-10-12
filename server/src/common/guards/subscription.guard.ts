@@ -21,7 +21,7 @@ const IMPERSONATION_LOG_TTL_MS = 60_000;
 /**
  * Obuna nazorati (SaaS yadrosi):
  *  - Klub bloklangan bo'lsa — 403 CLUB_BLOCKED
- *  - Sinov/obuna muddati tugagan bo'lsa — status 'expired' ga o'tadi va 403 SUBSCRIPTION_EXPIRED
+ *  - Sinov/obuna muddati tugagan bo'lsa — 403 SUBSCRIPTION_EXPIRED (statusni cron yangilaydi)
  *  - Aks holda req.clubId va req.club o'rnatiladi (tenant konteksti)
  *
  * Superadmin uchun: X-Club-Id header orqali istalgan klub kontekstida
@@ -84,9 +84,8 @@ export class SubscriptionGuard implements CanActivate {
     }
 
     if (club.isExpired) {
-      if (club.status !== ClubStatus.EXPIRED) {
-        await this.clubRepo.update(club.id, { status: ClubStatus.EXPIRED });
-      }
+      // The cron owns status materialization. Writing from this stale read
+      // could overwrite a subscription renewed concurrently by the owner.
       throw new ForbiddenException({
         key: 'subscription.expired',
         code: 'SUBSCRIPTION_EXPIRED',

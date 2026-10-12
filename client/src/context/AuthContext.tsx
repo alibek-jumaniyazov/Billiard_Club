@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
 } from 'react';
 import { authApi, publicApi } from '../api';
 import { silentRefresh, tokenStore, viewingClub } from '../api/client';
@@ -13,6 +14,7 @@ import { clearCache, setCacheScope } from '../offline/cache';
 import {
   clearLicense,
   initClock,
+  isSubscriptionOver,
   offlineVerdict,
   storeLicense,
   storePublicKey,
@@ -23,6 +25,7 @@ import {
   loadSessionSnapshot,
   saveSessionSnapshot,
 } from '../offline/session-snapshot';
+import { isOnline, onNetworkChange } from '../offline/net-status';
 import type { ClubInfo, SignedLicense, User, UserRole } from '../types';
 
 interface RegisterPayload {
@@ -70,6 +73,8 @@ interface AuthContextValue {
    * Interfeys shu holatda "oflayn rejim" chizig'ini ko'rsatadi.
    */
   restoredOffline: boolean;
+  subscriptionLocked: boolean;
+  offlineAccess: boolean;
   /**
    * OFLAYN obuna hukmi — imzolangan ruxsatnoma asosida (offline/license.ts).
    *
@@ -95,6 +100,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [restoredOffline, setRestoredOffline] = useState(false);
   const [offlineLicense, setOfflineLicense] = useState<LicenseVerdict | null>(null);
 
+  const [networkOnline, setNetworkOnline] = useState(isOnline);
+  const [, tick] = useState(0);
+  const authGeneration = useRef(0);
+  const securityReady = useRef<Promise<void> | null>(null);
+  const prepareSecurity = useCallback(() => {
+    securityReady.current ??= (async () => {
+      await initClock();
+      try {
+        if (navigator.onLine === false) return;
+        const res = await publicApi.licenseKey();
+        if (res.data?.publicKey) await storePublicKey(res.data.publicKey);
+      } catch { /* previously trusted key remains available offline */ }
+    })();
+    return securityReady.current;
+  }, []);
+  const offlineAccess = restoredOffline || !networkOnline;
+  const subscriptionLocked = !!user && user.role !== 'superadmin' && (
+    !club || club.status === 'blocked' || club.status === 'expired' ||
+    isSubscriptionOver(club.effectiveEndsAt) ||
+    (offlineAccess && offlineLicense?.locked !== false)
+  );
+
   /**
    * Kesh doirasi = foydalanuvchi + klub. Bu chegara tenant izolyatsiyasini
    * OFLAYN keshda ham saqlaydi: bir kompyuterda ikkinchi xodim (yoki boshqa
@@ -108,60 +135,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * Oflayn hukmni qayta hisoblash. Har safar yangi ruxsatnoma kelganda va
    * ilova ochilganda chaqiriladi.
    */
-  const recomputeVerdict = useCallback(async (clubId: number | null) => {
-    setOfflineLicense(await offlineVerdict(clubId));
-  }, []);
 
   const adopt = useCallback(
-    (
-      nextUser: User,
-      nextClub: ClubInfo | null,
-      offline = false,
-      license?: SignedLicense | null,
-    ) => {
+    async (nextUser: User, nextClub: ClubInfo | null, offline = false, license?: SignedLicense | null) => {
+      const generation = authGeneration.current;
+      await prepareSecurity();
+      if (generation !== authGeneration.current) return;
+      if (!offline) await storeLicense(license ?? null);
+      const verdict = await offlineVerdict(nextClub?.id ?? nextUser.clubId ?? null, nextUser.id);
+      if (generation !== authGeneration.current) return;
       applyScope(nextUser, nextClub);
+      setOfflineLicense(verdict);
       setUser(nextUser);
       setClub(nextClub);
       setRestoredOffline(offline);
       if (!offline) saveSessionSnapshot(tokenStore.getAccess(), nextUser, nextClub);
-
-      // Ruxsatnoma faqat ONLAYN javobdan yangilanadi (oflayn tiklashda
-      // saqlangani o'z holicha qoladi — u allaqachon imzolangan va tekshiriladi)
-      void (async () => {
-        if (!offline) await storeLicense(license ?? null);
-        await recomputeVerdict(nextClub?.id ?? nextUser.clubId ?? null);
-      })();
-    },
-    [applyScope, recomputeVerdict],
+    }, [applyScope, prepareSecurity],
   );
 
   const refreshMe = useCallback(async () => {
-    const res = await authApi.me();
-    adopt(res.data.user, res.data.club, false, res.data.license);
-  }, [adopt]);
-
-  /**
-   * Monoton soat va ochiq kalit — ilova ochilishida BIR MARTA.
-   *
-   * Kalit oldindan saqlangan bo'lsa serverga so'rov ketmaydi ham: bu yo'l
-   * internetsiz ishga tushishda ham to'g'ri bo'lishi kerak (aynan o'shanda
-   * ruxsatnoma tekshiruvi eng zarur).
-   */
-  useEffect(() => {
-    void (async () => {
-      await initClock();
-      try {
-        const res = await publicApi.licenseKey();
-        if (res.data?.publicKey) await storePublicKey(res.data.publicKey);
-      } catch {
-        // Internet yo'q — avval saqlangan kalit ishlatiladi
+    const generation = authGeneration.current;
+    try {
+      const res = await authApi.me();
+      if (generation !== authGeneration.current) return;
+      await adopt(res.data.user, res.data.club, false, res.data.license);
+    } catch (error) {
+      const response = (error as { response?: { status: number; data?: { code?: string } } }).response;
+      if (generation === authGeneration.current && response?.status === 401 && response.data?.code !== 'TOKEN_EXPIRED') {
+        authGeneration.current += 1;
+        tokenStore.clear();
+        clearSessionSnapshots();
+        setCacheScope(null);
+        setUser(null);
+        setClub(null);
+        await clearLicense();
+        await clearCache();
       }
-    })();
-  }, []);
+      throw error;
+    }
+  }, [adopt]);
 
   useEffect(() => {
     const init = async () => {
       try {
+        await prepareSecurity();
+        if (navigator.onLine === false) throw new Error('OFFLINE_BOOT');
         if (!tokenStore.getAccess()) {
           // Access token yo'q, lekin httpOnly refresh cookie bo'lishi mumkin —
           // "chiqib ketgan" deb hisoblashdan avval bitta jim refresh urinamiz
@@ -182,20 +200,56 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // TARMOQ UZILGAN: oxirgi ma'lum sessiyani lokal suratdan tiklaymiz,
         // shunda kassir internet yo'q paytda ham ishni davom ettiradi
         // (token muddati o'tgan bo'lsa surat ishlatilmaydi — session-snapshot.ts)
-        const snap = loadSessionSnapshot(tokenStore.getAccess());
-        if (snap) adopt(snap.user, snap.club, true);
+        const snap = (!status || status >= 500) ? await loadSessionSnapshot(tokenStore.getAccess()) : null;
+        if (snap) await adopt(snap.user, snap.club, true);
       } finally {
         setLoading(false);
       }
     };
     void init();
-  }, [refreshMe, adopt]);
+  }, [refreshMe, adopt, prepareSecurity]);
+
+  useEffect(() => {
+    const off = onNetworkChange(setNetworkOnline);
+    return off;
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const check = async () => {
+      const verdict = await offlineVerdict(club?.id ?? user.clubId ?? null, user.id);
+      if (active) { setOfflineLicense(verdict); tick((n) => n + 1); }
+    };
+    const timer = setInterval(() => void check(), 1000);
+    const resume = () => { void check(); };
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => { active = false; clearInterval(timer); window.removeEventListener('focus', resume); document.removeEventListener('visibilitychange', resume); };
+  }, [user, club]);
+
+  useEffect(() => {
+    if (!user) return;
+    let pending = false;
+    const verify = async () => {
+      if (pending || navigator.onLine === false) return;
+      pending = true;
+      try { await refreshMe(); } catch { /* lease controls offline access */ }
+      finally { pending = false; }
+    };
+    const timer = setInterval(() => void verify(), 60_000);
+    const resume = () => { void verify(); };
+    window.addEventListener('online', resume);
+    window.addEventListener('focus', resume);
+    return () => { clearInterval(timer); window.removeEventListener('online', resume); window.removeEventListener('focus', resume); };
+  }, [!!user, refreshMe]);
 
   // Multi-tab sinxronizatsiya (storage hodisasi FAQAT boshqa tablarda ishlaydi)
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       // Boshqa oynada accessToken o'chirilsa — bu oynada ham lokal chiqish
       if (e.key === 'accessToken' && e.newValue === null) {
+        authGeneration.current += 1;
         viewingClub.clear();
         clearSessionSnapshots();
         void clearCache();
@@ -218,6 +272,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = useCallback(
     async (username: string, password: string) => {
+      authGeneration.current += 1;
       try {
         // Avvalgi sessiyaning "klubni ko'rish" rejimi yangi sessiyaga o'tmasin
         viewingClub.clear();
@@ -226,7 +281,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await clearCache();
         // Faqat access token saqlanadi — refresh httpOnly cookie da
         tokenStore.set(res.data.accessToken);
-        adopt(res.data.user, res.data.club, false, res.data.license);
+        await adopt(res.data.user, res.data.club, false, res.data.license);
         return { ok: true };
       } catch (err: unknown) {
         const message = (err as { response?: { data?: { message?: string } } })?.response?.data
@@ -239,12 +294,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const register = useCallback(
     async (body: RegisterPayload) => {
+      authGeneration.current += 1;
       try {
         viewingClub.clear();
         const res = await publicApi.register(body);
         await clearCache();
         tokenStore.set(res.data.accessToken);
-        adopt(res.data.user, res.data.club, false, res.data.license);
+        await adopt(res.data.user, res.data.club, false, res.data.license);
         return { ok: true };
       } catch (err: unknown) {
         const message = (err as { response?: { data?: { message?: string } } })?.response?.data
@@ -256,6 +312,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const logout = useCallback(async () => {
+    authGeneration.current += 1;
     try {
       // Avval server tomonda refresh sessiya bekor qilinadi va cookie tozalanadi
       await authApi.logout();
@@ -291,6 +348,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       club,
       loading,
       restoredOffline,
+      subscriptionLocked,
+      offlineAccess,
       offlineLicense,
       login,
       register,
@@ -303,6 +362,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       club,
       loading,
       restoredOffline,
+      subscriptionLocked,
+      offlineAccess,
       offlineLicense,
       login,
       register,

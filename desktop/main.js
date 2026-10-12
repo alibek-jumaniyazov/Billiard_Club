@@ -32,6 +32,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { offlineFallbackHtml } = require('./offline');
 const { initUpdater, stopUpdater } = require('./updater');
+const { resolveAppUrl, sameOrigin, safeExternal, trustedSender } = require('./security');
 
 /** Standart manzil — ishlab turgan xizmat */
 const DEFAULT_URL = 'https://billiardclub.uz';
@@ -68,7 +69,7 @@ const resolveUrl = () => {
   return (fromFile || DEFAULT_URL).replace(/\/+$/, '');
 };
 
-const APP_URL = resolveUrl();
+const APP_URL = resolveAppUrl(resolveUrl(), app.isPackaged);
 const APP_ORIGIN = (() => {
   try {
     return new URL(APP_URL).origin;
@@ -123,6 +124,10 @@ const createWindow = () => {
       nodeIntegration: false,
       sandbox: true,
       webviewTag: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      devTools: !app.isPackaged,
+      safeDialogs: true,
       spellcheck: false,
       // Ilova versiyasini preload ga uzatish. `sandbox: true` da preload da
       // `app` yo'q, `process.argv` esa bor — shuning uchun argument orqali.
@@ -139,33 +144,33 @@ const createWindow = () => {
 
   /* --- Navigatsiya cheklovlari: qobiq FAQAT o'z ilovasini ko'rsatadi --- */
 
-  const isAppUrl = (url) => {
-    try {
-      return new URL(url).origin === APP_ORIGIN;
-    } catch {
-      return false;
-    }
-  };
+  const isAppUrl = (url) => sameOrigin(url, APP_ORIGIN);
+  const openExternal = (url) => { if (safeExternal(url)) void shell.openExternal(url); };
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!isAppUrl(url)) {
       event.preventDefault();
-      void shell.openExternal(url);
+      openExternal(url);
     }
   });
 
   // target="_blank" va window.open — tashqi havolalar tizim brauzerida ochiladi
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isAppUrl(url)) return { action: 'allow' };
-    void shell.openExternal(url);
+    if (isAppUrl(url)) void mainWindow.loadURL(url);
+    else openExternal(url);
     return { action: 'deny' };
   });
+  mainWindow.webContents.on('will-redirect', (event, url) => { if (!isAppUrl(url)) event.preventDefault(); });
+  mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
 
   // Ruxsat so'rovlari: kassa dasturiga kamera/mikrofon/joylashuv KERAK EMAS.
   // Faqat bildirishnoma va to'liq ekran ruxsat etiladi.
-  mainWindow.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === 'notifications' || permission === 'fullscreen');
+  mainWindow.webContents.session.setPermissionRequestHandler((wc, permission, callback, details) => {
+    callback(wc === mainWindow?.webContents && isAppUrl(details.requestingUrl) && details.isMainFrame &&
+      (permission === 'notifications' || permission === 'fullscreen'));
   });
+  mainWindow.webContents.session.setPermissionCheckHandler((wc, permission, origin) =>
+    wc === mainWindow?.webContents && isAppUrl(origin) && (permission === 'notifications' || permission === 'fullscreen'));
 
   /* --- Yuklash xatosi: internet yo'q va service worker hali o'rnatilmagan --- */
 
@@ -174,7 +179,7 @@ const createWindow = () => {
     if (!isMainFrame || errorCode === -3) return;
     void mainWindow.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
-        offlineFallbackHtml({ url: failingUrl || APP_URL, reason: errorDescription }),
+        offlineFallbackHtml({ url: APP_URL, reason: errorDescription }),
       )}`,
     );
   });
@@ -269,7 +274,7 @@ const buildMenu = () => {
           // Menyudan bosilgani ham renderer'dagi tugma bilan BIR XIL yo'lga
           // tushadi: holat /download sahifasida ko'rinadi va ikkita alohida
           // "yangilanish tekshiruvi" mantig'i paydo bo'lmaydi.
-          click: () => ipcMain.emit('billiardclub:check-updates'),
+          click: () => require('./updater').checkForUpdates(),
         },
         { type: 'separator' },
         { role: 'quit', label: 'Chiqish' },
@@ -351,6 +356,7 @@ if (!app.requestSingleInstanceLock()) {
     initUpdater({
       feedBase: APP_URL,
       getWindow: () => mainWindow,
+      isTrusted: (event) => trustedSender(event, mainWindow, APP_ORIGIN),
       /**
        * Yuborilmagan oflayn amal bo'lsa qayta ishga tushirishga RUXSAT
        * BERILMAYDI. Amallar diskda saqlangan va yo'qolmaydi, lekin dastur
@@ -390,7 +396,8 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   /** Renderer yuborilmagan amallar sonini xabar qiladi (preload orqali) */
-  ipcMain.on('billiardclub:pending', (_event, count) => {
+  ipcMain.on('billiardclub:pending', (event, count) => {
+    if (!trustedSender(event, mainWindow, APP_ORIGIN)) return;
     pendingActions = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
   });
 }

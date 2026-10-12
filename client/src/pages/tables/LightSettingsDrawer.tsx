@@ -5,9 +5,11 @@ import {
   Button,
   Collapse,
   Drawer,
+  Input,
   InputNumber,
   Popconfirm,
   Radio,
+  Segmented,
   Select,
   Skeleton,
   Space,
@@ -24,6 +26,7 @@ import {
   KeyOutlined,
   PoweroffOutlined,
   ReloadOutlined,
+  SearchOutlined,
   SyncOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
@@ -42,6 +45,10 @@ import { formatDateTime } from '../../utils/format';
 import LightDiscoverPanel from './lights/LightDiscoverPanel';
 import LightEventsPanel from './lights/LightEventsPanel';
 import TableLightCard from './lights/TableLightCard';
+import LightReadinessPanel from './lights/LightReadinessPanel';
+import { lightCopy } from './lights/light-copy';
+import { lightDraftIssue, lightHealth, needsLightAttention } from './lights/light-health';
+import './lights/lights.css';
 import {
   buildDrafts,
   draftConfig,
@@ -87,15 +94,7 @@ const SettingRow = ({
   hint: string;
   control: ReactNode;
 }) => (
-  <div
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 12,
-      marginTop: 12,
-    }}
-  >
+  <div className="light-setting-row">
     <div style={{ minWidth: 0 }}>
       <Text style={{ display: 'block' }}>{label}</Text>
       <Text type="secondary" style={{ fontSize: 12 }}>
@@ -124,7 +123,8 @@ interface LightSettingsDrawerProps {
  * oyna ochilmaguncha hech narsa o'zgarmaydi.
  */
 const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const copy = lightCopy(i18n.language.startsWith('ru'));
   const { message } = App.useApp();
 
   const [data, setData] = useState<LightsOverview | null>(null);
@@ -149,6 +149,13 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
   const [masterMinutes, setMasterMinutes] = useState<number>(60);
   const [masterBusy, setMasterBusy] = useState<MasterBusy>(null);
   const [eventsOpen, setEventsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [tableFilter, setTableFilter] = useState('all');
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [clock, setClock] = useState(Date.now);
+  const serverClockOffset = useRef(0);
+  const requestVersion = useRef(0);
+  const actionInFlight = useRef(false);
   /** Qidiruvdan qoralama tushgan stol — kartaga scroll qilib ajratamiz */
   const [highlightId, setHighlightId] = useState<number | null>(null);
 
@@ -170,13 +177,18 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
   const load = useCallback(
     async (mode: LoadMode = 'full') => {
       // Davriy yangilash navbat hosil qilmasin: oldingisi tugamagan bo'lsa o'tkazib yuboriladi
-      if (inFlightRef.current > 0 && mode === 'background') return;
+      if ((inFlightRef.current > 0 || actionInFlight.current) && mode === 'background') return;
       const silent = mode !== 'full';
+      const version = ++requestVersion.current;
       inFlightRef.current += 1;
       if (mode === 'silent') setRefreshing(true);
       else if (mode === 'full') setLoading(true);
       try {
         const res = await lightsApi.overview();
+        if (version !== requestVersion.current) return;
+        setLoadFailed(false);
+        serverClockOffset.current = Date.parse(res.data.serverNow) - Date.now();
+        setClock(Date.now());
         setData(res.data);
         setDrafts((prev) =>
           silent ? { ...buildDrafts(res.data.tables), ...prev } : buildDrafts(res.data.tables),
@@ -190,11 +202,15 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
           numbersReady.current = true;
         }
       } catch (err) {
+        if (version !== requestVersion.current) return;
+        setLoadFailed(true);
         if (!silent) message.error(errorMessage(err, t('common.error')));
       } finally {
         inFlightRef.current = Math.max(0, inFlightRef.current - 1);
-        setLoading(false);
-        setRefreshing(false);
+        if (version === requestVersion.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [message, t],
@@ -215,14 +231,20 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
     setToken(null);
     setEventsOpen(false);
     setHighlightId(null);
+    setQuery('');
+    setTableFilter('all');
     numbersReady.current = false;
     void loadRef.current('full');
+    return () => { requestVersion.current += 1; };
   }, [open]);
 
   /* Oyna ochiq turganda jimgina yangilash (grace/bron holati vaqt bilan o'zgaradi) */
   useEffect(() => {
     if (!open) return;
-    const timer = setInterval(() => void loadRef.current('background'), SILENT_REFRESH_MS);
+    const timer = setInterval(() => {
+      setClock(Date.now());
+      void loadRef.current('background');
+    }, SILENT_REFRESH_MS);
     return () => clearInterval(timer);
   }, [open]);
 
@@ -236,6 +258,8 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
 
   /** Stol kartasiga scroll qilib, uni qisqa vaqt ajratib ko'rsatish */
   const focusTable = useCallback((tableId: number) => {
+    setQuery('');
+    setTableFilter('all');
     setHighlightId(tableId);
     if (highlightTimer.current) clearTimeout(highlightTimer.current);
     highlightTimer.current = setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);
@@ -246,13 +270,22 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
   }, []);
 
   const canEdit = data?.canEdit !== false;
+  const busy = settingsSaving || savingId !== null || testingId !== null || overridingId !== null || masterBusy !== null || tokenIssuing;
+  const now = clock + serverClockOffset.current;
+  const visibleTables = data?.tables.filter((row) => {
+    const matches = `${row.tableNumber} ${row.tableName}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+    const health = lightHealth(row, data.mode, data.bridge.online, data.forceSyncSec, now);
+    return matches && (tableFilter === 'all' || (tableFilter === 'attention' ? needsLightAttention(health) : health === 'unconfigured'));
+  }) ?? [];
 
   /* ------------------------------------------------------ Klub sozlamalari */
 
   /** Har qanday sozlama o'zgarishi — `mode` doim birga yuboriladi (DTO talabi) */
   const saveSettings = useCallback(
     async (patch: Partial<LightSettingsPayload>) => {
-      if (!data) return;
+      if (!data || actionInFlight.current) return;
+      actionInFlight.current = true;
+      requestVersion.current += 1;
       setSettingsSaving(true);
       try {
         const res = await lightsApi.updateSettings({ mode: data.mode, ...patch });
@@ -273,10 +306,11 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
           forceSyncSec: data.forceSyncSec,
         });
       } finally {
+        actionInFlight.current = false;
         setSettingsSaving(false);
       }
     },
-    [data, message, onChanged, t],
+    [data, busy, message, onChanged, t],
   );
 
   /**
@@ -303,6 +337,9 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
   /* ------------------------------------------------------ Master boshqaruv */
 
   const runMaster = async (on: boolean | null) => {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
+    requestVersion.current += 1;
     setMasterBusy(on === null ? 'auto' : on ? 'on' : 'off');
     try {
       const res = await lightsApi.master(on, on === null ? undefined : masterMinutes);
@@ -312,6 +349,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
     } finally {
+      actionInFlight.current = false;
       setMasterBusy(null);
     }
   };
@@ -336,7 +374,11 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
 
   const saveTable = async (tableId: number) => {
     const draft = drafts[tableId];
-    if (!draft) return;
+    if (!draft || actionInFlight.current) return;
+    const issue = lightDraftIssue(draft);
+    if (issue) { message.warning(copy.issues[issue]); return; }
+    actionInFlight.current = true;
+    requestVersion.current += 1;
     setSavingId(tableId);
     try {
       const payload: TableLightPayload = {
@@ -371,37 +413,47 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
     } finally {
+      actionInFlight.current = false;
       setSavingId(null);
     }
   };
 
   const testTable = async (tableId: number, on: boolean) => {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
+    requestVersion.current += 1;
     setTestingId(tableId);
     try {
       const res = await lightsApi.test(tableId, on);
-      if (res.data.ok) message.success(res.message);
-      else message.warning(res.message);
+      if (res.data.queued) message.info(copy.queued);
+      else if (res.data.ok) message.info(copy.accepted);
+      else message.warning(res.data.error || res.message);
       // Haqiqiy natija stol yozuvida ko'rinadi (bridge rejimida bir necha soniyadan keyin)
       void load('silent');
       onChanged();
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
     } finally {
+      actionInFlight.current = false;
       setTestingId(null);
     }
   };
 
   /** Qo'lda boshqaruv; on=null — chiroq avtomatik (sessiya) holatiga qaytadi */
   const overrideTable = async (tableId: number, on: boolean | null) => {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
+    requestVersion.current += 1;
     setOverridingId(tableId);
     try {
-      const res = await lightsApi.override(tableId, on);
+      const res = await lightsApi.override(tableId, on, on === null ? undefined : 60);
       message.success(res.message);
       void load('silent');
       onChanged();
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
     } finally {
+      actionInFlight.current = false;
       setOverridingId(null);
     }
   };
@@ -409,6 +461,9 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
   /* -------------------------------------------------------- Lokal agent */
 
   const issueToken = async () => {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
+    requestVersion.current += 1;
     setTokenIssuing(true);
     try {
       const res = await lightsApi.issueBridgeToken();
@@ -418,14 +473,17 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
     } finally {
+      actionInFlight.current = false;
       setTokenIssuing(false);
     }
   };
 
-  const copyToken = () => {
+  const copyToken = async () => {
     if (!token) return;
-    void navigator.clipboard.writeText(token);
-    message.success(t('tables.lightsCopied'));
+    try {
+      await navigator.clipboard.writeText(token);
+      message.success(t('tables.lightsCopied'));
+    } catch { message.error(copy.copiedError); }
   };
 
   const modeHint =
@@ -439,9 +497,10 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
 
   return (
     <Drawer
+      rootClassName="light-control-drawer"
       title={t('tables.lightsTitle')}
       open={open}
-      onClose={onClose}
+      onClose={() => { setToken(null); onClose(); }}
       width="min(880px, 100vw)"
       destroyOnHidden
       extra={
@@ -449,6 +508,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
           <Button
             icon={<ReloadOutlined />}
             loading={refreshing}
+            disabled={busy}
             onClick={() => void load('silent')}
             aria-label={t('btn.refresh')}
           />
@@ -470,6 +530,8 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <LightReadinessPanel data={data} now={now} />
+          {loadFailed && <Alert type="warning" showIcon message={copy.pollingError} />}
           {!canEdit && <Alert type="info" showIcon message={t('tables.lightsReadOnly')} />}
 
           {/* -------------------------------------------------- Klub rejimi */}
@@ -479,7 +541,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
             </Text>
             <Radio.Group
               value={data.mode}
-              disabled={settingsSaving || !canEdit}
+              disabled={busy || !canEdit}
               optionType="button"
               buttonStyle="solid"
               onChange={(e) => void saveSettings({ mode: e.target.value as LightMode })}
@@ -492,7 +554,12 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
             <Text type="secondary" style={{ display: 'block', fontSize: 12.5, marginTop: 8 }}>
               {modeHint}
             </Text>
+            {data.mode === 'direct' && <Alert type="info" showIcon message={copy.direct} style={{ marginTop: 12 }} />}
 
+            <Collapse ghost style={{ marginTop: 10 }} items={[{
+              key: 'automation',
+              label: i18n.language.startsWith('ru') ? 'Правила автоматического управления' : 'Avtomatik boshqarish qoidalari',
+              children: <>
             <SettingRow
               label={t('tables.lightsOffOnPause')}
               hint={t('tables.lightsOffOnPauseHint')}
@@ -500,7 +567,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                 <Switch
                   checked={data.offOnPause}
                   loading={settingsSaving}
-                  disabled={data.mode === 'off' || !canEdit}
+                  disabled={data.mode === 'off' || !canEdit || busy}
                   onChange={(checked) => void saveSettings({ offOnPause: checked })}
                 />
               }
@@ -515,7 +582,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                   min={0}
                   max={3600}
                   step={30}
-                  disabled={data.mode === 'off' || !canEdit || settingsSaving}
+                  disabled={data.mode === 'off' || !canEdit || busy}
                   addonAfter={t('tables.lightsSeconds')}
                   aria-label={t('tables.lightsOffDelay')}
                   onChange={(value) =>
@@ -536,7 +603,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                   value={numbers.preOnMinutes}
                   min={0}
                   max={120}
-                  disabled={data.mode === 'off' || !canEdit || settingsSaving}
+                  disabled={data.mode === 'off' || !canEdit || busy}
                   addonAfter={t('tables.lightsMinutes')}
                   aria-label={t('tables.lightsPreOn')}
                   onChange={(value) =>
@@ -558,7 +625,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                   min={10}
                   max={3600}
                   step={10}
-                  disabled={data.mode === 'off' || !canEdit || settingsSaving}
+                  disabled={data.mode === 'off' || !canEdit || busy}
                   addonAfter={t('tables.lightsSeconds')}
                   aria-label={t('tables.lightsForceSync')}
                   onChange={(value) =>
@@ -578,11 +645,13 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                 <Switch
                   checked={data.verify}
                   loading={settingsSaving}
-                  disabled={data.mode === 'off' || !canEdit}
+                  disabled={data.mode === 'off' || !canEdit || busy}
                   onChange={(checked) => void saveSettings({ verify: checked })}
                 />
               }
             />
+              </>,
+            }]} />
           </div>
 
           {data.mode === 'off' && <Alert type="info" showIcon message={t('tables.lightsOffAlert')} />}
@@ -630,7 +699,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                   cancelText={t('common.no')}
                   onConfirm={() => void runMaster(true)}
                 >
-                  <Button icon={<BulbOutlined />} loading={masterBusy === 'on'}>
+                  <Button icon={<BulbOutlined />} loading={masterBusy === 'on'} disabled={busy || (data.mode === 'bridge' && !data.bridge.online)}>
                     {t('tables.lightsMasterAllOn')}
                   </Button>
                 </Popconfirm>
@@ -642,7 +711,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                   okButtonProps={{ danger: true }}
                   onConfirm={() => void runMaster(false)}
                 >
-                  <Button icon={<PoweroffOutlined />} loading={masterBusy === 'off'}>
+                  <Button icon={<PoweroffOutlined />} loading={masterBusy === 'off'} disabled={busy || (data.mode === 'bridge' && !data.bridge.online)}>
                     {t('tables.lightsMasterAllOff')}
                   </Button>
                 </Popconfirm>
@@ -653,11 +722,13 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                   cancelText={t('common.no')}
                   onConfirm={() => void runMaster(null)}
                 >
-                  <Button type="text" icon={<SyncOutlined />} loading={masterBusy === 'auto'}>
+                  <Button type="text" icon={<SyncOutlined />} loading={masterBusy === 'auto'} disabled={busy}>
                     {t('tables.lightsMasterAuto')}
                   </Button>
                 </Popconfirm>
               </div>
+
+              {data.mode === 'bridge' && !data.bridge.online && <Alert type="warning" showIcon message={copy.offline} style={{ marginTop: 12 }} />}
             </div>
           )}
 
@@ -699,7 +770,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                   cancelText={t('common.no')}
                   onConfirm={() => void issueToken()}
                 >
-                  <Button icon={<KeyOutlined />} loading={tokenIssuing} style={{ marginTop: 10 }}>
+                  <Button icon={<KeyOutlined />} loading={tokenIssuing} disabled={busy} style={{ marginTop: 10 }}>
                     {t('tables.lightsIssueToken')}
                   </Button>
                 </Popconfirm>
@@ -717,7 +788,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                         {token}
                       </Text>
                       <Space size={8}>
-                        <Button size="small" icon={<CopyOutlined />} onClick={copyToken}>
+                        <Button size="small" icon={<CopyOutlined />} onClick={() => void copyToken()}>
                           {t('tables.lightsCopy')}
                         </Button>
                         <Button size="small" type="text" onClick={() => setToken(null)}>
@@ -734,34 +805,20 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
 
               {/* Qurilma qidirish sehrgari — skanni lokal agent bajaradi */}
               {canEdit && (
+                <Collapse ghost style={{ marginTop: 10 }} items={[{
+                  key: 'discovery', label: t('tables.lightsDiscover'),
+                  children:
                 <LightDiscoverPanel
                   tables={data.tables}
                   bridgeOnline={data.bridge.online}
-                  onAssigned={(applied) => {
-                    // FAQAT biriktirilgan stol nuqtali yangilanadi — boshqa
-                    // stollarning saqlanmagan qoralamalari o'chib ketmasin
-                    setData((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            tables: prev.tables.map((row) =>
-                              row.tableId === applied.tableId ? { ...row, ...applied } : row,
-                            ),
-                          }
-                        : prev,
-                    );
-                    setDrafts((prev) => ({ ...prev, [applied.tableId]: toDraft(applied) }));
-                    focusTable(applied.tableId);
-                    void load('silent');
-                    onChanged();
-                  }}
                   onPrefill={(tableId, driver, host) => {
                     // Serverga yuborilmaydi: qolgan maydonlarni foydalanuvchi
                     // kartada to'ldirib "Saqlash"ni bosadi
-                    patchDraft(tableId, { driver, host });
+                    patchDraft(tableId, { driver, host, channel: 0, inverted: false, onUrl: '', offUrl: '', config: {}, channelsText: '', auth: '' });
                     focusTable(tableId);
                   }}
                 />
+                }]} />
               )}
             </div>
           )}
@@ -771,12 +828,21 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
             <Text strong style={{ display: 'block', marginBottom: 10 }}>
               {t('tables.lightsTables')}
             </Text>
+            <div className="light-table-toolbar">
+              <Input prefix={<SearchOutlined />} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={copy.search} aria-label={copy.search} allowClear />
+              <Segmented value={tableFilter} onChange={(value) => setTableFilter(String(value))} options={[
+                { value: 'all', label: copy.all }, { value: 'attention', label: copy.attention }, { value: 'unconfigured', label: copy.health.unconfigured },
+              ]} />
+            </div>
+            <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 12 }}>{copy.feedbackHint}</Text>
 
             {data.tables.length === 0 ? (
               <EmptyState icon={<BulbOutlined />} title={t('tables.manageEmpty')} />
+            ) : visibleTables.length === 0 ? (
+              <EmptyState title={copy.nothing} action={<Button onClick={() => { setQuery(''); setTableFilter('all'); }}>{copy.reset}</Button>} />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {data.tables.map((row) => {
+                {visibleTables.map((row) => {
                   const draft = drafts[row.tableId];
                   if (!draft) return null;
                   return (
@@ -791,6 +857,10 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                         row={row}
                         draft={draft}
                         mode={data.mode}
+                        bridgeOnline={data.bridge.online}
+                        forceSyncSec={data.forceSyncSec}
+                        serverNow={now}
+                        busy={busy}
                         canEdit={canEdit}
                         highlight={highlightId === row.tableId}
                         saving={savingId === row.tableId}
@@ -799,6 +869,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
                         onPatch={(patch) => patchDraft(row.tableId, patch)}
                         onPatchConfig={(patch) => patchDraftConfig(row.tableId, patch)}
                         onSave={() => void saveTable(row.tableId)}
+                        onReset={() => setDrafts((prev) => ({ ...prev, [row.tableId]: toDraft(row) }))}
                         onTest={(on) => void testTable(row.tableId, on)}
                         onOverride={(on) => void overrideTable(row.tableId, on)}
                       />

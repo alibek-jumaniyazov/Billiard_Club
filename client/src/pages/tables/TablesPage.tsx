@@ -57,7 +57,7 @@ const POLL_INTERVAL_MS = 15_000;
  * nusxasida hisoblanadi.
  */
 const TablesPage = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { message } = App.useApp();
   const { hasRole, club } = useAuth();
   const { online, entries, pending } = useConnection();
@@ -114,7 +114,15 @@ const TablesPage = () => {
   const [checkoutTable, setCheckoutTable] = useState<BilliardTable | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [manageStartCreate, setManageStartCreate] = useState(false);
-  const [lightsOpen, setLightsOpen] = useState(false);
+  const lightsOpen = searchParams.get('panel') === 'lights';
+  const setLightsOpen = (open: boolean) => setSearchParams((previous) => {
+    const next = new URLSearchParams(previous);
+    if (open) next.set('panel', 'lights');
+    else next.delete('panel');
+    return next;
+  }, { replace: true });
+  const lightRequests = useRef(new Set<number>());
+  const [pendingLights, setPendingLights] = useState<ReadonlySet<number>>(new Set());
 
   const commitSegments = useCallback((next: Record<number, SegmentLike[]>) => {
     segmentsRef.current = next;
@@ -418,23 +426,32 @@ const TablesPage = () => {
    */
   const handleLightToggle = useCallback(
     async (table: BilliardTable, on: boolean) => {
+      if (!online || lightRequests.current.has(table.id)) return;
+      lightRequests.current.add(table.id);
+      setPendingLights(new Set(lightRequests.current));
       try {
         const res = await lightsApi.override(table.id, on);
-        message.success(res.message);
+        message.info(i18n.language.startsWith('ru') ? 'Команда принята. Ожидайте ответ реле.' : 'Buyruq qabul qilindi. Rele javobini kuting.');
         applyLightResult(table.id, res.data);
         await fetchTables(true);
         // Bridge rejimida haqiqiy holat bir necha soniyadan keyin keladi
         scheduleLightRefresh();
       } catch (err) {
         message.error(errorMessage(err, t('common.error')));
+      } finally {
+        lightRequests.current.delete(table.id);
+        setPendingLights(new Set(lightRequests.current));
       }
     },
-    [applyLightResult, fetchTables, message, scheduleLightRefresh, t],
+    [applyLightResult, fetchTables, message, scheduleLightRefresh, t, online, i18n],
   );
 
   /** Qo'lda boshqaruvni bekor qilish — chiroq avtomatik (sessiya) holatiga qaytadi */
   const handleLightAuto = useCallback(
     async (table: BilliardTable) => {
+      if (!online || lightRequests.current.has(table.id)) return;
+      lightRequests.current.add(table.id);
+      setPendingLights(new Set(lightRequests.current));
       try {
         const res = await lightsApi.override(table.id, null);
         message.success(res.message);
@@ -443,9 +460,12 @@ const TablesPage = () => {
         scheduleLightRefresh();
       } catch (err) {
         message.error(errorMessage(err, t('common.error')));
+      } finally {
+        lightRequests.current.delete(table.id);
+        setPendingLights(new Set(lightRequests.current));
       }
     },
-    [applyLightResult, fetchTables, message, scheduleLightRefresh, t],
+    [applyLightResult, fetchTables, message, scheduleLightRefresh, t, online],
   );
 
   /* ---------------------------------------------------------- Statistika */
@@ -516,7 +536,7 @@ const TablesPage = () => {
                 icon={<BulbOutlined />}
                 onClick={() => setLightsOpen(true)}
                 aria-label={t('tables.lightsTitle')}
-              />
+              >{t('tables.lightsTitle')}</Button>
             </Tooltip>
             <Tooltip title={t('btn.refresh')}>
               <Button
@@ -625,6 +645,7 @@ const TablesPage = () => {
                   offsetMs={offsetMs}
                   online={online}
                   pending={!!session && pendingIds.has(session.id)}
+                  lightPending={pendingLights.has(table.id)}
                   canCheckout={canCheckout}
                   canManage={canManage}
                   onStart={openStart}

@@ -30,7 +30,7 @@ stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun k
 
 ## Ishga tushirish (development)
 
-Talablar: Node.js 20+, PostgreSQL 14+.
+Talablar: Node.js 22.12+, PostgreSQL 14+.
 
 ```bash
 # 1. Server
@@ -247,3 +247,5 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
 - Reverse proxy (nginx/Caddy) ortida TLS bilan ishga tushiring; `trust proxy` allaqachon sozlangan.
 - `SEED_DEMO_CLUB=false` bo'lsin; superadmin parolini kuchli qiling.
 - PostgreSQL uchun muntazam backup (pg_dump) sozlang — bu klublarning moliyaviy ma'lumotlari.
+
+Desktop va telefon ilovasi, oflayn obuna chegaralari va tekshirish: [DESKTOP-MOBILE-SECURITY.md](docs/DESKTOP-MOBILE-SECURITY.md).
