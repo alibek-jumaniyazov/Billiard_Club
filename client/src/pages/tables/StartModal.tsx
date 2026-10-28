@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, App, Form, Input, Modal } from 'antd';
+import { Alert, App, Form, Input, Modal, Segmented } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, isNetworkError, reservationsApi, sessionsApi } from '../../api';
@@ -14,7 +14,18 @@ interface StartValues {
   customerName?: string;
   customerPhone?: string;
   notes?: string;
+  /** 0 — cheklanmagan (Segmented null qiymatni qabul qilmaydi) */
+  plannedMinutes?: number;
 }
+
+/** Belgilangan vaqt tanlovlari (daqiqa); 0 — cheklanmagan o'yin */
+const PLAN_OPTIONS = [0, 30, 60, 120, 180] as const;
+
+/** Forma qiymatlari -> server tanasi: 0 daqiqa "cheklanmagan" degani */
+const toStartValues = ({ plannedMinutes, ...rest }: StartValues) => ({
+  ...rest,
+  ...(plannedMinutes ? { plannedMinutes } : {}),
+});
 
 interface StartModalProps {
   /** null — modal yopiq */
@@ -78,7 +89,7 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
     const key = newActionKey();
     try {
       // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
-      const values = await form.validateFields();
+      const values = toStartValues(await form.validateFields());
 
       // OFLAYN: o'yin navbatga yoziladi va ekranda darhol ko'rinadi.
       // Taymer `startTime` dan yuradi, ya'ni aloqa tiklanganda vaqt ham,
@@ -100,7 +111,7 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
       // Aloqa aynan shu so'rovda uzildi — o'yin yo'qolmasin, navbatga tushsin
       if (isNetworkError(err)) {
         try {
-          const values = form.getFieldsValue();
+          const values = toStartValues(form.getFieldsValue());
           await queueStartSession(table, values, key, offsetMs);
           message.success(t('offline.savedOffline'));
           onQueuedOffline();
@@ -172,6 +183,21 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
       >
         <Form.Item name="customerName" label={t('tables.customerNameOptional')}>
           <Input maxLength={100} autoFocus />
+        </Form.Item>
+        <Form.Item
+          name="plannedMinutes"
+          label={t('tables.plannedTime')}
+          extra={t('tables.plannedHint')}
+          initialValue={0}
+        >
+          <Segmented<number>
+            block
+            className="table-plan-picker"
+            options={PLAN_OPTIONS.map((m) => ({
+              value: m,
+              label: t(m === 0 ? 'tables.planUnlimited' : `tables.plan${m}`),
+            }))}
+          />
         </Form.Item>
         <Form.Item name="customerPhone" label={t('tables.customerPhoneOptional')}>
           <Input maxLength={20} placeholder="+998" inputMode="tel" />

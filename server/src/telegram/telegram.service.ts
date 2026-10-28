@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { Club } from '../entities/club.entity';
 import { Feedback } from '../entities/feedback.entity';
 import { Invoice } from '../entities/invoice.entity';
+import { Lead } from '../entities/lead.entity';
 import { PlatformSetting } from '../entities/platform-setting.entity';
 import { User } from '../entities/user.entity';
 
@@ -17,7 +18,8 @@ export type TelegramEvent =
   | 'purchase_request'
   | 'feedback'
   | 'critical_error'
-  | 'subscription_expiring';
+  | 'subscription_expiring'
+  | 'lead';
 
 /** Standart holat: 'login'dan tashqari barcha hodisalar YOQILGAN (kirish xabarlari o'chirilgan) */
 export const DEFAULT_TELEGRAM_EVENTS: Record<TelegramEvent, boolean> = {
@@ -29,6 +31,7 @@ export const DEFAULT_TELEGRAM_EVENTS: Record<TelegramEvent, boolean> = {
   feedback: true,
   critical_error: true,
   subscription_expiring: true,
+  lead: true,
 };
 
 /** platform_settings dagi hodisa sozlamalari kaliti */
@@ -203,6 +206,25 @@ export class TelegramService {
         `📌 Mavzu: <b>${this.escapeHtml(feedback.subject)}</b>`,
         `💬 ${this.escapeHtml(this.truncate(feedback.message, 500))}`,
       ].join('\n'),
+    );
+  }
+
+  /** Landing'dan yangi "bepul konsultatsiya" arizasi keldi — tezroq qo'ng'iroq qilish uchun */
+  async notifyLead(lead: Lead): Promise<void> {
+    await this.notify(
+      'lead',
+      [
+        '📞 <b>Yangi ariza: bepul konsultatsiya</b>',
+        '',
+        `👤 Ism: <b>${this.escapeHtml(lead.name)}</b>`,
+        `📱 Telefon: <code>${this.escapeHtml(lead.phone)}</code>`,
+        lead.clubName ? `🏢 Klub: ${this.escapeHtml(lead.clubName)}` : null,
+        lead.tablesCount ? `🎱 Stollar: ${lead.tablesCount} ta` : null,
+        lead.lang ? `🌐 Til: ${lead.lang.toUpperCase()}` : null,
+        lead.message ? `💬 ${this.escapeHtml(this.truncate(lead.message, 500))}` : null,
+      ]
+        .filter((line): line is string => line !== null)
+        .join('\n'),
     );
   }
 

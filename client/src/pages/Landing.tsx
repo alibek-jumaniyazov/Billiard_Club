@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Avatar, Button, Col, Collapse, Drawer, Row, Segmented } from 'antd';
 import {
   ArrowRightOutlined,
   BarChartOutlined,
+  CheckCircleFilled,
   CheckCircleOutlined,
   ClockCircleOutlined,
   CoffeeOutlined,
@@ -28,7 +29,6 @@ import {
   useReducedMotion,
   useScroll,
   useTransform,
-  type Variants,
 } from 'framer-motion';
 import { useAppSettings } from '../context/AppSettingsContext';
 import {
@@ -45,14 +45,17 @@ import { formatNumber } from '../utils/format';
 import { publicApi } from '../api';
 import { setTrialDays } from '../i18n';
 import type { Plan } from '../types';
+import { fadeUp, hexToRgba, SectionHeading, stagger } from './landing/shared';
+import PainPoints from './landing/PainPoints';
+import ProductShowcase from './landing/ProductShowcase';
+import Highlights from './landing/Highlights';
+import RoiCalculator from './landing/RoiCalculator';
+import Comparison from './landing/Comparison';
+import LeadForm from './landing/LeadForm';
+import { FinalCta, StickyCta } from './landing/FinalCta';
+import './landing/landing.css';
 
 const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
-
-/** Token hexini shaffof rgba() ga aylantiradi — sahifada hex takrorlanmasin */
-const hexToRgba = (hex: string, alpha: number): string => {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-};
 
 /* Neytral shaffof qatlamlar (brend ranglari EMAS — alfa-overlay) */
 const NAV_BG = hexToRgba(bg.bg0, 0.82);
@@ -61,38 +64,19 @@ const NAV_BG_SCROLLED = hexToRgba(bg.bg0, 0.94);
 const SOFT_PANEL = 'rgba(255, 255, 255, 0.02)';
 const CARD_TINT = 'rgba(255, 255, 255, 0.03)';
 
-const container: CSSProperties = { maxWidth: 1180, margin: '0 auto', padding: '0 24px' };
-const sectionPad: CSSProperties = { padding: 'clamp(56px, 9vw, 96px) 0' };
-
-/* Footer aloqa havolasi — matn + ikonka bir qatorda */
-const footerContactLink: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 8,
-  fontSize: 13.5,
-};
-
-/* Harakat variantlari — faqat transform + opacity (60fps) */
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 26 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: TOKENS.motion.duration.slow, ease: TOKENS.motion.easing.out },
-  },
-};
-
-const stagger: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.1 } },
-};
-
-const NAV_LINKS = [
+/**
+ * Navigatsiya havolalari. `secondary` — 1200px dan tor ekranda yuqori
+ * menyudan yashiriladi (mobil menyu va footerda doim bor), `drawerOnly` —
+ * faqat mobil menyu va footerda.
+ */
+const NAV_LINKS: { id: string; key: string; secondary?: boolean; drawerOnly?: boolean }[] = [
   { id: 'features', key: 'navFeatures' },
+  { id: 'demo', key: 'navDemo' },
+  { id: 'calculator', key: 'navCalculator', secondary: true },
   { id: 'pricing', key: 'navPricing' },
   { id: 'faq', key: 'navFaq' },
-  { id: 'contact', key: 'navContact' },
-] as const;
+  { id: 'contact', key: 'navContact', drawerOnly: true },
+];
 
 const FEATURE_ITEMS: { key: string; icon: ReactNode }[] = [
   { key: 'feature1', icon: <ClockCircleOutlined /> },
@@ -108,7 +92,10 @@ const FEATURE_ITEMS: { key: string; icon: ReactNode }[] = [
 const STAT_KEYS = ['stat1', 'stat2', 'stat3', 'stat4'] as const;
 const STEP_KEYS = ['step1', 'step2', 'step3'] as const;
 const PLAN_FEATURE_KEYS = ['planFeat1', 'planFeat2', 'planFeat3', 'planFeat4'] as const;
-const FAQ_COUNT = 7;
+const HERO_TRUST_KEYS = ['heroTrust1', 'heroTrust2', 'heroTrust3'] as const;
+const GUARANTEE_KEYS = ['guarantee1', 'guarantee2', 'guarantee3'] as const;
+/** MUHIM: index.html dagi FAQPage JSON-LD bilan sinxron (uz matnlar) */
+const FAQ_COUNT = 11;
 
 /**
  * Tariflar — ZAXIRA ro'yxati. Sahifa ochilganda ommaviy GET /public/plans
@@ -120,6 +107,7 @@ interface PlanTier {
   code: 'monthly' | 'semiannual' | 'yearly';
   price: number;
   months: number;
+  days: number;
   savePercent: number;
   nameKey: string;
   periodKey: string;
@@ -131,6 +119,7 @@ const PLAN_TIERS: PlanTier[] = [
     code: 'monthly',
     price: 290000,
     months: 1,
+    days: 30,
     savePercent: 0,
     nameKey: 'planMonthlyName',
     periodKey: 'planMonthlyPeriod',
@@ -139,6 +128,7 @@ const PLAN_TIERS: PlanTier[] = [
     code: 'semiannual',
     price: 1490000,
     months: 6,
+    days: 180,
     savePercent: 14,
     nameKey: 'planSemiName',
     periodKey: 'planSemiPeriod',
@@ -147,6 +137,7 @@ const PLAN_TIERS: PlanTier[] = [
     code: 'yearly',
     price: 2490000,
     months: 12,
+    days: 365,
     savePercent: 28,
     nameKey: 'planYearName',
     periodKey: 'planYearPeriod',
@@ -161,6 +152,7 @@ interface PlanCard {
   periodLabel: string;
   price: number;
   months: number;
+  days: number;
   savePercent: number;
   highlighted: boolean;
 }
@@ -187,11 +179,11 @@ interface FloatingBallSpec {
 }
 
 const HERO_BALLS: FloatingBallSpec[] = [
-  { num: 1, color: gold.base, left: '5%', top: '14%', size: 34, delay: 0, duration: 12, opacity: 0.5 },
+  { num: 1, color: gold.base, left: '5%', top: '14%', size: 34, delay: 0, duration: 12, opacity: 0.5, hideSm: true },
   { num: 3, color: semantic.error, left: '88%', top: '10%', size: 26, delay: 1.2, duration: 14, opacity: 0.4, hideSm: true },
   { num: 2, color: semantic.info, left: '72%', top: '80%', size: 30, delay: 0.6, duration: 11, opacity: 0.35, hideSm: true },
   { num: 6, color: emerald.bright, left: '30%', top: '84%', size: 24, delay: 2, duration: 13, opacity: 0.4 },
-  { num: 9, color: gold.hover, left: '58%', top: '6%', size: 22, delay: 1.6, duration: 15.5, opacity: 0.35 },
+  { num: 9, color: gold.hover, left: '58%', top: '6%', size: 22, delay: 1.6, duration: 15.5, opacity: 0.35, hideSm: true },
 ];
 
 /** Billiard soqqasi SVG motivi (raqamli, yumshoq soya bilan) */
@@ -261,52 +253,6 @@ const SectionDivider = () => (
       pointerEvents: 'none',
     }}
   />
-);
-
-/* ------------------------------------------------------- Bo'lim sarlavhasi */
-
-const SectionHeading = ({
-  overline,
-  title,
-  subtitle,
-}: {
-  overline: string;
-  title: string;
-  subtitle?: string;
-}) => (
-  <motion.div
-    variants={fadeUp}
-    initial="hidden"
-    whileInView="visible"
-    viewport={{ once: true, amount: 0.3 }}
-    style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto 52px' }}
-  >
-    <div
-      style={{
-        color: gold.base,
-        letterSpacing: 3,
-        fontSize: 13,
-        fontWeight: 700,
-        textTransform: 'uppercase',
-      }}
-    >
-      {overline}
-    </div>
-    <h2
-      style={{
-        fontSize: 'clamp(26px, 3.5vw, 38px)',
-        color: text.primary,
-        fontWeight: 800,
-        margin: '12px 0 14px',
-        lineHeight: 1.2,
-      }}
-    >
-      {title}
-    </h2>
-    {subtitle ? (
-      <p style={{ color: text.secondary, fontSize: 16, lineHeight: 1.65, margin: 0 }}>{subtitle}</p>
-    ) : null}
-  </motion.div>
 );
 
 /* ------------------------------------------------------------------ Sahifa */
@@ -387,6 +333,7 @@ const Landing = () => {
         periodLabel: `${p.durationDays} ${t('common.days')}`,
         price: p.price,
         months: Math.max(1, Math.round(p.durationDays / 30)),
+        days: Math.max(1, p.durationDays),
         savePercent: perDayBase
           ? Math.max(
               0,
@@ -402,10 +349,19 @@ const Landing = () => {
       periodLabel: t(`landing.${p.periodKey}`),
       price: p.price,
       months: p.months,
+      days: p.days,
       savePercent: p.savePercent,
       highlighted: Boolean(p.highlighted),
     }));
   }, [livePlans, lang, t]);
+
+  /** Kalkulyator uchun eng qisqa tarifning bir oylik narxi */
+  const monthlyPrice = useMemo(() => {
+    const first = planCards[0];
+    return first ? Math.round(first.price / Math.max(1, first.months)) : PLAN_TIERS[0].price;
+  }, [planCards]);
+
+  const goRegister = () => navigate('/register');
 
   const telegramHandle = SUPPORT_TELEGRAM.replace(/^https?:\/\/t\.me\//, '@');
   const instagramHandle = SUPPORT_INSTAGRAM.replace(
@@ -431,7 +387,6 @@ const Landing = () => {
       icon: <SendOutlined />,
       titleKey: 'contactTelegramTitle',
       descKey: 'contactTelegramDesc',
-      ctaKey: 'contactTelegramCta',
       value: telegramHandle,
       href: SUPPORT_TELEGRAM,
       external: true,
@@ -442,7 +397,6 @@ const Landing = () => {
       icon: <PhoneOutlined />,
       titleKey: 'contactPhoneTitle',
       descKey: 'contactPhoneDesc',
-      ctaKey: 'contactPhoneCta',
       value: SUPPORT_PHONE,
       href: `tel:${SUPPORT_PHONE.replace(/[^\d+]/g, '')}`,
       external: false,
@@ -453,7 +407,6 @@ const Landing = () => {
       icon: <InstagramOutlined />,
       titleKey: 'contactInstagramTitle',
       descKey: 'contactInstagramDesc',
-      ctaKey: 'contactInstagramCta',
       value: instagramHandle,
       href: SUPPORT_INSTAGRAM,
       external: true,
@@ -464,7 +417,6 @@ const Landing = () => {
       icon: <MailOutlined />,
       titleKey: 'contactEmailTitle',
       descKey: 'contactEmailDesc',
-      ctaKey: 'contactEmailCta',
       value: SUPPORT_EMAIL,
       href: `mailto:${SUPPORT_EMAIL}`,
       external: false,
@@ -493,90 +445,6 @@ const Landing = () => {
           overflowX: 'hidden',
         }}
       >
-        <style>{`
-          html { scroll-behavior: smooth; }
-          .lp-root a { text-decoration: none; }
-          .lp-root section[id] { scroll-margin-top: 84px; }
-          .lp-nav-link { color: var(--text-secondary); font-size: 14.5px; font-weight: 500; padding: 6px 4px; transition: color 0.2s ease; }
-          .lp-nav-link:hover { color: var(--gold); }
-          .lp-nav-desktop { display: flex; align-items: center; gap: 20px; }
-          .lp-nav-mobile { display: none; align-items: center; gap: 10px; }
-          .lp-brand-min { display: none; }
-          @media (max-width: 991px) {
-            .lp-nav-desktop { display: none; }
-            .lp-nav-mobile { display: flex; }
-          }
-          @media (max-width: 430px) {
-            .lp-brand-full { display: none; }
-            .lp-brand-min { display: inline-flex; }
-          }
-          @media (max-width: 640px) {
-            .lp-hide-sm { display: none !important; }
-          }
-          .lp-drawer-link { display: block; padding: 13px 2px; font-size: 16px; font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--border-subtle); }
-          .lp-drawer-link:hover { color: var(--gold); }
-          .lp-faq .ant-collapse-item { border: 1px solid var(--border-base) !important; border-radius: 12px !important; margin-bottom: 12px; background: var(--bg1); overflow: hidden; }
-          .lp-faq .ant-collapse-header { font-weight: 600; font-size: 15.5px; color: var(--text-primary) !important; padding: 16px 20px !important; align-items: center !important; }
-          .lp-faq .ant-collapse-content { background: transparent !important; border-top: 1px solid var(--border-subtle) !important; }
-          .lp-faq .ant-collapse-content-box { padding: 16px 20px !important; }
-          /* Tanlangan tarif — sekin oltin chegara jilosi. Faqat background-position
-             drift (1-2px lik ramka maydonida arzon repaint); mask ichki qismni ochiq
-             qoldiradi, shimmer faqat chegarada yuradi. */
-          .lp-plan-glow::before {
-            content: '';
-            position: absolute;
-            inset: -1px;
-            border-radius: ${TOKENS.radius.xl + 1}px;
-            padding: 2px;
-            background: linear-gradient(115deg, ${gold.line} 0%, ${gold.hover} 25%, ${gold.line} 50%, ${gold.hover} 75%, ${gold.line} 100%);
-            background-size: 200% 100%;
-            -webkit-mask: linear-gradient(rgba(0, 0, 0, 1) 0 0) content-box, linear-gradient(rgba(0, 0, 0, 1) 0 0);
-            -webkit-mask-composite: xor;
-            mask: linear-gradient(rgba(0, 0, 0, 1) 0 0) content-box, linear-gradient(rgba(0, 0, 0, 1) 0 0);
-            mask-composite: exclude;
-            animation: lp-gold-drift 8s linear infinite;
-            pointer-events: none;
-          }
-          @keyframes lp-gold-drift {
-            from { background-position: 0% 50%; }
-            to { background-position: 200% 50%; }
-          }
-          /* CTA tugmasi — jonli oltin gradient sekin oqadi (e'tiborni tortish uchun).
-             .ant-btn xususiyligini yengish uchun !important; faqat background-position
-             animatsiya qilinadi (arzon repaint). */
-          .lp-cta-btn.ant-btn {
-            border: none !important;
-            color: ${gold.contrast} !important;
-            font-weight: 700 !important;
-            background-image: linear-gradient(100deg, ${gold.active} 0%, ${gold.hover} 22%, ${gold.base} 45%, ${gold.hover} 68%, ${gold.active} 100%) !important;
-            background-size: 220% 100% !important;
-            box-shadow: 0 6px 22px ${gold.glow};
-            animation: lp-cta-slide 4.5s linear infinite;
-          }
-          .lp-cta-btn.ant-btn:hover { filter: brightness(1.07); }
-          .lp-cta-btn.ant-btn:active { filter: brightness(0.95); }
-          @keyframes lp-cta-slide {
-            from { background-position: 0% 50%; }
-            to { background-position: 220% 50%; }
-          }
-          /* Konturli tugma — "ghost" o'rniga: hoverdan oldin ham aniq ko'rinadi */
-          .lp-outline-btn.ant-btn {
-            color: ${gold.base} !important;
-            border: 1px solid ${gold.line} !important;
-            background: ${gold.subtle} !important;
-            font-weight: 600 !important;
-          }
-          .lp-outline-btn.ant-btn:hover {
-            color: ${gold.hover} !important;
-            border-color: ${gold.base} !important;
-            background: rgba(212, 175, 55, 0.18) !important;
-          }
-          @media (prefers-reduced-motion: reduce) {
-            .lp-plan-glow::before { animation: none; }
-            .lp-cta-btn.ant-btn { animation: none; }
-          }
-        `}</style>
-
         {/* ------------------------------------------------ Yopishqoq navbar */}
         <header
           style={{
@@ -593,8 +461,8 @@ const Landing = () => {
           }}
         >
           <div
+            className="lp-container"
             style={{
-              ...container,
               height: 68,
               display: 'flex',
               alignItems: 'center',
@@ -612,19 +480,23 @@ const Landing = () => {
             </Link>
 
             <nav className="lp-nav-desktop" aria-label={t('landing.navMenu')}>
-              {NAV_LINKS.map((link) => (
-                <a key={link.id} className="lp-nav-link" href={`#${link.id}`}>
+              {NAV_LINKS.filter((link) => !link.drawerOnly).map((link) => (
+                <a
+                  key={link.id}
+                  className={`lp-nav-link${link.secondary ? ' lp-nav-link--secondary' : ''}`}
+                  href={`#${link.id}`}
+                >
                   {t(`landing.${link.key}`)}
                 </a>
               ))}
-              <Link className="lp-nav-link" to="/download">
+              <Link className="lp-nav-link lp-nav-link--secondary" to="/download">
                 {t('landing.navDownload')}
               </Link>
               {langSwitcher()}
               <Button className="lp-outline-btn" onClick={() => navigate('/login')}>
                 {t('landing.navLogin')}
               </Button>
-              <Button type="primary" className="lp-cta-btn" onClick={() => navigate('/register')}>
+              <Button type="primary" className="lp-cta-btn" onClick={goRegister}>
                 {t('landing.navCta')}
               </Button>
             </nav>
@@ -661,6 +533,9 @@ const Landing = () => {
                 {t(`landing.${link.key}`)}
               </a>
             ))}
+            <Link className="lp-drawer-link" to="/download" onClick={() => setMenuOpen(false)}>
+              {t('landing.navDownload')}
+            </Link>
           </nav>
           <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Button
@@ -680,7 +555,7 @@ const Landing = () => {
               className="lp-cta-btn"
               onClick={() => {
                 setMenuOpen(false);
-                navigate('/register');
+                goRegister();
               }}
             >
               {t('landing.navCta')}
@@ -712,15 +587,15 @@ const Landing = () => {
             </motion.div>
 
             <div
+              className="lp-container"
               style={{
-                ...container,
                 position: 'relative',
                 zIndex: 1,
-                paddingTop: 'clamp(56px, 8vw, 104px)',
+                paddingTop: 'clamp(48px, 8vw, 104px)',
                 paddingBottom: 'clamp(56px, 8vw, 96px)',
               }}
             >
-              <Row gutter={[48, 48]} align="middle">
+              <Row gutter={[{ xs: 16, lg: 48 }, 40]} align="middle">
                 <Col xs={24} lg={13}>
                   <motion.div initial="hidden" animate="visible" variants={stagger}>
                     <motion.div variants={fadeUp}>
@@ -744,7 +619,7 @@ const Landing = () => {
                     <motion.h1
                       variants={fadeUp}
                       style={{
-                        fontSize: 'clamp(34px, 5vw, 56px)',
+                        fontSize: 'clamp(32px, 5vw, 56px)',
                         lineHeight: 1.12,
                         fontWeight: 800,
                         color: text.primary,
@@ -757,9 +632,9 @@ const Landing = () => {
                     <motion.p
                       variants={fadeUp}
                       style={{
-                        fontSize: 18,
+                        fontSize: 'clamp(16px, 1.6vw, 18px)',
                         color: text.secondary,
-                        maxWidth: 540,
+                        maxWidth: 560,
                         lineHeight: 1.65,
                         margin: 0,
                       }}
@@ -768,6 +643,7 @@ const Landing = () => {
                     </motion.p>
                     <motion.div
                       variants={fadeUp}
+                      className="lp-hero-actions"
                       style={{ display: 'flex', gap: 14, marginTop: 34, flexWrap: 'wrap' }}
                     >
                       <Button
@@ -775,7 +651,7 @@ const Landing = () => {
                         size="large"
                         className="lp-cta-btn"
                         style={{ height: 52, padding: '0 32px', fontSize: 16, fontWeight: 600 }}
-                        onClick={() => navigate('/register')}
+                        onClick={goRegister}
                       >
                         {t('landing.heroCta')} <ArrowRightOutlined />
                       </Button>
@@ -783,17 +659,18 @@ const Landing = () => {
                         size="large"
                         className="lp-outline-btn"
                         style={{ height: 52, padding: '0 28px', fontSize: 16 }}
-                        href="#features"
+                        href="#demo"
                       >
                         {t('landing.heroSecondary')}
                       </Button>
                     </motion.div>
-                    <motion.div
-                      variants={fadeUp}
-                      style={{ marginTop: 18, fontSize: 13.5, color: text.secondary }}
-                    >
-                      {t('landing.heroNote')}
-                    </motion.div>
+                    <motion.ul variants={fadeUp} className="lp-hero-trust">
+                      {HERO_TRUST_KEYS.map((key) => (
+                        <li key={key}>
+                          <CheckCircleFilled aria-hidden /> {t(`landing.${key}`)}
+                        </li>
+                      ))}
+                    </motion.ul>
                   </motion.div>
                 </Col>
                 <Col xs={24} lg={11}>
@@ -820,14 +697,14 @@ const Landing = () => {
               background: SOFT_PANEL,
             }}
           >
-            <div style={{ ...container, paddingTop: 44, paddingBottom: 44 }}>
+            <div className="lp-container" style={{ paddingTop: 40, paddingBottom: 40 }}>
               <motion.div
                 variants={stagger}
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.3 }}
               >
-                <Row gutter={[32, 28]}>
+                <Row gutter={[24, 28]}>
                   {STAT_KEYS.map((key) => (
                     <Col xs={12} md={6} key={key}>
                       <motion.div variants={fadeUp} style={{ textAlign: 'center' }}>
@@ -847,11 +724,14 @@ const Landing = () => {
             </div>
           </section>
 
+          {/* ------------------------------------------ Muammo -> yechim */}
+          <PainPoints />
+
           <SectionDivider />
 
           {/* ------------------------------------------------ Imkoniyatlar */}
-          <section id="features" style={sectionPad}>
-            <div style={container}>
+          <section id="features" className="lp-section">
+            <div className="lp-container">
               <SectionHeading
                 overline={t('landing.featuresOverline')}
                 title={t('landing.featuresTitle')}
@@ -863,7 +743,7 @@ const Landing = () => {
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.05 }}
               >
-                <Row gutter={[24, 24]}>
+                <Row gutter={[20, 20]}>
                   {FEATURE_ITEMS.map(({ key, icon }) => (
                     <Col xs={24} sm={12} lg={6} key={key}>
                       <motion.div
@@ -923,11 +803,18 @@ const Landing = () => {
             </div>
           </section>
 
-          <SectionDivider />
+          {/* ------------------------------------------------- Jonli demo */}
+          <ProductShowcase />
+
+          {/* ------------------------- Chiroq, oflayn rejim, qurilmalar */}
+          <Highlights />
+
+          {/* ------------------------------------------------ Kalkulyator */}
+          <RoiCalculator monthlyPrice={monthlyPrice} onCta={goRegister} />
 
           {/* --------------------------------------------- Qanday ishlaydi */}
-          <section id="how" style={{ ...sectionPad, background: SOFT_PANEL }}>
-            <div style={container}>
+          <section id="how" className="lp-section">
+            <div className="lp-container">
               <SectionHeading overline={t('landing.howOverline')} title={t('landing.howTitle')} />
               <motion.div
                 variants={stagger}
@@ -998,11 +885,14 @@ const Landing = () => {
             </div>
           </section>
 
+          {/* -------------------------------------------------- Taqqoslash */}
+          <Comparison />
+
           <SectionDivider />
 
           {/* ------------------------------------------------------ Tariflar */}
-          <section id="pricing" style={sectionPad}>
-            <div style={container}>
+          <section id="pricing" className="lp-section">
+            <div className="lp-container">
               <SectionHeading
                 overline={t('landing.pricingOverline')}
                 title={t('landing.pricingTitle')}
@@ -1114,8 +1004,14 @@ const Landing = () => {
                               ? t('landing.perMonth', {
                                   amount: formatNumber(Math.round(plan.price / plan.months)),
                                 })
-                              : ' '}
+                              : ' '}
                           </div>
+                          {/* Kunlik narx — "bir soatlik o'yindan arzon" hissi */}
+                          <span className="lp-plan-perday" style={{ alignSelf: 'flex-start' }}>
+                            {t('landing.planPerDay', {
+                              amount: formatNumber(Math.round(plan.price / plan.days / 100) * 100),
+                            })}
+                          </span>
                           <div
                             style={{
                               borderTop: `1px solid ${border.subtle}`,
@@ -1158,7 +1054,7 @@ const Landing = () => {
                             type={plan.highlighted ? 'primary' : 'default'}
                             className={plan.highlighted ? 'lp-cta-btn' : undefined}
                             style={{ marginTop: 24, height: 46, fontWeight: 600 }}
-                            onClick={() => navigate('/register')}
+                            onClick={goRegister}
                           >
                             {t('landing.planCta')}
                           </Button>
@@ -1167,13 +1063,20 @@ const Landing = () => {
                     </Col>
                   ))}
                 </Row>
+                <motion.ul variants={fadeUp} className="lp-guarantees">
+                  {GUARANTEE_KEYS.map((key) => (
+                    <li key={key}>
+                      <SafetyCertificateOutlined aria-hidden /> {t(`landing.${key}`)}
+                    </li>
+                  ))}
+                </motion.ul>
                 <motion.p
                   variants={fadeUp}
                   style={{
                     textAlign: 'center',
                     color: text.tertiary,
                     fontSize: 13.5,
-                    marginTop: 28,
+                    marginTop: 18,
                     marginBottom: 0,
                   }}
                 >
@@ -1183,11 +1086,9 @@ const Landing = () => {
             </div>
           </section>
 
-          <SectionDivider />
-
           {/* ------------------------------------------------ Mijozlar fikri */}
-          <section id="testimonials" style={{ ...sectionPad, background: SOFT_PANEL }}>
-            <div style={container}>
+          <section id="testimonials" className="lp-section lp-section--panel">
+            <div className="lp-container">
               <SectionHeading
                 overline={t('landing.testimonialsOverline')}
                 title={t('landing.testimonialsTitle')}
@@ -1198,7 +1099,7 @@ const Landing = () => {
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.05 }}
               >
-                <Row gutter={[24, 24]}>
+                <Row gutter={[20, 20]}>
                   {TESTIMONIALS.map(({ k, color }) => (
                     <Col xs={24} sm={12} xl={6} key={k}>
                       <motion.div variants={fadeUp} style={{ height: '100%' }}>
@@ -1262,11 +1163,9 @@ const Landing = () => {
             </div>
           </section>
 
-          <SectionDivider />
-
           {/* --------------------------------------------------- Savol-javob */}
-          <section id="faq" style={sectionPad}>
-            <div style={{ ...container, maxWidth: 800 }}>
+          <section id="faq" className="lp-section">
+            <div className="lp-container" style={{ maxWidth: 820 }}>
               <SectionHeading
                 overline={t('landing.faqOverline')}
                 title={t('landing.faqTitle')}
@@ -1288,97 +1187,58 @@ const Landing = () => {
             </div>
           </section>
 
-          <SectionDivider />
-
-          {/* --------------------------------------------------------- Aloqa */}
-          <section id="contact" style={{ ...sectionPad, background: SOFT_PANEL }}>
-            <div style={container}>
+          {/* ------------------------------------------------ Aloqa + ariza */}
+          <section id="contact" className="lp-section lp-section--panel">
+            <div className="lp-container">
               <SectionHeading
                 overline={t('landing.contactOverline')}
                 title={t('landing.contactTitle')}
                 subtitle={t('landing.contactSubtitle')}
               />
               <motion.div
+                className="lp-contact-grid"
                 variants={stagger}
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.1 }}
               >
-                <Row gutter={[24, 24]} justify="center">
-                  {contactCards.map((card) => (
-                    <Col xs={24} sm={12} md={6} key={card.key}>
-                      <motion.div variants={fadeUp} style={{ height: '100%' }}>
-                        <GlassCard padding={28} style={{ height: '100%', textAlign: 'center' }}>
-                          <div
-                            style={{
-                              width: 52,
-                              height: 52,
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: gold.subtle,
-                              border: `1px solid ${gold.line}`,
-                              color: gold.base,
-                              fontSize: 22,
-                              margin: '0 auto',
-                            }}
-                          >
-                            {card.icon}
-                          </div>
-                          <h3
-                            style={{
-                              fontSize: 17,
-                              fontWeight: 700,
-                              color: text.primary,
-                              margin: '16px 0 6px',
-                            }}
-                          >
-                            {t(`landing.${card.titleKey}`)}
-                          </h3>
-                          <p
-                            style={{
-                              color: text.secondary,
-                              fontSize: 13.5,
-                              lineHeight: 1.6,
-                              margin: '0 0 10px',
-                            }}
-                          >
-                            {t(`landing.${card.descKey}`)}
-                          </p>
-                          <div
-                            style={{
-                              color: text.primary,
-                              fontWeight: 600,
-                              fontSize: 14.5,
-                              marginBottom: 18,
-                              wordBreak: 'break-all',
-                            }}
-                          >
-                            {card.value}
-                          </div>
-                          <Button
-                            block
-                            href={card.href}
-                            {...(card.external
-                              ? { target: '_blank', rel: 'noreferrer noopener' }
-                              : {})}
-                          >
-                            {t(`landing.${card.ctaKey}`)}
-                          </Button>
-                        </GlassCard>
-                      </motion.div>
-                    </Col>
-                  ))}
-                </Row>
+                <motion.div variants={fadeUp}>
+                  <LeadForm />
+                </motion.div>
+                <motion.div variants={fadeUp} className="lp-contact-aside">
+                  <h3>{t('landing.contactAsideTitle')}</h3>
+                  <p>{t('landing.contactAsideDesc')}</p>
+                  <div className="lp-contact-cards">
+                    {contactCards.map((card) => (
+                      <a
+                        key={card.key}
+                        className="lp-contact-card"
+                        href={card.href}
+                        {...(card.external
+                          ? { target: '_blank', rel: 'noreferrer noopener' }
+                          : {})}
+                      >
+                        <span className="lp-contact-card__icon" aria-hidden>
+                          {card.icon}
+                        </span>
+                        <strong>{t(`landing.${card.titleKey}`)}</strong>
+                        <span>{t(`landing.${card.descKey}`)}</span>
+                        <em>{card.value}</em>
+                      </a>
+                    ))}
+                  </div>
+                </motion.div>
               </motion.div>
             </div>
           </section>
+
+          {/* ------------------------------------------------ Yakuniy CTA */}
+          <FinalCta onStart={goRegister} />
         </main>
 
         {/* ------------------------------------------------------------ Footer */}
         <footer style={{ borderTop: `1px solid ${border.subtle}` }}>
-          <div style={{ ...container, paddingTop: 48, paddingBottom: 32 }}>
+          <div className="lp-container" style={{ paddingTop: 48, paddingBottom: 32 }}>
             <Row gutter={[32, 32]}>
               <Col xs={24} md={10}>
                 <BrandLogo size={32} withWordmark />
@@ -1399,56 +1259,39 @@ const Landing = () => {
                     flexDirection: 'column',
                     gap: 12,
                     marginTop: 20,
+                    alignItems: 'flex-start',
                   }}
                 >
                   <a
-                    className="lp-nav-link"
+                    className="lp-nav-link lp-footer-contact"
                     href={SUPPORT_TELEGRAM}
                     target="_blank"
                     rel="noreferrer noopener"
-                    style={footerContactLink}
                   >
                     <SendOutlined /> {telegramHandle}
                   </a>
                   <a
-                    className="lp-nav-link"
+                    className="lp-nav-link lp-footer-contact"
                     href={SUPPORT_INSTAGRAM}
                     target="_blank"
                     rel="noreferrer noopener"
-                    style={footerContactLink}
                   >
                     <InstagramOutlined /> {instagramHandle}
                   </a>
                   <a
-                    className="lp-nav-link"
+                    className="lp-nav-link lp-footer-contact"
                     href={`tel:${SUPPORT_PHONE.replace(/[^\d+]/g, '')}`}
-                    style={footerContactLink}
                   >
                     <PhoneOutlined /> {SUPPORT_PHONE}
                   </a>
-                  <a
-                    className="lp-nav-link"
-                    href={`mailto:${SUPPORT_EMAIL}`}
-                    style={footerContactLink}
-                  >
+                  <a className="lp-nav-link lp-footer-contact" href={`mailto:${SUPPORT_EMAIL}`}>
                     <MailOutlined /> {SUPPORT_EMAIL}
                   </a>
                 </div>
               </Col>
               <Col xs={12} md={7}>
-                <div
-                  style={{
-                    color: text.tertiary,
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    letterSpacing: 1.5,
-                    textTransform: 'uppercase',
-                    marginBottom: 14,
-                  }}
-                >
-                  {t('landing.footerProduct')}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div className="lp-footer-title">{t('landing.footerProduct')}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
                   {NAV_LINKS.map((link) => (
                     <a key={link.id} className="lp-nav-link" href={`#${link.id}`}>
                       {t(`landing.${link.key}`)}
@@ -1460,19 +1303,8 @@ const Landing = () => {
                 </div>
               </Col>
               <Col xs={12} md={7}>
-                <div
-                  style={{
-                    color: text.tertiary,
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    letterSpacing: 1.5,
-                    textTransform: 'uppercase',
-                    marginBottom: 14,
-                  }}
-                >
-                  {t('landing.footerAccount')}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div className="lp-footer-title">{t('landing.footerAccount')}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
                   <Link className="lp-nav-link" to="/login">
                     {t('landing.navLogin')}
                   </Link>
@@ -1512,6 +1344,9 @@ const Landing = () => {
             </div>
           </div>
         </footer>
+
+        {/* Telefonda pastki CTA paneli / kompyuterda Telegram tugmasi */}
+        <StickyCta onStart={goRegister} />
       </div>
     </MotionConfig>
   );

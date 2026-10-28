@@ -30,6 +30,10 @@ import { SessionPayment } from './session-payment.entity';
   'chk_sessions_amounts_nonneg',
   '"tableAmount" >= 0 AND "barAmount" >= 0 AND "totalAmount" >= 0 AND "totalPausedMs" >= 0',
 )
+@Check(
+  'chk_sessions_planned_minutes',
+  '"plannedMinutes" IS NULL OR ("plannedMinutes" > 0 AND "plannedMinutes" <= 1440)',
+)
 // Bitta stolda bir vaqtda faqat bitta faol/pauzadagi sessiya (poyga himoyasi)
 @Index('uq_sessions_one_active_per_table', ['tableId'], {
   unique: true,
@@ -111,6 +115,14 @@ export class Session {
 
   @Column({ type: 'timestamptz', nullable: true })
   pausedAt: Date | null;
+
+  /**
+   * Belgilangan o'yin vaqti (daqiqa) — "1 soatga" kabi buyurtmalar uchun.
+   * Hisob baribir soniyalik (haqiqiy vaqt bo'yicha); bu faqat kassirga
+   * "vaqt tugadi" ogohlantirishi uchun. null — cheklanmagan o'yin.
+   */
+  @Column({ type: 'int', nullable: true })
+  plannedMinutes: number | null;
 
   @Column({ type: 'bigint', default: 0, transformer: new BigIntTransformer() })
   totalPausedMs: number;

@@ -23,6 +23,7 @@ import {
   OfflineAtDto,
   StartSessionDto,
   TransferSessionDto,
+  UpdatePlanDto,
 } from './dto/sessions.dto';
 import { SessionsService } from './sessions.service';
 
@@ -104,6 +105,20 @@ export class SessionsController {
   ) {
     const data = await this.sessionsService.resume(clubId, id, dto);
     return { success: true, message: t(lang, 'sessions.resumed'), data };
+  }
+
+  /** Belgilangan o'yin vaqtini o'zgartirish ("+30 daqiqa") — pulga ta'sir qilmaydi */
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
+  @HttpCode(200)
+  @Put(':id/plan')
+  async updatePlan(
+    @ClubId() clubId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePlanDto,
+    @Lang() lang: Language,
+  ) {
+    const data = await this.sessionsService.updatePlan(clubId, id, dto);
+    return { success: true, message: t(lang, 'sessions.planUpdated'), data };
   }
 
   /** Sessiyani boshqa stolga ko'chirish — faqat faol sessiya */

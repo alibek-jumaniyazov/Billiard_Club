@@ -8,6 +8,7 @@ import type {
   AuthDeviceSession,
   BilliardTable,
   BridgeTokenResult,
+  CashShift,
   Category,
   ChangePasswordPayload,
   Club,
@@ -36,6 +37,9 @@ import type {
   FeedbackType,
   Invoice,
   InvoiceStatus,
+  Lead,
+  LeadPayload,
+  LeadStatus,
   LightDiscoverQueued,
   LightDiscoverState,
   LightEventView,
@@ -67,6 +71,7 @@ import type {
   SignedLicense,
   SessionReceipt,
   Settings,
+  ShiftReport,
   StartSessionPayload,
   SubscriptionStatus,
   TableLightConfig,
@@ -180,6 +185,9 @@ export const sessionsApi = {
     put<EndSessionResult>(`/sessions/${id}/end`, body, key),
   pause: (id: number, key?: string) => put<Session>(`/sessions/${id}/pause`, undefined, key),
   resume: (id: number, key?: string) => put<Session>(`/sessions/${id}/resume`, undefined, key),
+  /** Belgilangan o'yin vaqtini o'zgartirish; null — cheklovni olib tashlash */
+  updatePlan: (id: number, plannedMinutes: number | null) =>
+    put<Session>(`/sessions/${id}/plan`, { plannedMinutes }),
   /** Faol sessiyani boshqa stolga ko'chirish */
   transfer: (id: number, tableId: number) =>
     post<Session>(`/sessions/${id}/transfer`, { tableId }),
@@ -376,6 +384,24 @@ export const adminFeedbackApi = {
       .then((res) => res.data),
 };
 
+/** Kassa smenalari: ochish/yopish va Z-hisobot (admin, kassir) */
+export const shiftsApi = {
+  current: () => get<ShiftReport>('/shifts/current'),
+  list: (params?: { page?: number; limit?: number }) => get<CashShift[]>('/shifts', params),
+  detail: (id: number) => get<ShiftReport>(`/shifts/${id}`),
+  open: (body: { openingCash?: number; note?: string }) => post<CashShift>('/shifts/open', body),
+  close: (id: number, body: { countedCash: number; cashOut?: number; note?: string }) =>
+    post<CashShift>(`/shifts/${id}/close`, body),
+};
+
+/** Landing arizalari (savdo voronkasi) — faqat superadmin. `totals` — holatlar soni */
+export const adminLeadsApi = {
+  list: (params?: { status?: LeadStatus; search?: string; page?: number; limit?: number }) =>
+    get<Lead[]>('/admin/leads', params),
+  update: (id: number, body: { status?: LeadStatus; note?: string }) =>
+    put<Lead>(`/admin/leads/${id}`, body),
+};
+
 /**
  * Klub egasi xabarnomalari. Har bir mutatsiya javobining ildizida yangi
  * `unreadCount` keladi — qo'ng'iroq badge'i qayta so'rovsiz yangilanadi.
@@ -551,6 +577,8 @@ export const publicApi = {
     /** Honeypot maydoni — bo'sh bo'lishi kerak */
     website?: string;
   }) => post<AuthData>('/public/register', body),
+  /** Landing "bepul konsultatsiya" arizasi — bazaga yoziladi va Telegram'ga boradi */
+  lead: (body: LeadPayload) => post<{ id: number }>('/public/leads', body),
 };
 
 /**

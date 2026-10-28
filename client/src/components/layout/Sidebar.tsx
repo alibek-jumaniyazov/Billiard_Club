@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Layout, Menu, theme, Typography } from 'antd';
 import {
   AppstoreOutlined,
+  AuditOutlined,
   BarChartOutlined,
   BellOutlined,
   CalendarOutlined,
@@ -20,6 +21,7 @@ import {
   PlayCircleOutlined,
   SettingOutlined,
   ShopOutlined,
+  SolutionOutlined,
   TableOutlined,
   TeamOutlined,
   WalletOutlined,
@@ -65,6 +67,7 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
             { key: '/admin', icon: <PieChartOutlined />, label: t('menu.adminDashboard') },
             { key: '/admin/clubs', icon: <ShopOutlined />, label: t('menu.clubs') },
             { key: '/admin/billing', icon: <DollarOutlined />, label: t('menu.adminBilling') },
+            { key: '/admin/leads', icon: <SolutionOutlined />, label: t('menu.adminLeads') },
           ],
         },
         {
@@ -162,6 +165,7 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
         type: 'group' as const,
         label: collapsed ? null : t('menu.groupFinance'),
         children: [
+          { key: '/shifts', icon: <AuditOutlined />, label: t('menu.shifts') },
           { key: '/reports', icon: <BarChartOutlined />, label: t('menu.reports') },
           { key: '/debts', icon: <CreditCardOutlined />, label: t('menu.debts') },
           { key: '/expenses', icon: <WalletOutlined />, label: t('menu.expenses') },

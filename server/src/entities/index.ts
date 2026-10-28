@@ -30,6 +30,8 @@ export * from './club-bridge.entity';
 export * from './table-light-event.entity';
 export * from './idempotency-key.entity';
 export * from './app-release.entity';
+export * from './lead.entity';
+export * from './cash-shift.entity';
 
 import { Club } from './club.entity';
 import { User } from './user.entity';
@@ -61,6 +63,8 @@ import { ClubBridge } from './club-bridge.entity';
 import { TableLightEvent } from './table-light-event.entity';
 import { IdempotencyKey } from './idempotency-key.entity';
 import { AppRelease } from './app-release.entity';
+import { Lead } from './lead.entity';
+import { CashShift } from './cash-shift.entity';
 
 export const ALL_ENTITIES = [
   Club,
@@ -93,4 +97,6 @@ export const ALL_ENTITIES = [
   TableLightEvent,
   IdempotencyKey,
   AppRelease,
+  Lead,
+  CashShift,
 ];

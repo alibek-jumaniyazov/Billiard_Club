@@ -40,6 +40,27 @@ import '../../styles/tables-workspace.css';
 /** Stollar ro'yxatini jimgina yangilash davri (ms) */
 const POLL_INTERVAL_MS = 15_000;
 
+type BoardDensity = 'comfortable' | 'compact';
+
+/** Ko'rinish tanlovi qurilmada eslab qolinadi (kassir har safar qayta tanlamasin) */
+const DENSITY_KEY = 'tables.density';
+
+/**
+ * Boshlang'ich ko'rinish: saqlangan tanlov, bo'lmasa telefonda ixcham
+ * ro'yxat (butun zal bitta ekranga sig'adi), kattaroq ekranda kartalar.
+ */
+const initialDensity = (): BoardDensity => {
+  try {
+    const saved = localStorage.getItem(DENSITY_KEY);
+    if (saved === 'comfortable' || saved === 'compact') return saved;
+  } catch {
+    /* xotira yopiq — standart qoidaga tushamiz */
+  }
+  return typeof window !== 'undefined' && window.matchMedia?.('(max-width: 600px)').matches
+    ? 'compact'
+    : 'comfortable';
+};
+
 /**
  * STOLLAR SAHIFASI — mahsulot yuragi.
  *
@@ -66,7 +87,15 @@ const TablesPage = () => {
   const focusedTableId = Number(searchParams.get('table')) || null;
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<TableSort>('number');
-  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
+  const [density, setDensityState] = useState<BoardDensity>(initialDensity);
+  const setDensity = (value: BoardDensity) => {
+    setDensityState(value);
+    try {
+      localStorage.setItem(DENSITY_KEY, value);
+    } catch {
+      /* xotira yopiq (private rejim) — tanlov faqat shu sahifada qoladi */
+    }
+  };
   const changeView = (view: TableView) => setSearchParams((previous) => {
     const next = new URLSearchParams(previous);
     if (view === 'all') next.delete('view');
@@ -340,6 +369,27 @@ const TablesPage = () => {
     [fetchTables, markPending, message, offsetMs, online, t],
   );
 
+  /** Belgilangan o'yin vaqtini uzaytirish yoki olib tashlash — faqat onlayn */
+  const handlePlanChange = useCallback(
+    async (session: Session, minutes: number | null) => {
+      if (!online || session.offlineLocalId) {
+        message.warning(t('offline.offlineBlocked'));
+        return;
+      }
+      markPending(session.id, true);
+      try {
+        const res = await sessionsApi.updatePlan(session.id, minutes);
+        message.success(res.message);
+        await fetchTables(true);
+      } catch (err) {
+        message.error(errorMessage(err, t('common.error')));
+      } finally {
+        markPending(session.id, false);
+      }
+    },
+    [fetchTables, markPending, message, online, t],
+  );
+
   const handleCancel = useCallback(
     async (session: Session) => {
       // Bekor qilish oflaynda ATAYLAB bloklangan (summa boshqa terminaldagi
@@ -524,7 +574,7 @@ const TablesPage = () => {
         extra={
           <>
             {canManage && (
-              <Button icon={<SettingOutlined />} onClick={() => openManage(false)}>
+              <Button icon={<SettingOutlined />} aria-label={t('tables.manage')} onClick={() => openManage(false)}>
                 {t('tables.manage')}
               </Button>
             )}
@@ -581,7 +631,7 @@ const TablesPage = () => {
               aria-label={t('tables.searchTables')} />
             <Select className="tables-board-sort" value={sort} onChange={setSort} aria-label={t('tables.sortLabel')}
               options={[{ value: 'number', label: t('tables.sortNumber') }, { value: 'busy', label: t('tables.sortBusy') }]} />
-            <Segmented className="tables-board-density" value={density} onChange={setDensity} aria-label={t('tables.densityLabel')}
+            <Segmented<BoardDensity> className="tables-board-density" value={density} onChange={setDensity} aria-label={t('tables.densityLabel')}
               options={[{ value: 'comfortable', label: <AppstoreOutlined aria-label={t('tables.densityComfortable')} /> },
                 { value: 'compact', label: <BarsOutlined aria-label={t('tables.densityCompact')} /> }]} />
           </div>
@@ -638,6 +688,7 @@ const TablesPage = () => {
             return (
                 <TableCard
                   key={table.id}
+                  variant={density === 'compact' ? 'row' : 'card'}
                   table={table}
                   focused={table.id === focusedTableId}
                   session={session}
@@ -656,6 +707,7 @@ const TablesPage = () => {
                   onCancel={handleCancel}
                   onLightToggle={handleLightToggle}
                   onLightAuto={handleLightAuto}
+                  onPlanChange={handlePlanChange}
                 />
             );
           })}

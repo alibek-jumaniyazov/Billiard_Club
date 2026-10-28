@@ -72,6 +72,14 @@ export enum FeedbackStatus {
   REJECTED = 'rejected',
 }
 
+/** Landing arizasi (lead) holati — savdo voronkasi */
+export enum LeadStatus {
+  NEW = 'new',
+  CONTACTED = 'contacted',
+  CONVERTED = 'converted',
+  REJECTED = 'rejected',
+}
+
 export enum ReservationStatus {
   PENDING = 'pending',
   CONFIRMED = 'confirmed',

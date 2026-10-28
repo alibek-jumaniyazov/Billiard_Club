@@ -53,6 +53,7 @@ const messages: Record<Language, Record<string, string>> = {
     'sessions.notPaused': 'Sessiya pauzada emas',
     'sessions.paused': "O'yin pauzaga olindi",
     'sessions.resumed': "O'yin davom ettirildi",
+    'sessions.planUpdated': "O'yin vaqti yangilandi",
     'sessions.cancelled': 'Sessiya bekor qilindi',
     'sessions.onlyActiveCancellable': 'Faqat faol yoki pauzadagi sessiyani bekor qilish mumkin',
     'sessions.debtNeedsCustomer': 'Qarzga yozish uchun mijoz ismi kiritilishi shart',
@@ -151,6 +152,19 @@ const messages: Record<Language, Record<string, string>> = {
     'feedback.statusUpdated': 'Fikr-mulohaza holati yangilandi',
     'feedback.replied': 'Javob yuborildi',
     'feedback.replyNotificationTitle': 'Fikringizga javob berildi: {subject}',
+
+    // Landing arizalari
+    'leads.created': "Arizangiz qabul qilindi. Tez orada bog'lanamiz",
+    'leads.invalidPhone': "Telefon raqam noto'g'ri",
+    'leads.notFound': 'Ariza topilmadi',
+    'leads.updated': 'Ariza yangilandi',
+
+    // Kassa smenalari
+    'shifts.opened': 'Smena ochildi',
+    'shifts.closed': 'Smena yopildi. Z-hisobot saqlandi',
+    'shifts.alreadyOpen': 'Ochiq smena allaqachon bor — avval uni yoping',
+    'shifts.alreadyClosed': 'Bu smena allaqachon yopilgan',
+    'shifts.notFound': 'Smena topilmadi',
 
     // Xabarnomalar
     'notifications.notFound': 'Xabarnoma topilmadi',
@@ -355,6 +369,7 @@ const messages: Record<Language, Record<string, string>> = {
     'sessions.notPaused': 'Сессия не на паузе',
     'sessions.paused': 'Игра приостановлена',
     'sessions.resumed': 'Игра продолжена',
+    'sessions.planUpdated': 'Время игры обновлено',
     'sessions.cancelled': 'Сессия отменена',
     'sessions.onlyActiveCancellable': 'Отменить можно только активную или приостановленную сессию',
     'sessions.debtNeedsCustomer': 'Для записи в долг укажите имя клиента',
@@ -451,6 +466,19 @@ const messages: Record<Language, Record<string, string>> = {
     'feedback.statusUpdated': 'Статус отзыва обновлён',
     'feedback.replied': 'Ответ отправлен',
     'feedback.replyNotificationTitle': 'На ваш отзыв дан ответ: {subject}',
+
+    // Заявки с лендинга
+    'leads.created': 'Заявка принята. Скоро свяжемся с вами',
+    'leads.invalidPhone': 'Неверный номер телефона',
+    'leads.notFound': 'Заявка не найдена',
+    'leads.updated': 'Заявка обновлена',
+
+    // Кассовые смены
+    'shifts.opened': 'Смена открыта',
+    'shifts.closed': 'Смена закрыта. Z-отчёт сохранён',
+    'shifts.alreadyOpen': 'Уже есть открытая смена — сначала закройте её',
+    'shifts.alreadyClosed': 'Эта смена уже закрыта',
+    'shifts.notFound': 'Смена не найдена',
 
     // Уведомления
     'notifications.notFound': 'Уведомление не найдено',

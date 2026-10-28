@@ -29,7 +29,7 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 .tables-result-count { color: var(--text-tertiary); font-size: 12px; white-space: nowrap; }
 .tables-filter-hint { color: var(--text-secondary); font-size: 12px; margin: 9px 0 0; }
 .tables-board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr)); gap: 16px; align-items: stretch; }
-.tables-board-grid--compact { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.tables-board-grid--compact { grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr)); gap: 8px; }
 .table-work-card.ant-card { height: 100%; min-width: 0; border: 1px solid var(--border-base); border-top: 2px solid var(--border-strong); border-radius: 13px; box-shadow: none; background: var(--bg1); transition: border-color .15s ease; }
 .table-work-card.ant-card:hover { border-color: var(--border-strong); box-shadow: none; }
 .table-work-card.is-busy { border-top-color: var(--gold); }
@@ -69,8 +69,34 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 .table-work-card .ant-btn.has-light-error { color: var(--error); }
 .table-work-card .ant-btn.is-light-on { color: var(--gold); }
 .table-work-card.is-focused { outline: 2px solid var(--gold); outline-offset: 4px; scroll-margin-top: 95px; }
-.tables-board-grid--compact .table-work-card .ant-card-body { min-height: 280px; padding: 14px 14px 6px; gap: 11px; }
-.tables-board-grid--compact .table-work-card__available { padding: 4px 0; }
+/* Ixcham ro'yxat: har stol bitta qator — telefonda butun zal bir ekranga sig'adi */
+.table-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; grid-template-areas: "num info live actions" "warn warn warn warn"; align-items: center; column-gap: 14px; min-width: 0; padding: 10px 12px 10px 14px; border: 1px solid var(--border-base); border-left: 3px solid var(--border-strong); border-radius: 12px; background: var(--bg1); transition: border-color .15s ease; }
+.table-row:hover { border-color: var(--border-strong); }
+.table-row.is-busy { border-left-color: var(--gold); }
+.table-row.is-paused { border-left-color: var(--warning); }
+.table-row.is-free { border-left-color: var(--success); }
+.table-row.is-focused { outline: 2px solid var(--gold); outline-offset: 3px; scroll-margin-top: 95px; }
+.table-row__num { grid-area: num; color: var(--text-tertiary); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.table-row__info { grid-area: info; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.table-row__info strong { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.table-row__info > span { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 12px; min-width: 0; font-size: 12px; color: var(--text-secondary); }
+.table-row__info > span > .anticon { margin-right: -6px; }
+.table-row__info em { display: inline-flex; align-items: center; gap: 5px; font-style: normal; color: var(--text-tertiary); }
+.table-row__info em.is-warning { color: var(--warning); }
+.table-row__live { grid-area: live; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; white-space: nowrap; }
+.table-row__muted { font-size: 12px; color: var(--text-tertiary); }
+.table-row__actions { grid-area: actions; display: flex; align-items: center; gap: 6px; }
+.table-row__actions .ant-btn-icon-only { width: 44px; min-width: 44px; }
+.table-row__actions .ant-btn.has-light-error { color: var(--error); }
+.table-row__actions .ant-btn.is-light-on { color: var(--gold); }
+.table-row__primary.ant-btn { min-width: 124px; }
+/* Belgilangan vaqt belgisi: qolgan vaqt -> 5 daqiqa qolganda sariq -> tugaganda qizil va pulsatsiya */
+.table-plan-badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--info); background: rgba(95, 147, 184, .12); white-space: nowrap; }
+.table-plan-badge.is-soon { color: var(--warning); background: rgba(217, 161, 61, .14); }
+.table-plan-badge.is-expired { color: #fff; background: var(--error); animation: table-plan-pulse 1.4s ease-in-out infinite; }
+@keyframes table-plan-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(217, 84, 77, .55); } 50% { box-shadow: 0 0 0 6px rgba(217, 84, 77, 0); } }
+.table-work-card__plan { margin-top: -6px; }
+.table-row__warning { grid-area: warn; display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--warning); font-size: 11px; }
 .table-pos-modal .ant-modal-content { display: flex; flex-direction: column; max-height: calc(100dvh - 32px); padding: 24px; }
 .table-pos-modal .ant-modal-header { padding-right: 32px; }
 .table-pos-modal .ant-modal-body { min-height: 0; overflow-y: auto; margin-top: 16px; }
@@ -134,7 +160,21 @@ button.tables-overview__metric:hover { background: var(--bg2); }
   .tables-board-toolbar { flex-wrap: wrap; gap: 9px; }
   .tables-board-search { flex: 1 1 100%; max-width: none; }
   .tables-board-sort { margin-left: 0; flex: 1; }
-  .tables-board-grid, .tables-board-grid--compact { grid-template-columns: 1fr; gap: 12px; }
+  .tables-board-grid { grid-template-columns: 1fr; gap: 12px; }
+  .tables-board-grid--compact { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .table-row { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "num info live" "actions actions actions" "warn warn warn"; row-gap: 10px; column-gap: 10px; padding: 10px 10px 10px 12px; }
+  .table-row__num { font-size: 17px; }
+  .table-row__actions { justify-content: flex-end; }
+  .table-row__primary.ant-btn { flex: 1; min-width: 0; }
+  /* Bo'sh stol — bitta qator: raqam, nom/narx va "Boshlash" */
+  .table-row.is-free { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "num info actions" "warn warn warn"; }
+  .table-row.is-free .table-row__live { display: none; }
+  .table-row.is-free .table-row__primary.ant-btn { flex: none; }
+  /* Sarlavha amallari faqat ikonka bo'lib qoladi — stollar tezroq ko'rinsin */
+  .tables-workspace .workspace-page-header h3 + .ant-typography { display: none !important; }
+  .tables-workspace .workspace-page-header__actions { width: auto; margin-left: auto; }
+  .tables-workspace .workspace-page-header__actions .ant-btn { width: 44px; padding: 0; }
+  .tables-workspace .workspace-page-header__actions .ant-btn > span:not(.ant-btn-icon) { display: none; }
   .tables-board-filters { width: 100%; }
   .tables-filter { padding-inline: 10px; }
   .table-work-card .ant-card-body { min-height: 290px; }
@@ -149,4 +189,5 @@ button.tables-overview__metric:hover { background: var(--bg2); }
   .table-checkout-drawer .ant-drawer-footer .ant-row > .ant-col:first-child { display: none; }
   .table-checkout-drawer .ant-drawer-footer .ant-row > .ant-col:last-child { flex: 0 0 100%; max-width: 100%; }
 }
-@media (prefers-reduced-motion: reduce) { .tables-occupancy-track span, .table-work-card.ant-card { transition: none; } }
+.table-plan-picker .ant-segmented-item-label { padding-inline: 4px; font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .tables-occupancy-track span, .table-work-card.ant-card { transition: none; } .table-plan-badge.is-expired { animation: none; } }

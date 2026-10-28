@@ -192,6 +192,37 @@ yuqoridagi service worker hisobiga ishlaydi. Sabablari va sozlash: **[desktop/RE
 Brauzerda ham ilovani o'rnatish mumkin (PWA): manzil satridagi "O'rnatish" tugmasi —
 natija bir xil, alohida oyna va yorliq.
 
+## Kassa smenasi va Z-hisobot
+
+`/shifts` (admin, kassir) — kassir smenani boshlang'ich naqd bilan ochadi, kun oxirida
+kassadagi pulni sanab yopadi. Tizim **kutilgan naqdni** (boshlang'ich + naqd tushum −
+kassadan chiqim) o'zi hisoblaydi va kamomad/ortiqchani darhol ko'rsatadi. Yopilgan
+paytdagi hisobot (to'lov usullari, stollar/bar, chegirmalar, qarzlar, xarajatlar)
+muhrlanadi va 80 mm chek ko'rinishida chop etiladi (Z-hisobot; ochiq smena uchun X-hisobot).
+
+- Hisob formulasi **hisobotlar moduli bilan aynan bir xil** (`sales` + `debt_payments`,
+  usullar `session_payments` bo'yicha) — smenalar yig'indisi kunlik hisobot bilan mos tushadi.
+- Bitta klubda faqat bitta ochiq smena — DB darajasida (qisman unique indeks).
+- Ochish/yopish audit jurnaliga yoziladi (`shift.open`, `shift.close`).
+- Smena **ixtiyoriy**: ochilmagan bo'lsa ham kassa odatdagidek ishlaydi.
+
+## Belgilangan vaqtli o'yin
+
+O'yinni boshlashda "30 daq / 1 soat / 2 soat / 3 soat" tanlanadi. Stol kartasida qolgan
+vaqt ko'rinadi, 5 daqiqa qolganda sariq, tugaganda qizil belgi va **ovozli signal**.
+"⋯" menyusidan "+30 daqiqa", "+1 soat" yoki cheklovni olib tashlash mumkin.
+Hisob baribir **haqiqiy vaqt bo'yicha soniyalik** — bu faqat kassir uchun ogohlantirish.
+
+## Landing arizalari (savdo voronkasi)
+
+Landing'dagi "Bepul konsultatsiya" formasi `POST /api/public/leads` ga yuboriladi:
+ariza `leads` jadvaliga yoziladi va platforma egasiga **Telegram** orqali keladi
+(*Sozlamalar → Telegram hodisalari → Yangi ariza*). Telegram sozlanmagan bo'lsa ham
+ariza yo'qolmaydi — superadmin panelida **Arizalar** (`/admin/leads`) bo'limida
+holat (yangi → bog'lanildi → mijozga aylandi / rad etildi) va ichki izoh bilan yuritiladi.
+Spam himoyasi: IP bo'yicha soatiga 5 ta, honeypot maydon, bir raqamdan 10 daqiqa ichidagi
+takroriy ariza yangi qator yaratmaydi.
+
 ## Muhim texnik qarorlar
 
 - **Tushum** = sessiya yakunida haqiqatda olingan pul (`sales`) + undirilgan qarzlar (`debt_payments`),
@@ -230,9 +261,10 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
 
 1. `npm run typecheck && npm test && npm run build`
 2. **`npm run migrate`** — MAJBURIY. Kutilayotgan migratsiyalar:
-   `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`, `TrialClaims`
-   va `TrialTelegramVerification`.
-   Ularsiz qarzni hisobdan chiqarish yoki yangi foydalanuvchini ro‘yxatdan o‘tkazish ishlamaydi.
+   `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`, `TrialClaims`,
+   `TrialTelegramVerification`, `Leads`, `CashShifts` va `SessionPlannedMinutes`.
+   Ularsiz qarzni hisobdan chiqarish, yangi foydalanuvchini ro‘yxatdan o‘tkazish,
+   landing arizalari, kassa smenalari va belgilangan vaqtli o‘yin ishlamaydi.
 3. Chiroqning `DIRECT` rejimidan foydalanadigan klub bo'lsa —
    `LIGHTS_DIRECT_ALLOWED_CIDRS` ni to'ldiring (pastdagi izohga qarang),
    aks holda DIRECT rejim ishlamaydi. `BRIDGE` rejimi ta'sirlanmaydi.

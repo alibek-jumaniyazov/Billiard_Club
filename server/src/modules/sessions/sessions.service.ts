@@ -37,6 +37,7 @@ import {
   OfflineAtDto,
   StartSessionDto,
   TransferSessionDto,
+  UpdatePlanDto,
 } from './dto/sessions.dto';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -370,6 +371,7 @@ export class SessionsService {
         // Narx muhrlanadi: keyin stol narxi o'zgarsa ham hisob shu narxda
         pricePerHour: table.pricePerHour,
         notes: dto.notes ?? null,
+        plannedMinutes: dto.plannedMinutes ?? null,
       });
 
       // Birinchi segment: hisob segmentlar bo'yicha yuritiladi (transfer tarixi)
@@ -427,6 +429,22 @@ export class SessionsService {
     // Chiroq — fire-and-forget; xato sessiyani buzmaydi
     void this.lights?.onSessionChanged(clubId, result.tableId).catch(() => undefined);
     return result;
+  }
+
+  /**
+   * Belgilangan vaqtni o'zgartirish ("+30 daqiqa" yoki cheklovni olib tashlash).
+   * Pulga ta'sir qilmaydi — faqat ogohlantirish chegarasi.
+   */
+  async updatePlan(clubId: number, id: number, dto: UpdatePlanDto) {
+    return this.dataSource.transaction(async (manager) => {
+      const session = await this.lockSession(manager, clubId, id);
+      if (session.status !== SessionStatus.ACTIVE && session.status !== SessionStatus.PAUSED) {
+        throw new BadRequestException({ key: 'sessions.alreadyEnded' });
+      }
+      await manager.update(Session, id, { plannedMinutes: dto.plannedMinutes ?? null });
+      const fresh = await manager.findOne(Session, { where: { id }, relations: { table: true } });
+      return { ...fresh!, serverNow: new Date().toISOString() };
+    });
   }
 
   async resume(clubId: number, id: number, dto: OfflineAtDto = {}) {

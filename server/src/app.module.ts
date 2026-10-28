@@ -40,6 +40,8 @@ import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { LightsModule } from './modules/lights/lights.module';
 import { ReleasesModule } from './modules/releases/releases.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { ShiftsModule } from './modules/shifts/shifts.module';
 
 @Module({
   imports: [
@@ -83,6 +85,8 @@ import { ReleasesModule } from './modules/releases/releases.module';
     ReservationsModule,
     LightsModule,
     ReleasesModule,
+    LeadsModule,
+    ShiftsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -406,6 +406,8 @@ export interface Session {
   endTime: string | null;
   pausedAt: string | null;
   totalPausedMs: number;
+  /** Belgilangan o'yin vaqti (daqiqa) — faqat ogohlantirish uchun; null — cheklanmagan */
+  plannedMinutes?: number | null;
   /** Sessiya boshlanganida muhrlangan soatlik narx */
   pricePerHour: number | null;
   durationMinutes: number | null;
@@ -880,6 +882,82 @@ export interface Feedback {
   repliedBy?: User | null;
 }
 
+/** Smena hisoboti (Z-hisobot) — server ShiftSummary bilan bir xil */
+export interface ShiftSummary {
+  from: string;
+  to: string;
+  sessionsCount: number;
+  tableRevenue: number;
+  barRevenue: number;
+  billedRevenue: number;
+  discounts: number;
+  collectedSales: number;
+  debtPayments: number;
+  collected: number;
+  byMethod: { cash: number; card: number; transfer: number };
+  debtsCreated: number;
+  expenses: number;
+  activeSessions: number;
+}
+
+/** Kassa smenasi */
+export interface CashShift {
+  id: number;
+  clubId: number;
+  openedById: number | null;
+  openedByName: string | null;
+  openedAt: string;
+  openingCash: number;
+  openingNote: string | null;
+  closedById: number | null;
+  closedByName: string | null;
+  closedAt: string | null;
+  cashOut: number | null;
+  expectedCash: number | null;
+  countedCash: number | null;
+  difference: number | null;
+  closingNote: string | null;
+  summary: ShiftSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /shifts/current va /shifts/:id — smena + (jonli yoki muhrlangan) hisobot */
+export interface ShiftReport {
+  shift: CashShift | null;
+  summary: ShiftSummary | null;
+  expectedCash: number | null;
+}
+
+/** Landing arizasi (bepul konsultatsiya) — savdo voronkasi holati */
+export type LeadStatus = 'new' | 'contacted' | 'converted' | 'rejected';
+
+export interface Lead {
+  id: number;
+  name: string;
+  phone: string;
+  clubName: string | null;
+  tablesCount: number | null;
+  message: string | null;
+  lang: string | null;
+  source: string;
+  status: LeadStatus;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** POST /public/leads tanasi; `website` — honeypot (bo'sh bo'lishi kerak) */
+export interface LeadPayload {
+  name: string;
+  phone: string;
+  clubName?: string;
+  tablesCount?: number;
+  message?: string;
+  lang?: 'uz' | 'ru';
+  website?: string;
+}
+
 /** Klub xabarnomasi (superadmindan) */
 export interface ClubNotification {
   id: number;
@@ -1066,6 +1144,8 @@ export interface StartSessionPayload {
   customerName?: string;
   customerPhone?: string;
   notes?: string;
+  /** Belgilangan o'yin vaqti (daqiqa); yo'q — cheklanmagan */
+  plannedMinutes?: number;
 }
 
 export interface EndSessionPayload {

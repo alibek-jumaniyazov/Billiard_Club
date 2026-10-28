@@ -211,6 +211,7 @@ export const TELEGRAM_EVENTS = [
   'feedback',
   'critical_error',
   'subscription_expiring',
+  'lead',
 ] as const;
 
 export type TelegramEvent = (typeof TELEGRAM_EVENTS)[number];
@@ -240,6 +241,7 @@ export const NAV_DESTINATIONS: ReadonlyArray<{
   { path: '/debts', titleKey: 'menu.debts', roles: ['admin', 'kassir'] },
   { path: '/reports', titleKey: 'menu.reports', roles: ['admin', 'kassir'] },
   { path: '/expenses', titleKey: 'menu.expenses', roles: ['admin', 'kassir'] },
+  { path: '/shifts', titleKey: 'menu.shifts', roles: ['admin', 'kassir'] },
   { path: '/feedback', titleKey: 'menu.feedback', roles: ['admin', 'kassir', 'operator'] },
   { path: '/notifications', titleKey: 'menu.notifications', roles: ['admin'] },
   { path: '/subscription', titleKey: 'menu.subscription', roles: ['admin'] },
@@ -249,6 +251,7 @@ export const NAV_DESTINATIONS: ReadonlyArray<{
   { path: '/admin', titleKey: 'menu.adminDashboard', roles: ['superadmin'] },
   { path: '/admin/clubs', titleKey: 'menu.clubs', roles: ['superadmin'] },
   { path: '/admin/billing', titleKey: 'menu.adminBilling', roles: ['superadmin'] },
+  { path: '/admin/leads', titleKey: 'menu.adminLeads', roles: ['superadmin'] },
   { path: '/admin/feedback', titleKey: 'menu.adminFeedback', roles: ['superadmin'] },
   { path: '/admin/notifications', titleKey: 'menu.adminNotifications', roles: ['superadmin'] },
   { path: '/admin/releases', titleKey: 'menu.adminReleases', roles: ['superadmin'] },

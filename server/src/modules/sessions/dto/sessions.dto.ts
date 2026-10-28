@@ -60,6 +60,22 @@ export class StartSessionDto extends OfflineAtDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  /** Belgilangan o'yin vaqti (daqiqa); yo'q — cheklanmagan */
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(1440)
+  plannedMinutes?: number;
+}
+
+/** Belgilangan vaqtni o'zgartirish (uzaytirish); null — cheklovni olib tashlash */
+export class UpdatePlanDto {
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(1440)
+  plannedMinutes: number | null;
 }
 
 /** Bo'lib to'lash elementi: usul + summa */

@@ -62,3 +62,6 @@
   .admin-club-drawer .ant-drawer-body { padding: 16px; }
   .admin-club-drawer .ant-drawer-extra .ant-btn { min-height: 40px; }
 }
+
+/* Arizalar: yangi (qo'ng'iroq kutayotgan) qator — oltin chap chiziq */
+.lead-row-new > td:first-child { box-shadow: inset 3px 0 0 var(--gold); }

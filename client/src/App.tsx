@@ -25,6 +25,7 @@ const Staff = lazy(() => import('./pages/Staff'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Customers = lazy(() => import('./pages/Customers'));
 const Expenses = lazy(() => import('./pages/Expenses'));
+const Shifts = lazy(() => import('./pages/Shifts'));
 const Reservations = lazy(() => import('./pages/Reservations'));
 const Feedback = lazy(() => import('./pages/Feedback'));
 const BilliardGame = lazy(() => import('./pages/game/BilliardGame'));
@@ -37,6 +38,7 @@ const AdminClubData = lazy(() => import('./pages/admin/AdminClubData'));
 const AdminReleases = lazy(() => import('./pages/admin/AdminReleases'));
 const AdminBilling = lazy(() => import('./pages/admin/AdminBilling'));
 const AdminFeedback = lazy(() => import('./pages/admin/AdminFeedback'));
+const AdminLeads = lazy(() => import('./pages/admin/AdminLeads'));
 const AdminNotifications = lazy(() => import('./pages/admin/AdminNotifications'));
 const AdminLogs = lazy(() => import('./pages/admin/AdminLogs'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
@@ -216,6 +218,15 @@ const App = () => {
               </Protected>
             }
           />
+          {/* Landing arizalari — savdo voronkasi */}
+          <Route
+            path="/admin/leads"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminLeads />
+              </Protected>
+            }
+          />
           <Route
             path="/admin/notifications"
             element={
@@ -329,6 +340,15 @@ const App = () => {
             element={
               <Protected roles={['admin', 'kassir']}>
                 <Expenses />
+              </Protected>
+            }
+          />
+          {/* Kassa smenasi va Z-hisobot */}
+          <Route
+            path="/shifts"
+            element={
+              <Protected roles={['admin', 'kassir']}>
+                <Shifts />
               </Protected>
             }
           />
