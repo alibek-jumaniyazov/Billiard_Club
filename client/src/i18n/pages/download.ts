@@ -36,6 +36,7 @@ export default {
     updateReady: 'Yangilanish tayyor — dastur yopilganda o‘rnatiladi',
     restartNow: 'Hoziroq qayta ishga tushirish',
     checkUpdates: 'Yangilanishni tekshirish',
+    updateChecking: 'Yangilanish tekshirilmoqda…',
 
     /* Ishonch/xavfsizlik bloki */
     trustTitle: 'Yuklab olishdan oldin',
@@ -122,6 +123,7 @@ export default {
     updateReady: 'Обновление готово — установится при закрытии программы',
     restartNow: 'Перезапустить сейчас',
     checkUpdates: 'Проверить обновления',
+    updateChecking: 'Проверяем обновления…',
 
     trustTitle: 'Перед загрузкой',
     trustSigned: 'Файл выдаётся именно этим сервером — не скачивайте с других сайтов.',

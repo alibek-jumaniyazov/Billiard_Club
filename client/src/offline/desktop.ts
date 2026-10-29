@@ -28,6 +28,8 @@ export interface DesktopUpdateStatus {
   percent?: number;
   /** Xato matni — 'error' holatida */
   message?: string;
+  /** Foydalanuvchi o'zi boshlagan tekshiruv (menyu) — faqat shunda xabar chiqadi */
+  manual?: boolean;
 }
 
 export interface DesktopBridge {

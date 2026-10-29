@@ -9,6 +9,7 @@ import MobileNavigation from './MobileNavigation';
 import CommandPalette from '../ui/CommandPalette';
 import ConnectionBanner from '../ui/ConnectionBanner';
 import NativeUpdateBanner from '../ui/NativeUpdateBanner';
+import DesktopUpdateNotice from '../ui/DesktopUpdateNotice';
 import ShortcutsHelp from '../ui/ShortcutsHelp';
 import { NotificationsProvider } from '../../context/NotificationsContext';
 import { TOKENS } from '../../theme/tokens';
@@ -146,6 +147,7 @@ const AppLayout = () => {
           <ConnectionBanner />
           {/* Android ilova (APK) eskirgan bo'lsa — bir martalik yangilash taklifi */}
           <NativeUpdateBanner />
+          <DesktopUpdateNotice />
           <Content id="workspace-main" tabIndex={-1} className="page-container" style={{ position: 'relative', zIndex: 1 }}>
             {/* Sahifa darajasidagi xato chegarasi: bitta sahifadagi render
                 xatosi yon menyu va sarlavhani O'LDIRMAYDI — kassir boshqa

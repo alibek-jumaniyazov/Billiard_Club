@@ -17,11 +17,24 @@ Natija:
 - veb-ilova qobiqni user-agent'dagi `BilliardClubAndroid/<versiya>` dan taniydi
   (`client/src/utils/appShell.ts`) va **reklama sahifasini (landing) ko'rsatmaydi** —
   ilova to'g'ridan-to'g'ri kirish yoki ish ekranidan ochiladi (Windows dasturi ham shunday);
+- ilova `/login` dan ochiladi (`capacitor.config.ts` → `server.appStartPath`), ro'yxatdan
+  o'tish va yuklab olish sahifalari ham faqat saytda; oflayn sahifa aloqa tiklanganda
+  to'g'ridan-to'g'ri kirish sahifasiga qaytadi (1.2.1);
 - "ilovani o'rnating / yuklab oling" takliflari dastur ichida yashirin;
 - brend splash ekrani birinchi sahifa yuklanguncha turadi (8 s gacha) — bo'sh qora
   oyna ko'rinmaydi (`MainActivity.java`);
 - ikki barmoq bilan kattalashtirish, chetga tortilgandagi yorug'lik, matnni uzoq bosib
   belgilash va bosish chaqnashi o'chirilgan (kiritish maydonlarida belgilash ishlaydi).
+
+**Fayl orqali kirib bo'lmaydi** (1.2.1 dan):
+
+- WebView qurilmadagi `file://` sahifalarni ochmaydi, fayl URL'laridan boshqa
+  manbalarga ham kira olmaydi (`MainActivity.java`);
+- ilova ma'lumotlari (kirish tokeni, oflayn navbat) Google zaxira nusxasiga ham, yangi
+  telefonga ko'chirishga ham tushmaydi: `allowBackup="false"`, `fullBackupContent="false"`
+  va `res/xml/data_extraction_rules.xml` (Android 12+);
+- APK doim bitta kalit bilan imzolanadi (pastda "Imzo kaliti"): boshqa kalit bilan
+  imzolangan o'zgartirilgan APK eski ilova ustiga o'rnatilmaydi.
 
 ## APK yig'ish
 

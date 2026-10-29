@@ -33,6 +33,9 @@ const config: CapacitorConfig = {
     // Faqat HTTPS — kassa ma'lumotlari ochiq tarmoqda yurmasin
     cleartext: APP_URL.startsWith('http://'),
     androidScheme: 'https',
+    // Dastur, sayt emas: to'g'ridan-to'g'ri kirish ekranidan ochiladi (kirgan
+    // bo'lsa veb-ilova o'zi ish joyiga o'tkazadi; reklama sahifasi ko'rinmaydi)
+    appStartPath: '/login',
     // Server ochilmasa (internet yo'q, birinchi ishga tushirish) — mahalliy sahifa
     errorPath: 'offline.html',
   },

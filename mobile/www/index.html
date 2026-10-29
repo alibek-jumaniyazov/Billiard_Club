@@ -35,7 +35,7 @@
       (function () {
         var injected = window.WEBVIEW_SERVER_URL;
         var server = (injected && !/\/\/localhost(?::|\/|$)/.test(injected) ? injected : 'https://billiardclub.uz').replace(/\/+$/, '');
-        location.replace(server + '/');
+        location.replace(server + '/login');
       })();
     </script>
   </body>

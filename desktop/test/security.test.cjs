@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { resolveAppUrl, safeExternal, sameOrigin, trustedSender } = require('../security');
+const { findDangerousSwitch, resolveAppUrl, safeExternal, sameOrigin, trustedSender } = require('../security');
 
 test('packaged applications require HTTPS, including localhost', () => {
   for (const url of ['http://billiardclub.uz', 'file:///C:/app.html', 'javascript:alert(1)', 'https://user:pass@billiardclub.uz', 'http://localhost:5173']) {
@@ -29,4 +29,15 @@ test('IPC is restricted to the trusted main frame in the application window', ()
   frame.url = 'https://evil.test';
   assert.equal(trustedSender(event, win, origin), false);
   assert.equal(trustedSender(undefined, win, origin), false);
+});
+
+test('a shortcut or command line cannot open a back door into the installed app', () => {
+  const launchedWith = (...switches) => (name) => switches.includes(name);
+  // Masofadan disk raskadka, sertifikat va DNS/proksi burish, boshqa profil — hammasi to'xtatiladi
+  for (const sw of ['remote-debugging-port', 'remote-debugging-pipe', 'ignore-certificate-errors', 'proxy-server', 'host-resolver-rules', 'user-data-dir', 'disable-web-security', 'no-sandbox', 'inspect']) {
+    assert.equal(findDangerousSwitch(launchedWith(sw)), sw);
+  }
+  // Oddiy ishga tushirish va yangilanishdan keyingi qayta ochilish o'tadi
+  assert.equal(findDangerousSwitch(launchedWith()), null);
+  assert.equal(findDangerousSwitch(launchedWith('updated', 'squirrel-firstrun')), null);
 });

@@ -14,10 +14,13 @@ import { SUPPORT_TELEGRAM } from '../constants';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { useAuth, type AuthResult } from '../context/AuthContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { isAppShell } from '../utils/appShell';
 import '../styles/auth.css';
 
 const Login = () => {
   const { t } = useTranslation();
+  // Windows/Android dasturi ichida: faqat kirish, saytga havolalar yo'q
+  const inAppShell = isAppShell();
   const { login } = useAuth();
   const { lang, setLang } = useAppSettings();
   const navigate = useNavigate();
@@ -50,9 +53,16 @@ const Login = () => {
   return (
     <main className="auth-shell">
       <header className="auth-topbar">
-        <Link to="/" className="auth-home" title={t('login.backHome')}>
-          <BrandLogo size={34} withWordmark />
-        </Link>
+        {inAppShell ? (
+          // Dastur ichida sayt yo'q — logotip hech qayerga olib bormaydi
+          <span className="auth-home">
+            <BrandLogo size={34} withWordmark />
+          </span>
+        ) : (
+          <Link to="/" className="auth-home" title={t('login.backHome')}>
+            <BrandLogo size={34} withWordmark />
+          </Link>
+        )}
         <Segmented
           className="auth-language"
           aria-label={t('login.languageLabel')}
@@ -148,10 +158,13 @@ const Login = () => {
               <SendOutlined aria-hidden /> {t('login.supportLink')}
             </a>
           </div>
-          <footer className="auth-panel-footer">
-            <span>{t('login.noAccount')}</span>{' '}
-            <Link to="/register">{t('login.registerLink')}</Link>
-          </footer>
+          {/* Ro'yxatdan o'tish — saytda; dastur faqat kirish uchun */}
+          {!inAppShell && (
+            <footer className="auth-panel-footer">
+              <span>{t('login.noAccount')}</span>{' '}
+              <Link to="/register">{t('login.registerLink')}</Link>
+            </footer>
+          )}
         </section>
       </div>
 

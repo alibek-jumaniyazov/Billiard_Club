@@ -134,6 +134,12 @@ const App = () => {
   // O'rnatilgan dastur (Windows/Android) sayt emas: reklama sahifasi o'rniga
   // to'g'ridan-to'g'ri kirish yoki ish ekrani ochiladi
   const inAppShell = isAppShell();
+  /** Dastur ichida sayt sahifalari o'rniga: kirgan bo'lsa ish joyi, aks holda kirish */
+  const appEntry = loading ? (
+    <FullScreenSpin />
+  ) : (
+    <Navigate to={user ? homeFor(user.role) : '/login'} replace />
+  );
 
   return (
     <Suspense fallback={<FullScreenSpin />}>
@@ -142,12 +148,12 @@ const App = () => {
         <Route
           path="/"
           element={
-            loading ? (
+            inAppShell ? (
+              appEntry
+            ) : loading ? (
               <FullScreenSpin />
-            ) : user && (!showLanding || inAppShell) ? (
+            ) : user && !showLanding ? (
               <Navigate to={homeFor(user.role)} replace />
-            ) : inAppShell ? (
-              <Navigate to="/login" replace />
             ) : (
               <Landing />
             )
@@ -156,7 +162,13 @@ const App = () => {
         <Route
           path="/register"
           element={
-            !loading && user ? <Navigate to={homeFor(user.role)} replace /> : <Register />
+            inAppShell ? (
+              appEntry
+            ) : !loading && user ? (
+              <Navigate to={homeFor(user.role)} replace />
+            ) : (
+              <Register />
+            )
           }
         />
         <Route
@@ -166,7 +178,9 @@ const App = () => {
         {/* Desktop dasturni yuklab olish — ATAYLAB autentifikatsiyasiz va
             login holatidan qat'i nazar ochiq: yangi kassa kompyuteriga
             dasturni o'rnatayotgan odam hali tizimga kira olmagan bo'ladi. */}
-        <Route path="/download" element={<Download />} />
+        {/* Dastur ichida yuklab olish sahifasi kerak emas: Windows o'zi
+            yangilanadi, Android yangilanishni banner orqali taklif qiladi */}
+        <Route path="/download" element={inAppShell ? appEntry : <Download />} />
         <Route path="/locked" element={<Locked />} />
 
         <Route

@@ -28,6 +28,8 @@ const FIRST_CHECK_DELAY_MS = 20 * 1000;
 
 /** Renderer ga yuboriladigan oxirgi holat (kech ulangan oyna ham ko'rsin) */
 let lastStatus = { state: 'idle' };
+/** Joriy tekshiruvni foydalanuvchi o'zi boshlaganmi — veb-ilova faqat shunda xabar ko'rsatadi */
+let manualRun = false;
 
 let updater = null;
 let getWindow = () => null;
@@ -38,8 +40,10 @@ const send = (status) => {
   lastStatus = status;
   const win = getWindow();
   if (win && !win.isDestroyed()) {
-    win.webContents.send('billiardclub:update-status', status);
+    win.webContents.send('billiardclub:update-status', { ...status, manual: manualRun });
   }
+  // Yakuniy holatdan keyin keyingi (fon) tekshiruvlar yana jim o'tadi
+  if (['uptodate', 'error', 'ready'].includes(status.state)) manualRun = false;
 };
 
 /**
@@ -48,6 +52,7 @@ const send = (status) => {
  *   xabarini ko'rsatish shart emas, qo'lda bosganda esa javob KERAK)
  */
 const check = (manual) => {
+  if (manual) manualRun = true;
   if (!updater) {
     // Paketlanmagan (dev) yoki electron-updater o'rnatilmagan holat.
     // Qo'lda bosilganda jimgina turib qolmaymiz — sabab ko'rsatiladi.

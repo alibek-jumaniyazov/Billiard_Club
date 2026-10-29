@@ -35,7 +35,13 @@ Ochiq ilovada har soniya, fokus qaytganda va sahifa ko‘rinishi o‘zgarganda m
 
 ## Desktop chegaralari
 
-Electron 44.7.0; renderer sandbox, context isolation, Node integratsiyasi o‘chirilgan. Packaged build faqat HTTPS manzilni ochadi. HTTP faqat developmentdagi loopback uchun. Tashqi OS protokollari va ixtiyoriy yangi oynalar bloklanadi. IPC jo‘natuvchining oynasi, asosiy frame va origin tekshiriladi. Node/inspector muhit parametrlari va RunAsNode fuses o‘chirilgan; ASAR integrity va faqat ASARdan yuklash yoqilgan.
+Electron 44.10.0; renderer sandbox, context isolation, Node integratsiyasi o‘chirilgan. Packaged build faqat HTTPS manzilni ochadi. HTTP faqat developmentdagi loopback uchun. Tashqi OS protokollari va ixtiyoriy yangi oynalar bloklanadi. IPC jo‘natuvchining oynasi, asosiy frame va origin tekshiriladi. Node/inspector muhit parametrlari va RunAsNode fuses o‘chirilgan; ASAR integrity va faqat ASARdan yuklash yoqilgan.
+
+O‘rnatilgan dastur server manzilini fayl (`config.json`) yoki muhit o‘zgaruvchisidan olmaydi: manzil yig‘ishda `package.json` → `billiardclubServer` orqali beriladi, development rejimida esa eski yo‘llar qoladi. Dastur `/login` dan ochiladi; landing, ro‘yxatdan o‘tish va yuklab olish sahifalari dastur ichida kirish yoki ish ekraniga buriladi. `--remote-debugging-port/pipe`, `--inspect*`, `--js-flags`, `--disable-web-security`, sertifikat xatolarini e’tiborsiz qoldirish, `--proxy-server`/`--host-rules`, `--user-data-dir`, `--load-extension`, `--no-sandbox` kabi parametrlar bilan ishga tushirilsa dastur xabar berib yopiladi (`desktop/security.js`).
+
+## Android chegaralari
+
+Capacitor qobig‘i faqat HTTPS serverni ochadi (cleartext va mixed content o‘chirilgan) va `/login` dan boshlaydi. WebView’da `file://` kirish va fayl URL’laridan boshqa manbalarga kirish o‘chirilgan. `allowBackup`/`fullBackupContent` = false va `data_extraction_rules.xml` ilova ma’lumotlarini Google zaxira nusxasidan va qurilmadan qurilmaga ko‘chirishdan chiqarib qo‘yadi. APK bitta release kaliti bilan imzolanadi, shuning uchun boshqa kalit bilan imzolangan nusxa ilova ustiga o‘rnatilmaydi.
 
 Installer yaratish uni avtomatik ravishda nashr qilmaydi. Ishlab chiqarish uchun Windows publisher sertifikati va macOS notarizatsiya alohida kerak; SHA-512 checksum publisher imzosining o‘rnini bosmaydi. Relizni serverga joylashdan oldin imzo holatini tekshiring.
 
@@ -56,3 +62,10 @@ Tayanch manbalar: [Electron security](https://www.electronjs.org/docs/latest/tut
 - Electron 1.1.0 lokal serverga ochildi; sandbox/context isolation va rendererda Node yo‘qligi tekshirildi. Packaged exe fuses ham o‘qib tekshirildi.
 - `npm audit --omit=dev`: client/server/desktop — 0 ma’lum zaiflik. Desktop builder development zanjirida `sprintf-js` orqali 8 ta moderate audit yozuvi qoladi; bu paketlar o‘rnatgichning runtime tarkibiga kirmaydi. Audit mustaqil pentest yoki sertifikat o‘rnini bosmaydi.
 - Windows installer Authenticode holati: **NotSigned**. macOS/Linux paketi bu Windows mashinada yaratilmagan. Ushbu o‘zgarishlar productionga deploy qilinmagan.
+
+## 2026-10-30 tekshiruv natijasi (Windows 1.3.2, Android 1.2.1)
+
+- Android user-agent bilan `/`, `/register`, `/download`, `/?landing` — barchasi `/login` ga tushdi; kirish sahifasida ro‘yxatdan o‘tish havolasi yo‘q. Oddiy brauzerda landing va ro‘yxatdan o‘tish o‘zgarishsiz.
+- APK 1.2.1: versionCode 10201, imzo sertifikati oldingi relizlar bilan bir xil, manifestda backup qoidalari, `capacitor.config.json` da `appStartPath: /login`.
+- Paketlangan `Billiard Club.exe --remote-debugging-port=9333`: xato oynasi chiqdi, port ochilmadi, jarayon yopildi. `app.asar` ichida server qulfi va `/login` boshlanishi tekshirildi.
+- Windows installer Authenticode holati hali ham **NotSigned**: yangilanishlar faqat `latest.yml` dagi SHA-512 va HTTPS bilan himoyalangan. Publisher sertifikati sotib olinib `win.publisherName` sozlansa, electron-updater yangilanish imzosini ham tekshiradi.

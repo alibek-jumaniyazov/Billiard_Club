@@ -64,6 +64,12 @@ public class MainActivity extends BridgeActivity {
         settings.setDisplayZoomControls(false);
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
+        // Fayl orqali kirib bo'lmasin: WebView qurilmadagi file:// sahifalarni
+        // ochmaydi (ilova sahifalari https orqali beriladi, fayl kerak emas)
+        settings.setAllowFileAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+
         /*
          * WebView o'zi fayl yuklamaydi (Android'da DownloadListener bo'lmasa havola
          * jimgina hech narsa qilmaydi). Ilova yangilanishi (APK) va boshqa fayllar

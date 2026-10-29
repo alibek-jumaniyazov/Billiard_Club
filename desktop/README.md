@@ -24,6 +24,17 @@ Qobiq `https://billiardclub.uz` ni ochadi va shu holicha ko'rsatadi. Sabablari:
 - **Qat'iy xavfsizlik**: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`;
   veb-sahifaga faqat ikkita funksiya ochiladi (`preload.js`)
 - **Zaxira ekran** — birinchi ochilishda internet bo'lmasa tushunarli xabar (`offline.js`)
+- **Faqat kirish joyi** — dastur `/login` dan ochiladi; reklama sahifasi (landing),
+  ro'yxatdan o'tish va yuklab olish sahifalari faqat saytda. Dastur ichida ular kirish
+  yoki ish ekraniga buriladi (`client/src/utils/appShell.ts`)
+- **Fayl orqali buzib bo'lmaydi** — server manzili o'rnatilgan dasturda qulflangan
+  (`config.json` va muhit o'zgaruvchisi e'tiborga olinmaydi); yorliqqa
+  `--remote-debugging-port`, `--inspect`, `--proxy-server`, `--disable-web-security`,
+  `--user-data-dir`, `--load-extension` kabi parametr qo'shib ochilsa dastur xabar
+  berib yopiladi (`security.js` → `DANGEROUS_SWITCHES`); `app.asar` o'zgartirilsa
+  Electron uni ochmaydi (ASAR integrity fuse)
+- **Yangilanish dastur ichida** — yuklab bo'lingach yashil banner va "Hoziroq qayta
+  ishga tushirish" tugmasi; menyudan tekshirilganda natija xabari chiqadi
 
 ## Ishga tushirish (dasturchi uchun)
 
@@ -102,17 +113,24 @@ Nashr etilmagan reliz `/download` da ham, auto-update feed'ida ham
 
 ## Boshqa serverga ulash (o'z serveringizda yuritsangiz)
 
-Ikki yo'l:
+O'rnatilgan dasturda server manzili **qulflangan**: uni fayl yoki muhit o'zgaruvchisi
+bilan boshqa serverga burib bo'lmaydi. Aks holda kimdir `config.json` ni almashtirib,
+kassirni soxta "kirish" sahifasiga olib borishi mumkin edi. *Dastur → Server manzili…*
+menyusi faqat ichki manzilni ko'rsatadi.
 
-1. **Muhit o'zgaruvchisi** — `BILLIARDCLUB_URL=https://mening-serverim.uz`
-2. **Sozlama fayli** — dastur menyusidan *Dastur → Server manzili…* ni oching,
-   "Papkani ochish" ni bosing va `config.json` yarating:
+O'z serveringiz uchun manzilni yig'ish paytida bering:
+
+1. `desktop/package.json` ga qo'shing:
 
    ```json
-   { "url": "https://mening-serverim.uz" }
+   "billiardclubServer": "https://mening-serverim.uz"
    ```
 
-   Fayl joyi: Windows'da `%APPDATA%\Billiard Club\config.json`.
+2. `npm run dist:win` bilan qayta yig'ing va o'z serveringizga nashr qiling.
+
+Ishlab chiqishda (`npm start`, `npm run dev`) eski yo'llar ishlaydi:
+`BILLIARDCLUB_URL=https://...` yoki `%APPDATA%\Billiard Club\config.json`
+(`{ "url": "https://..." }`).
 
 ## Ikonkalar
 

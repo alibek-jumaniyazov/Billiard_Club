@@ -22,9 +22,13 @@
  *    yangi versiyani oladi — alohida imzolangan auto-updater infratuzilmasi
  *    talab qilinmaydi.
  *
- * Server manzilini o'zgartirish (o'z serveringizda yuritsangiz):
- *   - muhit o'zgaruvchisi: BILLIARDCLUB_URL=https://mening-serverim.uz
- *   - yoki foydalanuvchi papkasidagi config.json: { "url": "https://..." }
+ * DASTUR, SAYT EMAS: qobiq to'g'ridan-to'g'ri /login dan ochiladi, veb-ilova
+ * esa dastur ichida reklama sahifasi va ro'yxatdan o'tishni ko'rsatmaydi.
+ *
+ * Server manzili O'RNATILGAN dasturda qulflangan (fayl yoki muhit
+ * o'zgaruvchisi bilan boshqa serverga burib bo'lmaydi). O'z serveringiz uchun:
+ * desktop/package.json ga "billiardclubServer": "https://mening-serverim.uz"
+ * qo'shib qayta yig'ing. Ishlab chiqishda: BILLIARDCLUB_URL yoki config.json.
  */
 
 const { app, BrowserWindow, Menu, dialog, shell, ipcMain, nativeTheme } = require('electron');
@@ -32,10 +36,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { offlineFallbackHtml } = require('./offline');
 const { initUpdater, stopUpdater } = require('./updater');
-const { resolveAppUrl, sameOrigin, safeExternal, trustedSender } = require('./security');
+const { findDangerousSwitch, resolveAppUrl, sameOrigin, safeExternal, trustedSender } = require('./security');
 
-/** Standart manzil — ishlab turgan xizmat */
-const DEFAULT_URL = 'https://billiardclub.uz';
+/** Ichiga yig'ilgan server manzili: package.json "billiardclubServer" yoki ishlab turgan xizmat */
+const DEFAULT_URL = (() => {
+  try {
+    const fromPackage = require('./package.json').billiardclubServer;
+    if (typeof fromPackage === 'string' && fromPackage.trim()) return fromPackage.trim();
+  } catch {
+    /* package.json o'qilmasa — standart manzil */
+  }
+  return 'https://billiardclub.uz';
+})();
 
 /** Ilova foni (oq miltillashning oldini oladi) — client/src/theme/tokens.ts bg0 */
 const BACKGROUND = '#0e1513';
@@ -60,8 +72,15 @@ const writeJson = (file, value) => {
   }
 };
 
-/** Server manzili: muhit o'zgaruvchisi > config.json > standart */
+/**
+ * Server manzili.
+ *  - O'RNATILGAN dastur: FAQAT ichiga yig'ilgan manzil. Aks holda kompyuterdagi
+ *    bitta faylni (config.json) yoki muhit o'zgaruvchisini o'zgartirib, kassirni
+ *    soxta kirish sahifasiga (parol o'g'irlash) yo'naltirish mumkin edi.
+ *  - Ishlab chiqish: muhit o'zgaruvchisi > config.json > standart.
+ */
 const resolveUrl = () => {
+  if (app.isPackaged) return DEFAULT_URL.replace(/\/+$/, '');
   const fromEnv = (process.env.BILLIARDCLUB_URL || '').trim();
   if (fromEnv) return fromEnv.replace(/\/+$/, '');
   const cfg = readJson(userDataFile('config.json'), {});
@@ -70,6 +89,8 @@ const resolveUrl = () => {
 };
 
 const APP_URL = resolveAppUrl(resolveUrl(), app.isPackaged);
+/** Dastur shu yerdan ochiladi: kirgan bo'lsa veb-ilova o'zi ish joyiga o'tkazadi */
+const START_URL = `${APP_URL}/login`;
 const APP_ORIGIN = (() => {
   try {
     return new URL(APP_URL).origin;
@@ -179,12 +200,12 @@ const createWindow = () => {
     if (!isMainFrame || errorCode === -3) return;
     void mainWindow.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
-        offlineFallbackHtml({ url: APP_URL, reason: errorDescription }),
+        offlineFallbackHtml({ url: START_URL, reason: errorDescription }),
       )}`,
     );
   });
 
-  void mainWindow.loadURL(APP_URL);
+  void mainWindow.loadURL(START_URL);
 
   /* --- Oyna holati --- */
 
@@ -248,19 +269,30 @@ const buildMenu = () => {
         },
         {
           label: 'Bosh sahifa',
-          click: () => mainWindow && void mainWindow.loadURL(APP_URL),
+          click: () => mainWindow && void mainWindow.loadURL(START_URL),
         },
         { type: 'separator' },
         {
           label: 'Server manzili…',
           click: async () => {
             if (!mainWindow) return;
+            // O'rnatilgan dasturda manzil qulflangan — faqat ko'rsatiladi
+            if (app.isPackaged) {
+              await dialog.showMessageBox(mainWindow, {
+                type: 'info',
+                title: 'Server manzili',
+                message: `Dastur ulangan server:\n${APP_URL}`,
+                detail: 'Xavfsizlik uchun o‘rnatilgan dastur faqat shu serverga ulanadi va uni fayl orqali o‘zgartirib bo‘lmaydi.',
+                buttons: ['Yopish'],
+              });
+              return;
+            }
             const { response } = await dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: 'Server manzili',
               message: `Hozirgi manzil:\n${APP_URL}`,
               detail:
-                'Boshqa serverga ulanish uchun quyidagi faylni tahrirlang va dasturni qayta ishga tushiring:\n\n' +
+                'Ishlab chiqish rejimi: boshqa serverga ulanish uchun quyidagi faylni tahrirlang va dasturni qayta ishga tushiring:\n\n' +
                 `${userDataFile('config.json')}\n\nNamuna: { "url": "https://mening-serverim.uz" }`,
               buttons: ['Yopish', 'Papkani ochish'],
               defaultId: 0,
@@ -337,9 +369,22 @@ const buildMenu = () => {
 
 /* -------------------------------------------------------------- Ishga tushish */
 
+// Yorliq (.lnk) yoki buyruq qatori orqali "kirib olish"ga yo'l yo'q: masofadan
+// disk raskadka, sertifikat tekshiruvini o'chirish, proksi/DNS bilan burish va
+// h.k. kalitlar bilan ishga tushirilgan O'RNATILGAN dastur darhol to'xtaydi —
+// oyna, cookie va ma'lumotlar umuman yuklanmaydi.
+const dangerousSwitch = app.isPackaged ? findDangerousSwitch((name) => app.commandLine.hasSwitch(name)) : null;
+
 // Bitta nusxa: kassa kompyuterida ikkita oyna ochilib, ikki xil holat
 // ko'rsatilishi chalkashlik va xatoga olib keladi
-if (!app.requestSingleInstanceLock()) {
+if (dangerousSwitch) {
+  dialog.showErrorBox(
+    'Billiard Club',
+    `Dastur xavfli parametr bilan ishga tushirildi (--${dangerousSwitch}). Xavfsizlik uchun u ochilmaydi.\n\n` +
+      'Dasturni Pusk menyusi yoki ish stolidagi asl yorliqdan oching.',
+  );
+  app.exit(1);
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {

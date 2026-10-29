@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ilova ma'lumotlari (kirish tokenlari, oflayn navbat, keshlar) Google zaxira
+  nusxasiga ham, yangi telefonga "ko'chirish"ga ham TUSHMAYDI: aks holda fayl
+  orqali boshqa qurilmada kassir hisobi bilan kirib olish mumkin bo'lardi.
+  Android 12+ uchun; eski versiyalarda allowBackup="false" yetarli.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>
