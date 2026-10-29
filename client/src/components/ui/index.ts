@@ -1,6 +1,7 @@
 /** Umumiy UI primitivlari — barrel eksport */
 export { default as AnimatedBackground } from './AnimatedBackground';
 export { default as BilliardTable } from './BilliardTable';
+export type { BilliardGameEvent } from './BilliardTable';
 export { default as BrandLogo } from './BrandLogo';
 export { default as ClampedBody } from './ClampedBody';
 export { default as ConnectionBanner } from './ConnectionBanner';

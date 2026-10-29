@@ -1,3 +1,4 @@
+import type { PointerEvent } from 'react';
 import { motion, type Variants } from 'framer-motion';
 import { TOKENS } from '../../theme/tokens';
 
@@ -62,3 +63,17 @@ export const formatHms = (totalSec: number): string => {
 /** Soatlik narx bo'yicha summa — 100 so'mgacha yaxlitlanadi (ilovadagidek) */
 export const amountFor = (seconds: number, pricePerHour: number): number =>
   Math.round(((seconds / 3600) * pricePerHour) / 100) * 100;
+
+/**
+ * Kursor ortidan yuradigan yorug'lik: panjara konteyneriga bitta
+ * onPointerMove beriladi, u kursor ostidagi kartaga --mx/--my o'rnatadi
+ * (CSS radial-gradient shu nuqtadan chiziladi). Faqat sichqoncha uchun.
+ */
+export const spotlightMove = (selector: string) => (event: PointerEvent<HTMLElement>) => {
+  if (event.pointerType !== 'mouse') return;
+  const card = (event.target as HTMLElement).closest<HTMLElement>(selector);
+  if (!card) return;
+  const rect = card.getBoundingClientRect();
+  card.style.setProperty('--mx', `${event.clientX - rect.left}px`);
+  card.style.setProperty('--my', `${event.clientY - rect.top}px`);
+};

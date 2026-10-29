@@ -2,20 +2,17 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   BarChartOutlined,
   CoffeeOutlined,
-  DollarOutlined,
   MinusOutlined,
   MobileOutlined,
-  PauseCircleOutlined,
-  PlayCircleOutlined,
   PlusOutlined,
   TableOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNow } from '../../components/ui';
 import { formatNumber } from '../../utils/format';
-import { amountFor, fadeUp, formatHms, SectionHeading } from './shared';
+import { fadeUp, formatHms, SectionHeading } from './shared';
+import DemoBoard from './DemoBoard';
 
 /**
  * "Jonli demo" — haqiqiy interfeysga yaqin, lekin TO'LIQ namunaviy ko'rinish.
@@ -58,114 +55,6 @@ const LiveTimer = ({ base, mountedAt, frozen }: { base: number; mountedAt: numbe
   const now = useNow();
   const sec = frozen ? base : base + (now - mountedAt) / 1000;
   return <span className="lp-demo-timer">{formatHms(sec)}</span>;
-};
-
-const LiveAmount = ({
-  base,
-  mountedAt,
-  price,
-  bar = 0,
-  frozen,
-}: {
-  base: number;
-  mountedAt: number;
-  price: number;
-  bar?: number;
-  frozen?: boolean;
-}) => {
-  const now = useNow();
-  const sec = frozen ? base : base + (now - mountedAt) / 1000;
-  return <>{formatNumber(amountFor(sec, price) + bar)}</>;
-};
-
-/* ------------------------------------------------------------ Stollar */
-
-const DemoTables = ({ mountedAt }: { mountedAt: number }) => {
-  const { t } = useTranslation();
-  const busy = DEMO_TABLES.filter((d) => d.state !== 'free').length;
-  return (
-    <div className="lp-demo-tables">
-      <div className="lp-demo-kpis">
-        <div>
-          <span>{t('landing.demoOccupancy')}</span>
-          <strong>{Math.round((busy / DEMO_TABLES.length) * 100)}%</strong>
-          <i className="lp-demo-meter">
-            <b style={{ width: `${Math.round((busy / DEMO_TABLES.length) * 100)}%` }} />
-          </i>
-        </div>
-        <div>
-          <span>{t('landing.demoBusy')}</span>
-          <strong>
-            {busy}
-            <small> / {DEMO_TABLES.length}</small>
-          </strong>
-        </div>
-        <div>
-          <span>{t('landing.demoTodayRevenue')}</span>
-          <strong>1 245 000</strong>
-        </div>
-      </div>
-      <div className="lp-demo-grid">
-        {DEMO_TABLES.map((d) => (
-          <div key={d.n} className={`lp-demo-card is-${d.state}`}>
-            <div className="lp-demo-card__head">
-              <span className="lp-demo-card__num">{String(d.n).padStart(2, '0')}</span>
-              <span className="lp-demo-card__name">
-                {d.vip ? 'VIP ' : ''}
-                {t('common.table')} {d.n}
-              </span>
-              <span className={`lp-demo-status is-${d.state}`}>{t(`landing.demoState_${d.state}`)}</span>
-            </div>
-            {d.state === 'free' ? (
-              <div className="lp-demo-card__free">
-                <span>{formatNumber(d.price)} / {t('landing.demoPerHour')}</span>
-                <button type="button" className="lp-demo-btn is-ghost" tabIndex={-1}>
-                  <PlayCircleOutlined /> {t('landing.demoStart')}
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="lp-demo-card__numbers">
-                  <LiveTimer base={d.base ?? 0} mountedAt={mountedAt} frozen={d.state === 'paused'} />
-                  <span className="lp-demo-card__amount">
-                    <LiveAmount
-                      base={d.base ?? 0}
-                      mountedAt={mountedAt}
-                      price={d.price}
-                      bar={d.bar}
-                      frozen={d.state === 'paused'}
-                    />{' '}
-                    <small>{t('common.sum')}</small>
-                  </span>
-                </div>
-                <div className="lp-demo-card__meta">
-                  <span>
-                    <UserOutlined /> {d.guest}
-                  </span>
-                  {d.bar ? (
-                    <span>
-                      <CoffeeOutlined /> {formatNumber(d.bar)}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="lp-demo-card__actions">
-                  <button type="button" className="lp-demo-btn" tabIndex={-1}>
-                    {d.state === 'paused' ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
-                  </button>
-                  <button type="button" className="lp-demo-btn" tabIndex={-1}>
-                    <CoffeeOutlined />
-                  </button>
-                  <button type="button" className="lp-demo-btn is-primary" tabIndex={-1}>
-                    <DollarOutlined /> {t('landing.demoCheckout')}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 };
 
 /* ------------------------------------------------------------- Bar POS */
@@ -443,7 +332,7 @@ const ProductShowcase = () => {
               aria-labelledby={`lp-demo-tab-${tab}`}
               className="lp-window__body"
             >
-              {tab === 'tables' && <DemoTables mountedAt={mountedAt} />}
+              {tab === 'tables' && <DemoBoard />}
               {tab === 'bar' && <DemoBar />}
               {tab === 'reports' && <DemoReports />}
               {tab === 'mobile' && <DemoMobile mountedAt={mountedAt} />}

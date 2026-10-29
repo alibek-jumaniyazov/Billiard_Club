@@ -91,7 +91,7 @@ html { scroll-behavior: smooth; }
 
 /* ---------------------------------------------------------- Muammo/yechim */
 .lp-pain-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
-.lp-pain-card { display: flex; flex-direction: column; border: 1px solid var(--border-base); border-radius: 16px; background: var(--bg1); overflow: hidden; transition: border-color 0.25s, transform 0.25s; }
+.lp-pain-card { display: flex; flex-direction: column; border: 1px solid var(--border-base); border-radius: 16px; background: radial-gradient(420px circle at var(--mx, -999px) var(--my, -999px), rgba(219, 179, 92, .07), transparent 45%), var(--bg1); overflow: hidden; transition: border-color 0.25s, transform 0.25s; }
 .lp-pain-card:hover { border-color: var(--border-strong); transform: translateY(-3px); }
 .lp-pain-card__problem { display: flex; gap: 14px; padding: 22px 22px 18px; flex: 1; }
 .lp-pain-card__icon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; background: rgba(217, 84, 77, 0.12); border: 1px solid rgba(217, 84, 77, 0.28); color: #ec8a84; font-size: 18px; }
@@ -342,7 +342,8 @@ html { scroll-behavior: smooth; }
 .lp-roi-field__head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
 .lp-roi-field__head label { display: flex; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 600; color: var(--text-primary); }
 .lp-roi-field__hint { color: var(--text-tertiary); cursor: help; }
-.lp-roi-field .ant-input-number-group-wrapper { width: 200px; }
+.lp-roi-field__input { width: 200px; }
+.lp-roi-field__input .ant-input-number { flex: 1; min-width: 0; }
 .lp-roi-field .ant-slider { margin: 12px 6px 0; }
 .lp-roi-result { position: relative; display: flex; flex-direction: column; gap: 12px; padding: clamp(18px, 3vw, 30px); border: 1px solid var(--gold-line); border-radius: 20px; background: linear-gradient(165deg, rgba(212, 175, 55, 0.1), rgba(255, 255, 255, 0.02) 50%), var(--bg1); box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.08), 0 24px 60px rgba(0, 0, 0, 0.3); }
 .lp-roi-result__row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); font-size: 14px; color: var(--text-secondary); }
@@ -498,3 +499,96 @@ html { scroll-behavior: smooth; }
 .lp-scene h3 { margin: 10px 6px 0; font-family: var(--font-display); font-size: 16.5px; font-weight: 650; line-height: 1.35; color: var(--text-primary); }
 .lp-scene p { margin: 0 6px; font-size: 14px; line-height: 1.65; color: var(--text-secondary); }
 @media (max-width: 767px) { .lp-scenes { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
+
+/* Qanday ishlaydi — oltin chiziq bilan bog'langan uch qadam */
+.lp-steps { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; margin: 0; padding: 0; list-style: none; }
+.lp-steps__rail { position: absolute; top: 33px; left: calc(100% / 6); right: calc(100% / 6); height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--gold), var(--emerald-glow)); opacity: .55; transform: scaleX(0); transform-origin: left center; transition: transform 1.3s cubic-bezier(.16, 1, .3, 1) .2s; }
+.lp-steps.is-visible .lp-steps__rail { transform: none; }
+.lp-step { position: relative; display: flex; flex-direction: column; align-items: center; padding: 0 8px; text-align: center; }
+.lp-step__badge { position: relative; z-index: 1; display: grid; place-items: center; width: 66px; height: 66px; border: 1px solid var(--gold-line); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #22302a, #111714); box-shadow: 0 0 0 7px var(--bg0), 0 14px 30px rgba(0, 0, 0, .45); color: var(--gold); font-size: 24px; }
+.lp-step__badge b { position: absolute; top: -3px; right: -3px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--gold); color: #1a1508; font-size: 12px; font-weight: 800; }
+.lp-step__time { margin-top: 16px; padding: 3px 11px; border-radius: 999px; background: rgba(35, 160, 102, .12); color: var(--emerald-glow); font-size: 12px; font-weight: 700; }
+.lp-step h3 { margin: 12px 0 8px; font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.lp-step p { max-width: 300px; margin: 0 auto; font-size: 14.5px; line-height: 1.65; color: var(--text-secondary); }
+.lp-steps__note { margin: 48px 0 0; text-align: center; font-size: 15px; color: var(--text-secondary); }
+@media (max-width: 767px) {
+  .lp-steps { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .lp-steps__rail { top: 33px; bottom: 60px; left: 32px; right: auto; width: 2px; height: auto; background: linear-gradient(180deg, var(--gold), var(--emerald-glow)); transform: scaleY(0); transform-origin: center top; }
+  .lp-step { display: grid; grid-template-columns: 66px minmax(0, 1fr); align-items: start; column-gap: 18px; padding: 0; text-align: left; }
+  .lp-step__badge { grid-row: span 3; }
+  .lp-step__time { justify-self: start; margin-top: 2px; }
+  .lp-step h3 { margin: 8px 0 6px; }
+  .lp-step p { max-width: none; margin: 0; }
+  .lp-steps__note { margin-top: 32px; }
+}
+@media (prefers-reduced-motion: reduce) { .lp-steps__rail { transform: none; transition: none; } }
+
+/* Sahifa o'qilish chizig'i — yopishqoq navbar pastida */
+.lp-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: linear-gradient(90deg, var(--emerald-glow), var(--gold)); transform-origin: 0 50%; pointer-events: none; }
+
+/* Hero sahnasi: stol + jonli bildirishnomalar */
+.lp-hero-stage { position: relative; }
+.lp-hero-cards { position: absolute; z-index: 3; top: -30px; left: -40px; width: min(300px, 78%); pointer-events: none; }
+.lp-hero-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 14px; border: 1px solid rgba(219, 179, 92, .28); border-radius: 14px; background: rgba(14, 20, 17, .82); box-shadow: 0 18px 44px rgba(0, 0, 0, .5); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.lp-hero-card__icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; font-size: 16px; }
+.lp-hero-card.is-gold .lp-hero-card__icon { background: rgba(219, 179, 92, .16); color: var(--gold); box-shadow: 0 0 18px rgba(255, 214, 120, .25); }
+.lp-hero-card.is-green .lp-hero-card__icon { background: rgba(35, 160, 102, .16); color: var(--emerald-glow); }
+.lp-hero-card.is-blue .lp-hero-card__icon { background: rgba(91, 155, 234, .16); color: var(--info); }
+.lp-hero-card.is-warn .lp-hero-card__icon { background: rgba(240, 165, 58, .16); color: var(--warning); }
+.lp-hero-card__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lp-hero-card__text b { overflow: hidden; font-size: 13.5px; font-weight: 700; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; }
+.lp-hero-card__text small { overflow: hidden; font-size: 12px; color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.lp-hero-card__time { align-self: start; font-size: 10.5px; color: var(--text-tertiary); }
+/* Mehmonning o'z o'yini haqidagi karta va tablo — oltin urg'u */
+.lp-hero-card.is-game { border-color: rgba(219, 179, 92, .6); box-shadow: 0 18px 44px rgba(0, 0, 0, .5), 0 0 26px rgba(219, 179, 92, .18); }
+.lp-hero-card.is-game .lp-hero-card__text b, .lp-hero-card.is-game .lp-hero-card__text small { white-space: normal; text-overflow: clip; }
+.lp-hero-cards:has(.is-game) { width: min(330px, 84%); }
+.lp-scoreboard { transition: border-color .4s, box-shadow .4s; }
+.lp-scoreboard.is-visitor { border-color: rgba(219, 179, 92, .65); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 0 0 1px rgba(219, 179, 92, .2), 0 12px 34px rgba(219, 179, 92, .16); }
+.lp-scoreboard.is-visitor .lp-scoreboard__table { color: var(--gold); }
+.lp-scoreboard.is-visitor .lp-scoreboard__table::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--neon-green); box-shadow: 0 0 8px var(--neon-green); animation: lp-pulse 1.6s ease-out infinite; }
+@media (max-width: 1199px) { .lp-hero-cards { left: -16px; } }
+@media (max-width: 991px) { .lp-hero-cards { top: -22px; left: 12px; } }
+@media (max-width: 575px) { .lp-hero-cards { display: none; } }
+
+/* Imkoniyatlar lentasi (hero ostida) */
+.lp-marquee { position: relative; overflow: hidden; padding: 20px 0; border-top: 1px solid var(--gold-line); border-bottom: 1px solid var(--gold-line); background: rgba(255, 255, 255, .02); -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); }
+.lp-marquee__track { display: flex; width: max-content; animation: lp-marquee 55s linear infinite; }
+.lp-marquee:hover .lp-marquee__track { animation-play-state: paused; }
+.lp-marquee__group { display: flex; gap: 12px; margin: 0; padding: 0 12px 0 0; list-style: none; }
+.lp-marquee__item { display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; border: 1px solid var(--border-base); border-radius: 999px; background: var(--bg1); font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.lp-marquee__item .anticon { font-size: 16px; color: var(--gold); }
+@keyframes lp-marquee { to { transform: translateX(-50%); } }
+/* "Tizim ichidan" — stollar paneli: ilovaning haqiqiy kartalari (DemoBoard.tsx,
+   kartalar uslubi styles/tables-workspace.css dan) */
+.lp-board { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.lp-board .tables-money { margin-bottom: 0; }
+.lp-board__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.lp-board__log { display: inline-flex; align-items: center; gap: 9px; min-width: 0; padding: 8px 14px; border: 1px solid var(--border-base); border-radius: 999px; background: var(--bg1); font-size: 13px; color: var(--text-secondary); }
+.lp-board__log > i { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--neon-green); animation: lp-pulse 1.8s ease-out infinite; }
+.lp-board__log > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; animation: lp-board-log .45s ease-out; }
+@keyframes lp-board-log { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.lp-board__cell { position: relative; min-width: 0; }
+.lp-board__flash { position: absolute; inset: -4px; z-index: 3; border: 2px solid var(--gold); border-radius: 22px; pointer-events: none; animation: lp-board-flash 1.3s ease-out forwards; }
+.tables-board-grid--compact .lp-board__flash { border-radius: 15px; }
+@keyframes lp-board-flash { 0% { opacity: 0; transform: scale(.985); } 18% { opacity: 1; transform: scale(1); box-shadow: 0 0 26px rgba(219, 179, 92, .38); } 100% { opacity: 0; transform: scale(1.01); box-shadow: 0 0 0 rgba(219, 179, 92, 0); } }
+@media (max-width: 600px) {
+  .lp-board__bar { flex-wrap: wrap; }
+  .lp-board__log { order: 2; flex: 1 1 100%; }
+  .lp-board__bar .tables-board-density { margin-left: auto; }
+}
+/* Juda tor telefon: demo oynasi ramkasi ilovadagidan joy oladi — "Hisob-kitob" sig'sin */
+@media (max-width: 400px) {
+  .lp-window__body { padding: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-board__flash { display: none; }
+  .lp-board__log > span, .lp-board__log > i { animation: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-marquee { -webkit-mask-image: none; mask-image: none; }
+  .lp-marquee__track { width: auto; animation: none; justify-content: center; }
+  .lp-marquee__group { flex-wrap: wrap; justify-content: center; padding: 0 16px; }
+  .lp-marquee__group[aria-hidden] { display: none; }
+}

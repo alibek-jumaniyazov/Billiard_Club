@@ -10,6 +10,7 @@
  * shardagi yaltiroq nuqta lampaga qarab siljiydi — haqiqiy zal kabi.
  */
 import { TOKENS } from '../../../theme/tokens';
+import { cuePathAfterContact } from './controls';
 import { R, rotateByQuat, type AimInfo, type Ball, type Table, type World } from './physics';
 
 export const IVORY = '#f2ede1';
@@ -44,7 +45,36 @@ export interface CuePose {
 export interface GuideDraw {
   aim: AimInfo;
   alpha: number;
+  /** Zarba kuchi 0..1 — bashorat chiziqlari kuch bilan uzayadi */
+  power?: number;
+  /** Vertikal vint (physics.strike): biток yo'li nakat/ottyajkaga egiladi */
+  vertical?: number;
 }
+
+/** Kuch halqasi — bosib turilganda biток atrofida */
+export interface PowerDraw {
+  x: number;
+  y: number;
+  /** Kiy yo'nalishi — halqa uzilishi kiy tomonida bo'ladi */
+  dirX: number;
+  dirY: number;
+  /** 0..1 */
+  value: number;
+  /** 100% da sekin "nafas olish" (0..1) */
+  pulse: number;
+  /** false — qo'yib yuborilsa zarba bekor bo'ladi (ko'rsatkich stoldan tashqarida) */
+  armed: boolean;
+}
+
+/** Qisqa effektlar: zarba chaqnashi va teshik ustidagi "+1" */
+export interface EffectsDraw {
+  now: number;
+  flashes: { x: number; y: number; at: number; power: number }[];
+  pops: { x: number; y: number; dx: number; dy: number; at: number; text: string }[];
+}
+
+export const FLASH_MS = 260;
+export const POP_MS = 950;
 
 export const computeView = (table: Table, w: number, h: number, dpr: number): View => {
   const s = Math.min(w / table.outerW, h / table.outerH);
@@ -83,6 +113,13 @@ const mix = (a: string, b: string, t: number): string => {
 const rgba = (hex: string, alpha: number): string => {
   const [r, g, b] = parseHex(hex);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+/** Kuch rangi: zumrad (yumshoq) → oltin → qizil (eng kuchli) */
+export const powerColor = (t: number): string => {
+  const { emerald, gold, semantic } = TOKENS.color;
+  const k = Math.min(1, Math.max(0, t));
+  return k < 0.55 ? mix(emerald.glow, gold.base, k / 0.55) : mix(gold.base, semantic.error, (k - 0.55) / 0.45);
 };
 
 /** Determinik tasodif — yog'och tolasi har o'lchamda bir xil chiqsin */
@@ -566,12 +603,17 @@ const drawBall = (ctx: CanvasRenderingContext2D, b: Ball, world: World, view: Vi
 
 const drawGuide = (ctx: CanvasRenderingContext2D, guide: GuideDraw, cueX: number, cueY: number, view: View) => {
   const { aim, alpha } = guide;
+  const power = guide.power ?? 0.5;
   const s = view.s;
   const px = (x: number) => view.ox + x * s;
   const py = (y: number) => view.oy + y * s;
   const dx = aim.gx - cueX;
   const dy = aim.gy - cueY;
   const dl = Math.hypot(dx, dy) || 1;
+  const ux = dx / dl;
+  const uy = dy / dl;
+  // Bashorat chiziqlari kuch bilan uzayadi — kuchli zarba uzoqqa olib boradi
+  const reach = 0.55 + 0.75 * power;
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -580,38 +622,158 @@ const drawGuide = (ctx: CanvasRenderingContext2D, guide: GuideDraw, cueX: number
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
   ctx.lineWidth = Math.max(1, 0.09 * s);
   ctx.beginPath();
-  ctx.moveTo(px(cueX + (dx / dl) * R * 1.1), py(cueY + (dy / dl) * R * 1.1));
-  ctx.lineTo(px(aim.gx - (dx / dl) * R), py(aim.gy - (dy / dl) * R));
+  ctx.moveTo(px(cueX + ux * R * 1.1), py(cueY + uy * R * 1.1));
+  ctx.lineTo(px(aim.gx - ux * R), py(aim.gy - uy * R));
+  ctx.stroke();
+
+  // "Arvoh shar" — biток urilish paytida turadigan joy (uzuq-uzuq kontur)
+  ctx.beginPath();
+  ctx.arc(px(aim.gx), py(aim.gy), R * s, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.fill();
+  ctx.setLineDash([0.32 * s, 0.22 * s]);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.lineWidth = Math.max(1, 0.08 * s);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // "Arvoh shar" — biток urilish paytida turadigan joy
-  ctx.beginPath();
-  ctx.arc(px(aim.gx), py(aim.gy), R * s, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
-  ctx.lineWidth = Math.max(1, 0.07 * s);
-  ctx.stroke();
-
-  const ray = (x: number, y: number, ux: number, uy: number, length: number, color: string) => {
-    const g = ctx.createLinearGradient(px(x), py(y), px(x + ux * length), py(y + uy * length));
+  const ray = (x: number, y: number, rx: number, ry: number, length: number, color: string, head: boolean) => {
+    const ex = x + rx * length;
+    const ey = y + ry * length;
+    const g = ctx.createLinearGradient(px(x), py(y), px(ex), py(ey));
     g.addColorStop(0, color);
     g.addColorStop(1, 'rgba(255, 255, 255, 0)');
     ctx.strokeStyle = g;
     ctx.lineWidth = Math.max(1.2, 0.12 * s);
     ctx.beginPath();
     ctx.moveTo(px(x), py(y));
-    ctx.lineTo(px(x + ux * length), py(y + uy * length));
+    ctx.lineTo(px(ex), py(ey));
     ctx.stroke();
+    if (!head) return;
+    // Yo'nalish "o'qi" — chiziq boshida kichik uchburchak
+    const hx = px(x + rx * 1.6);
+    const hy = py(y + ry * 1.6);
+    const w = 0.32 * s;
+    ctx.beginPath();
+    ctx.moveTo(hx + rx * w * 1.5, hy + ry * w * 1.5);
+    ctx.lineTo(hx - ry * w, hy + rx * w);
+    ctx.lineTo(hx + ry * w, hy - rx * w);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
   };
   if (aim.target) {
-    ray(aim.target.x, aim.target.y, aim.objX, aim.objY, 2.5 + 9 * aim.objShare, 'rgba(242, 237, 225, 0.75)');
-    if (aim.cueShare > 0.05) {
-      ray(aim.gx, aim.gy, aim.cueX, aim.cueY, 1.5 + 6 * aim.cueShare, 'rgba(230, 110, 95, 0.7)');
+    // Tegish nuqtasi — ikki shar uchrashadigan joy
+    ctx.beginPath();
+    ctx.arc(px(aim.gx + aim.objX * R), py(aim.gy + aim.objY * R), Math.max(1.5, 0.16 * s), 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fill();
+    ray(aim.target.x, aim.target.y, aim.objX, aim.objY, (2.5 + 9 * aim.objShare) * reach, 'rgba(242, 237, 225, 0.8)', true);
+    const path = cuePathAfterContact(aim, ux, uy, guide.vertical ?? 0);
+    if (path.share > 0.05) {
+      ray(aim.gx, aim.gy, path.x, path.y, (1.5 + 6 * path.share) * reach, 'rgba(230, 110, 95, 0.75)', false);
     }
   } else {
-    ray(aim.gx, aim.gy, aim.cueX, aim.cueY, 5, 'rgba(255, 255, 255, 0.4)');
+    ray(aim.gx, aim.gy, aim.cueX, aim.cueY, 5 * reach, 'rgba(255, 255, 255, 0.4)', false);
+  }
+  ctx.restore();
+};
+
+/** Kuch halqasi: zumrad → oltin → qizil, foiz yozuvi va 100% da yog'du */
+const drawPower = (ctx: CanvasRenderingContext2D, p: PowerDraw, view: View) => {
+  const s = view.s;
+  const cx = view.ox + p.x * s;
+  const cy = view.oy + p.y * s;
+  const r = 2.35 * R * s;
+  const width = Math.max(3, 0.34 * s);
+  // Halqa uzilishi kiy tomonida — kiy halqani kesib o'tmasin
+  const back = Math.atan2(-p.dirY, -p.dirX);
+  const gap = 1.1;
+  const start = back + gap / 2;
+  const sweep = Math.PI * 2 - gap;
+  const value = Math.min(1, Math.max(0, p.value));
+
+  ctx.save();
+  ctx.globalAlpha = p.armed ? 1 : 0.35;
+  ctx.lineCap = 'round';
+  // Yo'lak: qorong'i "o'yiq" va ustida xira chiziq
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, start, start + sweep);
+  ctx.strokeStyle = 'rgba(6, 10, 8, 0.6)';
+  ctx.lineWidth = width + 3;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.13)';
+  ctx.lineWidth = width;
+  ctx.stroke();
+
+  // To'lgan qism — har bo'lak o'z kuch rangida (gradient barcha brauzerda ishlasin)
+  const full = value >= 0.999;
+  if (full) {
+    ctx.shadowColor = rgba(TOKENS.color.semantic.error, 0.85);
+    ctx.shadowBlur = (10 + 8 * p.pulse) * (view.dpr > 1 ? 1 : 0.8);
+  }
+  const pieces = Math.max(2, Math.ceil(56 * value));
+  for (let i = 0; i < pieces; i++) {
+    const a0 = start + (sweep * value * i) / pieces;
+    const a1 = start + (sweep * value * (i + 1)) / pieces;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, a0, a1 + (i < pieces - 1 ? 0.02 : 0));
+    ctx.strokeStyle = powerColor((value * (i + 0.5)) / pieces);
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+
+  // Foiz — halqa ustida (stol cheti yaqin bo'lsa ostida)
+  const fontSize = Math.round(Math.min(15, Math.max(11, 1.35 * s)));
+  const above = cy - r - fontSize * 1.1 > view.oy - 2 * s;
+  const ty = above ? cy - r - fontSize * 0.75 : cy + r + fontSize * 0.95;
+  const label = `${Math.round(value * 100)}%`;
+  ctx.font = `750 ${fontSize}px ${BALL_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 3.5;
+  ctx.strokeStyle = 'rgba(4, 8, 6, 0.85)';
+  ctx.strokeText(label, cx, ty);
+  ctx.fillStyle = full ? mix(TOKENS.color.semantic.error, '#ffffff', 0.25 + 0.25 * p.pulse) : powerColor(value);
+  ctx.fillText(label, cx, ty);
+  ctx.restore();
+};
+
+/** Zarba chaqnashi (kuchga mutanosib) va tushgan soqqa ustidagi "+1" */
+const drawEffects = (ctx: CanvasRenderingContext2D, fx: EffectsDraw, view: View) => {
+  const s = view.s;
+  ctx.save();
+  for (const f of fx.flashes) {
+    const k = (fx.now - f.at) / FLASH_MS;
+    if (k < 0 || k >= 1) continue;
+    const cx = view.ox + f.x * s;
+    const cy = view.oy + f.y * s;
+    const ease = 1 - (1 - k) ** 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, (0.5 + (1.2 + 1.4 * f.power) * ease) * R * s, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255, 244, 214, ${(1 - k) * (0.25 + 0.5 * f.power)})`;
+    ctx.lineWidth = Math.max(1, (0.22 - 0.15 * k) * s);
+    ctx.stroke();
+  }
+  const fontSize = Math.round(Math.min(18, Math.max(12, 1.7 * s)));
+  ctx.font = `800 ${fontSize}px ${BALL_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  for (const p of fx.pops) {
+    const k = (fx.now - p.at) / POP_MS;
+    if (k < 0 || k >= 1) continue;
+    const rise = (1 - (1 - k) ** 2) * 2.2 * R;
+    const x = view.ox + (p.x + p.dx * (1.6 * R + rise)) * s;
+    const y = view.oy + (p.y + p.dy * (1.6 * R + rise)) * s;
+    ctx.globalAlpha = k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(8, 10, 9, 0.85)';
+    ctx.strokeText(p.text, x, y);
+    ctx.fillStyle = TOKENS.color.gold.hover;
+    ctx.fillText(p.text, x, y);
   }
   ctx.restore();
 };
@@ -692,7 +854,14 @@ export const drawScene = (
   layer: HTMLCanvasElement,
   world: World,
   view: View,
-  overlay: { guide: GuideDraw | null; cue: CuePose | null; cueX: number; cueY: number },
+  overlay: {
+    guide: GuideDraw | null;
+    cue: CuePose | null;
+    cueX: number;
+    cueY: number;
+    power?: PowerDraw | null;
+    effects?: EffectsDraw | null;
+  },
 ): void => {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -703,5 +872,7 @@ export const drawScene = (
   // Avval teshikka tushayotganlar — ular boshqalar ostida ko'rinsin
   for (const b of world.balls) if (b.phase === 'sinking') drawBall(ctx, b, world, view);
   for (const b of world.balls) if (b.phase === 'live') drawBall(ctx, b, world, view);
+  if (overlay.power) drawPower(ctx, overlay.power, view);
   if (overlay.cue) drawCue(ctx, overlay.cue, world.table, view);
+  if (overlay.effects) drawEffects(ctx, overlay.effects, view);
 };

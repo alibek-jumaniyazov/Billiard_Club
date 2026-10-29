@@ -259,16 +259,17 @@ export const NAV_DESTINATIONS: ReadonlyArray<{
   { path: '/admin/settings', titleKey: 'menu.adminSettings', roles: ['superadmin'] },
 ];
 
-// ==================== Aloqa (avilab.uz) ====================
-// Yagona manba: barcha aloqa kanallari avilab.uz ga tegishli.
+// ==================== Aloqa ====================
+// Yagona manba: blok ekrani, landing, kirish/ro'yxat sahifalari shu qiymatlarni
+// ishlatadi (Telegram va telefon — Alibek Jumaniyazov).
 // Env orqali qayta sozlash mumkin, aks holda quyidagi standart qiymatlar ishlatiladi.
 
 /** Aloqa telefoni (blok ekrani va landing kontakt bo'limi) */
-export const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '+998 95 850 08 80';
+export const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || '+998 88 600 32 30';
 
 /** Aloqa uchun Telegram havolasi (blok ekrani va landing) */
 export const SUPPORT_TELEGRAM =
-  import.meta.env.VITE_SUPPORT_TELEGRAM || 'https://t.me/avilab_uz';
+  import.meta.env.VITE_SUPPORT_TELEGRAM || 'https://t.me/alibek_jumaniyazov';
 
 /** Aloqa emaili (landing kontakt bo'limi) */
 export const SUPPORT_EMAIL =

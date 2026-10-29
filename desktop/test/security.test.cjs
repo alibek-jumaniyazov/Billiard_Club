@@ -13,7 +13,7 @@ test('packaged applications require HTTPS, including localhost', () => {
 
 test('external links cannot execute OS schemes, files, or embedded credentials', () => {
   for (const url of ['file:///C:/test.exe', 'javascript:alert(1)', 'ms-settings:display', 'https://user:pass@example.com', 'data:text/html,hello']) assert.equal(safeExternal(url), false);
-  assert.equal(safeExternal('https://t.me/avilab_uz'), true);
+  assert.equal(safeExternal('https://t.me/alibek_jumaniyazov'), true);
   assert.equal(sameOrigin('https://billiardclub.uz.evil.test', 'https://billiardclub.uz'), false);
 });
 

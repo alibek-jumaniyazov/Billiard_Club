@@ -307,7 +307,7 @@ const buildMenu = () => {
       submenu: [
         {
           label: 'Telegram orqali bog‘lanish',
-          click: () => void shell.openExternal('https://t.me/avilab_uz'),
+          click: () => void shell.openExternal('https://t.me/alibek_jumaniyazov'),
         },
         {
           label: 'Diagnostika oynasi',

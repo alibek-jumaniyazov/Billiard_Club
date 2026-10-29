@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Button, InputNumber, Slider, Tooltip } from 'antd';
+import { Button, InputNumber, Slider, Space, Tooltip } from 'antd';
 import { ArrowRightOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { animate, motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -69,18 +69,20 @@ const Field = ({ label, hint, value, min, max, step, suffix, money, onChange }: 
             </Tooltip>
           ) : null}
         </label>
-        <InputNumber
-          id={id}
-          size="middle"
-          value={value}
-          min={min}
-          max={max}
-          step={step}
-          onChange={set}
-          addonAfter={suffix}
-          inputMode="numeric"
-          {...(money ? { formatter: moneyFormatter, parser: moneyParser } : {})}
-        />
+        <Space.Compact className="lp-roi-field__input">
+          <InputNumber
+            id={id}
+            size="middle"
+            value={value}
+            min={min}
+            max={max}
+            step={step}
+            onChange={set}
+            inputMode="numeric"
+            {...(money ? { formatter: moneyFormatter, parser: moneyParser } : {})}
+          />
+          <Space.Addon>{suffix}</Space.Addon>
+        </Space.Compact>
       </div>
       <Slider
         value={value}

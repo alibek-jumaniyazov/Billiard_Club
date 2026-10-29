@@ -238,6 +238,9 @@ button.tables-overview__metric:hover { background: var(--bg2); }
   .table-row { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "num info live" "actions actions actions" "warn warn warn"; row-gap: 10px; column-gap: 10px; padding: 10px 10px 10px 12px; }
   .table-row__actions { justify-content: flex-end; }
   .table-row__primary.ant-btn { flex: 1; min-width: 0; }
+  /* Tugma matni torayganda kesiladi — qatordan chiqib ketmaydi */
+  .table-row__primary.ant-btn { overflow: hidden; }
+  .table-row__primary.ant-btn > span:not(.ant-btn-icon) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* Bo'sh stol — bitta qator: raqam, nom/narx va "Boshlash" */
   .table-row.is-free { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "num info actions" "warn warn warn"; }
   .table-row.is-free .table-row__live { display: none; }
@@ -281,4 +284,8 @@ button.tables-overview__metric:hover { background: var(--bg2); }
   .tables-board-sort { display: none !important; }
   .tables-board-toolbar { flex-wrap: nowrap; }
   .tables-board-search { flex: 1 1 auto; min-width: 0; }
+}
+/* Juda tor telefon (360px): 4 ta 44px ikonka + "Hisob-kitob" sig'ishi uchun asosiy tugma ikonkasiz */
+@media (max-width: 400px) {
+  .table-row__primary.ant-btn .ant-btn-icon { display: none; }
 }

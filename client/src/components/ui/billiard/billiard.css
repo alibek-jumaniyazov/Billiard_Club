@@ -1,0 +1,197 @@
+/* Interaktiv billiard stoli ustidagi boshqaruvlar (BilliardTable.tsx).
+   Hammasi stol geometriyasiga bog'langan: --bt-u — 1 shar radiusi (R) necha
+   piksel (resize'da yoziladi), joylashuv — stol o'lchamiga nisbatan foizlarda.
+   Yog'och bort qalinligi: tepa/past — 13.3%, chap/o'ng — 7.9%; teshiklardan
+   qochish uchun boshqaruvlar bort o'rtasiga (15%…44% va 56%…85%) qo'yiladi. */
+.bt-root {
+  --bt-ctl: clamp(22px, calc(var(--bt-u, 8px) * 3.3), 34px);
+  --bt-pick: clamp(72px, calc(var(--bt-u, 8px) * 15.5), 140px);
+  position: relative;
+  container-type: inline-size;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Canvas oqimdan tashqarida: balandlikni FAQAT aspect-ratio belgilaydi. Oqimda
+   bo'lsa, oyna torayganda eski piksel balandligi stolni "ushlab" qolardi. */
+.bt-root canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; cursor: crosshair; }
+.bt-root.is-charging canvas { cursor: grabbing; }
+.bt-root.is-busy canvas { cursor: progress; }
+
+/* Bort ustidagi "mix" — stol bilan birga yashaydi */
+.bt-rail { position: absolute; height: 13.28%; display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.bt-rail > * { pointer-events: auto; }
+.bt-rail--tl { left: 15%; top: 0; }
+.bt-rail--tr { right: 15%; top: 0; }
+.bt-rail--bl { left: 15%; bottom: 0; }
+
+/* Yog'och-latun tugma */
+.bt-btn {
+  position: relative;
+  width: var(--bt-ctl);
+  height: var(--bt-ctl);
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(219, 179, 92, 0.5);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 236, 200, 0.22), rgba(255, 236, 200, 0) 58%),
+    linear-gradient(180deg, #34241a, #170e08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 230, 190, 0.18);
+  color: var(--gold, #dbb35c);
+  font-size: calc(var(--bt-ctl) * 0.46);
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.bt-btn:hover { color: var(--gold-hover, #e8c677); border-color: rgba(232, 198, 119, 0.85); }
+.bt-btn:active { transform: scale(0.92); }
+.bt-btn:focus-visible { outline: 2px solid var(--gold, #dbb35c); outline-offset: 2px; }
+.bt-btn.is-muted { color: var(--text-tertiary, #8b8579); }
+/* Barmoq uchun nishon ≥ 40px — ko'rinadigan tugma kichik bo'lsa ham */
+@media (pointer: coarse) {
+  .bt-btn::before { content: ''; position: absolute; inset: min(0px, calc((var(--bt-ctl) - 40px) / 2)); border-radius: 50%; }
+}
+
+/* Hisob: latun lavha — tushirilgan soqqalar va zarbalar */
+.bt-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: calc(var(--bt-ctl) * 0.82);
+  padding: 0 calc(var(--bt-ctl) * 0.36);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #efd690 0%, #c9a24c 55%, #a8822f 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 250, 225, 0.6), inset 0 -1px 0 rgba(90, 60, 10, 0.45);
+  color: #2b1d0b;
+  font: 800 clamp(10px, calc(var(--bt-u, 8px) * 1.3), 13px) / 1 var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  animation: bt-in 0.35s ease both;
+}
+.bt-stats span { display: inline-flex; align-items: center; gap: 4px; }
+.bt-stats i { flex: none; width: 0.85em; height: 0.85em; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fffdf6, #e9e1cf 55%, #9c917b); box-shadow: 0 0 0 1px rgba(60, 40, 10, 0.35); }
+.bt-stats b { flex: none; width: 1.15em; height: 0.2em; border-radius: 1px; background: linear-gradient(90deg, #f2ead6 0 14%, #6b4224 14% 100%); transform: rotate(-35deg); }
+
+/* Vint vidjeti — kichik biток, oq nuqta tegish joyini ko'rsatadi */
+.bt-spin-btn { padding: 0; border-color: rgba(255, 220, 200, 0.4); }
+.bt-ball {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #ffb8ab 0%, #e65848 24%, #c8372b 60%, #8c1d15 90%, #5a110b 100%);
+  overflow: hidden;
+}
+.bt-ball::before, .bt-ball::after { content: ''; position: absolute; background: rgba(255, 255, 255, 0.22); }
+.bt-ball::before { left: 50%; top: 12%; bottom: 12%; width: 1px; }
+.bt-ball::after { top: 50%; left: 12%; right: 12%; height: 1px; }
+.bt-dot {
+  position: absolute;
+  left: calc(50% + var(--sx, 0) * 34%);
+  top: calc(50% + var(--sy, 0) * 34%);
+  width: 26%;
+  height: 26%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #fffaf0;
+  box-shadow: 0 0 0 1.5px rgba(30, 8, 4, 0.75), 0 0 6px rgba(255, 255, 255, 0.6);
+  z-index: 1;
+}
+
+/* Vint tanlagich — mato ustida, kattalashtirilgan biток */
+.bt-picker-backdrop {
+  position: absolute;
+  inset: 13.28% 7.9%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border-radius: 6px;
+  background: rgba(4, 8, 6, 0.62);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: bt-in 0.18s ease both;
+}
+.bt-picker-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bt-picker-col small { font: 700 10.5px / 1.2 var(--font-display, sans-serif); letter-spacing: 0.06em; text-transform: uppercase; color: rgba(241, 236, 225, 0.7); }
+.bt-picker {
+  position: relative;
+  width: var(--bt-pick);
+  height: var(--bt-pick);
+  border-radius: 50%;
+  touch-action: none;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+.bt-picker .bt-ball { inset: 0; }
+.bt-picker .bt-ball::before { width: 1.5px; }
+.bt-picker .bt-ball::after { height: 1.5px; }
+.bt-picker .bt-dot { width: 20%; height: 20%; left: calc(50% + var(--sx, 0) * 40%); top: calc(50% + var(--sy, 0) * 40%); }
+.bt-picker:focus-visible { outline: 2px solid var(--gold, #dbb35c); outline-offset: 4px; }
+.bt-picker-side { display: flex; flex-direction: column; gap: 10px; max-width: 190px; }
+.bt-picker-side p { margin: 0; font-size: 12.5px; line-height: 1.45; color: rgba(241, 236, 225, 0.82); }
+.bt-picker-side strong { font-size: 13px; color: var(--ivory, #f3eee2); }
+.bt-done {
+  align-self: flex-start;
+  min-height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--gold, #dbb35c);
+  color: #1a140a;
+  font: 700 13px / 1 var(--font-display, sans-serif);
+  cursor: pointer;
+}
+.bt-done:focus-visible { outline: 2px solid var(--ivory, #f3eee2); outline-offset: 2px; }
+.bt-picker-close { position: absolute; top: 6px; right: 6px; }
+@container (max-width: 520px) {
+  .bt-picker-side { display: none; }
+}
+@container (min-width: 521px) {
+  .bt-picker-close { display: none; }
+}
+
+/* Maslahat va qisqa xabarlar */
+.bt-hint, .bt-toast {
+  position: absolute;
+  left: 50%;
+  /* left: 50% bilan "sig'ish" kengligi stolning yarmi bo'lib qolardi — matn keraksiz sinardi */
+  width: max-content;
+  max-width: calc(100% - 24px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: rgba(14, 21, 19, 0.74);
+  border: 1px solid rgba(219, 179, 92, 0.3);
+  color: var(--text-primary, #f1ece1);
+  text-align: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.bt-hint { bottom: 17%; }
+.bt-hint strong { font-size: 12.5px; font-weight: 650; }
+.bt-hint span { font-size: 11.5px; color: rgba(241, 236, 225, 0.72); }
+.bt-toast { top: 17%; font-size: 13px; font-weight: 700; color: var(--gold-hover, #e8c677); animation: bt-toast 1.7s ease both; white-space: nowrap; }
+
+.bt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@keyframes bt-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+@keyframes bt-toast {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  12% { opacity: 1; transform: translate(-50%, 0); }
+  80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+@media (max-width: 420px) {
+  .bt-hint { padding: 5px 10px; }
+  .bt-hint strong { font-size: 11.5px; }
+  .bt-hint span { font-size: 10.5px; }
+  .bt-rail { gap: 5px; }
+}

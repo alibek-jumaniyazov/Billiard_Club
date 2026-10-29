@@ -115,6 +115,18 @@ export interface Ball {
   pocket: number;
 }
 
+/**
+ * To'qnashuv hodisalari — ovoz va effektlar uchun. Fizika ularga BOG'LIQ
+ * EMAS: `world.events` massivi bo'lsagina yoziladi (testlar va AI uni
+ * bermaydi), o'quvchi (renderer) har kadrda bo'shatadi.
+ */
+export type PhysEvent =
+  /** Shar–shar: `speed` — markazlar chizig'i bo'yicha yaqinlashish tezligi */
+  | { kind: 'ball'; speed: number; x: number; y: number }
+  /** Bort yoki jag': `speed` — normal bo'yicha urilish tezligi */
+  | { kind: 'cushion'; speed: number; x: number; y: number }
+  | { kind: 'pocket'; id: number; pocket: number };
+
 export interface World {
   table: Table;
   balls: Ball[];
@@ -123,7 +135,18 @@ export interface World {
   pocketed: number[];
   /** Piramida terilgandan beri zarbalar soni (0 — razbiy kutilmoqda) */
   shots: number;
+  /** Ixtiyoriy hodisalar navbati (yuqoriga qarang) */
+  events?: PhysEvent[];
 }
+
+/** O'quvchi bo'shatmay qo'ysa ham navbat cheksiz o'smasin */
+const MAX_EVENTS = 256;
+/** Bundan sekin tegishlar "eshitilmaydi" — tinch turgan sharlar shovqin qilmasin */
+const EVENT_MIN_SPEED = 1;
+
+const emit = (world: World, event: PhysEvent): void => {
+  if (world.events && world.events.length < MAX_EVENTS) world.events.push(event);
+};
 
 /* --------------------------------------------------------- Yordamchilar */
 
@@ -504,6 +527,7 @@ const capture = (world: World, b: Ball, index: number): void => {
   b.pocket = index;
   b.sink = 0;
   world.pocketed.push(b.id);
+  emit(world, { kind: 'pocket', id: b.id, pocket: index });
 };
 
 const substep = (world: World, h: number): void => {
@@ -552,8 +576,21 @@ const substep = (world: World, h: number): void => {
     }
   }
 
+  const listening = world.events !== undefined;
   for (const b of live) {
-    for (const s of table.segments) collideSegment(b, s);
+    for (const s of table.segments) {
+      if (!listening) {
+        collideSegment(b, s);
+        continue;
+      }
+      const vx = b.vx;
+      const vy = b.vy;
+      // Normal impuls tezlikni (1 + e)·vn ga o'zgartiradi; e ≈ 0.7–0.82
+      if (collideSegment(b, s)) {
+        const vn = Math.hypot(b.vx - vx, b.vy - vy) / 1.76;
+        if (vn > EVENT_MIN_SPEED) emit(world, { kind: 'cushion', speed: vn, x: b.x, y: b.y });
+      }
+    }
   }
 
   // Zich piramida bir o'tishda to'liq ajralmaydi — kirishish qolmaguncha takror
@@ -566,7 +603,14 @@ const substep = (world: World, h: number): void => {
         const d = Math.hypot(c.x - a.x, c.y - a.y);
         if (d < 2 * R) {
           worst = Math.max(worst, 2 * R - d);
+          if (!listening) {
+            collideBalls(a, c);
+            continue;
+          }
+          // Yaqinlashish tezligi impulsdan OLDIN — keyingi takrorlarda u ≤ 0
+          const vn = d > 1e-9 ? ((a.vx - c.vx) * (c.x - a.x) + (a.vy - c.vy) * (c.y - a.y)) / d : 0;
           collideBalls(a, c);
+          if (vn > EVENT_MIN_SPEED) emit(world, { kind: 'ball', speed: vn, x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 });
         }
       }
     }

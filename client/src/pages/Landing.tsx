@@ -1,15 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
 import { Avatar, Button, Col, Collapse, Drawer, Row, Segmented } from 'antd';
 import {
   ArrowRightOutlined,
-  BarChartOutlined,
   CheckCircleFilled,
   CheckCircleOutlined,
-  ClockCircleOutlined,
-  CoffeeOutlined,
-  CreditCardOutlined,
-  DashboardOutlined,
   AndroidFilled,
   GlobalOutlined,
   InstagramOutlined,
@@ -19,7 +13,6 @@ import {
   SafetyCertificateOutlined,
   SendOutlined,
   StarFilled,
-  TeamOutlined,
   WindowsFilled,
 } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
@@ -39,7 +32,7 @@ import {
   VENDOR_NAME,
 } from '../constants';
 import { TOKENS } from '../theme/tokens';
-import { BilliardTable, BrandLogo } from '../components/ui';
+import { BrandLogo } from '../components/ui';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { formatNumber } from '../utils/format';
 import { publicApi } from '../api';
@@ -54,7 +47,10 @@ import RoiCalculator from './landing/RoiCalculator';
 import Comparison from './landing/Comparison';
 import LeadForm from './landing/LeadForm';
 import { FinalCta, StickyCta } from './landing/FinalCta';
-import Scoreboard from './landing/Scoreboard';
+import FeatureBento from './landing/FeatureBento';
+import HeroStage from './landing/HeroStage';
+import CapabilityStrip from './landing/CapabilityStrip';
+import HowItWorks from './landing/HowItWorks';
 import './landing/landing.css';
 
 const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
@@ -63,7 +59,6 @@ const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
 const NAV_BG = hexToRgba(bg.bg0, 0.82);
 /** 40px dan pastga aylantirilganda navbar foni biroz zichlashadi */
 const NAV_BG_SCROLLED = hexToRgba(bg.bg0, 0.94);
-const SOFT_PANEL = 'rgba(255, 255, 255, 0.02)';
 const CARD_TINT = 'rgba(255, 255, 255, 0.03)';
 
 /**
@@ -80,19 +75,6 @@ const NAV_LINKS: { id: string; key: string; secondary?: boolean; drawerOnly?: bo
   { id: 'contact', key: 'navContact', drawerOnly: true },
 ];
 
-const FEATURE_ITEMS: { key: string; icon: ReactNode }[] = [
-  { key: 'feature1', icon: <ClockCircleOutlined /> },
-  { key: 'feature2', icon: <CoffeeOutlined /> },
-  { key: 'feature3', icon: <CreditCardOutlined /> },
-  { key: 'feature4', icon: <BarChartOutlined /> },
-  { key: 'feature5', icon: <TeamOutlined /> },
-  { key: 'feature6', icon: <DashboardOutlined /> },
-  { key: 'feature7', icon: <GlobalOutlined /> },
-  { key: 'feature8', icon: <SafetyCertificateOutlined /> },
-];
-
-const STAT_KEYS = ['stat1', 'stat2', 'stat3', 'stat4'] as const;
-const STEP_KEYS = ['step1', 'step2', 'step3'] as const;
 const PLAN_FEATURE_KEYS = ['planFeat1', 'planFeat2', 'planFeat3', 'planFeat4'] as const;
 const HERO_TRUST_KEYS = ['heroTrust1', 'heroTrust2', 'heroTrust3'] as const;
 const GUARANTEE_KEYS = ['guarantee1', 'guarantee2', 'guarantee3'] as const;
@@ -183,7 +165,7 @@ const Landing = () => {
   /* Skroll qiymati — navbar zichligi uchun.
      MotionValue to'g'ridan-to'g'ri transformga yoziladi: layout o'qilmaydi,
      state faqat 40px chegara kesilganda almashadi (React o'zi bail out qiladi). */
-  const { scrollY } = useScroll();
+  const { scrollY, scrollYProgress } = useScroll();
   useMotionValueEvent(scrollY, 'change', (y) => setNavScrolled(y > 40));
 
   useDocumentHead('landing.metaTitle', 'landing.metaDescription');
@@ -338,6 +320,26 @@ const Landing = () => {
     },
   ].filter((c) => c.show);
 
+  /* Savol-javob — qidiruv tizimlari uchun FAQPage tuzilmali ma'lumoti (Google
+     natijalarida kengaytirilgan ko'rinish). Til almashganda yangilanadi. */
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.dataset.landingFaq = '';
+    script.text = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      inLanguage: lang,
+      mainEntity: Array.from({ length: FAQ_COUNT }, (_, i) => ({
+        '@type': 'Question',
+        name: t(`landing.faq${i + 1}Q`),
+        acceptedAnswer: { '@type': 'Answer', text: t(`landing.faq${i + 1}A`) },
+      })),
+    });
+    document.head.appendChild(script);
+    return () => script.remove();
+  }, [lang, t]);
+
   const faqItems = Array.from({ length: FAQ_COUNT }, (_, i) => ({
     key: String(i + 1),
     label: t(`landing.faq${i + 1}Q`),
@@ -374,6 +376,7 @@ const Landing = () => {
             transition: 'background 0.3s ease, box-shadow 0.3s ease',
           }}
         >
+          <motion.div aria-hidden className="lp-progress" style={{ scaleX: scrollYProgress }} />
           <div
             className="lp-container"
             style={{
@@ -576,56 +579,14 @@ const Landing = () => {
                   </motion.div>
                 </Col>
                 <Col xs={24} lg={11}>
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.8, ease: TOKENS.motion.easing.out, delay: 0.25 }}
-                  >
-                    <BilliardTable
-                      hint={t('landing.heroTableHint')}
-                      ariaLabel={t('landing.heroTableAria')}
-                    />
-                    <Scoreboard />
-                  </motion.div>
+                  <HeroStage />
                 </Col>
               </Row>
             </div>
           </section>
 
-          {/* --------------------------------- Ijtimoiy isbot — stat band */}
-          <section
-            style={{
-              borderTop: `1px solid ${gold.line}`,
-              borderBottom: `1px solid ${gold.line}`,
-              background: SOFT_PANEL,
-            }}
-          >
-            <div className="lp-container" style={{ paddingTop: 40, paddingBottom: 40 }}>
-              <motion.div
-                variants={stagger}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, amount: 0.3 }}
-              >
-                <Row gutter={[24, 28]}>
-                  {STAT_KEYS.map((key) => (
-                    <Col xs={12} md={6} key={key}>
-                      <motion.div variants={fadeUp} style={{ textAlign: 'center' }}>
-                        <div
-                          style={{ color: gold.base, fontSize: 22, fontWeight: 800, lineHeight: 1.3 }}
-                        >
-                          {t(`landing.${key}Value`)}
-                        </div>
-                        <div style={{ color: text.secondary, fontSize: 14, marginTop: 6 }}>
-                          {t(`landing.${key}Label`)}
-                        </div>
-                      </motion.div>
-                    </Col>
-                  ))}
-                </Row>
-              </motion.div>
-            </div>
-          </section>
+          {/* ------------------------- Platformalar va imkoniyatlar lentasi */}
+          <CapabilityStrip />
 
           {/* ------------------------------------------ Muammo -> yechim */}
           <PainPoints />
@@ -633,35 +594,7 @@ const Landing = () => {
           <SectionDivider />
 
           {/* ------------------------------------------------ Imkoniyatlar */}
-          <section id="features" className="lp-section">
-            <div className="lp-container">
-              <SectionHeading
-                overline={t('landing.featuresOverline')}
-                title={t('landing.featuresTitle')}
-                subtitle={t('landing.featuresSubtitle')}
-              />
-              <motion.div
-                variants={stagger}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, amount: 0.05 }}
-              >
-                <Row gutter={[20, 20]}>
-                  {FEATURE_ITEMS.map(({ key, icon }) => (
-                    <Col xs={24} sm={12} lg={6} key={key}>
-                      <motion.div variants={fadeUp} className="lp-feature">
-                        <span className="lp-feature__icon" aria-hidden>
-                          {icon}
-                        </span>
-                        <h3>{t(`landing.${key}Title`)}</h3>
-                        <p>{t(`landing.${key}Desc`)}</p>
-                      </motion.div>
-                    </Col>
-                  ))}
-                </Row>
-              </motion.div>
-            </div>
-          </section>
+          <FeatureBento />
 
           {/* ------------------------------------- Jonli sahnalar (rasmli) */}
           <LiveScenes />
@@ -676,77 +609,7 @@ const Landing = () => {
           <RoiCalculator monthlyPrice={monthlyPrice} onCta={goRegister} />
 
           {/* --------------------------------------------- Qanday ishlaydi */}
-          <section id="how" className="lp-section">
-            <div className="lp-container">
-              <SectionHeading overline={t('landing.howOverline')} title={t('landing.howTitle')} />
-              <motion.div
-                variants={stagger}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, amount: 0.2 }}
-              >
-                <Row gutter={[32, 40]}>
-                  {STEP_KEYS.map((key, index) => (
-                    <Col xs={24} md={8} key={key}>
-                      <motion.div variants={fadeUp} style={{ textAlign: 'center' }}>
-                        <div
-                          style={{
-                            width: 52,
-                            height: 52,
-                            borderRadius: '50%',
-                            border: `1px solid ${gold.line}`,
-                            background: gold.subtle,
-                            color: gold.base,
-                            fontWeight: 700,
-                            fontSize: 20,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            margin: '0 auto 18px',
-                          }}
-                        >
-                          {index + 1}
-                        </div>
-                        <h3
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 700,
-                            color: text.primary,
-                            margin: '0 0 10px',
-                          }}
-                        >
-                          {t(`landing.${key}Title`)}
-                        </h3>
-                        <p
-                          style={{
-                            color: text.secondary,
-                            fontSize: 14.5,
-                            lineHeight: 1.65,
-                            margin: '0 auto',
-                            maxWidth: 300,
-                          }}
-                        >
-                          {t(`landing.${key}Desc`)}
-                        </p>
-                      </motion.div>
-                    </Col>
-                  ))}
-                </Row>
-                <motion.p
-                  variants={fadeUp}
-                  style={{
-                    textAlign: 'center',
-                    color: text.secondary,
-                    fontSize: 15,
-                    marginTop: 48,
-                    marginBottom: 0,
-                  }}
-                >
-                  {t('landing.howNote')}
-                </motion.p>
-              </motion.div>
-            </div>
-          </section>
+          <HowItWorks />
 
           {/* -------------------------------------------------- Taqqoslash */}
           <Comparison />
