@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   App,
@@ -29,6 +29,7 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, releasesApi } from '../../api';
+import { uploadInChunks } from '../../utils/chunkedUpload';
 import { EmptyState, PageHeader, PageTransition } from '../../components/ui';
 import type { AppRelease, ReleasePlatform } from '../../types';
 
@@ -81,6 +82,8 @@ const AdminReleases = () => {
   const [form] = Form.useForm<UploadFormValues>();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  /** Yuklayotganda "Bekor qilish" — bo'laklar to'xtaydi, serverdagi yarim fayl o'chadi */
+  const uploadAbort = useRef<AbortController | null>(null);
   const [percent, setPercent] = useState(0);
   const [busyId, setBusyId] = useState<number | null>(null);
 
@@ -111,23 +114,44 @@ const AdminReleases = () => {
     }
     setUploading(true);
     setPercent(0);
+    const controller = new AbortController();
+    uploadAbort.current = controller;
     try {
-      const body = new FormData();
-      body.append('file', file);
-      body.append('version', values.version.trim());
-      body.append('platform', values.platform);
-      if (values.notesUz?.trim()) body.append('notesUz', values.notesUz.trim());
-      if (values.notesRu?.trim()) body.append('notesRu', values.notesRu.trim());
-
-      const res = await releasesApi.upload(body, setPercent);
+      // Bo'laklab: server oldidagi proksi (nginx) katta so'rovni 413 bilan
+      // qaytarardi — 4 MB lik bo'laklar har qanday shunday chegaradan o'tadi
+      const res = await uploadInChunks(
+        file,
+        {
+          start: async () =>
+            (
+              await releasesApi.startUpload({
+                platform: values.platform,
+                version: values.version.trim(),
+                fileName: file.name,
+                size: file.size,
+                notesUz: values.notesUz?.trim() || undefined,
+                notesRu: values.notesRu?.trim() || undefined,
+              })
+            ).data,
+          chunk: async (uploadId, offset, blob, signal) =>
+            (await releasesApi.uploadChunk(uploadId, offset, blob, signal)).data,
+          complete: (uploadId) => releasesApi.completeUpload(uploadId),
+          abort: (uploadId) => releasesApi.abortUpload(uploadId),
+        },
+        { onProgress: setPercent, signal: controller.signal },
+      );
       message.success(res.message ?? t('adminReleases.uploaded'));
       setUploadOpen(false);
       setFileList([]);
       form.resetFields();
       await load();
     } catch (err) {
-      message.error(errorMessage(err, t('adminReleases.uploadError')));
+      if (controller.signal.aborted) message.info(t('adminReleases.uploadCancelled'));
+      else if ((err as { response?: { status?: number } }).response?.status === 413) {
+        message.error(t('adminReleases.proxyLimit'));
+      } else message.error(errorMessage(err, t('adminReleases.uploadError')));
     } finally {
+      uploadAbort.current = null;
       setUploading(false);
       setPercent(0);
     }
@@ -303,10 +327,11 @@ const AdminReleases = () => {
         title={t('adminReleases.upload')}
         okText={t('adminReleases.upload')}
         confirmLoading={uploading}
-        onCancel={() => !uploading && setUploadOpen(false)}
+        // Yuklash paytida "Bekor qilish" yuklashni to'xtatadi (serverdagi yarim
+        // fayl o'chiriladi); tasodifiy yopilishdan himoya — fon va x yopmaydi
+        onCancel={() => (uploading ? uploadAbort.current?.abort() : setUploadOpen(false))}
         onOk={() => form.submit()}
-        // Yuklash davom etayotganda oynani yopib bo'lmaydi: yopilsa so'rov
-        // uzilib, yarim yuklangan fayl serverda qolib ketardi
+        cancelText={uploading ? t('adminReleases.cancelUpload') : undefined}
         maskClosable={!uploading}
         closable={!uploading}
         width={560}
@@ -344,8 +369,8 @@ const AdminReleases = () => {
 
           <Form.Item label={t('adminReleases.file')} required>
             <Upload.Dragger
-              // Avtomatik yuklash O'CHIQ: fayl formadagi boshqa maydonlar
-              // bilan BIRGA, bitta so'rovda ketishi kerak
+              // Avtomatik yuklash O'CHIQ: fayl formadagi maydonlar bilan birga,
+              // "Reliz yuklash" bosilganda bo'laklab yuboriladi (submit)
               beforeUpload={() => false}
               maxCount={1}
               accept={ACCEPT[platform as ReleasePlatform]}

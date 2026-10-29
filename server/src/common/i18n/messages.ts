@@ -322,6 +322,9 @@ const messages: Record<Language, Record<string, string>> = {
     'releases.published': 'Reliz nashr etildi',
     'releases.unpublished': 'Reliz nashrdan olindi',
     'releases.deleted': "Reliz o'chirildi",
+    'releases.tooLarge': "Fayl juda katta (eng ko'pi {max} MB)",
+    'releases.uploadNotFound': "Yuklash topilmadi yoki muddati o'tgan — qaytadan boshlang",
+    'releases.uploadIncomplete': "Fayl oxirigacha yuklanmadi — qaytadan urinib ko'ring",
   },
   ru: {
     // Auth
@@ -633,6 +636,9 @@ const messages: Record<Language, Record<string, string>> = {
     'releases.published': 'Релиз опубликован',
     'releases.unpublished': 'Релиз снят с публикации',
     'releases.deleted': 'Релиз удалён',
+    'releases.tooLarge': 'Файл слишком большой (не более {max} МБ)',
+    'releases.uploadNotFound': 'Загрузка не найдена или устарела — начните заново',
+    'releases.uploadIncomplete': 'Файл загружен не полностью — попробуйте ещё раз',
   },
 };
 

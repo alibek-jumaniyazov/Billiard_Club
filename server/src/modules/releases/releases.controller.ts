@@ -7,10 +7,13 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { SkipThrottle } from '@nestjs/throttler';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -18,11 +21,14 @@ import { SkipSubscription } from '../../common/decorators/skip-subscription.deco
 import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
-import { CreateReleaseDto } from './dto/releases.dto';
-import { ReleasesService, toAdminRelease, UploadedFileLike } from './releases.service';
-
-/** O'rnatgich hajmi chegarasi — 500 MB (Electron + Chromium ~100 MB atrofida) */
-const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+import { CreateReleaseDto, StartReleaseUploadDto } from './dto/releases.dto';
+import {
+  CHUNK_MAX_BYTES,
+  MAX_UPLOAD_BYTES,
+  ReleasesService,
+  toAdminRelease,
+  UploadedFileLike,
+} from './releases.service';
 
 /**
  * Desktop relizlarini boshqarish — FAQAT superadmin.
@@ -89,5 +95,43 @@ export class ReleasesController {
   async remove(@Param('id', ParseIntPipe) id: number, @Lang() lang: Language) {
     await this.releases.remove(id);
     return { success: true, message: t(lang, 'releases.deleted') };
+  }
+
+  /* ------------------------------------------------- Bo'laklab yuklash
+   * Katta o'rnatgich bitta so'rovda server oldidagi proksi (nginx
+   * client_max_body_size) chegarasiga urilib 413 olardi. Admin paneli
+   * faylni 4 MB lik bo'laklarda yuboradi: boshlash -> bo'laklar -> yakunlash.
+   */
+
+  @Post('uploads')
+  async startUpload(@Body() dto: StartReleaseUploadDto, @CurrentUser() user: User) {
+    const data = await this.releases.startUpload(dto, user.id);
+    return { success: true, data };
+  }
+
+  /** Bo'laklar ko'p (500 MB = 125 ta) — umumiy so'rov limitini yemasin */
+  @SkipThrottle()
+  @Put('uploads/:uploadId')
+  @UseInterceptors(FileInterceptor('chunk', { limits: { fileSize: CHUNK_MAX_BYTES } }))
+  appendChunk(
+    @Param('uploadId') uploadId: string,
+    @Query('offset', ParseIntPipe) offset: number,
+    @UploadedFile() chunk: { buffer?: Buffer } | undefined,
+    @CurrentUser() user: User,
+  ) {
+    if (!chunk?.buffer) throw new BadRequestException({ key: 'releases.fileRequired' });
+    return { success: true, data: this.releases.appendUploadChunk(uploadId, user.id, offset, chunk.buffer) };
+  }
+
+  @Post('uploads/:uploadId/complete')
+  async completeUpload(@Param('uploadId') uploadId: string, @CurrentUser() user: User, @Lang() lang: Language) {
+    const created = await this.releases.completeUpload(uploadId, user.id);
+    return { success: true, message: t(lang, 'releases.uploaded'), data: toAdminRelease(created) };
+  }
+
+  @Delete('uploads/:uploadId')
+  abortUpload(@Param('uploadId') uploadId: string, @CurrentUser() user: User) {
+    this.releases.abortUpload(uploadId, user.id);
+    return { success: true };
   }
 }

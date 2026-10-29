@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, MaxLength, Matches } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, MaxLength, Matches, Min } from 'class-validator';
 import { ReleasePlatform } from '../../../entities/enums';
 
 export class CreateReleaseDto {
@@ -26,4 +26,19 @@ export class CreateReleaseDto {
   @IsString()
   @MaxLength(4000)
   notesRu?: string;
+}
+
+/**
+ * Bo'laklab yuklashni boshlash: reliz ma'lumotlari + fayl nomi va hajmi.
+ * Versiya, kengaytma va hajm SHU YERDA tekshiriladi — 100 MB yuborilgandan
+ * keyin emas.
+ */
+export class StartReleaseUploadDto extends CreateReleaseDto {
+  @IsString()
+  @MaxLength(200)
+  fileName: string;
+
+  @IsInt()
+  @Min(1)
+  size: number;
 }

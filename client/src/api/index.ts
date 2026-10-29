@@ -64,6 +64,7 @@ import type {
   Product,
   ProductsReport,
   PurchasePayload,
+  ReleasePlatform,
   Report,
   Reservation,
   ReservationPayload,
@@ -585,22 +586,43 @@ export const publicApi = {
 /**
  * Desktop relizlarini boshqarish — faqat superadmin.
  *
- * Yuklash `FormData` bilan ketadi: faylni JSON ga (base64) o'rash uni 33% ga
+ * Bo'laklar `FormData` bilan ketadi: faylni JSON ga (base64) o'rash uni 33% ga
  * shishirardi va 200 MB lik o'rnatgichda bu qo'shimcha 70 MB degani.
  */
 export const releasesApi = {
   list: () => get<AppRelease[]>('/admin/releases'),
-  upload: (body: FormData, onProgress?: (percent: number) => void) =>
-    client
-      .post<ApiResponse<AppRelease>>('/admin/releases', body, {
-        // Yuklash uzoq davom etadi — standart timeout ni kutib bo'lmaydi
-        timeout: 0,
-        onUploadProgress: (e) => {
-          if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
-        },
+  /*
+   * Bo'laklab yuklash — katta o'rnatgich bitta so'rovda server oldidagi
+   * proksi (nginx client_max_body_size) chegarasiga urilib 413 olardi.
+   * Ketma-ketlik va qayta urinishlar: utils/chunkedUpload.ts.
+   */
+  startUpload: (body: {
+    platform: ReleasePlatform;
+    version: string;
+    fileName: string;
+    size: number;
+    notesUz?: string;
+    notesRu?: string;
+  }) => post<{ uploadId: string; chunkSize: number }>('/admin/releases/uploads', body),
+  uploadChunk: (uploadId: string, offset: number, chunk: Blob, signal?: AbortSignal) => {
+    const body = new FormData();
+    body.append('chunk', chunk, 'chunk.bin');
+    return client
+      .put<ApiResponse<{ received: number; size: number }>>(`/admin/releases/uploads/${uploadId}`, body, {
+        params: { offset },
+        timeout: LONG_TIMEOUT_MS,
+        signal,
       })
-      // Boshqa yordamchilar bilan bir xil shakl: ApiResponse qaytadi
+      .then((r) => r.data);
+  },
+  // Server faylni yig'ib sha512 hisoblaydi (100 MB ~ 1 s) — uzunroq kutish
+  completeUpload: (uploadId: string) =>
+    client
+      .post<ApiResponse<AppRelease>>(`/admin/releases/uploads/${uploadId}/complete`, undefined, {
+        timeout: LONG_TIMEOUT_MS,
+      })
       .then((r) => r.data),
+  abortUpload: (uploadId: string) => del<void>(`/admin/releases/uploads/${uploadId}`),
   publish: (id: number) => post<AppRelease>(`/admin/releases/${id}/publish`),
   unpublish: (id: number) => post<AppRelease>(`/admin/releases/${id}/unpublish`),
   remove: (id: number) => del<void>(`/admin/releases/${id}`),

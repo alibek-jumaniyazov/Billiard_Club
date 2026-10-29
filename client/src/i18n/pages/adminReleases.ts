@@ -10,6 +10,9 @@ export default {
     fileRequired: 'Fayl tanlanmagan',
     uploaded: 'Reliz yuklandi',
     uploadError: 'Reliz yuklanmadi',
+    uploadCancelled: 'Yuklash bekor qilindi',
+    cancelUpload: 'Yuklashni to‘xtatish',
+    proxyLimit: 'Server oldidagi proksi (nginx) hatto kichik bo‘laklarni ham rad etyapti — client_max_body_size ni kamida 8m qiling',
     loadError: 'Relizlar ro‘yxatini olib bo‘lmadi',
 
     versionHint: 'desktop/package.json dagi "version" bilan bir xil bo‘lishi SHART',
@@ -57,6 +60,9 @@ export default {
     fileRequired: 'Файл не выбран',
     uploaded: 'Релиз загружен',
     uploadError: 'Не удалось загрузить релиз',
+    uploadCancelled: 'Загрузка отменена',
+    cancelUpload: 'Остановить загрузку',
+    proxyLimit: 'Прокси перед сервером (nginx) отклоняет даже небольшие части — увеличьте client_max_body_size минимум до 8m',
     loadError: 'Не удалось загрузить список релизов',
 
     versionHint: 'Должна совпадать с "version" в desktop/package.json',

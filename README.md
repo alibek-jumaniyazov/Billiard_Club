@@ -190,6 +190,15 @@ Yangi versiya chiqarish: `desktop/package.json` dagi versiyani oshiring →
 `npm run dist:win` → superadmin panelidan yuklang → **Nashr etish**. Nashr etilmagan
 reliz `/download` da ham, auto-update feed'ida ham ko'rinmaydi.
 
+**Katta fayllar va nginx (413).** Superadmin paneli o'rnatgichni **4 MB lik
+bo'laklarda** yuboradi (`/api/admin/releases/uploads`): server oldidagi nginx
+`client_max_body_size` chegarasi (production'da ~6 MB edi) 110 MB lik `.exe` ni
+endi to'xtatmaydi. Uzilgan bo'lak qayta yuboriladi, 413 kelsa bo'lak o'zi
+kichrayadi, "Yuklashni to'xtatish" serverdagi yarim faylni o'chiradi; tashlandiq
+yuklashlar `uploads/releases/tmp` dan har kuni tozalanadi. nginx'da hech narsa
+o'zgartirish shart emas — faqat chegara 1 MB dan kichik bo'lmasin (bo'lak 256 KB
+gacha kichraya oladi).
+
 Tafsilot: **[desktop/README.md](desktop/README.md)**
 
 ## Android ilova

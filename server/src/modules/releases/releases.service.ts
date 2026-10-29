@@ -6,7 +6,7 @@ import * as path from 'path';
 import { Repository } from 'typeorm';
 import { AppRelease } from '../../entities/app-release.entity';
 import { ReleasePlatform } from '../../entities/enums';
-import { CreateReleaseDto } from './dto/releases.dto';
+import { CreateReleaseDto, StartReleaseUploadDto } from './dto/releases.dto';
 
 /** Multer yuklagan fayl — @types/multer qo'shmaslik uchun minimal shakl */
 export interface UploadedFileLike {
@@ -44,6 +44,33 @@ export const CHANNEL_FILE: Partial<Record<ReleasePlatform, string>> = {
 
 /** Semver: "1.0.1" yoki "1.0.1-beta.2" */
 const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+/** O'rnatgich hajmi chegarasi — 500 MB (Electron + Chromium ~100 MB atrofida) */
+export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+
+/**
+ * Bo'laklab yuklashda bitta bo'lak chegarasi. Server oldidagi reverse proxy
+ * (nginx `client_max_body_size`, CDN) katta so'rovni 413 bilan qaytaradi —
+ * production'da chegara ~6 MB edi va 110 MB lik o'rnatgich umuman o'tmasdi.
+ * 4 MB lik bo'laklar shunday proksidan ham o'tadi; klient 413 olsa bo'lakni
+ * o'zi kichraytiradi.
+ */
+export const CHUNK_MAX_BYTES = 4 * 1024 * 1024;
+
+/** Yuklash identifikatori — faqat UUID (fayl nomiga tushadi) */
+const UPLOAD_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Bo'laklab yuklash holati — vaqtinchalik papkada `upload-<id>.json` */
+interface UploadMeta {
+  userId: number;
+  version: string;
+  platform: ReleasePlatform;
+  notesUz?: string;
+  notesRu?: string;
+  fileName: string;
+  size: number;
+  received: number;
+}
 
 /**
  * Klientga ko'rinadigan shakl.
@@ -241,6 +268,119 @@ export class ReleasesService {
       fs.rmSync(tmpPath, { force: true });
       throw err;
     }
+  }
+
+  /* ---------------------------------------------- Bo'laklab yuklash */
+
+  /**
+   * Yuklashni boshlash. Hamma tekshiruv (versiya, kengaytma, hajm, takror
+   * versiya) SHU YERDA — 100 MB yuborilgandan keyin emas. Bo'laklar
+   * `upload-<id>.part` ga ketma-ket yoziladi; holat `upload-<id>.json` da
+   * (server qayta ishga tushsa ham yuklash davom etadi). Tashlandiq
+   * yuklashlarni ReleasesCleanupService tozalaydi.
+   */
+  async startUpload(dto: StartReleaseUploadDto, userId: number): Promise<{ uploadId: string; chunkSize: number }> {
+    if (!SEMVER_RE.test(dto.version)) {
+      throw new BadRequestException({ key: 'releases.badVersion' });
+    }
+    const ext = path.extname(dto.fileName).toLowerCase();
+    if (!ALLOWED_EXT[dto.platform].includes(ext)) {
+      throw new BadRequestException({
+        key: 'releases.badExtension',
+        args: { allowed: ALLOWED_EXT[dto.platform].join(', ') },
+      });
+    }
+    if (dto.size > MAX_UPLOAD_BYTES) {
+      throw new BadRequestException({ key: 'releases.tooLarge', args: { max: MAX_UPLOAD_BYTES / 1024 / 1024 } });
+    }
+    const existing = await this.repo.findOne({ where: { platform: dto.platform, version: dto.version } });
+    if (existing) throw new BadRequestException({ key: 'releases.versionExists' });
+
+    ReleasesService.ensureDirs();
+    const uploadId = crypto.randomUUID();
+    const files = this.uploadFiles(uploadId);
+    fs.writeFileSync(files.part, '');
+    this.writeUploadMeta(files.meta, {
+      userId,
+      version: dto.version,
+      platform: dto.platform,
+      notesUz: dto.notesUz,
+      notesRu: dto.notesRu,
+      // Faqat nom (yo'lsiz) — u keyin foydalanuvchiga ko'rinadigan fileName bo'ladi
+      fileName: path.basename(dto.fileName),
+      size: dto.size,
+      received: 0,
+    });
+    return { uploadId, chunkSize: CHUNK_MAX_BYTES };
+  }
+
+  /**
+   * Bo'lak qo'shish. `offset` — bo'lakning fayldagi o'rni. Takrorlangan bo'lak
+   * (javob yo'qolib, klient qayta yuborgan) e'tiborsiz qoldiriladi; offset
+   * mos kelmasa hech narsa yozilmaydi — javobdagi `received` dan klient
+   * davom etadi. Butunlay sinxron: Node bitta oqimda bo'lgani uchun bir
+   * yuklashga parallel so'rovlar ham faylni buzmaydi.
+   */
+  appendUploadChunk(uploadId: string, userId: number, offset: number, chunk: Buffer): { received: number; size: number } {
+    const files = this.uploadFiles(uploadId);
+    const meta = this.readUploadMeta(files.meta, userId);
+    if (offset === meta.received && chunk.length > 0) {
+      if (meta.received + chunk.length > meta.size) {
+        throw new BadRequestException({ key: 'releases.uploadIncomplete' });
+      }
+      fs.appendFileSync(files.part, chunk);
+      meta.received += chunk.length;
+      this.writeUploadMeta(files.meta, meta);
+    }
+    return { received: meta.received, size: meta.size };
+  }
+
+  /** Yakunlash: fayl to'liq bo'lsa — oddiy yuklash bilan bir xil tekshiruv va saqlash */
+  async completeUpload(uploadId: string, userId: number): Promise<AppRelease> {
+    const files = this.uploadFiles(uploadId);
+    const meta = this.readUploadMeta(files.meta, userId);
+    const actual = fs.existsSync(files.part) ? fs.statSync(files.part).size : -1;
+    if (meta.received !== meta.size || actual !== meta.size) {
+      throw new BadRequestException({ key: 'releases.uploadIncomplete' });
+    }
+    fs.rmSync(files.meta, { force: true });
+    // create() xatoda vaqtinchalik faylni o'zi o'chiradi
+    return this.create(
+      { originalname: meta.fileName, filename: path.basename(files.part), path: files.part, size: meta.size },
+      { version: meta.version, platform: meta.platform, notesUz: meta.notesUz, notesRu: meta.notesRu },
+      userId,
+    );
+  }
+
+  /** Bekor qilish — vaqtinchalik fayllar darhol o'chadi */
+  abortUpload(uploadId: string, userId: number): void {
+    const files = this.uploadFiles(uploadId);
+    this.readUploadMeta(files.meta, userId);
+    fs.rmSync(files.part, { force: true });
+    fs.rmSync(files.meta, { force: true });
+  }
+
+  private uploadFiles(uploadId: string): { part: string; meta: string } {
+    // Identifikator fayl nomiga tushadi — faqat UUID (yo'l aylanib o'tishi yo'q)
+    if (!UPLOAD_ID_RE.test(uploadId)) throw new NotFoundException({ key: 'releases.uploadNotFound' });
+    const base = path.join(ReleasesService.tmpDir(), `upload-${uploadId}`);
+    return { part: `${base}.part`, meta: `${base}.json` };
+  }
+
+  private readUploadMeta(metaPath: string, userId: number): UploadMeta {
+    let meta: UploadMeta;
+    try {
+      meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as UploadMeta;
+    } catch {
+      throw new NotFoundException({ key: 'releases.uploadNotFound' });
+    }
+    // Boshqa superadminning yuklashiga aralashib bo'lmaydi
+    if (meta.userId !== userId) throw new NotFoundException({ key: 'releases.uploadNotFound' });
+    return meta;
+  }
+
+  private writeUploadMeta(metaPath: string, meta: UploadMeta): void {
+    fs.writeFileSync(metaPath, JSON.stringify(meta));
   }
 
   async setPublished(id: number, isPublished: boolean): Promise<AppRelease> {
