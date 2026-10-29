@@ -53,6 +53,7 @@ import type {
   NotificationRecipient,
   NotificationStats,
   Order,
+  OrderTodayStats,
   PaymentMethod,
   Plan,
   PlanPayload,
@@ -213,7 +214,7 @@ export const productsApi = {
 
 export const ordersApi = {
   list: (params?: object) => get<Order[]>('/orders', params),
-  todayStats: () => get<{ todayAmount: number; todayCount: number }>('/orders/stats/today'),
+  todayStats: () => get<OrderTodayStats>('/orders/stats/today'),
   create: (
     body: { sessionId: number; items: Array<{ productId: number; quantity: number }> },
     key?: string,

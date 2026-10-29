@@ -25,6 +25,8 @@ interface StatCardProps {
   sublabel?: ReactNode;
   /** 0–100 to'ldirish paneli (masalan bandlik foizi) — qiymat ostida chiziq */
   meter?: number;
+  /** Qiymat ostidagi izoh (masalan "O'rtacha: 18 000 so'm" yoki "2 ta o'yinda") */
+  footnote?: ReactNode;
   /** Qiymat ustidagi to'liq matn (ellipsis bilan kesilsa native tooltip) */
   valueTitle?: string;
   /** Yuklanish holati — skelet ko'rsatiladi */
@@ -49,6 +51,7 @@ const StatCard = ({
   hint,
   sublabel,
   meter,
+  footnote,
   valueTitle,
   loading = false,
   accent = TOKENS.color.gold.base,
@@ -119,7 +122,7 @@ const StatCard = ({
               </Text>
             )}
             <div
-              className="tabular-nums"
+              className="tabular-nums workspace-stat__value"
               title={valueTitle}
               style={{
                 fontSize: 24,
@@ -154,6 +157,15 @@ const StatCard = ({
                   }}
                 />
               </div>
+            )}
+            {footnote && (
+              <Text
+                type="secondary"
+                className="workspace-stat__footnote"
+                style={{ fontSize: 12.5, display: 'block', marginTop: 2, lineHeight: 1.45 }}
+              >
+                {footnote}
+              </Text>
             )}
             {trend !== undefined && (
               <div style={{ marginTop: 4, fontSize: 12.5, display: 'flex', gap: 6 }}>

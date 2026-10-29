@@ -1,0 +1,119 @@
+/* Bar buyurtmalari: telefon — chek kartalari, planshet — ixcham jadval,
+   kompyuter — to'liq jadval. Ko'rinish sahifa kengligiga qarab Orders.tsx da
+   tanlanadi (is-cards / is-compact / is-full). */
+.orders-page { min-width: 0; }
+.orders-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ------------------------------------------------------------ Ko'rsatkichlar */
+.orders-kpis .workspace-stat__value { font-size: 23px !important; }
+.orders-kpis.is-tight .workspace-stat__icon, .orders-kpis.is-compact .workspace-stat__icon { display: none !important; }
+.orders-kpis.is-tight .workspace-stat .ant-card-body { padding: 16px 18px !important; }
+.orders-kpis.is-compact .workspace-stat .ant-card-body { padding: 13px 14px !important; }
+.orders-kpis.is-compact .workspace-stat__value { font-size: 19px !important; margin-top: 4px !important; }
+.orders-kpis.is-compact .workspace-stat__footnote { font-size: 11.5px !important; }
+.orders-kpis.is-compact .workspace-stat .ant-typography-secondary:first-child { font-size: 12px !important; line-height: 1.35; }
+
+/* ------------------------------------------------------------------- Panel */
+.orders-panel { min-width: 0; background: var(--bg1); border: 1px solid var(--border-base); border-radius: 14px; padding: 16px 20px 20px; }
+.orders-panel.is-cards { background: transparent; border: 0; border-radius: 0; padding: 0; }
+
+/* ----------------------------------------------------------- Asboblar qatori */
+.orders-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 16px; }
+.orders-toolbar__status { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.orders-toolbar__status::-webkit-scrollbar { display: none; }
+.orders-toolbar__status .ant-segmented-item-label { display: flex; align-items: center; padding-inline: 14px; font-weight: 600; }
+/* Planshet/telefonda tugma va tanlovlar 44px — segment ham shu balandlikda */
+@media (max-width: 991px), (pointer: coarse) {
+  .orders-toolbar__status .ant-segmented { padding: 3px; }
+  .orders-toolbar__status .ant-segmented-item-label { min-height: 38px; }
+}
+.orders-toolbar__table { width: 190px; }
+.orders-toolbar__count { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-size: 13px; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.orders-toolbar__count .ant-btn-link { padding-inline: 6px; color: var(--gold); }
+.orders-status-option { display: inline-flex; align-items: center; gap: 7px; }
+.orders-status-option__count { min-width: 19px; height: 19px; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--neon-green) 16%, transparent); color: var(--neon-green); font-size: 11px; font-weight: 700; line-height: 19px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Telefonda: holatlar — to'liq qator (sig'masa suriladi), stol + yangilash — ikkinchi qator */
+.orders-panel.is-cards .orders-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "status status" "table refresh" "count count"; gap: 10px; margin-bottom: 12px; }
+.orders-panel.is-cards .orders-toolbar__status { grid-area: status; }
+.orders-panel.is-cards .orders-toolbar__table { grid-area: table; width: 100%; }
+.orders-panel.is-cards .orders-toolbar__refresh { grid-area: refresh; }
+.orders-panel.is-cards .orders-toolbar__count { grid-area: count; margin-left: 0; min-height: 0; font-size: 12.5px; }
+.orders-panel.is-cards .orders-toolbar__count:empty { display: none; }
+
+/* Planshet: holatlar, stol va yangilash bir qatorda; soni — ostida */
+.orders-panel.is-compact .orders-toolbar { display: grid; grid-template-columns: auto minmax(140px, 1fr) auto; grid-template-areas: "status table refresh" "count count count"; gap: 8px 12px; }
+.orders-panel.is-compact .orders-toolbar__status { grid-area: status; }
+.orders-panel.is-compact .orders-toolbar__table { grid-area: table; justify-self: end; width: 100%; max-width: 220px; }
+.orders-panel.is-compact .orders-toolbar__refresh { grid-area: refresh; }
+.orders-panel.is-compact .orders-toolbar__count { grid-area: count; margin-left: 0; min-height: 0; font-size: 12.5px; }
+.orders-panel.is-compact .orders-toolbar__count:empty { display: none; }
+
+/* ------------------------------------------------------------------ Jadval */
+.orders-table .ant-table-tbody > tr.orders-row > td { vertical-align: middle; }
+.orders-table .ant-table-tbody > tr.orders-row { cursor: pointer; }
+.orders-table .ant-table-tbody > tr.orders-row--open > td:first-child { box-shadow: inset 3px 0 0 var(--neon-green); }
+.orders-cell-order { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.orders-cell-order__table { font-weight: 650; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orders-cell-order__meta { font-size: 12px; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.orders-items { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.orders-items__list { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; line-height: 1.5; color: var(--text-primary); overflow-wrap: anywhere; }
+.orders-items__list b { font-weight: 650; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.orders-items__sep { margin: 0 7px; color: var(--text-disabled); }
+.orders-items__meta { font-size: 12px; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orders-items__empty { font-size: 13px; font-style: italic; color: var(--text-tertiary); }
+.orders-cell-amount { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.is-void > .tabular-nums, .orders-receipt__total.is-void .tabular-nums { color: var(--text-tertiary) !important; text-decoration: line-through; }
+.orders-row--cancelled .orders-cell-order__table, .orders-row--cancelled .orders-items__list { color: var(--text-secondary); }
+
+/* Ochilgan qator — chek ko'rinishi */
+.orders-table .ant-table-expanded-row > td { background: var(--bg0) !important; }
+.orders-receipt { max-width: 680px; padding: 6px 4px 6px 8px; }
+.orders-receipt table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.orders-receipt th { padding: 0 0 8px; text-align: left; font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--text-tertiary); }
+.orders-receipt td { padding: 7px 0; border-top: 1px dashed var(--border-base); color: var(--text-primary); overflow-wrap: anywhere; }
+.orders-receipt th:not(:first-child), .orders-receipt td:not(:first-child) { padding-left: 20px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.orders-receipt td:nth-child(2), .orders-receipt td:nth-child(3) { color: var(--text-secondary); }
+.orders-receipt__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border-strong); font-size: 12.5px; color: var(--text-secondary); }
+.orders-receipt__foot > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.orders-receipt__total { display: inline-flex; align-items: baseline; gap: 12px; font-weight: 600; }
+
+/* ----------------------------------------------------- Kartalar (telefon) */
+.orders-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.order-card { min-width: 0; display: flex; flex-direction: column; padding: 14px 16px 10px; background: var(--bg1); border: 1px solid var(--border-base); border-radius: 14px; }
+.order-card.is-open { border-color: color-mix(in srgb, var(--neon-green) 30%, var(--border-base)); box-shadow: inset 3px 0 0 var(--neon-green); }
+.order-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.order-card__title { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.order-card__title h4 { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.3; color: var(--text-primary); overflow-wrap: anywhere; }
+.order-card__title span { font-size: 12px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.order-card__amount { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
+.order-card.is-cancelled .order-card__amount > .tabular-nums { color: var(--text-tertiary) !important; text-decoration: line-through; }
+.order-card__body { flex: 1; display: flex; flex-direction: column; }
+.order-card__lines { list-style: none; margin: 12px 0 0; padding: 10px 0 0; border-top: 1px dashed var(--border-base); display: flex; flex-direction: column; gap: 7px; }
+.order-card__lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: baseline; gap: 12px; font-size: 13.5px; line-height: 1.4; }
+.order-card__name { min-width: 0; overflow-wrap: anywhere; color: var(--text-primary); }
+.order-card__qty { font-weight: 650; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.order-card__sum { min-width: 62px; text-align: right; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.order-card.is-cancelled .order-card__name, .order-card.is-cancelled .order-card__sum { color: var(--text-tertiary); }
+.order-card__empty { margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--border-base); font-size: 12.5px; font-style: italic; color: var(--text-tertiary); }
+.order-card__more { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin-top: 2px; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 650; color: var(--gold); cursor: pointer; }
+.order-card__more:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
+.order-card__more .anticon { font-size: 10px; }
+.order-card__body:has(.order-card__more) + .order-card__foot { margin-top: 2px; }
+.order-card__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+.order-card__user { min-width: 0; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-secondary); }
+.order-card__user > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-card__foot .ant-btn { flex-shrink: 0; margin-right: -8px; }
+.orders-cards .order-card .ant-skeleton { padding: 4px 0 8px; }
+
+.orders-pagination { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 0; margin-top: 18px; }
+.orders-pagination.ant-pagination .ant-pagination-item, .orders-pagination.ant-pagination .ant-pagination-prev, .orders-pagination.ant-pagination .ant-pagination-next { min-width: 40px; height: 40px; line-height: 38px; }
+
+@media (max-width: 575px) {
+  .orders-toolbar__status .ant-segmented-item-label { padding-inline: 8px; font-size: 13px; }
+  .order-card { padding: 13px 14px 8px; }
+}
+/* Juda tor telefon: holatlar suriladi — o'ng chetdagi so'nish "yana bor"ni bildiradi */
+@media (max-width: 359px) {
+  .orders-toolbar__status { -webkit-mask-image: linear-gradient(to right, #000 82%, transparent); mask-image: linear-gradient(to right, #000 82%, transparent); }
+}

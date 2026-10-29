@@ -85,9 +85,35 @@ export class OrdersService {
       [clubId, today, now],
     );
 
+    // Hozir ochiq hisoblar (davom etayotgan o'yinlar) va bugun bekor
+    // qilinganlar — bekor qilish pul nazorati uchun alohida ko'rsatiladi.
+    // Bekor qilingan buyurtma boshqa o'zgarmaydi (barcha yangilashlar faqat
+    // OCHIQ buyurtmaga tegadi), shu bois uning updatedAt'i = bekor qilingan vaqt.
+    const stateRows: Array<{
+      openCount: number;
+      openAmount: number;
+      cancelledCount: number;
+      cancelledAmount: number;
+    }> = await this.dataSource.query(
+      `SELECT COUNT(*) FILTER (WHERE o.status = 'open')::int AS "openCount",
+              COALESCE(SUM(o."totalAmount") FILTER (WHERE o.status = 'open'), 0)::float AS "openAmount",
+              COUNT(*) FILTER (WHERE o.status = 'cancelled')::int AS "cancelledCount",
+              COALESCE(SUM(o."totalAmount") FILTER (WHERE o.status = 'cancelled'), 0)::float AS "cancelledAmount"
+         FROM orders o
+        WHERE o."clubId" = $1
+          AND (o.status = 'open'
+               OR (o.status = 'cancelled' AND o."updatedAt" >= $2 AND o."updatedAt" <= $3))`,
+      [clubId, today, now],
+    );
+    const state = stateRows[0];
+
     return {
       todayAmount: round2(statRows[0]?.amount ?? 0),
       todayCount: statRows[0]?.count ?? 0,
+      openCount: state?.openCount ?? 0,
+      openAmount: round2(state?.openAmount ?? 0),
+      cancelledCount: state?.cancelledCount ?? 0,
+      cancelledAmount: round2(state?.cancelledAmount ?? 0),
     };
   }
 

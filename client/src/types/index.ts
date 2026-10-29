@@ -542,6 +542,21 @@ export interface Order {
   user?: User | null;
 }
 
+/**
+ * Buyurtmalar sahifasi ko'rsatkichlari. open va cancelled maydonlari
+ * yangi — eski server ularni qaytarmaydi, shu bois ixtiyoriy.
+ */
+export interface OrderTodayStats {
+  todayAmount: number;
+  todayCount: number;
+  /** Hozir ochiq hisoblar (davom etayotgan o'yinlar) */
+  openCount?: number;
+  openAmount?: number;
+  /** Bugun bekor qilinganlar — pul nazorati */
+  cancelledCount?: number;
+  cancelledAmount?: number;
+}
+
 export interface Debt {
   id: number;
   clubId: number;
