@@ -561,6 +561,28 @@ body {
   }
 }
 
+/* ------------------------------------------------------- Android ilova
+   O'rnatilgan dastur sayt kabi tuyulmasin (main.tsx: .is-android-app):
+   matnni uzoq bosib belgilash, kulrang bosish chaqnashi va sahifani tortib
+   "rezina" qilish yo'q. Kiritish maydonlarida belgilash va nusxalash ishlaydi.
+   Ikki barmoqli kattalashtirish nativ tomonda o'chirilgan (MainActivity). */
+.is-android-app {
+  -webkit-tap-highlight-color: transparent;
+}
+.is-android-app body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
+.is-android-app input,
+.is-android-app textarea,
+.is-android-app [contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* Harakat kamaytirilgan rejim — barcha animatsiyalarni o'chirish */
 @media (prefers-reduced-motion: reduce) {
   *,

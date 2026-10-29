@@ -10,6 +10,7 @@ import type { UserRole } from './types';
 import Login from './pages/Login';
 import Locked from './pages/Locked';
 import NotFound from './pages/NotFound';
+import { isAppShell } from './utils/appShell';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Download = lazy(() => import('./pages/Download'));
@@ -130,6 +131,9 @@ const App = () => {
   // `/?landing` — tizimga kirgan foydalanuvchi ham saytni ko'ra olsin
   // (klub egasi sahifani tanishiga ulashishdan oldin ko'rib chiqadi)
   const showLanding = new URLSearchParams(location.search).has('landing');
+  // O'rnatilgan dastur (Windows/Android) sayt emas: reklama sahifasi o'rniga
+  // to'g'ridan-to'g'ri kirish yoki ish ekrani ochiladi
+  const inAppShell = isAppShell();
 
   return (
     <Suspense fallback={<FullScreenSpin />}>
@@ -140,8 +144,10 @@ const App = () => {
           element={
             loading ? (
               <FullScreenSpin />
-            ) : user && !showLanding ? (
+            ) : user && (!showLanding || inAppShell) ? (
               <Navigate to={homeFor(user.role)} replace />
+            ) : inAppShell ? (
+              <Navigate to="/login" replace />
             ) : (
               <Landing />
             )

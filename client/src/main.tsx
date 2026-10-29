@@ -14,6 +14,11 @@ import { AppSettingsProvider } from './context/AppSettingsContext';
 import { AuthProvider } from './context/AuthContext';
 import { ConnectionProvider } from './context/ConnectionContext';
 import { registerServiceWorker } from './offline/register-sw';
+import { isAndroidShell } from './utils/appShell';
+
+// Android ilova qobig'i — sayt emas, dastur: index.css dagi .is-android-app
+// matnni uzoq bosib belgilash va bosish chaqnashini o'chiradi
+if (isAndroidShell()) document.documentElement.classList.add('is-android-app');
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -3,7 +3,7 @@ import { Alert, App, Button, Space, Tag, Typography } from 'antd';
 import { CheckCircleOutlined, DownloadOutlined, MobileOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { canInstall, installApp, installed, mobilePlatform, onInstallChange } from '../../offline/install';
-import { isDesktop } from '../../offline/desktop';
+import { isAppShell } from '../../utils/appShell';
 import { offlineStorageAvailable } from '../../offline/db';
 import { readLicense } from '../../offline/license';
 import { useConnection } from '../../context/ConnectionContext';
@@ -21,7 +21,7 @@ export default function AppInstallCard() {
   const [deadline, setDeadline] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const platform = mobilePlatform(navigator.userAgent, navigator.maxTouchPoints);
-  const inApp = installed() || isDesktop();
+  const inApp = installed() || isAppShell();
 
   useEffect(() => onInstallChange(() => update((n) => n + 1)), []);
   useEffect(() => {

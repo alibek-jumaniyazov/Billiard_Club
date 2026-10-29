@@ -2,28 +2,77 @@
 <html lang="uz">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#090c0b" />
     <title>Billiard Club — aloqa yo'q</title>
     <style>
-      html, body { height: 100%; margin: 0; background: #090c0b; color: #f1ece1; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-      main { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px 24px; box-sizing: border-box; text-align: center; }
-      .table { width: 180px; height: 96px; border-radius: 14px; padding: 8px; box-sizing: border-box; background: linear-gradient(160deg, #7a5030, #55351f 45%, #2f1d11); box-shadow: 0 10px 26px rgba(0, 0, 0, .45); }
-      .felt { width: 100%; height: 100%; border-radius: 6px; background: linear-gradient(180deg, #23784e, #175a3a); filter: brightness(.55) saturate(.7); }
-      h1 { margin: 10px 0 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
-      p { margin: 0; max-width: 320px; color: #b5ae9f; font-size: 14px; line-height: 1.6; }
-      button { margin-top: 8px; min-height: 48px; padding: 0 28px; border: 0; border-radius: 12px; background: #dbb35c; color: #17130a; font: inherit; font-weight: 700; font-size: 15px; }
-      button:active { background: #bd954a; }
+      html, body { height: 100%; margin: 0; background: #090c0b; color: #f1ece1; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+      main { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px 24px; box-sizing: border-box; text-align: center; background: radial-gradient(ellipse 70% 45% at 50% 30%, rgba(24, 119, 76, .16), transparent 70%); }
+      .mark { width: 76px; height: 76px; margin-bottom: 4px; }
+      .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(240, 165, 58, .35); background: rgba(240, 165, 58, .1); color: #f0a53a; font-size: 13px; font-weight: 600; }
+      .pill i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+      .pill.is-online { border-color: rgba(63, 214, 142, .35); background: rgba(63, 214, 142, .1); color: #3fd68e; }
+      h1 { margin: 6px 0 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+      p { margin: 0; max-width: 330px; color: #b5ae9f; font-size: 14px; line-height: 1.6; }
       .ru { color: #8b8579; font-size: 13px; }
+      button { margin-top: 10px; min-height: 48px; min-width: 220px; padding: 0 28px; border: 0; border-radius: 12px; background: #dbb35c; color: #17130a; font: inherit; font-weight: 700; font-size: 15px; }
+      button:active { background: #bd954a; }
+      small { color: #8b8579; font-size: 12px; line-height: 1.5; }
     </style>
   </head>
   <body>
     <main>
-      <div class="table" aria-hidden="true"><div class="felt"></div></div>
+      <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+        <defs>
+          <linearGradient id="f" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#18774c"/><stop offset="1" stop-color="#08261a"/></linearGradient>
+          <linearGradient id="c" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e8c677"/><stop offset=".3" stop-color="#f5dfa6"/><stop offset=".65" stop-color="#dbb35c"/><stop offset="1" stop-color="#bd954a"/></linearGradient>
+          <radialGradient id="i" cx=".31" cy=".29" r=".8"><stop offset="0" stop-color="#fff"/><stop offset=".42" stop-color="#f3eee2"/><stop offset="1" stop-color="#c4b9a2"/></radialGradient>
+        </defs>
+        <rect x="1" y="1" width="46" height="46" rx="12" fill="url(#f)"/>
+        <rect x="2.8" y="2.8" width="42.4" height="42.4" rx="10.2" fill="none" stroke="#dbb35c" stroke-opacity=".75" stroke-width=".6"/>
+        <rect x="13.6" y="8" width="5" height="32" rx="2.5" fill="url(#c)"/>
+        <circle cx="24.9" cy="15.5" r="7.5" fill="url(#i)"/>
+        <circle cx="25.9" cy="31.5" r="8.5" fill="url(#i)"/>
+      </svg>
+      <span class="pill" id="state"><i></i><b id="state-text">Internet yo'q · Нет интернета</b></span>
       <h1>Server bilan aloqa yo'q</h1>
       <p>Internet yoki Wi-Fi ulanishini tekshiring. Kassa avval ochilgan bo'lsa, ma'lumotlar qurilmada saqlanib turadi.</p>
-      <p class="ru">Нет связи с сервером. Проверьте интернет и попробуйте снова.</p>
-      <button type="button" onclick="location.replace('/')">Qayta urinish · Повторить</button>
+      <p class="ru">Нет связи с сервером. Проверьте интернет — приложение откроется само, когда связь появится.</p>
+      <button type="button" id="retry">Qayta urinish · Повторить</button>
+      <small>Aloqa tiklanishi bilan ilova o'zi ochiladi</small>
     </main>
+    <script>
+      (function () {
+        // Bu sahifa ilova ichidan (https://localhost) ochiladi: '/' ga qaytish
+        // ichki logotip sahifasiga olib borib, ilovani "qotirib" qo'yardi.
+        // Capacitor server manzilini WEBVIEW_SERVER_URL sifatida beradi.
+        var injected = window.WEBVIEW_SERVER_URL;
+        var server = (injected && !/\/\/localhost(?::|\/|$)/.test(injected) ? injected : 'https://billiardclub.uz').replace(/\/+$/, '');
+        var leaving = false;
+        var open = function () {
+          if (leaving) return;
+          leaving = true;
+          location.replace(server + '/');
+        };
+        var state = document.getElementById('state');
+        var stateText = document.getElementById('state-text');
+        var paint = function () {
+          var online = navigator.onLine;
+          state.className = online ? 'pill is-online' : 'pill';
+          stateText.textContent = online ? "Ulanmoqda… · Подключаемся…" : "Internet yo'q · Нет интернета";
+        };
+        // Internet bor bo'lsa server javob beryaptimi — javob kelsa o'zi ochiladi
+        var probe = function () {
+          paint();
+          if (!navigator.onLine || leaving) return;
+          fetch(server + '/health', { mode: 'no-cors', cache: 'no-store' }).then(open).catch(function () {});
+        };
+        document.getElementById('retry').addEventListener('click', open);
+        window.addEventListener('online', probe);
+        window.addEventListener('offline', paint);
+        setInterval(probe, 5000);
+        probe();
+      })();
+    </script>
   </body>
 </html>

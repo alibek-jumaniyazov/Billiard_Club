@@ -9,7 +9,19 @@ Natija:
 - kassa, hisobot va boshqa hamma narsa serverdagi bilan **bir xil versiyada**;
 - yangi imkoniyatlar APK ni qayta o'rnatmasdan **darhol** keladi;
 - internet uzilsa — veb-ilovaning service worker'i ishlaydi (oflayn navbat);
-  server umuman ochilmasa — `www/offline.html` (qayta urinish tugmasi bilan).
+  server umuman ochilmasa — `www/offline.html`: aloqa qaytishi bilan ilova
+  o'zi ochiladi (har 5 soniyada tekshiradi), "Qayta urinish" tugmasi ham bor.
+
+**Dastur, sayt emas** (1.2.0 dan):
+
+- veb-ilova qobiqni user-agent'dagi `BilliardClubAndroid/<versiya>` dan taniydi
+  (`client/src/utils/appShell.ts`) va **reklama sahifasini (landing) ko'rsatmaydi** —
+  ilova to'g'ridan-to'g'ri kirish yoki ish ekranidan ochiladi (Windows dasturi ham shunday);
+- "ilovani o'rnating / yuklab oling" takliflari dastur ichida yashirin;
+- brend splash ekrani birinchi sahifa yuklanguncha turadi (8 s gacha) — bo'sh qora
+  oyna ko'rinmaydi (`MainActivity.java`);
+- ikki barmoq bilan kattalashtirish, chetga tortilgandagi yorug'lik, matnni uzoq bosib
+  belgilash va bosish chaqnashi o'chirilgan (kiritish maydonlarida belgilash ishlaydi).
 
 ## APK yig'ish
 

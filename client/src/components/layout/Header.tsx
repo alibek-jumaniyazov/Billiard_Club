@@ -28,7 +28,7 @@ import { viewingClub } from '../../api/client';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_TAG_COLORS } from '../../constants';
-import { isDesktop } from '../../offline/desktop';
+import { isAppShell } from '../../utils/appShell';
 import { TOKENS } from '../../theme/tokens';
 import NotificationsBell from '../ui/NotificationsBell';
 
@@ -228,10 +228,10 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
                   label: `${t('menu.subscription')} · ${sub.full}`,
                   onClick: () => navigate('/subscription'),
                 }] : []),
-                // Desktop qobiqda YASHIRILADI: u yerda dastur allaqachon
-                // o'rnatilgan va o'zi yangilanadi — "yuklab olish" bandi
-                // faqat chalg'itardi.
-                ...(isDesktop()
+                // Dastur ichida (Windows/Android) YASHIRILADI: u yerda dastur
+                // allaqachon o'rnatilgan va o'zi yangilanadi — "yuklab olish"
+                // bandi faqat chalg'itardi.
+                ...(isAppShell()
                   ? []
                   : [
                       {
