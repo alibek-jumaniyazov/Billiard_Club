@@ -19,7 +19,12 @@ import type { BilliardTable, Session } from '../types';
 import type { QueueEntry } from './queue';
 
 /** Navbatdagi amal turi — `meta.kind` da saqlanadi */
-export type OfflineOpKind = 'session.start' | 'session.pause' | 'session.resume' | 'order.create';
+export type OfflineOpKind =
+  | 'session.start'
+  | 'session.pause'
+  | 'session.resume'
+  | 'order.create'
+  | 'session.end';
 
 /** `meta` ning qoplama uchun ishlatiladigan maydonlari */
 interface OpMeta {
@@ -189,6 +194,19 @@ export const applyQueueToTables = (
         const session = findSession(meta.sessionRef);
         if (!session || !meta.amount) break;
         session.barAmount = Number((session.barAmount + meta.amount).toFixed(2));
+        break;
+      }
+      case 'session.end': {
+        // Oflayn hisob-kitob: mijoz to'lab ketdi — stol shu kassada darhol
+        // BO'SH ko'rinadi (keyingi mehmonni oflayn ham joylashtirish mumkin).
+        // Sessiya serverda hali ochiq bo'lsa ham qoplama uni yashiradi; navbat
+        // yuborilgach serverning o'zi "yakunlangan" deb qaytaradi.
+        const session = findSession(meta.sessionRef);
+        if (!session) break;
+        const owner = next.find((tbl) => tbl.sessions?.[0] === session);
+        if (!owner) break;
+        owner.sessions = [];
+        owner.status = 'free';
         break;
       }
 

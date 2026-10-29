@@ -18,20 +18,20 @@ import { theme as antTheme, type ThemeConfig } from 'antd';
 /** Fon qatlamlari — zal qorong'iligidan (sahifa) ko'tarilganigacha (hover) */
 const bg = {
   /** Sahifa — chiroqsiz zal: yashil tusli deyarli qora */
-  bg0: '#0b0d0c',
+  bg0: '#090c0b',
   /** Karta / panel */
-  bg1: '#121513',
+  bg1: '#101513',
   /** Ko'tarilgan yuzalar (modal, dropdown, jadval sarlavhasi) */
-  bg2: '#191d1a',
+  bg2: '#161d1a',
   /** Hover / tanlangan qator foni */
-  bg3: '#20251f',
+  bg3: '#1d2622',
 } as const;
 
 /** Ingichka chegaralar — minimal, lekin aniq ajratadigan */
 const border = {
-  subtle: '#1d221e',
-  base: '#272d28',
-  strong: '#353c36',
+  subtle: '#1a221e',
+  base: '#24302a',
+  strong: '#33413a',
 } as const;
 
 /**
@@ -40,17 +40,17 @@ const border = {
  */
 const emerald = {
   /** Eng to'q — chiroqsiz mato soyasi */
-  deepest: '#0b2318',
+  deepest: '#08261a',
   /** To'q mato — tanlangan menyu bandi foni */
-  deep: '#123524',
+  deep: '#0f3a27',
   /** Asosiy mato */
-  felt: '#1a5a3a',
+  felt: '#135c3c',
   /** Chiroq ostidagi mato */
-  base: '#1f6e47',
+  base: '#18774c',
   /** Yorqin urg'u (grafik, ikonka) */
-  bright: '#2f9a63',
+  bright: '#23a066',
   /** Eng yorqin — jonli holatlar */
-  glow: '#46d68b',
+  glow: '#3fd68e',
 } as const;
 
 /** Yong'oq yog'och — stol bortlari (ramka) */
@@ -62,52 +62,52 @@ const wood = {
 
 /** Mis-oltin — brend urg'usi (tekis, yorqin emas) */
 const gold = {
-  base: '#cfae62',
-  hover: '#dcc07e',
-  active: '#b3924a',
+  base: '#dbb35c',
+  hover: '#e8c677',
+  active: '#bd954a',
   /** Xira — ikkilamchi urg'u */
-  dim: '#8f7a48',
+  dim: '#8d7745',
   /** Shaffof fon (badge, tanlangan holat) */
-  subtle: 'rgba(207, 174, 98, 0.12)',
+  subtle: 'rgba(219, 179, 92, 0.12)',
   /** Shaffof chiziq/chegara */
-  line: 'rgba(207, 174, 98, 0.24)',
+  line: 'rgba(219, 179, 92, 0.24)',
   /** Tashqi nur — juda tejamkor ishlatiladi */
-  glow: 'rgba(207, 174, 98, 0.32)',
+  glow: 'rgba(219, 179, 92, 0.32)',
   /** Oltin ustidagi matn rangi */
-  contrast: '#15130e',
+  contrast: '#17130a',
   /** Brend belgisi (logo) uchun */
-  gradient: 'linear-gradient(135deg, #dcc07e 0%, #cfae62 50%, #b3924a 100%)',
+  gradient: 'linear-gradient(135deg, #e8c677 0%, #dbb35c 50%, #bd954a 100%)',
 } as const;
 
 /** Fil suyagi (shar) matn shkalasi — iliq, ko'zni charchatmaydi */
 const text = {
-  primary: '#efe9dd',
-  secondary: '#aca697',
-  tertiary: '#78746b',
-  disabled: '#4f4c46',
+  primary: '#f1ece1',
+  secondary: '#b5ae9f',
+  tertiary: '#8b8579',
+  disabled: '#55524b',
 } as const;
 
 /** Semantik ranglar — billiard palitrasidan: mato, pauza-amber, qizil shar, bo'r-ko'k */
 const semantic = {
-  success: '#3fa672',
-  warning: '#e0a23b',
-  error: '#d6493f',
-  info: '#5b8fc4',
+  success: '#43b77b',
+  warning: '#f0a53a',
+  error: '#ec5a4f',
+  info: '#5b9bea',
 } as const;
 
 /** Jonli taymer / faol sessiya urg'usi */
-const neonGreen = '#46d68b';
+const neonGreen = '#3fd68e';
 
 /** Fil suyagi shar — stol raqami belgisi */
-const ivory = '#f2ede1';
+const ivory = '#f3eee2';
 
 /**
  * Aurora — eski animatsion fon palitrasi. Minimalizm uchun juda xiralashtirilgan
  * (faqat auth/blok ekranlarida qolgan).
  */
 const aurora = {
-  emerald: 'rgba(31, 110, 71, 0.16)',
-  gold: 'rgba(207, 174, 98, 0.06)',
+  emerald: 'rgba(24, 119, 76, 0.16)',
+  gold: 'rgba(219, 179, 92, 0.06)',
   teal: 'rgba(40, 110, 100, 0.08)',
 } as const;
 
@@ -154,7 +154,7 @@ const shadow = {
   /** 3-daraja: modal, drawer */
   level3: '0 16px 48px rgba(0, 0, 0, 0.55)',
   /** Faol (tanlangan) element — ingichka oltin halqa */
-  glowActive: '0 0 0 1px rgba(207, 174, 98, 0.45)',
+  glowActive: '0 0 0 1px rgba(219, 179, 92, 0.45)',
   /** Kartaning yuqori qirrasidagi juda nozik yorug'lik */
   cardHighlight: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)',
 } as const;

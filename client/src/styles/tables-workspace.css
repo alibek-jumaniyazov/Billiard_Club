@@ -7,9 +7,9 @@ a.tables-money__cell:hover { border-color: var(--gold-line); color: var(--text-p
 .tables-money__cell > span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
 .tables-money__cell > span .anticon { font-size: 11px; color: var(--text-tertiary); }
 .tables-money__cell .tabular-nums { font-family: var(--font-mono); }
-.tables-money__cell.is-live { border-color: rgba(70, 214, 139, .22); background: linear-gradient(160deg, rgba(31, 110, 71, .14), var(--bg1) 60%); }
-.tables-money__cell.is-live > span:first-child::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--neon-green); box-shadow: 0 0 0 0 rgba(70, 214, 139, .5); animation: tables-live-dot 1.8s ease-out infinite; }
-@keyframes tables-live-dot { 0% { box-shadow: 0 0 0 0 rgba(70, 214, 139, .5); } 100% { box-shadow: 0 0 0 8px rgba(70, 214, 139, 0); } }
+.tables-money__cell.is-live { border-color: rgba(63, 214, 142, .22); background: linear-gradient(160deg, rgba(24, 119, 76, .14), var(--bg1) 60%); }
+.tables-money__cell.is-live > span:first-child::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--neon-green); box-shadow: 0 0 0 0 rgba(63, 214, 142, .5); animation: tables-live-dot 1.8s ease-out infinite; }
+@keyframes tables-live-dot { 0% { box-shadow: 0 0 0 0 rgba(63, 214, 142, .5); } 100% { box-shadow: 0 0 0 8px rgba(63, 214, 142, 0); } }
 .tables-money__cell.is-wide { grid-column: span 2; }
 .tables-money__cell.is-muted strong { color: var(--gold); font-size: 14px; font-weight: 650; }
 /* Zonalar (zallar) */
@@ -262,3 +262,23 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 }
 .table-plan-picker .ant-segmented-item-label { padding-inline: 4px; font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .tables-occupancy-track span, .pool-card__felt { transition: none; } .table-plan-badge.is-expired { animation: none; } }
+
+/*
+ * TELEFON: kassir ochishi bilan STOLLARNI ko'rsin. Statistika kartalari filtr
+ * tugmalaridagi sonlarni takrorlaydi (Barchasi 8 · Bo'sh 6 · Band 2), saralash
+ * esa telefonda kam ishlatiladi — ular yashiriladi; sarlavha va ikonkalar,
+ * pul va smena katakchalari bitta qatorga yig'iladi. Birinchi stol ~250 px
+ * yuqoriga ko'tariladi.
+ */
+@media (max-width: 600px) {
+  .tables-workspace .workspace-page-header { margin-bottom: 14px !important; }
+  .tables-workspace .workspace-page-header > div { flex-wrap: nowrap !important; align-items: center !important; gap: 10px !important; }
+  .tables-workspace .workspace-page-header__actions { flex-wrap: nowrap !important; gap: 6px !important; }
+  .tables-workspace .workspace-page-header__actions .ant-btn { width: 40px; min-height: 40px; }
+  .tables-overview { display: none; }
+  .tables-money:has(.is-wide) .tables-money__cell.is-live { grid-column: auto; }
+  .tables-money__cell.is-wide { grid-column: auto; }
+  .tables-board-sort { display: none !important; }
+  .tables-board-toolbar { flex-wrap: nowrap; }
+  .tables-board-search { flex: 1 1 auto; min-width: 0; }
+}

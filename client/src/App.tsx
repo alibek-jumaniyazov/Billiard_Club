@@ -126,6 +126,10 @@ const Protected = ({ roles, children }: { roles?: UserRole[]; children: ReactNod
 
 const App = () => {
   const { user, loading } = useAuth();
+  const location = useLocation();
+  // `/?landing` — tizimga kirgan foydalanuvchi ham saytni ko'ra olsin
+  // (klub egasi sahifani tanishiga ulashishdan oldin ko'rib chiqadi)
+  const showLanding = new URLSearchParams(location.search).has('landing');
 
   return (
     <Suspense fallback={<FullScreenSpin />}>
@@ -136,7 +140,7 @@ const App = () => {
           element={
             loading ? (
               <FullScreenSpin />
-            ) : user ? (
+            ) : user && !showLanding ? (
               <Navigate to={homeFor(user.role)} replace />
             ) : (
               <Landing />

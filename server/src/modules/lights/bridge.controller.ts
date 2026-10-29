@@ -20,6 +20,14 @@ import { LightsService } from './lights.service';
 const LONG_POLL_MS = 25_000;
 
 /**
+ * Agent so'rashi mumkin bo'lgan eng QISQA ushlash (`?hold=` ms). Rele xato
+ * bergan paytda agent javobni qisqaroq kutadi va xato releni tez-tez qayta
+ * sinaydi — rele qayta ulanishi bilan chiroq ~25 s emas, bir necha soniyada
+ * tiklanadi. Pastki chegara throttle limitidan (60/daq) oshmaslik uchun.
+ */
+const MIN_HOLD_MS = 1000;
+
+/**
  * Uzun-polling ichida kerakli holat qayta hisoblanish oralig'i — klubda
  * VAQTGA bog'liq o'tish kutilayotgan paytda (grace oynasi ochiq yoki bron
  * oldidan yoqish oynasida bron bor).
@@ -92,13 +100,19 @@ export class BridgeController {
     @Headers('x-bridge-token') token: string | undefined,
     @Query('v') clientVersion: string | undefined,
     @Ip() ip: string,
+    @Query('hold') holdRaw?: string,
   ) {
     const bridge = await this.requireBridge(token);
     // "Tirik" belgisi — xatosi hech qachon javobni buzmaydi (servis o'zi yutadi)
     await this.lightsService.touchBridge(bridge, null, ip);
 
     const clubId = bridge.clubId;
-    const deadline = Date.now() + LONG_POLL_MS;
+    // Eski agentlar `hold` yubormaydi — ular uchun xatti-harakat o'zgarmaydi
+    const hold = Number(holdRaw);
+    const holdMs = Number.isFinite(hold) && hold > 0
+      ? Math.min(LONG_POLL_MS, Math.max(MIN_HOLD_MS, Math.round(hold)))
+      : LONG_POLL_MS;
+    const deadline = Date.now() + holdMs;
 
     // Bitta surat: sozlamalar + qurilmalar + version + vaqtga bog'liqlik
     let state = await this.lightsService.bridgeState(clubId);

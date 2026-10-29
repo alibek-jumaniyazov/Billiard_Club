@@ -1,4 +1,4 @@
-import client, { LONG_TIMEOUT_MS } from './client';
+import client, { isGatewayFailure, LONG_TIMEOUT_MS } from './client';
 import type {
   ApiResponse,
   AppRelease,
@@ -619,7 +619,9 @@ export const isNetworkError = (err: unknown): boolean =>
   typeof err === 'object' &&
   err !== null &&
   'isAxiosError' in err &&
-  (err as { response?: unknown }).response === undefined;
+  ((err as { response?: unknown }).response === undefined ||
+    // Faqat proksi javob berdi (nginx 502/504, dev-proksi 500) — ilovaga yetmagan
+    isGatewayFailure(err as { response?: { status?: number; data?: unknown } }));
 
 /** Server xatosidan foydalanuvchiga ko'rsatiladigan xabarni ajratib oladi */
 export const errorMessage = (err: unknown, fallback: string): string => {

@@ -37,7 +37,7 @@ html { scroll-behavior: smooth; }
 /* CTA — jonli oltin gradient sekin oqadi (faqat background-position animatsiya) */
 .lp-cta-btn.ant-btn {
   border: none !important;
-  color: #15130e !important;
+  color: #17130a !important;
   font-weight: 700 !important;
   background: var(--gold) !important;
   box-shadow: none;
@@ -61,15 +61,15 @@ html { scroll-behavior: smooth; }
 .lp-hero-lamp { position: absolute; inset: 0; z-index: 0; pointer-events: none;
   background:
     radial-gradient(ellipse 38% 55% at 76% 18%, rgba(255, 232, 170, .10), transparent 70%),
-    radial-gradient(ellipse 60% 70% at 76% 40%, rgba(31, 110, 71, .16), transparent 72%); }
-@media (max-width: 991px) { .lp-hero-lamp { background: radial-gradient(ellipse 80% 45% at 50% 62%, rgba(31, 110, 71, .18), transparent 72%); } }
+    radial-gradient(ellipse 60% 70% at 76% 40%, rgba(24, 119, 76, .16), transparent 72%); }
+@media (max-width: 991px) { .lp-hero-lamp { background: radial-gradient(ellipse 80% 45% at 50% 62%, rgba(24, 119, 76, .18), transparent 72%); } }
 .lp-hero-title { margin: 22px 0 18px; font-family: var(--font-display); font-size: clamp(30px, 4.6vw, 58px); font-weight: 750; line-height: 1.06; letter-spacing: -.035em; color: var(--text-primary); }
 .lp-platforms { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .lp-platform { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--text-secondary); font-size: 13px; font-weight: 600; transition: color .2s, border-color .2s; }
 .lp-platform:hover { color: var(--text-primary); border-color: var(--gold-line); }
 .lp-platform .anticon { font-size: 15px; color: var(--text-primary); }
 /* Tablo — stol ostidagi jonli vaqt va summa (mis ramka, monoshrift raqamlar) */
-.lp-scoreboard { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: min(92%, 460px); margin: 18px auto 0; padding: 12px 18px; border-radius: 14px; border: 1px solid rgba(207, 174, 98, .3); background: linear-gradient(180deg, #121411, #0c0d0b); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 12px 30px rgba(0, 0, 0, .45); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.lp-scoreboard { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: min(92%, 460px); margin: 18px auto 0; padding: 12px 18px; border-radius: 14px; border: 1px solid rgba(219, 179, 92, .3); background: linear-gradient(180deg, #121411, #0c0d0b); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 12px 30px rgba(0, 0, 0, .45); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .lp-scoreboard__table { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; font-weight: 700; letter-spacing: .12em; }
 .lp-scoreboard__table i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-style: normal; font-family: var(--font-display); font-size: 11px; color: #1a1712; background: radial-gradient(circle at 32% 28%, #fff6cf 0%, #e9c457 34%, #a8801f 100%); }
 .lp-scoreboard__time { font-size: clamp(20px, 2.6vw, 26px); font-weight: 600; color: var(--ivory); text-shadow: 0 0 14px rgba(255, 236, 190, .18); }
@@ -488,3 +488,13 @@ html { scroll-behavior: smooth; }
 
 /* Bo'limlar orasidagi ingichka chiziq */
 .lp-divider { max-width: 1180px; height: 1px; margin: 0 auto; background: var(--border-subtle); }
+
+/* Jonli sahnalar — rasmli (SVG) animatsiyalar: chiroq, oflayn navbat, chek, sinxron */
+.lp-scenes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.lp-scene { display: flex; flex-direction: column; gap: 8px; padding: 14px 14px 20px; border: 1px solid var(--border-base); border-radius: 18px; background: var(--bg1); transition: border-color .2s; }
+.lp-scene:hover { border-color: var(--gold-line); }
+.lp-scene__stage { aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 12px; background: radial-gradient(ellipse 70% 80% at 50% 0%, rgba(24, 119, 76, .14), transparent 70%), var(--bg0); }
+.lp-scene__stage svg { display: block; width: 100%; height: 100%; }
+.lp-scene h3 { margin: 10px 6px 0; font-family: var(--font-display); font-size: 16.5px; font-weight: 650; line-height: 1.35; color: var(--text-primary); }
+.lp-scene p { margin: 0 6px; font-size: 14px; line-height: 1.65; color: var(--text-secondary); }
+@media (max-width: 767px) { .lp-scenes { grid-template-columns: minmax(0, 1fr); gap: 16px; } }

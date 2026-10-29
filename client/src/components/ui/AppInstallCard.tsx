@@ -68,8 +68,8 @@ export default function AppInstallCard() {
       </div>
       {storage && !persistent && typeof navigator.storage?.persist === 'function' && <Button icon={<SafetyCertificateOutlined />} loading={busy} onClick={() => void protect().catch(() => message.error(ru ? 'Хранилище недоступно' : 'Saqlash imkoni yo‘q'))}>{ru ? 'Запросить постоянное хранилище' : 'Doimiy saqlashni yoqish'}</Button>}
       <Typography.Paragraph type="secondary" style={{ margin: 0, fontSize: 13 }}>{ru
-        ? 'Офлайн-доступ — до 24 часов после проверки, но не дольше подписки. Расчёты требуют интернета. Не очищайте данные приложения, пока есть неотправленные операции.'
-        : 'Oflayn ruxsat tekshiruvdan keyin 24 soatgacha, lekin obuna muddatidan oshmaydi. Hisob-kitob uchun internet kerak. Yuborilmagan amallar borida ilova ma’lumotlarini tozalamang.'}</Typography.Paragraph>
+        ? 'Офлайн-доступ — до 24 часов после проверки, но не дольше подписки. Расчёт без интернета тоже возможен (кроме долга) — он отправится при связи. Не очищайте данные приложения, пока есть неотправленные операции.'
+        : 'Oflayn ruxsat tekshiruvdan keyin 24 soatgacha, lekin obuna muddatidan oshmaydi. Hisob-kitob ham internetsiz bo‘ladi (qarzdan tashqari) — aloqa tiklanganda yuboriladi. Yuborilmagan amallar borida ilova ma’lumotlarini tozalamang.'}</Typography.Paragraph>
     </Space>
   </GlassCard>;
 }

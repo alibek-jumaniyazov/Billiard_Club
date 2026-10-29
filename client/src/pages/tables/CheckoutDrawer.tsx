@@ -22,10 +22,12 @@ import {
   Select,
   Skeleton,
   Switch,
+  Tag,
   Typography,
 } from 'antd';
 import {
   CheckCircleOutlined,
+  CloudSyncOutlined,
   DeleteOutlined,
   DollarOutlined,
   PauseCircleOutlined,
@@ -34,10 +36,12 @@ import {
 } from '@ant-design/icons';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { errorMessage, sessionsApi } from '../../api';
+import { errorMessage, isNetworkError, sessionsApi } from '../../api';
 import { MoneyText, useNow } from '../../components/ui';
 import { PAYMENT_METHODS } from '../../constants';
 import { useCurrency } from '../../context/AppSettingsContext';
+import { useConnection } from '../../context/ConnectionContext';
+import { newActionKey, queueEndSession } from '../../offline/pos';
 import { TOKENS } from '../../theme/tokens';
 import { escapeHtml, printHtml } from '../../utils/print';
 import type {
@@ -45,6 +49,7 @@ import type {
   EndSessionPayload,
   EndSessionResult,
   PaymentMethod,
+  Session,
   SessionReceipt,
 } from '../../types';
 import {
@@ -114,6 +119,42 @@ interface Totals {
   debt: number;
   toPay: number;
 }
+
+/**
+ * OFLAYN CHEK — server so'ralmasdan, shu kassadagi keshdan (oflayn qoplama
+ * qo'llangan sessiya: bar summasi, pauzalar). Shakli server chekiga teng,
+ * shuning uchun jonli hisob va yakuniy summalar aynan bir xil yo'l bilan
+ * hisoblanadi.
+ */
+const localReceipt = (
+  table: BilliardTable,
+  session: Session,
+  segments: SegmentLike[] | null,
+  offsetMs: number,
+): SessionReceipt => {
+  const nowMs = Date.now() + offsetMs;
+  // timingFromReceipt joriy pauzani totalPausedMs dan AYIRADI (server chekida u
+  // qo'shilgan bo'ladi); keshdagi sessiyada qo'shilmagan — shu yerda qo'shamiz
+  const pauseSoFar =
+    session.status === 'paused' && session.pausedAt
+      ? Math.max(0, nowMs - Date.parse(session.pausedAt))
+      : 0;
+  return {
+    serverNow: new Date(nowMs).toISOString(),
+    sessionId: session.id,
+    status: session.status,
+    live: true,
+    startTime: session.startTime,
+    pausedAt: session.pausedAt ?? null,
+    totalPausedMs: (session.totalPausedMs || 0) + pauseSoFar,
+    durationSeconds: null,
+    durationMinutes: null,
+    pricePerHour: session.pricePerHour ?? table.pricePerHour,
+    tableAmount: 0,
+    barAmount: session.barAmount || 0,
+    segments: (segments ?? []) as SessionReceipt['segments'],
+  };
+};
 
 /** Serverdagi end() bilan bir xil tartibda yakuniy summalarni hisoblaydi */
 const computeTotals = (
@@ -350,6 +391,10 @@ interface CheckoutDrawerProps {
   onClose: () => void;
   /** Muvaffaqiyatli yakun — sahifa stollarni yangilasin */
   onSettled: () => void;
+  /** Oflayn hisob uchun: sahifadagi segmentlar keshi (transfer bo'lgan sessiya) */
+  segments?: SegmentLike[] | null;
+  /** Oflayn hisob uchun: sahifadagi server soati farqi */
+  offsetMs?: number;
 }
 
 const CheckoutDrawer = ({
@@ -358,15 +403,35 @@ const CheckoutDrawer = ({
   clubName,
   onClose,
   onSettled,
+  segments: localSegments = null,
+  offsetMs: pageOffsetMs = 0,
 }: CheckoutDrawerProps) => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const [form] = Form.useForm<EndFormValues>();
+  const { online } = useConnection();
 
   const session = table?.sessions?.[0] ?? null;
   const sessionId = session?.id ?? null;
   const fallbackPrice = table?.pricePerHour ?? 0;
   const currency = useCurrency();
+
+  /**
+   * OFLAYN REJIM: internet yo'q YOKI sessiyaning o'zi hali serverda yo'q
+   * (oflayn boshlangan, navbatda). Chek shu kassadagi ma'lumotdan quriladi,
+   * yakunlash esa navbatga yoziladi (offline/pos.ts: queueEndSession).
+   * Drawer ochilgan paytdagi qiymat ref da — aloqa o'zgarsa forma qayta
+   * tozalanmasin (kassir pul sanab turgan bo'lishi mumkin).
+   */
+  const offlineMode = !online || Boolean(session?.offlineLocalId);
+  const offlineModeRef = useRef(offlineMode);
+  offlineModeRef.current = offlineMode;
+  // Sahifa har poll'da yangi qiymat beradi — ochilish effektini qayta ishga
+  // tushirmasligi (formani tozalamasligi) uchun ref orqali o'qiladi
+  const localSourceRef = useRef({ segments: localSegments, offsetMs: pageOffsetMs });
+  localSourceRef.current = { segments: localSegments, offsetMs: pageOffsetMs };
+  /** Natija oflayn saqlangan — chekda va ekranda belgi ko'rsatiladi */
+  const [savedOffline, setSavedOffline] = useState(false);
 
   const [receipt, setReceipt] = useState<SessionReceipt | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
@@ -485,7 +550,19 @@ const CheckoutDrawer = ({
       customerPhone: session?.customerPhone ?? '',
       notes: '',
     });
-    void loadReceipt();
+    setSavedOffline(false);
+    if (offlineModeRef.current && session) {
+      // Oflayn: chek shu kassadagi keshdan quriladi (server so'ralmaydi)
+      const { segments: segs, offsetMs: offset } = localSourceRef.current;
+      const local = localReceipt(table, session, segs, offset);
+      shownBarRef.current = local.barAmount;
+      setReceipt(local);
+      setOffsetMs(offset);
+      setTiming(timingFromReceipt(local));
+      setSegments(local.segments as SegmentLike[]);
+    } else {
+      void loadReceipt();
+    }
     return () => {
       openSessionRef.current = null;
     };
@@ -498,11 +575,14 @@ const CheckoutDrawer = ({
    * boshqa terminaldan ichimlik qo'shsa, kassir eski summani ko'rib turmasin.
    * Bar summasi o'zgarsa ekranda ogohlantirish chiqadi.
    */
+  // Oflayn boshlangan sessiya serverda hali yo'q — so'rash 404 beradi xolos.
+  // Oddiy sessiyada esa internet qaytsa poll lokal chekni server chekiga almashtiradi.
+  const localOnly = Boolean(session?.offlineLocalId);
   useEffect(() => {
-    if (!sessionId || result) return;
+    if (!sessionId || result || localOnly) return;
     const poll = setInterval(() => void loadReceipt(true), RECEIPT_POLL_MS);
     return () => clearInterval(poll);
-  }, [sessionId, result, loadReceipt]);
+  }, [sessionId, result, localOnly, loadReceipt]);
 
   /** Muzlatilgan (pauzadagi) holatda statik yakuniy summalar */
   const staticTotals = useMemo(() => {
@@ -597,6 +677,21 @@ const CheckoutDrawer = ({
       return;
     }
 
+    // Bitta kalit: onlayn urinish ham, aloqa uzilsa navbatdagi takror ham shuni
+    // ishlatadi — "server bajardi, javob yo'qoldi" holatida pul ikki marta yozilmaydi
+    const actionKey = newActionKey();
+
+    // Internet yo'q yoki sessiya hali serverda yo'q — to'g'ridan-to'g'ri navbatga
+    if (offlineModeRef.current) {
+      const adjustmentInput = isAdmin && values.adjustmentAmount ? round2(values.adjustmentAmount) : 0;
+      if (values.isDebt || adjustmentInput !== 0) {
+        message.warning(t('offline.checkoutOfflineDebt'));
+        return;
+      }
+      await finishOffline(values, actionKey, Date.now() + offsetMs);
+      return;
+    }
+
     // Yuborishdan OLDIN chekni oxirgi marta tekshiramiz: bar summasi
     // o'zgargan bo'lsa kassir noto'g'ri pul olib qo'ymasligi uchun to'xtatamiz
     setSubmitting(true);
@@ -663,12 +758,20 @@ const CheckoutDrawer = ({
     }
 
     setSubmitting(true);
+    const submittedAt = Date.now() + offsetMs;
     try {
-      const res = await sessionsApi.end(sessionId, payload);
+      const res = await sessionsApi.end(sessionId, payload, actionKey);
       message.success(res.message);
       setResult(res.data);
       onSettled();
     } catch (err) {
+      // Aloqa AYNAN shu so'rovda uzildi: hisob-kitob yo'qolmasin — o'sha kalit
+      // bilan navbatga o'tadi (server bajargan bo'lsa takror javobni qaytaradi)
+      if (isNetworkError(err) && !values.isDebt && adjustment === 0) {
+        setSubmitting(false);
+        await finishOffline(values, actionKey, submittedAt);
+        return;
+      }
       // 409 = bar summasi o'zgardi: chekni yangilab, kassirdan qayta tasdiq so'raymiz
       if (isConflict(err)) {
         const updated = await loadReceipt(true);
@@ -678,6 +781,87 @@ const CheckoutDrawer = ({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  /**
+   * Oflayn yakunlash: navbatga yozish + ekranda/chekda lokal natija.
+   * `endedAtMs` — summa AYNAN shu payt bo'yicha hisoblanadi va serverga ham
+   * shu payt yuboriladi (server o'sha paytga qayta hisoblaydi).
+   */
+  const finishOffline = async (values: EndFormValues, key: string, endedAtMs: number) => {
+    if (!timing || !receipt || !table || !session) return;
+    const totals = computeTotals(
+      timing,
+      segments,
+      receipt.barAmount,
+      fallbackPrice,
+      values.discount ?? 0,
+      0,
+      { isDebt: false, isTableDebt: false, isBarDebt: false },
+      endedAtMs,
+    );
+    let rows: Array<{ method: PaymentMethod; amount: number }>;
+    if (values.split) {
+      rows = (values.payments ?? [])
+        .filter((r): r is { method: PaymentMethod; amount: number } =>
+          Boolean(r?.method && (r?.amount ?? 0) > 0),
+        )
+        .map((r) => ({ method: r.method, amount: round2(r.amount) }));
+      const drift = round2(totals.toPay - rows.reduce((acc, r) => acc + r.amount, 0));
+      if (drift < -0.01 || drift > splitTolerance(receipt, segments)) {
+        message.error(t('tables.splitMismatch'));
+        return;
+      }
+    } else {
+      rows = totals.toPay > 0 ? [{ method: values.paymentMethod, amount: totals.toPay }] : [];
+    }
+
+    setSubmitting(true);
+    try {
+      await queueEndSession(
+        table,
+        session,
+        {
+          payments: rows,
+          discount: totals.discount,
+          expectedBarAmount: receipt.barAmount,
+          notes: values.notes?.trim() || undefined,
+          customerName: values.customerName?.trim() || undefined,
+          customerPhone: values.customerPhone?.trim() || undefined,
+        },
+        totals.toPay,
+        key,
+        endedAtMs,
+      );
+    } catch {
+      message.error(t('common.error'));
+      return;
+    } finally {
+      setSubmitting(false);
+    }
+
+    setResult({
+      sessionId: session.id,
+      durationSeconds: totals.seconds,
+      durationMinutes: Math.ceil(totals.seconds / 60),
+      tableAmount: totals.tableAmount,
+      barAmount: totals.barAmount,
+      discount: totals.discount,
+      adjustmentAmount: 0,
+      adjustmentReason: null,
+      totalAmount: totals.total,
+      paidNow: round2(rows.reduce((acc, r) => acc + r.amount, 0)),
+      payments: rows,
+      totalDebt: 0,
+      debtId: null,
+      isDebt: false,
+      segments: null,
+      session,
+      serverNow: new Date(endedAtMs).toISOString(),
+    });
+    setSavedOffline(true);
+    message.success(t('offline.checkoutOfflineSaved'));
+    onSettled();
   };
 
   /** Yopish — yuborish davom etayotganda bloklanadi (yarim holat qolmasin) */
@@ -696,6 +880,8 @@ const CheckoutDrawer = ({
     lines.push(
       `<div class="c">${escapeHtml(`${t('common.table')} ${table?.number ?? ''} — ${table?.name ?? ''}`)}<br>${escapeHtml(formatDateTime(result.serverNow ?? new Date()))}</div>`,
     );
+    // Oflayn chek — internet qaytganda server summani qayta hisoblaydi
+    if (savedOffline) lines.push(`<div class="c">${escapeHtml(t('offline.checkoutOfflineReceipt'))}</div>`);
     lines.push('<hr>');
     row(t('common.duration'), formatSeconds(result.durationSeconds));
     if (result.segments && result.segments.length > 1) {
@@ -792,6 +978,11 @@ const CheckoutDrawer = ({
         <Title level={4} style={{ marginTop: 12, marginBottom: 0 }}>
           {t('tables.endedTitle')}
         </Title>
+        {savedOffline && (
+          <Tag icon={<CloudSyncOutlined />} color="warning" style={{ marginTop: 8, marginInlineEnd: 0 }}>
+            {t('offline.checkoutOfflineReceipt')}
+          </Tag>
+        )}
       </div>
       <div
         style={{
@@ -953,6 +1144,17 @@ const CheckoutDrawer = ({
         <Alert type="warning" showIcon message={t('tables.alreadyEnded')} />
       ) : timing && receipt ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Internetsiz hisob-kitob — kassir summa qayerdan kelganini bilsin */}
+          {offlineMode && (
+            <Alert
+              type="info"
+              showIcon
+              icon={<CloudSyncOutlined />}
+              message={t('offline.checkoutOfflineTitle')}
+              description={t('offline.checkoutOfflineDesc')}
+            />
+          )}
+
           {/* Bar summasi drawer ochiq turganda o'zgardi — kassir yangi
               summani ko'rib, ATAYLAB qayta tasdiqlashi shart */}
           {barChanged && (
@@ -1024,7 +1226,8 @@ const CheckoutDrawer = ({
             </Row>
 
             {/* Qo'lda tuzatish — faqat admin */}
-            {isAdmin && (
+            {/* Oflaynda yashiriladi: tuzatish huquqi va sababi serverda tekshiriladi */}
+            {isAdmin && !offlineMode && (
               <Row gutter={12}>
                 <Col span={12}>
                   <Form.Item
@@ -1183,9 +1386,14 @@ const CheckoutDrawer = ({
               name="isDebt"
               valuePropName="checked"
               label={t('tables.debtQuestion')}
+              extra={offlineMode ? t('offline.checkoutOfflineDebt') : undefined}
               style={{ marginBottom: 12 }}
             >
-              <Switch checkedChildren={t('status.debt')} unCheckedChildren={t('status.paid')} />
+              <Switch
+                disabled={offlineMode}
+                checkedChildren={t('status.debt')}
+                unCheckedChildren={t('status.paid')}
+              />
             </Form.Item>
 
             {isDebt && (

@@ -8,23 +8,23 @@
 
 :root {
   /* Fon qatlamlari — tungi billiard zali (yashil tusli deyarli qora) */
-  --bg0: #0b0d0c;
-  --bg1: #121513;
-  --bg2: #191d1a;
-  --bg3: #20251f;
+  --bg0: #090c0b;
+  --bg1: #101513;
+  --bg2: #161d1a;
+  --bg3: #1d2622;
 
   /* Ingichka chegaralar */
-  --border-subtle: #1d221e;
-  --border-base: #272d28;
-  --border-strong: #353c36;
+  --border-subtle: #1a221e;
+  --border-base: #24302a;
+  --border-strong: #33413a;
 
   /* Mato (felt) shkalasi */
-  --emerald-deepest: #0b2318;
-  --emerald-deep: #123524;
-  --emerald-felt: #1a5a3a;
-  --emerald-base: #1f6e47;
-  --emerald-bright: #2f9a63;
-  --emerald-glow: #46d68b;
+  --emerald-deepest: #08261a;
+  --emerald-deep: #0f3a27;
+  --emerald-felt: #135c3c;
+  --emerald-base: #18774c;
+  --emerald-bright: #23a066;
+  --emerald-glow: #3fd68e;
 
   /* Yong'oq yog'och — stol bortlari */
   --wood-light: #7a5030;
@@ -32,33 +32,33 @@
   --wood-dark: #2f1d11;
 
   /* Mis-oltin urg'u */
-  --gold: #cfae62;
-  --gold-hover: #dcc07e;
-  --gold-active: #b3924a;
-  --gold-subtle: rgba(207, 174, 98, 0.12);
-  --gold-line: rgba(207, 174, 98, 0.24);
-  --gold-glow: rgba(207, 174, 98, 0.32);
+  --gold: #dbb35c;
+  --gold-hover: #e8c677;
+  --gold-active: #bd954a;
+  --gold-subtle: rgba(219, 179, 92, 0.12);
+  --gold-line: rgba(219, 179, 92, 0.24);
+  --gold-glow: rgba(219, 179, 92, 0.32);
 
   /* Aurora (faqat auth/blok ekranlari) — juda xira */
-  --aurora-emerald: rgba(31, 110, 71, 0.16);
-  --aurora-gold: rgba(207, 174, 98, 0.06);
+  --aurora-emerald: rgba(24, 119, 76, 0.16);
+  --aurora-gold: rgba(219, 179, 92, 0.06);
   --aurora-teal: rgba(40, 110, 100, 0.08);
 
   /* Fil suyagi matn */
-  --text-primary: #efe9dd;
-  --text-secondary: #aca697;
-  --text-tertiary: #78746b;
-  --text-disabled: #4f4c46;
-  --ivory: #f2ede1;
+  --text-primary: #f1ece1;
+  --text-secondary: #b5ae9f;
+  --text-tertiary: #8b8579;
+  --text-disabled: #55524b;
+  --ivory: #f3eee2;
 
   /* Semantik */
-  --success: #3fa672;
-  --warning: #e0a23b;
-  --error: #d6493f;
-  --info: #5b8fc4;
+  --success: #43b77b;
+  --warning: #f0a53a;
+  --error: #ec5a4f;
+  --info: #5b9bea;
 
   /* Jonli holatlar */
-  --neon-green: #46d68b;
+  --neon-green: #3fd68e;
 
   /* Shriftlar */
   --font-display: 'Unbounded Variable', 'Inter Variable', -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -94,7 +94,7 @@ body {
 
 /* Matn belgilash rangi — oltin tus */
 ::selection {
-  background: rgba(207, 174, 98, 0.3);
+  background: rgba(219, 179, 92, 0.3);
   color: #f5f0e0;
 }
 

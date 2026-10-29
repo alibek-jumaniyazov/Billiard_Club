@@ -52,7 +52,7 @@ export default {
     featureWindowDesc: 'Brauzer tabi emas — ish stolidan bir bosishda ochiladi.',
     featureOffline: 'Internetsiz ishlaydi',
     featureOfflineDesc:
-      'Amaldagi obuna va oflayn ruxsat bilan o‘yin hamda bar amallari saqlanadi. Hisob-kitob uchun internet kerak.',
+      'Amaldagi obuna va oflayn ruxsat bilan o‘yin, bar va hisob-kitob davom etadi — aloqa tiklanishi bilan hammasi serverga yuboriladi.',
     featureUpdates: 'O‘zi yangilanadi',
     featureUpdatesDesc: 'Yangi versiya chiqsa dastur uni o‘zi yuklab oladi va o‘rnatadi.',
     featureGuard: 'Tasodifiy yopilishdan himoya',
@@ -81,6 +81,9 @@ export default {
     platformMac: 'macOS',
     platformLinux: 'Linux',
     platformAndroid: 'Android',
+    androidUpdateTitle: 'Ilovaning yangi versiyasi: {{version}}',
+    androidUpdateDesc: 'Sizda {{current}} o‘rnatilgan. Yangilash bir daqiqa oladi — ma’lumotlar joyida qoladi.',
+    androidUpdateAction: 'Yangilash',
 
     backHome: 'Bosh sahifaga',
     openApp: 'Brauzerda ochish',
@@ -132,7 +135,7 @@ export default {
     featureWindowDesc: 'Не вкладка браузера — открывается с рабочего стола одним кликом.',
     featureOffline: 'Работает без интернета',
     featureOfflineDesc:
-      'С активной подпиской и офлайн-разрешением действия с играми и баром сохраняются. Расчёты требуют интернета.',
+      'С активной подпиской и офлайн-разрешением игры, бар и расчёт продолжаются — при появлении связи всё уйдёт на сервер.',
     featureUpdates: 'Обновляется само',
     featureUpdatesDesc: 'Когда выходит новая версия, программа скачивает и устанавливает её сама.',
     featureGuard: 'Защита от случайного закрытия',
@@ -160,6 +163,9 @@ export default {
     platformMac: 'macOS',
     platformLinux: 'Linux',
     platformAndroid: 'Android',
+    androidUpdateTitle: 'Новая версия приложения: {{version}}',
+    androidUpdateDesc: 'У вас установлена {{current}}. Обновление займёт минуту — данные сохранятся.',
+    androidUpdateAction: 'Обновить',
 
     backHome: 'На главную',
     openApp: 'Открыть в браузере',

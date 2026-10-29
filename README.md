@@ -78,6 +78,16 @@ yoqilganda ham chiroqdagi har qanday xato sessiya va pul hisobiga **hech qachon*
 Apparat variantlari (13–150 $), elektr ulanish sxemalari, o'rnatish chek-listi, nosozliklar va
 xarajat hisobi: **[docs/LIGHT-CONTROL.md](docs/LIGHT-CONTROL.md)**
 
+**Sinovdan o'tgan (bridge v2.2):** 8 ta virtual Shelly rele + haqiqiy agent + server bilan
+11 ta ssenariy: boshlash/tugash (~40 ms), pauza, tugagach kechikish, qo'lda va master
+boshqaruv, javob bermaydigan rele (boshqa stollar kutib qolmaydi), elektrdan uzilgan rele
+(qayta ulangach ~6 s da tiklanadi), qo'lda yoqib qo'yilgan rele (drift — majburiy sinxron
+tuzatadi) va agent qayta ishga tushishi (~0,2 s da holat tiklanadi). Shu sinovda topilgan
+xato tuzatildi: server har javobda soxta "qurilma qidirish" vazifasini berib yuborardi,
+natijada chiroq ~2 s kechikardi va "Qurilmalarni qidirish" umuman ishlamasdi
+(`UPDATE ... RETURNING` natija shakli — `server/src/common/db/returning-rows.ts`).
+**Server bilan birga klubdagi agentni ham v2.2 ga yangilang.**
+
 ## Internetsiz ishlash (oflayn)
 
 Klub Wi-Fi si uzilganda kassa **to'xtamaydi**. Uch qatlam:
@@ -88,15 +98,30 @@ Klub Wi-Fi si uzilganda kassa **to'xtamaydi**. Uch qatlam:
    (`client/src/offline/cache.ts`) va yuqorida "Internet yo'q — ma'lumot 14:32 holatida"
    chizig'i turadi. **Taymer to'g'ri yuradi** (u `startTime` dan qayta hisoblanadi), shuning
    uchun uzilish qancha davom etsa ham vaqt va summa yo'qolmaydi.
-3. **Amallar saqlanadi.** O'yin boshlash, pauza/davom ettirish va bar buyurtmasi navbatga
-   yoziladi (`client/src/offline/queue.ts`), ekranda darhol ko'rinadi va aloqa tiklanishi
-   bilan **yozilgan tartibda** yuboriladi.
+3. **Amallar saqlanadi.** O'yin boshlash, pauza/davom ettirish, bar buyurtmasi va
+   **hisob-kitob (to'liq to'lov)** navbatga yoziladi (`client/src/offline/queue.ts`),
+   ekranda darhol ko'rinadi va aloqa tiklanishi bilan **yozilgan tartibda, asl vaqti bilan**
+   yuboriladi.
 
-**Nima ATAYLAB oflayn ishlamaydi:** hisob-kitob (yakunlash), qarz to'lovi, sessiyani bekor
-qilish va ko'chirish. Bu amallarning summasi boshqa terminalda qo'shilgan buyurtmalarga,
-chegirmalarga va qarz holatiga bog'liq — eskirgan ma'lumot ustida hisoblangan chek mijozdan
-**noto'g'ri pul olishga** olib kelardi va uni keyin tuzatib bo'lmasdi. Tugmalar sababi
-ko'rsatilgan holda o'chiq turadi.
+**Oflayn hisob-kitob.** Internet uzilsa ham mijoz kutib qolmaydi: summa shu kassadagi
+ma'lumotdan hisoblanadi, chek chop etiladi ("OFLAYN" belgisi bilan), stol darhol bo'shaydi.
+Serverga "Yakunlash" bosilgan VAQT (`offlineAt`) va OLINGAN pul yuboriladi; server summani
+aynan o'sha paytga qayta hisoblaydi (vaqt chegaralanadi: sessiya boshlanishidan oldin va
+kelajakda bo'la olmaydi). Agar internet yo'q paytda boshqa kassada bar buyurtmasi qo'shilgan
+bo'lsa, server **rad etmaydi** (pul allaqachon olingan): haqiqatda olingan summa yoziladi,
+farq "Oflayn hisob-kitob farqi" tuzatishi sifatida muhrlanadi, audit jurnaliga tushadi va
+kassirga darhol ogohlantirish chiqadi. Onlayn hisob-kitobdagi 409 himoyasi o'zgarmagan.
+
+**Nima oflayn ishlamaydi:** qarzga yozish va qo'lda tuzatish (mijoz/huquq tekshiruvi serverda),
+qarz to'lovi, sessiyani bekor qilish va ko'chirish — tugmalar sababi ko'rsatilgan holda o'chiq.
+
+**Server qayta ishga tushayotganda ham.** Javob umuman bo'lmasa yoki faqat proksi javob bersa
+(nginx 502/504, deploy paytida) — bu ham "aloqa yo'q" deb hisoblanadi: kassa amallari xato
+bo'lmay navbatga tushadi, ro'yxat keshdan ko'rinadi (`isGatewayFailure`, `api/client.ts`).
+
+Sinov (brauzerda, server o'chirib-yoqilgan holda): oflayn boshlangan o'yin 53 soniyadan keyin
+oflayn yakunlandi → aloqa tiklangach serverda boshlanish/tugash vaqtlari aynan saqlangan,
+summa kassadagidek (220,83 so'm), farq yo'q.
 
 **Ikki marta yozilmaydi:** har bir navbatdagi amalga bir martalik `Idempotency-Key` biriktiriladi,
 server esa uni eslab qoladi (`server/src/common/idempotency/`). Javob yo'lda yo'qolib, amal
@@ -123,6 +148,10 @@ ishlashda davom eta olardi. Endi uch qatlam bor:
    aylanmaydi.
 
 Rejim **qat'iy**: muddat tugadi = darhol blok, qo'shimcha muhlat yo'q.
+
+Sinov: obuna muddatini 100 soniyaga qo'yib server o'chirildi — muddat o'tishi bilan ilova
+**oflaynda** o'zi blok ekraniga o'tdi; server yoqilganda `403 SUBSCRIPTION_EXPIRED`;
+obuna uzaytirilgach "Holatni tekshirish" darhol ochdi.
 Kalit birinchi ishga tushishda o'zi yaratiladi (`LICENSE_PRIVATE_KEY` bilan ochiq
 belgilash mumkin — bir nechta nusxada ishlatilsa **majburiy**).
 
@@ -178,6 +207,12 @@ Birinchi yig'ishda imzo kaliti yaratiladi (`mobile/android/keystore*`, git'ga ki
 panelida **Desktop relizlari → Android (APK)** orqali nashr etiladi va `/download` da
 telefon uchun o'rnatish qadamlari bilan chiqadi. GitHub Actions'da yig'ish:
 `.github/workflows/android.yml`. Tafsilot: **[mobile/README.md](mobile/README.md)**
+
+**Yangilanish.** APK o'z versiyasini user-agent'ga yozadi (`BilliardClubAndroid/1.1.0`);
+ilova ichida eski qobiq bo'lsa, `/download` dagi yangi APK bir martalik banner bilan taklif
+qilinadi (`NativeUpdateBanner`). Fayl yuklash tizim brauzeriga beriladi (`MainActivity`:
+DownloadListener) — WebView'ning o'zi APK ni yuklamaydi. Windows dasturi esa o'zi yangilanadi:
+`latest.yml` → yuklab olish → sha512 tekshiruvi (1.2.0 → 1.3.0 kanali lokal sinovdan o'tgan).
 
 ## Superadmin — klub ma'lumotlari konsoli
 
@@ -245,8 +280,17 @@ Hisob baribir **haqiqiy vaqt bo'yicha soniyalik** — bu faqat kassir uchun ogoh
 
 Dizayn tizimi: `client/src/theme/tokens.ts` (yagona manba) va `client/src/index.css`
 dagi CSS o'zgaruvchilar. Ranglar — billiard movuti yashili, yong'oq yog'och,
-latun-oltin va fil suyagi; shriftlar — Unbounded (sarlavhalar) va JetBrains Mono (raqamlar, taymerlar),
+latun-oltin va fil suyagi (matn kontrasti WCAG AA: barcha matn ranglari kartalarda ≥ 4.5:1);
+shriftlar — Unbounded (sarlavhalar) va JetBrains Mono (raqamlar, taymerlar),
 ikkalasi ham o'z serverdan (`@fontsource`), tashqi CDN'siz.
+
+**Logo** — "B" monogrammasi: tik turgan kiy (harf o'zagi) va unga tegib turgan ikki fil
+suyagi shar (harf qorinlari), chiroq yoritgan mato ustida. Bitta geometriya uch joyda:
+`client/public/favicon.svg`, `BrandLogo.tsx` va `desktop/build/make-icons.mjs` (`MARK`) —
+`npm run icons` Windows, PWA va Android ikonkalari hamda splash ekranlarni qayta chizadi.
+Ijtimoiy tarmoq muqovasi: `client/public/og-cover.svg` → `og-cover.png`.
+
+Landingni tizimga kirgan holda ko'rish: `/?landing`.
 
 ## Landing arizalari (savdo voronkasi)
 
@@ -290,7 +334,19 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
   invariant testda muhrlangan.
 - `client/src/offline/overlay.test.ts` — oflayn amallarning ekranda
   ko'rsatilishi: dublikat bo'lmasligi, pauza vaqti, bar summasi, xato
-  yozuvning qoplanmasligi.
+  yozuvning qoplanmasligi, oflayn hisob-kitobdan keyin stolning bo'shashi.
+- `server/test/03-offline-checkout.postgres.test.cjs` — oflayn hisob-kitob: summa
+  "Yakunlash" bosilgan paytga hisoblanadi, boshqa kassadagi bar farqi navbatni
+  to'xtatmaydi (olingan pul yoziladi, farq belgilanadi), onlayn 409 himoyasi saqlanadi,
+  vaqt chegaralanadi.
+- `server/test/02-lights.postgres.test.cjs` — bridge vazifa navbati (bo'sh navbatda
+  soxta vazifa yo'q), `returning-rows.test.ts` — `UPDATE ... RETURNING` shakli.
+- `client/src/components/ui/billiard/physics.test.ts` — landing billiardi fizikasi:
+  impuls saqlanishi, sharlar bir-biriga kirmasligi, energiya kamayishi, sirpanish→dumalash,
+  bort qaytishi, cho'ntak va jag'.
+- `client/src/api/gateway.test.ts` (proksi 5xx = aloqa yo'q), `client/src/utils/version.test.ts`
+  (APK yangilanishi), `bridge/test/control.test.cjs` (javobsiz rele — bitta urinish),
+  `desktop/test/offline.test.cjs` (oflayn ekran — ekranlash va avtomatik qayta ulanish).
 
 ## Yangi versiyani chiqarish (deploy) tartibi
 

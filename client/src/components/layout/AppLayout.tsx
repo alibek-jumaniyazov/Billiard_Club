@@ -8,6 +8,7 @@ import Sidebar from './Sidebar';
 import MobileNavigation from './MobileNavigation';
 import CommandPalette from '../ui/CommandPalette';
 import ConnectionBanner from '../ui/ConnectionBanner';
+import NativeUpdateBanner from '../ui/NativeUpdateBanner';
 import ShortcutsHelp from '../ui/ShortcutsHelp';
 import { NotificationsProvider } from '../../context/NotificationsContext';
 import { TOKENS } from '../../theme/tokens';
@@ -143,6 +144,8 @@ const AppLayout = () => {
           {/* Ulanish/sinxronizatsiya holati — faqat aytadigan gap bo'lganda
               ko'rinadi, normal ish holatida ekran toza qoladi */}
           <ConnectionBanner />
+          {/* Android ilova (APK) eskirgan bo'lsa — bir martalik yangilash taklifi */}
+          <NativeUpdateBanner />
           <Content id="workspace-main" tabIndex={-1} className="page-container" style={{ position: 'relative', zIndex: 1 }}>
             {/* Sahifa darajasidagi xato chegarasi: bitta sahifadagi render
                 xatosi yon menyu va sarlavhani O'LDIRMAYDI — kassir boshqa

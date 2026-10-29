@@ -32,6 +32,7 @@ import {
 } from './drivers/light-driver';
 import { LightConfigDto, UpdateLightSettingsDto, UpdateTableLightDto } from './dto/lights.dto';
 import { lightOutputKeys } from './device-outputs';
+import { returningRows } from '../../common/db/returning-rows';
 
 /** Bitta stol chirog'ining kerakli holati + rele ulanish ma'lumotlari */
 export interface LightDeviceState extends LightTarget {
@@ -1464,18 +1465,25 @@ export class LightsService {
    */
   async takeTasks(clubId: number): Promise<LightBridgeTask[]> {
     try {
-      const rows: Array<{
+      // UPDATE ... RETURNING → TypeORM `[rows, rowCount]` qaytaradi (returningRows izohi).
+      // Avval natija to'g'ridan-to'g'ri map qilinardi: har javobda id siz ikkita
+      // soxta "discover" vazifa ketib, agent har siklda 2 s uxlardi (chiroq
+      // kechikishi ~2 s, qurilma qidirish esa umuman ishlamasdi).
+      const rows = returningRows<{
         pendingTaskId: string;
         pendingTaskType: string | null;
         pendingTaskSubnet: string | null;
-      }> = await this.dataSource.query(
-        `UPDATE club_bridges
-         SET "taskStartedAt" = now()
-         WHERE "clubId" = $1 ${TASK_TAKEABLE_SQL}
-         RETURNING "pendingTaskId", "pendingTaskType", "pendingTaskSubnet"`,
-        [clubId],
+      }>(
+        await this.dataSource.query(
+          `UPDATE club_bridges
+           SET "taskStartedAt" = now()
+           WHERE "clubId" = $1 ${TASK_TAKEABLE_SQL}
+           RETURNING "pendingTaskId", "pendingTaskType", "pendingTaskSubnet"`,
+          [clubId],
+        ),
       );
       return rows
+        .filter((row) => typeof row.pendingTaskId === 'string' && row.pendingTaskId.length > 0)
         // Hozircha yagona tur — notanish turdagi yozuv agentga berilmaydi
         // (u muddati o'tguncha navbatda qoladi va keyin tozalanadi)
         .filter((row) => (row.pendingTaskType ?? 'discover') === 'discover')

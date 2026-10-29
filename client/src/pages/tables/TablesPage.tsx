@@ -828,6 +828,8 @@ const TablesPage = () => {
         clubName={club?.name ?? ''}
         onClose={() => setCheckoutTable(null)}
         onSettled={silentRefresh}
+        segments={checkoutTable?.sessions?.[0] ? (segmentsMap[checkoutTable.sessions[0].id] ?? null) : null}
+        offsetMs={offsetMs}
       />
 
       {/* Stollarni boshqarish (admin CRUD) */}

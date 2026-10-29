@@ -1,7 +1,19 @@
-# Billiard Club — Bridge agenti (chiroq boshqaruvi) — v2.1
+# Billiard Club — Bridge agenti (chiroq boshqaruvi) — v2.2
 
 Bu kichik dastur **klubning o'z tarmog'ida** ishlaydi va bulutdagi server (`billiardclub.uz`) bilan
 lokal relelar (Shelly, Tasmota, ESPHome, MQTT, Modbus, USB rele) o'rtasida ko'prik vazifasini bajaradi.
+
+## v2.2 — tez javob va tez tiklanish
+
+- **Chiroq ~2 s kechikishi tuzatildi** (server bilan birga yangilang). Server har javobda
+  soxta "qurilma qidirish" vazifasini berib yuborardi, agent esa har siklda 2 s kutardi.
+  Endi buyruq relega **20–60 ms** da yetadi; "Qurilmalarni qidirish" ham ishlaydi.
+- **Javob bermagan rele boshqa stollarni kutdirmaydi**: oldingi siklda xato bergan relega
+  bitta urinish beriladi (avval 3 x timeout ≈ 10 s butun siklni ushlab turardi).
+- **Rele qayta ulanishi bilan chiroq tez tiklanadi**: xato rele bo'lsa agent serverdan
+  javobni qisqaroq ushlashni so'raydi (`?hold=`, 2 → 10 s). Natija: ~6–8 s (avval ~30 s).
+- Lokal sinov: virtual Shelly relelar + haqiqiy agent bilan 11 ta ssenariy (boshlash, pauza,
+  tugash, kechikish, qo'lda/master boshqaruv, timeout, uzilish, drift, qayta ishga tushish).
 
 ## v2.1 — ishonchli natija va tiklanish
 

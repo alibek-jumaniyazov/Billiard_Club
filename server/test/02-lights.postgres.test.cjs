@@ -151,3 +151,27 @@ test('reservations return club timezone and include only that local calendar day
   assert.deepEqual(response.data.map((row) => row.id), [records[1].id, records[2].id]);
   assert.equal(response.pagination.total, 2);
 });
+
+test('bridge task queue: empty queue yields no tasks; a queued discover is handed out once with its id', { timeout: 10000 }, async () => {
+  const { club, service } = await fixture();
+  // Agent ulanmagan klub: vazifa ham, soxta yozuv ham yo'q
+  assert.deepEqual(await service.takeTasks(club.id), []);
+  await database.getRepository(ClubBridge).save({
+    clubId: club.id, tokenHash: require('node:crypto').randomBytes(32).toString('hex'), lastSeenAt: new Date(),
+  });
+  // UPDATE ... RETURNING `[rows, rowCount]` qaytaradi — bo'sh navbat BO'SH ro'yxat bo'lishi shart
+  assert.deepEqual(await service.takeTasks(club.id), []);
+  assert.equal(await service.hasPendingTasks(club.id), false);
+
+  const queued = await service.queueDiscover(club.id, '192.168.30.0/24');
+  assert.equal(queued.queued, true);
+  assert.equal(await service.hasPendingTasks(club.id), true);
+  const tasks = await service.takeTasks(club.id);
+  assert.equal(tasks.length, 1);
+  assert.equal(tasks[0].type, 'discover');
+  assert.match(tasks[0].id, /^[0-9a-f]{16}$/);
+  assert.equal(tasks[0].subnet, '192.168.30.0/24');
+  // Berilgan vazifa qayta berish muddatigacha takrorlanmaydi
+  assert.deepEqual(await service.takeTasks(club.id), []);
+  assert.equal(await service.hasPendingTasks(club.id), false);
+});

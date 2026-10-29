@@ -7,6 +7,7 @@ import { Cron } from '@nestjs/schedule';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { canonicalTelegramTrialPhone, canonicalTrialPhone } from './trial-phone';
+import { returningRows } from '../../common/db/returning-rows';
 
 const TTL_MS = 10 * 60 * 1000;
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -148,9 +149,11 @@ export class TrialVerificationService {
       if (msg.contact?.user_id !== userId || !phone) {
         return reply("Faqat pastdagi tugma orqali O'Z raqamingizni yuboring.\nОтправьте СВОЙ номер кнопкой ниже.", true);
       }
-      const updated = await manager.query(`UPDATE trial_telegram_challenges SET phone = $2, "verifiedAt" = now()
+      // UPDATE ... RETURNING → `[rows, rowCount]`: `.length` doim 2 bo'lib, muddati o'tgan
+      // so'rovga ham "tasdiqlandi" javobi ketardi (bazaga esa hech narsa yozilmasdi)
+      const updated = returningRows<{ id: string }>(await manager.query(`UPDATE trial_telegram_challenges SET phone = $2, "verifiedAt" = now()
         WHERE id = $1 AND "telegramUserId" = $3 AND "expiresAt" > now() AND "consumedAt" IS NULL AND "verifiedAt" IS NULL RETURNING id`,
-        [session.challengeId, phone, String(userId)]);
+        [session.challengeId, phone, String(userId)]));
       if (!updated.length) return invalid();
       return reply("Telefon tasdiqlandi. Saytga qaytib «Tasdiqladim — tekshirish» tugmasini bosing.\nНомер подтверждён. Вернитесь на сайт и нажмите «Я подтвердил — проверить».");
     });

@@ -192,6 +192,24 @@ const cachedResponse = (
   config: config as AxiosResponse['config'],
 });
 
+/**
+ * Javob ILOVA serveridan emas, oraliq proksidan (nginx, Vite dev-proksi, CDN)
+ * keldi: 5xx va bizning JSON qobig'imiz (`success` maydoni) yo'q. Amalda bu
+ * "server bilan aloqa yo'q" bilan bir xil — so'rov ilovaga yetmagan. Masalan
+ * deploy yoki qayta ishga tushish paytida nginx 502/504 qaytaradi: bunday
+ * paytda kassa amali xato bo'lib qolmasligi, oflayn navbatga tushishi kerak
+ * (barcha POS amallari Idempotency-Key bilan — takror yuborish xavfsiz).
+ * Ilovaning o'z 5xx xatolari har doim JSON qobig'ida keladi va bunga kirmaydi.
+ */
+export const isGatewayFailure = (error: { response?: { status?: number; data?: unknown } }): boolean => {
+  const res = error.response;
+  if (!res || (res.status ?? 0) < 500) return false;
+  const data = res.data;
+  // Blob so'rovlarida tana hali ochilmagan — JSON turi ilova xatosi degani
+  if (typeof Blob !== 'undefined' && data instanceof Blob) return !data.type.includes('json');
+  return !(data && typeof data === 'object' && 'success' in data);
+};
+
 client.interceptors.response.use(
   (response) => {
     // Serverdan javob keldi — aloqa bor
@@ -226,11 +244,12 @@ client.interceptors.response.use(
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
     const status = error.response?.status;
 
-    if (error.response) {
-      // Server javob berdi (hatto 4xx/5xx bo'lsa ham) — aloqa BOR
+    if (error.response && !isGatewayFailure(error)) {
+      // Ilova serveri javob berdi (hatto 4xx/5xx bo'lsa ham) — aloqa BOR
       markOnline();
     } else {
-      // Javob umuman yo'q: tarmoq uzilgan yoki server yetib bo'lmas holatda
+      // Javob umuman yo'q yoki faqat proksi javob berdi: tarmoq uzilgan yoki
+      // server yetib bo'lmas holatda (qayta ishga tushmoqda, deploy)
       markOffline();
       // Oflayn o'qish: keshda bor bo'lsa oxirgi ma'lum holatni qaytaramiz,
       // shunda kassir bo'sh ekran o'rniga stollarni ko'rib turaveradi

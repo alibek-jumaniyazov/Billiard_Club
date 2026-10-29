@@ -123,7 +123,12 @@ export class TransferSessionDto {
   tableId: number;
 }
 
-export class EndSessionDto {
+/**
+ * Hisob-kitob. `offlineAt` (OfflineAtDto) — internetsiz paytda kassada bosilgan
+ * "Yakunlash" vaqti: navbat aloqa tiklanganda yuboradi va server summani AYNAN
+ * o'sha paytga hisoblaydi (sessions.service.ts: end — oflayn tafsilotlari).
+ */
+export class EndSessionDto extends OfflineAtDto {
   @IsOptional()
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;

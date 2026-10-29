@@ -42,6 +42,16 @@ export default {
     actEnd: '{{table}} — hisob-kitob',
     actOrder: '{{table}} — bar buyurtmasi',
     actGeneric: 'Amal',
+    // Oflayn hisob-kitob
+    checkoutOfflineTitle: 'Internetsiz hisob-kitob',
+    checkoutOfflineDesc:
+      'Summa shu kassadagi ma’lumot bo‘yicha hisoblandi. Pulni oling — aloqa tiklanishi bilan hisob serverga yuboriladi.',
+    checkoutOfflineDebt: 'Qarzga yozish va qo‘lda tuzatish uchun internet kerak',
+    checkoutOfflineSaved: 'Hisob-kitob oflayn saqlandi — aloqa tiklanganda yuboriladi',
+    checkoutOfflineReceipt: 'OFLAYN — serverga yuborilishi kutilmoqda',
+    mismatchTitle: '{{table}}: oflayn hisob-kitobda farq',
+    mismatchDesc:
+      'Server hisobi {{expected}}, olingan pul {{collected}} (farq {{difference}}). Ehtimol, internet yo‘q paytda boshqa kassada bar buyurtmasi o‘zgargan. Pul aynan olingandek yozildi, farq o‘yinlar tarixida belgilandi.',
   },
   ru: {
     offlineTitle: 'Нет интернета',
@@ -88,5 +98,15 @@ export default {
     actEnd: '{{table}} — расчёт',
     actOrder: '{{table}} — заказ бара',
     actGeneric: 'Действие',
+    // Офлайн-расчёт
+    checkoutOfflineTitle: 'Расчёт без интернета',
+    checkoutOfflineDesc:
+      'Сумма посчитана по данным этой кассы. Принимайте оплату — расчёт отправится на сервер, как только появится связь.',
+    checkoutOfflineDebt: 'Для записи в долг и ручной корректировки нужен интернет',
+    checkoutOfflineSaved: 'Расчёт сохранён офлайн — отправится при восстановлении связи',
+    checkoutOfflineReceipt: 'ОФЛАЙН — ожидает отправки на сервер',
+    mismatchTitle: '{{table}}: расхождение в офлайн-расчёте',
+    mismatchDesc:
+      'По серверу {{expected}}, получено {{collected}} (разница {{difference}}). Вероятно, пока не было интернета, на другой кассе изменили заказ бара. Оплата записана как получена, расхождение отмечено в истории игр.',
   },
 };

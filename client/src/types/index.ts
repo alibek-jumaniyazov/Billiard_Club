@@ -488,6 +488,10 @@ export interface EndSessionResult {
   segments: SegmentBillingItem[] | null;
   session: Session;
   serverNow: string;
+  /** Hisob yopilgan vaqt (oflayn yakunlashda — kassada bosilgan payt) */
+  endTime?: string;
+  /** Oflayn hisob-kitobda olingan pul server hisobidan farq qildi */
+  offlineMismatch?: { expected: number; collected: number; difference: number } | null;
 }
 
 export interface Category {
@@ -1169,6 +1173,8 @@ export interface EndSessionPayload {
   isBarDebt?: boolean;
   customerName?: string;
   customerPhone?: string;
+  /** Oflayn navbatdan: kassada "Yakunlash" bosilgan payt (server chegaralaydi) */
+  offlineAt?: string;
 }
 
 export interface ChangePasswordPayload {

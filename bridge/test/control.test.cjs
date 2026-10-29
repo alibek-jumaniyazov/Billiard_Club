@@ -98,3 +98,16 @@ test('Home Assistant accepts a pasted Bearer prefix exactly once', async (t) => 
   await httpDevice.apply({ driver: 'home_assistant', host, auth: 'Bearer test-only', config: { entityId: 'switch.table1' } }, true, 0, ctx);
   assert.equal(authorization, 'Bearer test-only');
 });
+
+test('a relay that failed last cycle gets a single attempt instead of three', async () => {
+  let writes = 0;
+  const result = await executeDevice({ ...device, host: '127.0.0.1:9' }, {
+    verify: true, forced: false, sleep: fastSleep, delays: [0],
+    write: async () => { writes += 1; throw new Error('connect ECONNREFUSED'); },
+    read: async () => null,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(writes, 1);
+  assert.equal(result.attempts, 1);
+  assert.match(result.error, /ECONNREFUSED/);
+});

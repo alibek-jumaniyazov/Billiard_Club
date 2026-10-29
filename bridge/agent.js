@@ -53,7 +53,16 @@ const { logicalState, executeDevice } = require('./lib/control');
 /* ------------------------------------------------------------------ */
 
 /** Agent versiyasi — serverga /api/bridge/report da yuboriladi */
-const AGENT_VERSION = '2.1.0';
+const AGENT_VERSION = '2.2.0';
+
+/**
+ * Xato bergan rele bo'lsa serverdan javobni QISQAROQ ushlashni so'raymiz
+ * (`?hold=`), shunda xato rele tez-tez qayta sinaladi va qayta ulanishi bilan
+ * chiroq ~25 s emas, bir necha soniyada tiklanadi. Ketma-ket xatolarda oraliq
+ * oshib boradi, lekin 10 s dan oshmaydi: butunlay o'chiq rele ham serverga
+ * daqiqasiga ~5 so'rovdan ko'p yuk bermaydi (oddiy holat ~2,4).
+ */
+const FAILED_RETRY_HOLD_MS = [2000, 3000, 5000, 8000, 10000];
 
 /** Uzun-polling uchun timeout — server javobni 25s ushlab turadi, biroz zaxira qo'shamiz */
 const POLL_TIMEOUT_MS = 30000;
@@ -296,6 +305,12 @@ process.on('uncaughtException', (err) => {
 /** Oxirgi muvaffaqiyatli buyruq va ulanish nusxasi: tableId -> fingerprint */
 const appliedState = new Map();
 
+/** Oxirgi siklda buyrug'i o'tmagan (javob bermagan / mos kelmagan) stollar */
+const failedDevices = new Set();
+
+/** Ketma-ket xatoli sikllar soni — FAILED_RETRY_HOLD_MS dagi qadam */
+let failedRounds = 0;
+
 /** Oxirgi majburiy (to'liq) sinxronizatsiya vaqti */
 let lastForceSyncAt = 0;
 
@@ -342,7 +357,11 @@ function driverCtx() {
 
 /** Uzun-polling: kerakli holatni oladi */
 async function fetchState(version) {
-  const url = `${cfg.serverUrl}/api/bridge/state?v=${encodeURIComponent(version || '')}`;
+  // Xato rele bor — javobni qisqa ushlash so'raladi (eski server `hold` ni e'tiborsiz qoldiradi)
+  const hold = failedDevices.size
+    ? `&hold=${FAILED_RETRY_HOLD_MS[Math.min(failedRounds, FAILED_RETRY_HOLD_MS.length - 1)]}`
+    : '';
+  const url = `${cfg.serverUrl}/api/bridge/state?v=${encodeURIComponent(version || '')}${hold}`;
 
   const res = await fetchWithTimeout(
     url,
@@ -840,8 +859,13 @@ function deviceLabel(device) {
 /** Delivery and readback are recorded separately; mismatches remain retryable. */
 async function handleDevice(device, forced) {
   const startedAt = Date.now();
+  // Oldingi siklda javob bermagan relega bitta urinish: aks holda u har siklda
+  // 3 x timeout (~10 s) davomida BOSHQA stollarning buyruqlarini ham kutdirardi.
+  // Qayta urinishni endi tez-tez keladigan sikllarning o'zi bajaradi.
+  const unreachable = failedDevices.has(device.tableId);
   const result = await executeDevice(device, {
     verify: resolveVerify(device), forced, sleep,
+    ...(unreachable ? { delays: [0] } : {}),
     write: async (physical) => {
       if (stopping) throw new Error("agent to'xtatilmoqda");
       await writeDevice(device, physical);
@@ -917,6 +941,11 @@ async function syncDevices(devices, options = {}) {
   const pending = active.filter(
     (item) => forced || appliedState.get(item.tableId) !== deviceFingerprint(item),
   );
+  // Ro'yxatdan chiqqan stol xatolar to'plamida qolib, qisqa pollingni abadiy ushlamasin
+  for (const id of Array.from(failedDevices)) {
+    if (!knownIds.has(id)) failedDevices.delete(id);
+  }
+
   if (!pending.length) {
     log('debug', `O'zgarish yo'q (${active.length} ta qurilma)`);
     return;
@@ -931,8 +960,19 @@ async function syncDevices(devices, options = {}) {
   const fingerprints = new Map(pending.map((device) => [device.tableId, deviceFingerprint(device)]));
 
   for (const result of results) {
-    if (result.ok) appliedState.set(result.tableId, fingerprints.get(result.tableId));
-    else appliedState.delete(result.tableId); // xato bo'lsa keyingi siklda qayta urinamiz
+    if (result.ok) {
+      appliedState.set(result.tableId, fingerprints.get(result.tableId));
+      failedDevices.delete(result.tableId);
+    } else {
+      appliedState.delete(result.tableId); // xato bo'lsa keyingi siklda qayta urinamiz
+      failedDevices.add(result.tableId);
+    }
+  }
+  if (failedDevices.size) {
+    failedRounds += 1;
+  } else if (failedRounds) {
+    log('info', 'Barcha relelar javob bermoqda — oddiy uzun-pollingga qaytildi');
+    failedRounds = 0;
   }
 
   if (options.report !== false) await sendReport(results);
@@ -1117,7 +1157,9 @@ async function mainLoop() {
       const data = await fetchState(lastVersion);
       if (stopping) break;
 
-      backoffIndex = 0; // aloqa tiklandi
+      // Xatolardan keyin aloqa tiklandi — montajchi logda buni aniq ko'rsin
+      if (backoffIndex > 0) log('info', 'Server bilan aloqa tiklandi');
+      backoffIndex = 0;
 
       if (Number.isFinite(data.forceSyncMs) && data.forceSyncMs >= 5000) {
         forceSyncMs = data.forceSyncMs;

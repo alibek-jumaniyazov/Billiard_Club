@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Space, Typography } from 'antd';
+import { App, Button, Space, Typography } from 'antd';
 import {
   CloudSyncOutlined,
   DisconnectOutlined,
@@ -11,7 +11,9 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { useConnection } from '../../context/ConnectionContext';
 import { applyUpdate, onUpdateReady } from '../../offline/register-sw';
+import { onSyncNotice } from '../../offline/queue';
 import { TOKENS } from '../../theme/tokens';
+import { formatNumber } from '../../utils/format';
 import OfflineQueueDrawer from './OfflineQueueDrawer';
 
 const { Text } = Typography;
@@ -64,8 +66,27 @@ const ConnectionBanner = () => {
   const { restoredOffline } = useAuth();
   const [updateReady, setUpdateReady] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
+  const { notification } = App.useApp();
 
   useEffect(() => onUpdateReady(() => setUpdateReady(true)), []);
+
+  // Oflayn hisob-kitob serverga yetib borganda farq chiqsa — kassir darhol
+  // biladi (yopilmaydigan ogohlantirish: mijoz hali zalda bo'lishi mumkin)
+  useEffect(
+    () =>
+      onSyncNotice((notice) => {
+        notification.warning({
+          message: t('offline.mismatchTitle', { table: notice.labelParams?.table ?? '' }),
+          description: t('offline.mismatchDesc', {
+            expected: formatNumber(notice.expected),
+            collected: formatNumber(notice.collected),
+            difference: `${notice.difference > 0 ? '+' : ''}${formatNumber(notice.difference)}`,
+          }),
+          duration: 0,
+        });
+      }),
+    [notification, t],
+  );
 
   let tone: Tone | null = null;
   if (failed > 0) tone = 'failed';

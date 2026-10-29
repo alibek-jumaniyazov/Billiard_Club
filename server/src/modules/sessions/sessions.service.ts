@@ -68,6 +68,13 @@ const CASHIER_CANCEL_MAX_SECONDS = 600;
  */
 const OFFLINE_MAX_BACKDATE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Oflayn hisob-kitobda olingan pul server hisobidan farq qilganda tuzatish
+ * sababiga yoziladigan belgi — o'yinlar tarixida va hisobotda shu so'z bilan
+ * qidiriladi (masalan, boshqa kassada qo'shilgan ichimlik to'lanmay qolgan).
+ */
+const OFFLINE_MISMATCH_REASON = 'Oflayn hisob-kitob farqi';
+
 /** Segment bo'yicha hisoblangan bandning ko'rinishi (chek/receipt uchun) */
 interface SegmentBillingItem {
   id: number;
@@ -615,6 +622,17 @@ export class SessionsService {
     if (dto.adjustment && user.role !== UserRole.ADMIN && user.role !== UserRole.SUPERADMIN) {
       throw new ForbiddenException({ key: 'sessions.adjustmentForbidden' });
     }
+    /**
+     * OFLAYN HISOB-KITOB (navbatdan kelgan, `offlineAt` bor): kassir internetsiz
+     * paytda mijozdan pulni ALLAQACHON olgan. Shuning uchun:
+     *  - yakunlash vaqti — o'sha "Yakunlash" bosilgan payt (chegaralangan);
+     *  - bar yoki to'lov summasi server hisobidan farq qilsa RAD ETILMAYDI
+     *    (rad etish olingan pulni "yo'q" qilmaydi, faqat navbatni to'xtatadi):
+     *    haqiqatda olingan summa yoziladi, farq tuzatish sifatida muhrlanadi
+     *    va audit jurnali + o'yinlar tarixida admin'ga ko'rinadi.
+     * Onlayn oqim (offlineAt yo'q) avvalgidek: 409 va paymentsMismatch himoyasi.
+     */
+    const offline = dto.offlineAt !== undefined;
     const result = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status !== SessionStatus.ACTIVE && session.status !== SessionStatus.PAUSED) {
@@ -626,8 +644,24 @@ export class SessionsService {
         lock: { mode: 'pessimistic_write' },
       });
 
+      // Segmentlar vaqtdan OLDIN o'qiladi: oflayn yakunlash vaqti oxirgi segment
+      // (transfer) boshlanishidan oldin bo'la olmaydi
+      const segments = await manager.find(SessionSegment, {
+        where: { sessionId: session.id },
+        order: { startedAt: 'ASC', id: 'ASC' },
+      });
+
       // Davomiylik: pauza vaqtlari ayiriladi (joriy tugallanmagan pauza ham)
-      const endTime = new Date();
+      const floorMs = Math.max(
+        new Date(session.startTime).getTime(),
+        session.status === SessionStatus.PAUSED && session.pausedAt
+          ? new Date(session.pausedAt).getTime()
+          : 0,
+        ...segments.map((s) => new Date(s.startedAt).getTime()),
+      );
+      const [endTime, endClamped] = offline
+        ? this.clampOfflineAt(dto.offlineAt, new Date(floorMs))
+        : [new Date(), false];
       const currentPauseMs =
         session.status === SessionStatus.PAUSED && session.pausedAt
           ? Math.max(0, endTime.getTime() - new Date(session.pausedAt).getTime())
@@ -642,10 +676,6 @@ export class SessionsService {
       const durationMinutes = Math.ceil(durationSeconds / 60);
 
       // Segmentlarni yopamiz va stol summasini segmentlar bo'yicha hisoblaymiz
-      const segments = await manager.find(SessionSegment, {
-        where: { sessionId: session.id },
-        order: { startedAt: 'ASC', id: 'ASC' },
-      });
       const openSegment = segments.find((s) => !s.endedAt);
       if (openSegment) {
         // Joriy pauza ochiq segmentga yoziladi (resume bo'lmagan, sessiya pauzada yakunlandi)
@@ -688,7 +718,9 @@ export class SessionsService {
       // ko'rib turgan bo'ladi — jimgina noto'g'ri pul olinmasligi uchun 409
       // qaytaramiz, klient chekni yangilab, yangi summani qayta tasdiqlaydi.
       // Stol vaqti tekshirilmaydi: u har soniyada o'sadi (soxta rad etish bo'lardi).
+      // OFLAYN yakunlashda rad etilmaydi — farq pastda to'lov bilan solishtiriladi.
       if (
+        !offline &&
         dto.expectedBarAmount !== undefined &&
         Math.abs(round2(dto.expectedBarAmount) - barAmount) > 0.01
       ) {
@@ -699,15 +731,21 @@ export class SessionsService {
       }
 
       const gross = round2(tableAmount + barAmount);
-      const discount = round2(dto.discount ?? 0);
+      // Oflaynda boshqa terminal bar buyurtmasini bekor qilgan bo'lsa, kassir
+      // ko'rgan chegirma yangi summadan katta chiqishi mumkin — kesamiz
+      const discount = offline
+        ? Math.min(round2(dto.discount ?? 0), gross)
+        : round2(dto.discount ?? 0);
       if (discount < 0 || discount > gross) {
         throw new BadRequestException({ key: 'sessions.invalidDiscount' });
       }
 
       // Qo'lda tuzatish: musbat — ustama, manfiy — qo'shimcha chegirma (sabab majburiy)
-      const adjustmentAmount = round2(dto.adjustment?.amount ?? 0);
-      const adjustmentReason = dto.adjustment ? dto.adjustment.reason.trim() : null;
-      const totalAmount = Math.max(0, round2(gross - discount + adjustmentAmount));
+      let adjustmentAmount = round2(dto.adjustment?.amount ?? 0);
+      let adjustmentReason = dto.adjustment ? dto.adjustment.reason.trim() : null;
+      let totalAmount = Math.max(0, round2(gross - discount + adjustmentAmount));
+      /** Oflayn hisob-kitobda olingan pul server hisobidan farq qilsa — to'ldiriladi */
+      let offlineMismatch: { expected: number; collected: number; difference: number } | null = null;
 
       // Qarz hisobi
       const isDebt = dto.isDebt === true;
@@ -750,7 +788,7 @@ export class SessionsService {
         }
       }
 
-      const paidNow = round2(totalAmount - totalDebt);
+      let paidNow = round2(totalAmount - totalDebt);
 
       // Bo'lib to'lash: BO'SH ro'yxat berilmagani kabi qabul qilinadi (100% qarz holati);
       // berilsa yig'indi hozir to'lanadigan summaga teng bo'lishi shart
@@ -769,10 +807,24 @@ export class SessionsService {
         const driftAllowance = round2(
           (this.maxPricePerHour(segments, session) * PAYMENT_DRIFT_SECONDS) / 3600 + 0.01,
         );
-        if (diff < -0.01 || diff > driftAllowance) {
+        // OFLAYN: kassa vaqti oflayn muhrga teng, ya'ni farq faqat boshqa
+        // terminaldagi o'zgarish (bar, bekor qilingan buyurtma) yoki kesilgan
+        // vaqtdan bo'ladi. Pul allaqachon olingan — yoziladi, farq muhrlanadi.
+        if (offline && (diff < -0.01 || diff > driftAllowance)) {
+          offlineMismatch = {
+            expected: paidNow,
+            collected: paymentsSum,
+            difference: round2(paymentsSum - paidNow),
+          };
+          adjustmentAmount = round2(adjustmentAmount + offlineMismatch.difference);
+          adjustmentReason = [adjustmentReason, OFFLINE_MISMATCH_REASON].filter(Boolean).join(' · ');
+          totalAmount = round2(totalAmount + offlineMismatch.difference);
+          paidNow = paymentsSum;
+        } else if (diff < -0.01 || diff > driftAllowance) {
           throw new BadRequestException({ key: 'sessions.paymentsMismatch' });
         }
-        if (diff !== 0) {
+        // Oflayn farq yuqorida summaning o'ziga yozildi — to'lov satrlari o'zgarmaydi
+        if (diff !== 0 && !offlineMismatch) {
           let largest = 0;
           for (let i = 1; i < payments.length; i++) {
             if (payments[i].amount > payments[largest].amount) largest = i;
@@ -857,11 +909,33 @@ export class SessionsService {
         debtId: debtRecord?.id ?? null,
         isDebt: totalDebt > 0,
         segments: segmentItems,
+        endTime: endTime.toISOString(),
+        endClamped,
+        offlineMismatch,
       };
     });
 
+    // Oflayn hisob-kitob — har doim jurnalga: kechikib kelgan pul yozuvi va
+    // (bo'lsa) olingan summa bilan server hisobi farqi egaga izlanadigan bo'lsin
+    if (this.auditService && offline) {
+      this.auditService.log({
+        action: result.offlineMismatch ? 'session.offline_mismatch' : 'session.offline_end',
+        clubId,
+        userId: user.id,
+        actorRole: user.role,
+        entity: 'session',
+        entityId: result.sessionId,
+        meta: {
+          requested: dto.offlineAt ?? null,
+          applied: result.endTime,
+          clamped: result.endClamped,
+          mismatch: result.offlineMismatch,
+        },
+      });
+    }
+
     // Qo'lda tuzatish audit jurnaliga yoziladi (tranzaksiya muvaffaqiyatli yakunlangach)
-    if (this.auditService && result.adjustmentAmount !== 0) {
+    if (this.auditService && result.adjustmentAmount !== 0 && !result.offlineMismatch) {
       this.auditService.log({
         action: 'session.adjust',
         clubId,

@@ -115,6 +115,41 @@ describe('applyQueueToTables', () => {
     expect(result[0].sessions![0].barAmount).toBe(25000);
   });
 
+  it('oflayn hisob-kitob stolni bo‘shatadi — serverdagi sessiya ham, oflayn boshlangani ham', () => {
+    const real = { id: 42, tableId: 2, status: 'active', barAmount: 0 } as Session;
+    const result = applyQueueToTables(
+      [makeTable(1, 1), makeTable(2, 2, [real])],
+      [
+        makeEntry(1, 'session.start', { tableId: 1, startTime: '2026-08-04T09:00:00Z' }),
+        makeEntry(2, 'session.end', { sessionRef: '$local:L1', tableId: 1, amount: 60000 }),
+        makeEntry(3, 'session.end', { sessionRef: '42', tableId: 2, amount: 15000 }),
+      ],
+      NOW,
+    );
+
+    expect(result[0].sessions).toEqual([]);
+    expect(result[0].status).toBe('free');
+    expect(result[1].sessions).toEqual([]);
+    expect(result[1].status).toBe('free');
+  });
+
+  it('hisob-kitobdan keyin o‘sha stolda oflayn YANGI o‘yin boshlanadi', () => {
+    const result = applyQueueToTables(
+      [makeTable(1, 1)],
+      [
+        makeEntry(1, 'session.start', { tableId: 1, startTime: '2026-08-04T08:00:00Z' }),
+        makeEntry(2, 'session.end', { sessionRef: '$local:L1', tableId: 1 }),
+        makeEntry(3, 'session.start', { tableId: 1, startTime: '2026-08-04T09:30:00Z' }),
+      ],
+      NOW,
+    );
+
+    expect(result[0].status).toBe('busy');
+    expect(result[0].sessions).toHaveLength(1);
+    expect(result[0].sessions![0].offlineLocalId).toBe('L3');
+    expect(result[0].sessions![0].startTime).toBe('2026-08-04T09:30:00Z');
+  });
+
   it('XATO holatdagi yozuv qoplanmaydi — u bajarilmagan', () => {
     const result = applyQueueToTables(
       [makeTable(1, 1)],

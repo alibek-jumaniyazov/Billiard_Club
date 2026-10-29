@@ -13,8 +13,12 @@ function logicalState(values, inverted, desired) {
   return states.every((value) => value === states[0]) ? states[0] : !desired;
 }
 
-/** Bounded write + readback cycle. Dependencies keep real-device tests optional. */
-async function executeDevice(device, { verify, forced, write, read, sleep, now = Date.now }) {
+/**
+ * Bounded write + readback cycle. Dependencies keep real-device tests optional.
+ * `delays` — retry schedule; a relay that failed last cycle gets a single attempt
+ * so one dead device cannot stall every other table's command for ~10 s.
+ */
+async function executeDevice(device, { verify, forced, write, read, sleep, now = Date.now, delays = [0, 400, 1200] }) {
   const desired = device.desired === true;
   const physical = device.inverted === true ? !desired : desired;
   const shouldVerify = verify && supportsReadback(device);
@@ -28,7 +32,7 @@ async function executeDevice(device, { verify, forced, write, read, sleep, now =
   if (forced && shouldVerify) actual = await readSafely();
   if (actual === desired) return { ok: true, on: desired, actual, attempts, error: null };
 
-  for (const delay of [0, 400, 1200]) {
+  for (const delay of delays) {
     if (delay) await sleep(delay);
     attempts += 1;
     actual = null;

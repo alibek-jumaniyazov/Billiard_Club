@@ -50,6 +50,12 @@ yo'qolsa, o'rnatilgan ilovalarni yangi versiyaga **yangilab bo'lmaydi**
 Yangi versiya: `mobile/package.json` dagi `version` ni oshiring (versionCode
 avtomatik hisoblanadi: `1.2.3` → `10203`).
 
+Ilova o'z versiyasini user-agent'ga yozadi (`BilliardClubAndroid/<versiya>`,
+`capacitor.config.ts`). Veb-ilova shu bo'yicha eski APK ni aniqlab, ilova ichida
+bir martalik "Yangilash" bannerini ko'rsatadi; APK tizim brauzerida yuklanadi
+(`MainActivity.java` — WebView fayllarni o'zi yuklamaydi). Imzo kaliti har doim
+bir xil bo'lishi SHART — aks holda yangi APK eski ustiga o'rnatilmaydi.
+
 ## Ikonka va splash
 
 `node desktop/build/make-icons.mjs` — desktop, PWA va Android ikonkalari hamda

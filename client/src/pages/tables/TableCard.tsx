@@ -122,6 +122,8 @@ const TableCard = memo(({
   const isOfflineSession = !!session?.offlineLocalId;
   // Preserve online/role restrictions, including local synthetic sessions.
   const offlineBlocked = !online || isOfflineSession;
+  // Hisob-kitob oflayn ham ishlaydi (offline/pos.ts: queueEndSession) — tugma bloklanmaydi,
+  // faqat oflayn rejim haqida eslatma ko'rsatiladi; o'tkazish va bekor qilish bloklangan qoladi.
   const canCancel = !offlineBlocked && (canManage || (!!session &&
     (session.barAmount ?? 0) <= 0 && sessionElapsedMs(session, Date.now() + offsetMs) <= 600_000));
   const hasLight = !!onLightToggle && table.lightControl === true;
@@ -232,8 +234,8 @@ const TableCard = memo(({
             {moreItems.length > 0 && <Dropdown menu={{ items: moreItems }} trigger={['click']} placement="bottomRight">
               <Button icon={<EllipsisOutlined />} aria-label={t('tables.moreActions')} />
             </Dropdown>}
-            {canCheckout && <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : undefined}>
-              <Button className="table-row__primary" type="primary" icon={<DollarOutlined />} disabled={offlineBlocked || pending}
+            {canCheckout && <Tooltip title={offlineBlocked ? t('offline.checkoutOfflineTitle') : undefined}>
+              <Button className="table-row__primary" type="primary" icon={<DollarOutlined />} disabled={pending}
                 onClick={() => onCheckout(table)}>{t('tables.end')}</Button>
             </Tooltip>}
           </> : isBusy ? null : <>
@@ -312,8 +314,8 @@ const TableCard = memo(({
           {moreItems.length > 0 && <Dropdown menu={{ items: moreItems }} trigger={['click']} placement="bottomRight">
             <Button icon={<EllipsisOutlined />} aria-label={t('tables.moreActions')} />
           </Dropdown>}
-          {canCheckout && <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : undefined}>
-            <Button className="pool-card__primary" type="primary" icon={<DollarOutlined />} disabled={offlineBlocked || pending}
+          {canCheckout && <Tooltip title={offlineBlocked ? t('offline.checkoutOfflineTitle') : undefined}>
+            <Button className="pool-card__primary" type="primary" icon={<DollarOutlined />} disabled={pending}
               onClick={() => onCheckout(table)}>{t('tables.end')}</Button>
           </Tooltip>}
         </> : isBusy ? null : <>

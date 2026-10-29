@@ -1,7 +1,7 @@
 {
   "name": "billiard-club-mobile",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Billiard Club — Android ilova (Capacitor qobig'i: serverdagi veb-ilovani ochadi)",
   "scripts": {
     "sync": "cap sync android",

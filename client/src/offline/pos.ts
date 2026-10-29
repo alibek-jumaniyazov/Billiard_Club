@@ -13,10 +13,17 @@
  *     · o'yin boshlash        — stolni band qilish, taymer boshlanishi
  *     · pauza / davom ettirish — vaqt hisobiga ta'sir qiladi, lekin pul yo'q
  *     · bar buyurtmasi        — qo'shimcha yozuv, mavjud summani o'zgartirmaydi
+ *     · hisob-kitob (TO'LIQ to'lov) — mijoz internet uzilgani uchun kutib
+ *       qolmasin. Summa shu kassadagi ma'lumotdan hisoblanadi, serverga
+ *       "Yakunlash" bosilgan VAQT va OLINGAN pul yuboriladi. Server summani
+ *       o'sha paytga qayta hisoblaydi; boshqa terminaldagi o'zgarish tufayli
+ *       farq chiqsa rad etmaydi — olingan pulni yozadi va farqni belgilaydi
+ *       (sessions.service.ts: end), kassirga esa ogohlantirish chiqadi.
  *
  *   INTERNET TALAB QILADI (aniq xabar bilan bloklanadi):
- *     · hisob-kitob (yakunlash), qarz to'lovi, sessiyani bekor qilish,
- *       boshqa stolga ko'chirish, sozlamalar/hisobotlar/xodimlar
+ *     · qarzga yozish va qo'lda tuzatish (mijoz/huquq tekshiruvi serverda),
+ *       qarz to'lovi, sessiyani bekor qilish, boshqa stolga ko'chirish,
+ *       sozlamalar/hisobotlar/xodimlar
  *
  * Taymer OFLAYN HAM to'g'ri yuradi (u `startTime` dan qayta hisoblanadi),
  * shuning uchun aloqa tiklangach yakuniy summa BIR TIYINGA ham yo'qolmaydi:
@@ -148,5 +155,44 @@ export const queueOrder = async (
     labelKey: 'offline.actOrder',
     labelParams: { table: `${table.name} (№${table.number})` },
     meta: { kind: 'order.create', sessionRef: ref, tableId: table.id, amount },
+  });
+};
+
+/**
+ * Hisob-kitobni oflayn yakunlash.
+ *
+ * `payments` HAR DOIM aniq yuboriladi (bitta usul bo'lsa ham): server
+ * kassada haqiqatda olingan summani bilishi shart — u o'z hisobini shu bilan
+ * solishtiradi. `endedAtMs` — "Yakunlash" bosilgan payt (server soatiga
+ * moslangan). Summa AYNAN shu payt bo'yicha hisoblangan bo'lishi kerak —
+ * server ham o'sha paytga hisoblaydi, ya'ni soniya chegarasidan o'tib ketgan
+ * "1 soniyalik" farq ham chiqmaydi.
+ */
+export const queueEndSession = async (
+  table: BilliardTable,
+  session: Session,
+  body: {
+    payments: Array<{ method: string; amount: number }>;
+    discount?: number;
+    expectedBarAmount: number;
+    notes?: string;
+    customerName?: string;
+    customerPhone?: string;
+  },
+  total: number,
+  idempotencyKey: string | undefined,
+  endedAtMs: number,
+): Promise<string> => {
+  const ref = sessionRefOf(session);
+  const at = new Date(endedAtMs).toISOString();
+  return enqueue({
+    scope: requireScope(),
+    idempotencyKey,
+    method: 'put',
+    url: `/sessions/${ref}/end`,
+    body: { ...body, offlineAt: at },
+    labelKey: 'offline.actEnd',
+    labelParams: { table: `${table.name} (№${table.number})` },
+    meta: { kind: 'session.end', sessionRef: ref, tableId: table.id, at, amount: total },
   });
 };

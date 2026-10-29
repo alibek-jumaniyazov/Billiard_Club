@@ -49,6 +49,7 @@ import { fadeUp, hexToRgba, SectionHeading, stagger } from './landing/shared';
 import PainPoints from './landing/PainPoints';
 import ProductShowcase from './landing/ProductShowcase';
 import Highlights from './landing/Highlights';
+import LiveScenes from './landing/LiveScenes';
 import RoiCalculator from './landing/RoiCalculator';
 import Comparison from './landing/Comparison';
 import LeadForm from './landing/LeadForm';
@@ -661,6 +662,9 @@ const Landing = () => {
               </motion.div>
             </div>
           </section>
+
+          {/* ------------------------------------- Jonli sahnalar (rasmli) */}
+          <LiveScenes />
 
           {/* ------------------------------------------------- Jonli demo */}
           <ProductShowcase />

@@ -6,10 +6,10 @@
  * va PWA "ilovani o'rnatish" oqimi jiddiy ko'rinmaydi.
  *
  * Shuning uchun belgi (mark) SVG dan RASTERLANMAYDI — u shu yerda AYNAN
- * o'sha shakllar bilan qaytadan chiziladi: yumaloq burchakli maydon (mato
- * gradienti + oltin chegara), kiy chizig'i, oltin shar, yorqin nur va
- * pastdagi qora tuynuk. client/public/favicon.svg bilan bir xil geometriya
- * va bir xil ranglar (theme/tokens.ts).
+ * o'sha shakllar bilan qaytadan chiziladi: yumaloq burchakli mato maydoni
+ * (chiroq yorug'i + ingichka oltin hoshiya) va "B" monogrammasi — tik kiy
+ * hamda unga tegib turgan ikki fil suyagi shar. client/public/favicon.svg va
+ * BrandLogo.tsx bilan bir xil geometriya (MARK) va ranglar (theme/tokens.ts).
  *
  * 4x supersampling + qutili (box) kichraytirish antialiasing beradi.
  * PNG Node ning o'z `zlib` i bilan kodlanadi, ICO esa PNG ramkalarini
@@ -29,15 +29,32 @@ const REPO = resolve(HERE, '../..');
 
 /* ------------------------------------------------------- Ranglar (tokens) */
 
-const FELT_TOP = [0x1f, 0x6e, 0x47];
-const FELT_BOTTOM = [0x0b, 0x23, 0x18];
-const GOLD_LIGHT = [0xdc, 0xc0, 0x7e];
-const GOLD = [0xcf, 0xae, 0x62];
-const GOLD_DARK = [0xb3, 0x92, 0x4a];
-const CUE = [0xef, 0xe9, 0xdd];
-const HOLE = [0x0b, 0x23, 0x18];
+const FELT_TOP = [0x18, 0x77, 0x4c];
+const FELT_BOTTOM = [0x08, 0x26, 0x1a];
+/** Chiroq tushgan mato — belgining yuqorisidagi yumshoq yorug'lik */
+const FELT_LIT = [0x23, 0xa0, 0x66];
+const GOLD_LIGHT = [0xe8, 0xc6, 0x77];
+const GOLD = [0xdb, 0xb3, 0x5c];
+const GOLD_DARK = [0xbd, 0x95, 0x4a];
+const IVORY_LIGHT = [0xff, 0xff, 0xff];
+const IVORY = [0xf3, 0xee, 0xe2];
+const IVORY_SHADE = [0xc4, 0xb9, 0xa2];
+const SHADOW = [0x03, 0x12, 0x0b];
 /** Zal foni (tokens bg0) — Android splash ekrani */
-const HALL = [0x0b, 0x0d, 0x0c];
+const HALL = [0x09, 0x0c, 0x0b];
+
+/**
+ * BELGI GEOMETRIYASI (48x48) — client/public/favicon.svg va BrandLogo.tsx bilan
+ * AYNAN bir xil. "B" monogrammasi: tik turgan kiy (o'zak) + unga tegib turgan
+ * ikki shar (harfning ikki qorni). Kichik o'lchamda ham "B" bo'lib o'qiladi.
+ */
+const MARK = {
+  stem: { x: 13.6, y: 8, w: 5, h: 32, r: 2.5 },
+  ferrule: 2.6,
+  // Sharlar o'zakka ~1 birlik kirib turadi — "B" qorinlari harfga ulanadi
+  top: { cx: 24.9, cy: 15.5, r: 7.5 },
+  bottom: { cx: 25.9, cy: 31.5, r: 8.5 },
+};
 
 /* ------------------------------------------------------- Chizish yordamchilari */
 
@@ -78,44 +95,60 @@ const samplePixel = (x, y, opts) => {
   // Maydon: standart ikonkada 1..47, maskable da butun kvadrat (fon to'liq)
   const left = fullBleed ? 0 : 1;
   const size = fullBleed ? 48 : 46;
-  const radius = fullBleed ? 0 : 11;
+  const radius = fullBleed ? 0 : 12;
 
   if (!insideRoundedRect(x, y, left, left, size, size, radius)) return [0, 0, 0, 0];
 
-  // Mato gradienti (chapdan yuqoridan o'ngga pastga)
+  // Mato: diagonal gradient + tepadan tushgan chiroq yorug'i (stol ustidagi lampa)
   const g = clamp01((x - left) / size / 2 + (y - left) / size / 2);
   let color = mixColor(FELT_TOP, FELT_BOTTOM, g);
+  const lamp = clamp01(1 - Math.hypot((x - 24) / 26, (y - 6) / 22));
+  color = mixColor(color, FELT_LIT, 0.35 * lamp * lamp);
 
-  // Oltin chegara — faqat standart (fullBleed emas) ikonkada
-  if (!fullBleed) {
-    const outer = insideRoundedRect(x, y, left, left, size, size, radius);
-    const inner = insideRoundedRect(x, y, left + 1.5, left + 1.5, size - 3, size - 3, radius - 1.5);
-    if (outer && !inner) color = mixColor(color, GOLD, 0.6);
+  // Ingichka oltin "inkrustatsiya" chizig'i (stol bortidagi kabi) — chetdan
+  // biroz ichkarida; faqat standart (fullBleed emas) ikonkada
+  if (
+    !fullBleed &&
+    !insideRoundedRect(x, y, left + 2.1, left + 2.1, size - 4.2, size - 4.2, radius - 2.1) &&
+    insideRoundedRect(x, y, left + 1.5, left + 1.5, size - 3, size - 3, radius - 1.5)
+  ) {
+    color = mixColor(color, GOLD, 0.7);
   }
 
-  // Kiy chizig'i (9,39) -> (36,12), qalinlik 2.4
-  const cueDist = distanceToSegment(x, y, 9, 39, 36, 12);
-  if (cueDist <= 1.2) color = mixColor(color, CUE, 0.75);
+  const { stem, ferrule, top, bottom } = MARK;
 
-  // Oltin shar: markaz (29,28), radius 10, radial gradient (0.35, 0.3)
-  const ballDx = x - 29;
-  const ballDy = y - 28;
-  const ballDist = Math.hypot(ballDx, ballDy);
-  if (ballDist <= 10) {
-    // Gradient markazi shardan yuqori-chapda — hajm hissi
-    const gx = 29 - 10 * 0.3;
-    const gy = 28 - 10 * 0.4;
-    const t = clamp01(Math.hypot(x - gx, y - gy) / (10 * 1.6));
-    color = t < 0.55 ? mixColor(GOLD_LIGHT, GOLD, t / 0.55) : mixColor(GOLD, GOLD_DARK, (t - 0.55) / 0.45);
+  // Yumshoq soya (pastga-o'ngga): belgi mato ustida "turadi"
+  const ballShadow = (b) => clamp01((b.r + 1 - Math.hypot(x - b.cx - 0.8, y - b.cy - 1.3)) / 2);
+  const stemAxis = stem.x + stem.w / 2 + 0.8;
+  const stemShadow = clamp01(
+    (stem.w / 2 + 1 - distanceToSegment(x, y, stemAxis, stem.y + 1.3 + stem.r, stemAxis, stem.y + stem.h + 1.3 - stem.r)) / 2,
+  );
+  const shadow = Math.max(ballShadow(top), ballShadow(bottom), stemShadow);
+  if (shadow > 0) color = mixColor(color, SHADOW, 0.5 * shadow);
+
+  // O'zak — kiy: oltin silindr (chapda yaltirash), tepasida fil suyagi ferrul
+  if (insideRoundedRect(x, y, stem.x, stem.y, stem.w, stem.h, stem.r)) {
+    const along = (y - stem.y) / stem.h;
+    const across = (x - stem.x) / stem.w;
+    let c = mixColor(GOLD_LIGHT, GOLD_DARK, clamp01(along * 0.55 + across * 0.55));
+    c = mixColor(c, IVORY_LIGHT, 0.35 * clamp01(1 - Math.abs(across - 0.3) / 0.2));
+    if (y < stem.y + ferrule) c = mixColor(IVORY_LIGHT, IVORY_SHADE, across);
+    else if (y < stem.y + ferrule + 0.5) c = mixColor(c, GOLD_DARK, 0.6);
+    color = c;
   }
 
-  // Yorqin nur (25.5, 24.5) r=3
-  const glowDist = Math.hypot(x - 25.5, y - 24.5);
-  if (glowDist <= 3) color = mixColor(color, [255, 255, 255], 0.55 * (1 - glowDist / 3));
-
-  // Qora tuynuk (31, 30.5) r=4.4
-  const holeDist = Math.hypot(x - 31, y - 30.5);
-  if (holeDist <= 4.4) color = mixColor(color, HOLE, 0.9);
+  // Sharlar — fil suyagi, yorug'lik yuqori-chapdan, chetida ingichka kontur
+  const ball = (b) => {
+    const d = Math.hypot(x - b.cx, y - b.cy);
+    if (d > b.r) return null;
+    const t = clamp01(Math.hypot(x - (b.cx - b.r * 0.38), y - (b.cy - b.r * 0.42)) / (b.r * 1.55));
+    let c = t < 0.45 ? mixColor(IVORY_LIGHT, IVORY, t / 0.45) : mixColor(IVORY, IVORY_SHADE, (t - 0.45) / 0.55);
+    c = mixColor(c, IVORY_SHADE, 0.55 * clamp01((d - b.r * 0.84) / (b.r * 0.16)));
+    const spec = Math.hypot(x - (b.cx - b.r * 0.36), y - (b.cy - b.r * 0.44)) / (b.r * 0.24);
+    if (spec < 1) c = mixColor(c, IVORY_LIGHT, 0.85 * (1 - spec));
+    return c;
+  };
+  color = ball(top) ?? ball(bottom) ?? color;
 
   return [Math.round(color[0]), Math.round(color[1]), Math.round(color[2]), 255];
 };

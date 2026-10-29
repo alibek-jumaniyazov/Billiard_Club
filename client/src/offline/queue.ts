@@ -126,6 +126,25 @@ export const onQueueChange = (fn: Listener): (() => void) => {
   return () => listeners.delete(fn);
 };
 
+/**
+ * Yuborilgan amal haqida kassir BILISHI SHART bo'lgan server natijasi.
+ * Hozircha bitta tur: oflayn hisob-kitobda olingan pul server hisobidan farq
+ * qildi (boshqa kassada bar o'zgargan) — server rad etmaydi, lekin kassir
+ * mijoz bilan hal qilishi uchun darhol ogohlantiriladi.
+ */
+export interface SyncNotice {
+  kind: 'offlineMismatch';
+  labelParams?: Record<string, string | number>;
+  expected: number;
+  collected: number;
+  difference: number;
+}
+const noticeListeners = new Set<(notice: SyncNotice) => void>();
+export const onSyncNotice = (fn: (notice: SyncNotice) => void): (() => void) => {
+  noticeListeners.add(fn);
+  return () => noticeListeners.delete(fn);
+};
+
 export const queueList = async (): Promise<QueueEntry[]> => {
   const rows = await idbGetAll<QueueEntry>(STORE_QUEUE);
   return rows.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
@@ -310,7 +329,14 @@ const flushWithLock = async (scope: string): Promise<FlushResult> => {
           },
         });
         // Javobdagi haqiqiy ID ni lokal havolaga bog'laymiz
-        const id = (res.data as { data?: { id?: number } })?.data?.id;
+        const data = (res.data as {
+          data?: { id?: number; offlineMismatch?: Omit<SyncNotice, 'kind' | 'labelParams'> | null };
+        })?.data;
+        const id = data?.id;
+        if (data?.offlineMismatch) {
+          const notice: SyncNotice = { kind: 'offlineMismatch', labelParams: row.labelParams, ...data.offlineMismatch };
+          noticeListeners.forEach((fn) => fn(notice));
+        }
         if (row.seq === undefined || !(await completeQueueEntry(row.seq, row.localId, typeof id === 'number' ? id : undefined))) {
           // Keep the original idempotency key; replay recovers an acknowledged response.
           return { sent, blocked: true, offline: false };
