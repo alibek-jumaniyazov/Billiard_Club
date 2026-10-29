@@ -14,19 +14,22 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { errorMessage, isNetworkError, lightsApi, sessionsApi, tablesApi } from '../../api';
+import { errorMessage, isNetworkError, lightsApi, reservationsApi, sessionsApi, tablesApi } from '../../api';
 import { EmptyState, PageHeader, PageTransition } from '../../components/ui';
+import { useCurrency } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useConnection } from '../../context/ConnectionContext';
 import { applyQueueToTables } from '../../offline/overlay';
 import { newActionKey, queuePauseResume } from '../../offline/pos';
-import type { BilliardTable, Session, TableLightConfig } from '../../types';
+import type { BilliardTable, Reservation, Session, TableLightConfig } from '../../types';
+import { formatClock } from '../../utils/format';
 import {
   clockOffsetMs,
   initialSegmentOf,
   segmentsMatchSession,
   type SegmentLike,
 } from '../../utils/session';
+import BoardMoneyStrip from './BoardMoneyStrip';
 import CheckoutDrawer from './CheckoutDrawer';
 import LightSettingsDrawer from './LightSettingsDrawer';
 import ManageTablesDrawer from './ManageTablesDrawer';
@@ -103,6 +106,7 @@ const TablesPage = () => {
     return next;
   }, { replace: true });
 
+  const currency = useCurrency();
   const canCheckout = hasRole('admin', 'kassir', 'superadmin');
   const canManage = hasRole('admin', 'superadmin');
 
@@ -562,6 +566,90 @@ const TablesPage = () => {
   }, [focusedTableId, focusedTableVisible]);
   const views: TableView[] = ['all', 'free', 'busy', 'paused', 'attention'];
 
+  /**
+   * Zonalar: kamida bitta stolda zona bo'lsa panel zallar bo'yicha guruhlanadi
+   * (tartib — stollar tartibidagi birinchi uchrashuv). Zonasiz stollar
+   * "Boshqa stollar" guruhiga tushadi.
+   */
+  const zoneGroups = useMemo(() => {
+    if (!displayedTables.some((table) => table.zone?.trim())) return null;
+    const groups = new Map<string, BilliardTable[]>();
+    for (const table of displayedTables) {
+      const key = table.zone?.trim() ?? '';
+      groups.set(key, [...(groups.get(key) ?? []), table]);
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => Number(a === '') - Number(b === ''))
+      .map(([zone, list]) => ({ zone, list, busy: list.filter((table) => table.status === 'busy').length }));
+  }, [displayedTables]);
+
+  /** Yaqin bronlar (6 soat ichida) — har stol uchun eng yaqini kartada ko'rinadi */
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  useEffect(() => {
+    if (!online) return;
+    let alive = true;
+    const load = () => {
+      const from = new Date(Date.now() - 30 * 60_000);
+      const to = new Date(Date.now() + 6 * 3600_000);
+      reservationsApi
+        .list({ from: from.toISOString(), to: to.toISOString(), limit: 100 })
+        .then((res) => {
+          if (alive) setReservations(res.data ?? []);
+        })
+        .catch(() => {
+          /* bron belgisi ikkilamchi — xatoda jim */
+        });
+    };
+    load();
+    const id = window.setInterval(load, 60_000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [online]);
+  const reservationByTable = useMemo(() => {
+    const map = new Map<number, string>();
+    const upcoming = reservations
+      .filter((r) => r.status === 'pending' || r.status === 'confirmed')
+      .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+    for (const r of upcoming) {
+      if (map.has(r.tableId)) continue;
+      const name = r.customerName || r.customer?.name;
+      map.set(r.tableId, `${t('tables.reservationChip', { time: formatClock(r.startsAt) })}${name ? ` · ${name}` : ''}`);
+    }
+    return map;
+  }, [reservations, t]);
+
+  const renderTable = (table: BilliardTable) => {
+    const session = table.sessions?.[0] ?? null;
+    return (
+      <TableCard
+        key={table.id}
+        variant={density === 'compact' ? 'row' : 'card'}
+        table={table}
+        focused={table.id === focusedTableId}
+        session={session}
+        segments={session ? (segmentsMap[session.id] ?? null) : null}
+        offsetMs={offsetMs}
+        online={online}
+        pending={!!session && pendingIds.has(session.id)}
+        lightPending={pendingLights.has(table.id)}
+        canCheckout={canCheckout}
+        canManage={canManage}
+        reservation={reservationByTable.get(table.id)}
+        onStart={openStart}
+        onOrder={openOrder}
+        onTransfer={openTransfer}
+        onCheckout={openCheckout}
+        onPauseResume={handlePauseResume}
+        onCancel={handleCancel}
+        onLightToggle={handleLightToggle}
+        onLightAuto={handleLightAuto}
+        onPlanChange={handlePlanChange}
+      />
+    );
+  };
+
   /* -------------------------------------------------------------- Render */
 
   return (
@@ -598,6 +686,17 @@ const TablesPage = () => {
           </>
         }
       />
+
+      {viewTables.length > 0 && (
+        <BoardMoneyStrip
+          tables={viewTables}
+          segmentsMap={segmentsMap}
+          offsetMs={offsetMs}
+          currency={currency}
+          showShift={canCheckout}
+          online={online}
+        />
+      )}
 
       <div className="tables-overview" aria-label={t('tables.boardSummary')}>
         <div className="tables-overview__occupancy">
@@ -681,36 +780,22 @@ const TablesPage = () => {
       ) : displayedTables.length === 0 ? (
         <EmptyState icon={<SearchOutlined />} title={t('tables.noMatchingTables')} hint={t('tables.noMatchingHint')}
           action={<Button onClick={() => { setSearch(''); changeView('all'); }}>{t('tables.clearFilters')}</Button>} />
+      ) : zoneGroups ? (
+        /* Zonalar bo'yicha: har zal o'z sarlavhasi va band/bo'sh soni bilan */
+        zoneGroups.map((group) => (
+          <section key={group.zone || '__none'} className="tables-zone" aria-label={group.zone || t('tables.zoneOther')}>
+            <header className="tables-zone__head">
+              <h3>{group.zone || t('tables.zoneOther')}</h3>
+              <span>{t('tables.zoneCounts', { busy: group.busy, free: group.list.length - group.busy })}</span>
+            </header>
+            <div className={`tables-board-grid tables-board-grid--${density}`}>
+              {group.list.map(renderTable)}
+            </div>
+          </section>
+        ))
       ) : (
         <div className={`tables-board-grid tables-board-grid--${density}`}>
-          {displayedTables.map((table) => {
-            const session = table.sessions?.[0] ?? null;
-            return (
-                <TableCard
-                  key={table.id}
-                  variant={density === 'compact' ? 'row' : 'card'}
-                  table={table}
-                  focused={table.id === focusedTableId}
-                  session={session}
-                  segments={session ? (segmentsMap[session.id] ?? null) : null}
-                  offsetMs={offsetMs}
-                  online={online}
-                  pending={!!session && pendingIds.has(session.id)}
-                  lightPending={pendingLights.has(table.id)}
-                  canCheckout={canCheckout}
-                  canManage={canManage}
-                  onStart={openStart}
-                  onOrder={openOrder}
-                  onTransfer={openTransfer}
-                  onCheckout={openCheckout}
-                  onPauseResume={handlePauseResume}
-                  onCancel={handleCancel}
-                  onLightToggle={handleLightToggle}
-                  onLightAuto={handleLightAuto}
-                  onPlanChange={handlePlanChange}
-                />
-            );
-          })}
+          {displayedTables.map(renderTable)}
         </div>
       )}
 

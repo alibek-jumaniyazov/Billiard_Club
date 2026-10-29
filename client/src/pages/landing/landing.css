@@ -37,15 +37,13 @@ html { scroll-behavior: smooth; }
 /* CTA — jonli oltin gradient sekin oqadi (faqat background-position animatsiya) */
 .lp-cta-btn.ant-btn {
   border: none !important;
-  color: #141210 !important;
+  color: #15130e !important;
   font-weight: 700 !important;
-  background-image: linear-gradient(100deg, var(--gold-active) 0%, var(--gold-hover) 22%, var(--gold) 45%, var(--gold-hover) 68%, var(--gold-active) 100%) !important;
-  background-size: 220% 100% !important;
-  box-shadow: 0 6px 22px var(--gold-glow);
-  animation: lp-cta-slide 4.5s linear infinite;
+  background: var(--gold) !important;
+  box-shadow: none;
 }
-.lp-cta-btn.ant-btn:hover { filter: brightness(1.07); }
-.lp-cta-btn.ant-btn:active { filter: brightness(0.95); }
+.lp-cta-btn.ant-btn:hover { background: var(--gold-hover) !important; }
+.lp-cta-btn.ant-btn:active { background: var(--gold-active) !important; }
 @keyframes lp-cta-slide { from { background-position: 0% 50%; } to { background-position: 220% 50%; } }
 /* Konturli tugma — hoverdan oldin ham aniq ko'rinadi */
 .lp-outline-btn.ant-btn { color: var(--gold) !important; border: 1px solid var(--gold-line) !important; background: var(--gold-subtle) !important; font-weight: 600 !important; }
@@ -54,10 +52,36 @@ html { scroll-behavior: smooth; }
 /* --------------------------------------------------------------- Sarlavha */
 .lp-heading { text-align: center; max-width: 700px; margin: 0 auto clamp(32px, 5vw, 52px); }
 .lp-heading__overline { color: var(--gold); letter-spacing: 3px; font-size: 13px; font-weight: 700; text-transform: uppercase; }
-.lp-heading__title { font-size: clamp(26px, 3.5vw, 38px); color: var(--text-primary); font-weight: 800; margin: 12px 0 14px; line-height: 1.2; letter-spacing: -0.01em; }
+.lp-heading__title { font-family: var(--font-display); font-size: clamp(24px, 3.2vw, 38px); color: var(--text-primary); font-weight: 700; margin: 12px 0 14px; line-height: 1.15; letter-spacing: -0.03em; }
 .lp-heading__subtitle { color: var(--text-secondary); font-size: 16px; line-height: 1.65; margin: 0; }
 
 /* ------------------------------------------------------------------- Hero */
+/* Minimal: qorong'i zal + stol ustida osilgan chiroq nuri */
+.lp-hero { background: var(--bg0); }
+.lp-hero-lamp { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 38% 55% at 76% 18%, rgba(255, 232, 170, .10), transparent 70%),
+    radial-gradient(ellipse 60% 70% at 76% 40%, rgba(31, 110, 71, .16), transparent 72%); }
+@media (max-width: 991px) { .lp-hero-lamp { background: radial-gradient(ellipse 80% 45% at 50% 62%, rgba(31, 110, 71, .18), transparent 72%); } }
+.lp-hero-title { margin: 22px 0 18px; font-family: var(--font-display); font-size: clamp(30px, 4.6vw, 58px); font-weight: 750; line-height: 1.06; letter-spacing: -.035em; color: var(--text-primary); }
+.lp-platforms { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.lp-platform { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--text-secondary); font-size: 13px; font-weight: 600; transition: color .2s, border-color .2s; }
+.lp-platform:hover { color: var(--text-primary); border-color: var(--gold-line); }
+.lp-platform .anticon { font-size: 15px; color: var(--text-primary); }
+/* Tablo — stol ostidagi jonli vaqt va summa (mis ramka, monoshrift raqamlar) */
+.lp-scoreboard { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: min(92%, 460px); margin: 18px auto 0; padding: 12px 18px; border-radius: 14px; border: 1px solid rgba(207, 174, 98, .3); background: linear-gradient(180deg, #121411, #0c0d0b); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 12px 30px rgba(0, 0, 0, .45); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.lp-scoreboard__table { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+.lp-scoreboard__table i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-style: normal; font-family: var(--font-display); font-size: 11px; color: #1a1712; background: radial-gradient(circle at 32% 28%, #fff6cf 0%, #e9c457 34%, #a8801f 100%); }
+.lp-scoreboard__time { font-size: clamp(20px, 2.6vw, 26px); font-weight: 600; color: var(--ivory); text-shadow: 0 0 14px rgba(255, 236, 190, .18); }
+.lp-scoreboard__sum { display: inline-flex; align-items: baseline; gap: 6px; font-size: clamp(16px, 2vw, 20px); font-weight: 600; color: var(--gold); }
+.lp-scoreboard__sum small { font-size: 11px; color: var(--text-tertiary); font-family: var(--font-display); }
+@media (max-width: 420px) { .lp-scoreboard { padding: 10px 12px; gap: 8px; } .lp-scoreboard__table { letter-spacing: .04em; } }
+/* Imkoniyat kartasi — minimal: ingichka chegara, ikonka, matn */
+.lp-feature { height: 100%; padding: 22px; border: 1px solid var(--border-base); border-radius: 16px; background: var(--bg1); transition: border-color .2s; }
+.lp-feature:hover { border-color: var(--gold-line); }
+.lp-feature__icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: var(--bg2); color: var(--gold); font-size: 18px; }
+.lp-feature h3 { margin: 16px 0 8px; font-size: 15.5px; font-weight: 700; line-height: 1.35; color: var(--text-primary); }
+.lp-feature p { margin: 0; font-size: 14px; line-height: 1.65; color: var(--text-secondary); }
 .lp-hero-trust { list-style: none; padding: 0; margin: 20px 0 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
 .lp-hero-trust li { display: flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--text-secondary); }
 .lp-hero-trust .anticon { color: var(--emerald-glow); }
@@ -241,7 +265,7 @@ html { scroll-behavior: smooth; }
 .lp-highlight { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: clamp(28px, 5vw, 64px); }
 .lp-highlight.is-reversed .lp-highlight__text { order: 2; }
 .lp-highlight__badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--gold-line); background: var(--gold-subtle); color: var(--gold); font-size: 13px; font-weight: 600; }
-.lp-highlight h2 { margin: 16px 0 14px; font-size: clamp(26px, 3.2vw, 36px); font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; color: var(--text-primary); }
+.lp-highlight h2 { margin: 16px 0 14px; font-family: var(--font-display); font-size: clamp(22px, 2.8vw, 34px); font-weight: 700; line-height: 1.15; letter-spacing: -0.03em; color: var(--text-primary); }
 .lp-highlight__text > p { margin: 0 0 20px; font-size: 16px; line-height: 1.7; color: var(--text-secondary); }
 .lp-check-list { list-style: none; margin: 0 0 24px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .lp-check-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.5; color: var(--text-primary); }
@@ -397,7 +421,7 @@ html { scroll-behavior: smooth; }
 .lp-contact-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; gap: 24px; }
 .lp-lead { position: relative; padding: clamp(20px, 3vw, 32px); border: 1px solid var(--gold-line); border-radius: 20px; background: linear-gradient(170deg, rgba(212, 175, 55, 0.08), rgba(255, 255, 255, 0.02) 40%), var(--bg1); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28); }
 .lp-lead__badge { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px; background: var(--emerald-deep); color: var(--emerald-glow); font-size: 12.5px; font-weight: 600; }
-.lp-lead__head h3 { margin: 14px 0 8px; font-size: clamp(22px, 2.6vw, 28px); font-weight: 800; line-height: 1.25; color: var(--text-primary); }
+.lp-lead__head h3 { margin: 14px 0 8px; font-family: var(--font-display); font-size: clamp(19px, 2.2vw, 24px); font-weight: 700; line-height: 1.25; letter-spacing: -0.02em; color: var(--text-primary); }
 .lp-lead__head p { margin: 0 0 20px; font-size: 14.5px; line-height: 1.6; color: var(--text-secondary); }
 .lp-lead__grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; }
 .lp-lead .ant-form-item { margin-bottom: 14px; }
@@ -428,7 +452,7 @@ html { scroll-behavior: smooth; }
 /* ------------------------------------------------------------ Yakuniy CTA */
 .lp-final { padding-top: clamp(24px, 4vw, 40px); }
 .lp-final__card { position: relative; overflow: hidden; text-align: center; padding: clamp(36px, 6vw, 72px) clamp(18px, 5vw, 64px); border: 1px solid var(--gold-line); border-radius: 28px; background: radial-gradient(ellipse at 50% -20%, rgba(212, 175, 55, 0.22), transparent 60%), linear-gradient(160deg, var(--emerald-deep), var(--bg1) 70%); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35); }
-.lp-final__card h2 { max-width: 760px; margin: 0 auto 14px; font-size: clamp(28px, 4vw, 44px); font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; color: var(--text-primary); }
+.lp-final__card h2 { max-width: 760px; margin: 0 auto 14px; font-family: var(--font-display); font-size: clamp(24px, 3.6vw, 42px); font-weight: 700; line-height: 1.12; letter-spacing: -0.03em; color: var(--text-primary); }
 .lp-final__card > p { max-width: 600px; margin: 0 auto 22px; font-size: 17px; line-height: 1.6; color: var(--text-secondary); }
 .lp-final__points { list-style: none; margin: 0 0 28px; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; }
 .lp-final__points li { display: flex; align-items: center; gap: 8px; font-size: 14.5px; color: var(--text-primary); }
@@ -461,3 +485,6 @@ html { scroll-behavior: smooth; }
   .lp-plan-glow::before, .lp-cta-btn.ant-btn, .lp-window__live::before { animation: none; }
   .lp-pain-card:hover, .lp-contact-card:hover { transform: none; }
 }
+
+/* Bo'limlar orasidagi ingichka chiziq */
+.lp-divider { max-width: 1180px; height: 1px; margin: 0 auto; background: var(--border-subtle); }

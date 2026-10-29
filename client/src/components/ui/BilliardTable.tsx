@@ -136,10 +136,13 @@ const BilliardTable = ({ style, className, hint, ariaLabel }: BilliardTableProps
 
     /** O'lchamni (DPR bilan) moslash va stol geometriyasini hisoblash */
     const resize = () => {
-      const rect = wrap.getBoundingClientRect();
+      // clientWidth/Height — LAYOUT o'lchami: ota elementdagi kirish animatsiyasi
+      // (scale 0.96 → 1) transformi uni o'zgartirmaydi. getBoundingClientRect esa
+      // transformni hisobga olardi va canvas 4% tor bo'lib, o'ng cheti kesilib qolardi
+      // (transform tugaganda ResizeObserver qayta ishga tushmaydi).
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = Math.max(1, rect.width);
-      const h = Math.max(1, rect.height);
+      const w = Math.max(1, wrap.clientWidth);
+      const h = Math.max(1, wrap.clientHeight);
       S.w = w;
       S.h = h;
       canvas.width = Math.round(w * dpr);

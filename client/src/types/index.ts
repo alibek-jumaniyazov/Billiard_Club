@@ -106,6 +106,8 @@ export interface BilliardTable {
   pricePerHour: number;
   status: TableStatus;
   description: string | null;
+  /** Zona / zal ("VIP zal", "Pul") — panel shu bo'yicha guruhlanadi */
+  zone?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -754,7 +756,7 @@ export interface PlatformConfig {
 }
 
 /** Desktop dastur qaysi platforma uchun */
-export type ReleasePlatform = 'win' | 'mac' | 'linux';
+export type ReleasePlatform = 'win' | 'mac' | 'linux' | 'android';
 
 /**
  * Desktop dasturning nashr etilgan relizi (/download sahifasi uchun).

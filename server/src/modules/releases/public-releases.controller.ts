@@ -7,7 +7,9 @@ import { CHANNEL_FILE, ReleasesService, toPublicRelease } from './releases.servi
 
 /** Kanal fayli nomi -> platforma (electron-updater so'rovini tanish uchun) */
 const FILE_TO_PLATFORM = new Map<string, ReleasePlatform>(
-  Object.entries(CHANNEL_FILE).map(([platform, file]) => [file, platform as ReleasePlatform]),
+  Object.entries(CHANNEL_FILE)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    .map(([platform, file]) => [file, platform as ReleasePlatform]),
 );
 
 /**

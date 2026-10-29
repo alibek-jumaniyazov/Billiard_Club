@@ -28,6 +28,12 @@ export class CreateTableDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  /** Zona / zal — bo'sh satr zonani olib tashlaydi */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  zone?: string;
 }
 
 /** status YO'Q — stol holati faqat sessiya oqimidan boshqariladi */
@@ -53,4 +59,10 @@ export class UpdateTableDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  /** Zona / zal — bo'sh satr zonani olib tashlaydi */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  zone?: string;
 }

@@ -114,6 +114,7 @@ export class TablesService {
       number: dto.number,
       pricePerHour: dto.pricePerHour,
       description: dto.description ?? null,
+      zone: dto.zone?.trim() || null,
     });
   }
 
@@ -154,6 +155,7 @@ export class TablesService {
         ...(dto.number != null ? { number: dto.number } : {}),
         ...(dto.pricePerHour != null ? { pricePerHour: dto.pricePerHour } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.zone !== undefined ? { zone: dto.zone?.trim() || null } : {}),
       });
       return {
         saved: await manager.save(Table, table),

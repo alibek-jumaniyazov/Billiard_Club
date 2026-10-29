@@ -57,6 +57,13 @@ export class Table {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  /**
+   * Zona / zal (masalan "Rus bilyardi", "Pul", "VIP zal") — stollar paneli shu
+   * bo'yicha guruhlanadi. null — zonasiz (bitta umumiy ro'yxat).
+   */
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  zone: string | null;
+
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 

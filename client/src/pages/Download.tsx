@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { App, Button, Col, Progress, Row, Space, Spin, Tag, Typography } from 'antd';
 import {
+  AndroidOutlined,
   AppleOutlined,
   CheckCircleOutlined,
   CloudDownloadOutlined,
@@ -9,16 +10,18 @@ import {
   DisconnectOutlined,
   ExclamationCircleOutlined,
   LinuxOutlined,
+  MobileOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   SyncOutlined,
+  ThunderboltOutlined,
   WindowsOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, publicApi } from '../api';
-import { AnimatedBackground, BrandLogo, GlassCard, PageTransition } from '../components/ui';
+import { BrandLogo, GlassCard, PageTransition } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { desktopBridge, isDesktop, type DesktopUpdateStatus } from '../offline/desktop';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -30,27 +33,43 @@ import { mobilePlatform } from '../offline/install';
 const { Paragraph, Text, Title } = Typography;
 const { gold, emerald, semantic, text } = TOKENS.color;
 
-const PAGE_BG = [
-  `radial-gradient(ellipse at 20% 10%, color-mix(in srgb, ${emerald.felt} 45%, transparent), transparent 55%)`,
-  `radial-gradient(ellipse at 80% 90%, ${gold.subtle}, transparent 50%)`,
-].join(', ');
-
 const PLATFORM_ICON: Record<ReleasePlatform, typeof WindowsOutlined> = {
   win: WindowsOutlined,
   mac: AppleOutlined,
   linux: LinuxOutlined,
+  android: AndroidOutlined,
 };
+
+/** «Nima beradi» kartalari: [sarlavha kaliti, tavsif kaliti, ikonka] */
+type Feature = readonly [titleKey: string, descKey: string, icon: typeof WindowsOutlined];
+
+const DESKTOP_FEATURES: readonly Feature[] = [
+  ['featureWindow', 'featureWindowDesc', DesktopOutlined],
+  ['featureOffline', 'featureOfflineDesc', DisconnectOutlined],
+  ['featureUpdates', 'featureUpdatesDesc', SyncOutlined],
+  ['featureGuard', 'featureGuardDesc', SafetyCertificateOutlined],
+];
+
+/** Telefonda desktop afzalliklari (ish stoli, yopilish) mos emas — o'zinikini ko'rsatamiz */
+const ANDROID_FEATURES: readonly Feature[] = [
+  ['featureHome', 'featureHomeDesc', MobileOutlined],
+  ['featureOffline', 'featureOfflineDesc', DisconnectOutlined],
+  ['featureAlwaysNew', 'featureAlwaysNewDesc', SyncOutlined],
+  ['featureLight', 'featureLightDesc', ThunderboltOutlined],
+];
 
 const PLATFORM_LABEL: Record<ReleasePlatform, string> = {
   win: 'download.platformWin',
   mac: 'download.platformMac',
   linux: 'download.platformLinux',
+  android: 'download.platformAndroid',
 };
 
 const REQUIREMENT_KEY: Record<ReleasePlatform, string> = {
   win: 'download.reqWin',
   mac: 'download.reqMac',
   linux: 'download.reqLinux',
+  android: 'download.reqAndroid',
 };
 
 /**
@@ -62,12 +81,24 @@ const REQUIREMENT_KEY: Record<ReleasePlatform, string> = {
  * shunchaki katta tugma boshqa platformani ko'rsatgan bo'ladi.
  */
 const detectPlatform = (): ReleasePlatform | null => {
-  if (mobilePlatform(navigator.userAgent, navigator.maxTouchPoints)) return null;
+  // Android telefonga — APK; iPhone/iPad uchun alohida ilova yo'q (brauzer/PWA)
+  const mobile = mobilePlatform(navigator.userAgent, navigator.maxTouchPoints);
+  if (mobile) return mobile === 'android' ? 'android' : null;
   const uaData = (navigator as { userAgentData?: { platform?: string } }).userAgentData;
   const raw = `${uaData?.platform ?? ''} ${navigator.userAgent}`.toLowerCase();
   if (raw.includes('mac')) return 'mac';
-  if (raw.includes('linux') || raw.includes('android')) return 'linux';
+  if (raw.includes('linux')) return 'linux';
   return 'win';
+};
+
+/** Landing'dagi platforma tugmalari: /download#windows, /download#android */
+const HASH_PLATFORM: Record<string, ReleasePlatform> = {
+  windows: 'win',
+  win: 'win',
+  mac: 'mac',
+  macos: 'mac',
+  linux: 'linux',
+  android: 'android',
 };
 
 /** Baytni odam o'qiydigan ko'rinishga (MB) aylantiradi */
@@ -101,7 +132,7 @@ const Download = () => {
 
   const inDesktop = isDesktop();
   const bridge = desktopBridge();
-  const detected = useMemo(detectPlatform, []);
+  const detected = useMemo(() => HASH_PLATFORM[window.location.hash.replace('#', '')] ?? detectPlatform(), []);
   // Sahifa autentifikatsiyasiz ham ochiladi — shuning uchun `user` bo'lmasligi normal
   const { user } = useAuth();
   const isSuperadmin = user?.role === 'superadmin';
@@ -131,6 +162,7 @@ const Download = () => {
 
   const primary = releases?.find((r) => r.platform === detected) ?? null;
   const others = (releases ?? []).filter((r) => r.platform !== primary?.platform);
+  const isAndroidPage = primary?.platform === 'android';
 
   const notesFor = (r: AppReleaseInfo): string | null =>
     (i18n.language === 'ru' ? r.notesRu : r.notesUz) || r.notesUz || r.notesRu;
@@ -285,8 +317,7 @@ const Download = () => {
 
   return (
     <PageTransition>
-      <div style={{ minHeight: '100vh', background: PAGE_BG, padding: '28px 16px 64px' }}>
-        <AnimatedBackground />
+      <div style={{ minHeight: '100vh', background: TOKENS.color.bg.bg0, padding: '28px 16px 64px' }}>
 
         <div style={{ maxWidth: 940, margin: '0 auto', position: 'relative' }}>
           <Space
@@ -335,6 +366,18 @@ const Download = () => {
               {inDesktop && renderDesktopCard()}
 
               {!inDesktop && primary && renderPrimary(primary)}
+
+              {/* Android: APK Play Market'dan tashqarida — o'rnatish qadamlari */}
+              {!inDesktop && primary?.platform === 'android' && (
+                <GlassCard style={{ padding: 20 }}>
+                  <div style={sectionTitle}>{t('download.androidStepsTitle')}</div>
+                  <ol style={{ margin: 0, paddingLeft: 20, color: text.secondary, fontSize: 14, lineHeight: 1.8 }}>
+                    <li>{t('download.androidStep1')}</li>
+                    <li>{t('download.androidStep2')}</li>
+                    <li>{t('download.androidStep3')}</li>
+                  </ol>
+                </GlassCard>
+              )}
 
               {/* Bo'sh holat IKKI XIL: oddiy mehmon "kutib turing" ni ko'radi,
                   platforma egasi esa buni O'ZI hal qila olishini va qayerdan
@@ -428,6 +471,11 @@ const Download = () => {
                         {t('download.trustSmartScreen')}
                       </Text>
                     )}
+                    {primary.platform === 'android' && (
+                      <Text style={{ color: text.secondary, fontSize: 13 }}>
+                        {t('download.trustPlayProtect')}
+                      </Text>
+                    )}
                     <div>
                       <Text style={{ color: text.tertiary, fontSize: 12 }}>
                         {t('download.trustChecksum')}
@@ -440,16 +488,24 @@ const Download = () => {
                           marginTop: 4,
                         }}
                       >
-                        <Text
-                          code
+                        {/* Bitta blok: inline <code> telefonda har satrni alohida "quti"ga bo'lardi */}
+                        <code
                           style={{
+                            flex: 1,
+                            minWidth: 0,
+                            padding: '6px 10px',
+                            borderRadius: 8,
+                            background: 'var(--bg2)',
+                            border: '1px solid var(--border-base)',
+                            fontFamily: 'var(--font-mono)',
                             fontSize: 11,
+                            lineHeight: 1.6,
                             wordBreak: 'break-all',
                             color: text.secondary,
                           }}
                         >
                           {primary.sha512}
-                        </Text>
+                        </code>
                         <Button
                           size="small"
                           type="text"
@@ -465,16 +521,11 @@ const Download = () => {
 
               {/* Nima beradi */}
               <div>
-                <div style={sectionTitle}>{t('download.featuresTitle')}</div>
+                <div style={sectionTitle}>
+                  {t(isAndroidPage ? 'download.featuresTitleAndroid' : 'download.featuresTitle')}
+                </div>
                 <Row gutter={[12, 12]}>
-                  {(
-                    [
-                      ['featureWindow', 'featureWindowDesc', DesktopOutlined],
-                      ['featureOffline', 'featureOfflineDesc', DisconnectOutlined],
-                      ['featureUpdates', 'featureUpdatesDesc', SyncOutlined],
-                      ['featureGuard', 'featureGuardDesc', SafetyCertificateOutlined],
-                    ] as const
-                  ).map(([titleKey, descKey, Icon]) => (
+                  {(isAndroidPage ? ANDROID_FEATURES : DESKTOP_FEATURES).map(([titleKey, descKey, Icon]) => (
                     <Col xs={24} sm={12} key={titleKey}>
                       <GlassCard style={{ padding: 16, height: '100%' }}>
                         <Space align="start" size={12}>

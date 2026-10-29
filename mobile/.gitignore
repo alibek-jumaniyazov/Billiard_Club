@@ -1,0 +1,3 @@
+node_modules
+# Yig'ilgan APK lar (scripts/build-apk.mjs → dist/)
+dist

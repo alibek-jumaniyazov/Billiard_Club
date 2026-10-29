@@ -4,9 +4,9 @@ export default {
     title: 'Kompyuter va telefon uchun ilova',
     subtitle:
       'Klubingiz bir hisobda: kompyuter, Android va iPhone. O‘rnatish, obuna va saqlash holatini shu yerda tekshiring.',
-    metaTitle: 'Desktop dasturni yuklab olish — Billiard Club',
+    metaTitle: 'Ilovani yuklab olish — Billiard Club',
     metaDesc:
-      'Billiard Club desktop dasturini Windows, macOS va Linux uchun yuklab oling. Avtomatik yangilanadi, internetsiz ishlaydi.',
+      'Billiard Club ilovasini Windows va Android uchun yuklab oling. Avtomatik yangilanadi, internet uzilganda ham ishlaydi.',
 
     downloadFor: '{{platform}} uchun yuklab olish',
     version: 'Versiya {{version}}',
@@ -57,16 +57,30 @@ export default {
     featureUpdatesDesc: 'Yangi versiya chiqsa dastur uni o‘zi yuklab oladi va o‘rnatadi.',
     featureGuard: 'Tasodifiy yopilishdan himoya',
     featureGuardDesc: 'Yuborilmagan amallar bo‘lsa dastur yopilishdan oldin ogohlantiradi.',
+    featuresTitleAndroid: 'Nima uchun Android ilova',
+    featureHome: 'Bosh ekranda o‘z belgisi',
+    featureHomeDesc: 'Brauzer tabini qidirish shart emas — ilova bir bosishda, to‘liq ekranda ochiladi.',
+    featureAlwaysNew: 'Har doim eng yangi versiya',
+    featureAlwaysNewDesc: 'Yangiliklar serverdan darhol keladi — APK ni qayta o‘rnatish shart emas.',
+    featureLight: 'Yengil va tez',
+    featureLightDesc: 'Kichik hajm — oddiy telefonlarda ham tez ochiladi va kam joy egallaydi.',
 
     /* Talablar */
     requirements: 'Talablar',
     reqWin: 'Windows 10 yoki undan yangi (64-bit)',
     reqMac: 'macOS 11 yoki undan yangi',
     reqLinux: 'AppImage — ko‘pchilik zamonaviy distributivlar',
+    reqAndroid: 'Android 7.0 va yangi · telefon va planshet',
+    androidStepsTitle: 'Androidga o‘rnatish',
+    androidStep1: 'APK faylni yuklab oling.',
+    androidStep2: 'Faylni oching. Telefon «Noma’lum manbalardan o‘rnatish»ga ruxsat so‘rasa — bu brauzer uchun ruxsat bering.',
+    androidStep3: '«O‘rnatish» ni bosing, so‘ng «Billiard Club» ilovasini ochib, login va parolingiz bilan kiring.',
+    trustPlayProtect: 'Ilova Play Market’dan tashqarida tarqatiladi. Play Protect ogohlantirsa — «Baribir o‘rnatish» ni tanlang: APK rasmiy serverimizdan, bizning imzomiz bilan keladi.',
 
     platformWin: 'Windows',
     platformMac: 'macOS',
     platformLinux: 'Linux',
+    platformAndroid: 'Android',
 
     backHome: 'Bosh sahifaga',
     openApp: 'Brauzerda ochish',
@@ -77,7 +91,7 @@ export default {
       'Ваш клуб в одном аккаунте: компьютер, Android и iPhone. Установка, подписка и состояние хранилища в одном месте.',
     metaTitle: 'Скачать приложение — Billiard Club',
     metaDesc:
-      'Скачайте приложение Billiard Club для Windows, macOS и Linux. Обновляется автоматически, работает без интернета.',
+      'Скачайте приложение Billiard Club для Windows и Android. Обновляется автоматически, работает и при обрыве интернета.',
 
     downloadFor: 'Скачать для {{platform}}',
     version: 'Версия {{version}}',
@@ -123,15 +137,29 @@ export default {
     featureUpdatesDesc: 'Когда выходит новая версия, программа скачивает и устанавливает её сама.',
     featureGuard: 'Защита от случайного закрытия',
     featureGuardDesc: 'Если есть неотправленные действия, программа предупредит перед закрытием.',
+    featuresTitleAndroid: 'Зачем Android-приложение',
+    featureHome: 'Своя иконка на главном экране',
+    featureHomeDesc: 'Не нужно искать вкладку браузера — приложение открывается в одно касание, на весь экран.',
+    featureAlwaysNew: 'Всегда свежая версия',
+    featureAlwaysNewDesc: 'Обновления приходят с сервера сразу — переустанавливать APK не нужно.',
+    featureLight: 'Лёгкое и быстрое',
+    featureLightDesc: 'Небольшой размер — быстро открывается даже на простых телефонах и почти не занимает места.',
 
     requirements: 'Требования',
     reqWin: 'Windows 10 или новее (64-бит)',
     reqMac: 'macOS 11 или новее',
     reqLinux: 'AppImage — большинство современных дистрибутивов',
+    reqAndroid: 'Android 7.0 и новее · телефон и планшет',
+    androidStepsTitle: 'Установка на Android',
+    androidStep1: 'Скачайте APK-файл.',
+    androidStep2: 'Откройте файл. Если телефон попросит разрешить «Установку из неизвестных источников» — разрешите для браузера.',
+    androidStep3: 'Нажмите «Установить», затем откройте «Billiard Club» и войдите со своим логином и паролем.',
+    trustPlayProtect: 'Приложение распространяется вне Play Market. Если Play Protect предупредит — выберите «Всё равно установить»: APK поставляется с нашего официального сервера и подписан нашим ключом.',
 
     platformWin: 'Windows',
     platformMac: 'macOS',
     platformLinux: 'Linux',
+    platformAndroid: 'Android',
 
     backHome: 'На главную',
     openApp: 'Открыть в браузере',

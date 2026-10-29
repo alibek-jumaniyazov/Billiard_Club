@@ -34,13 +34,14 @@ import type { AppRelease, ReleasePlatform } from '../../types';
 
 const { Text } = Typography;
 
-const PLATFORMS: ReleasePlatform[] = ['win', 'mac', 'linux'];
+const PLATFORMS: ReleasePlatform[] = ['win', 'android', 'mac', 'linux'];
 
 /** Platforma -> ruxsat etilgan kengaytmalar (server bilan bir xil oq ro'yxat) */
 const ACCEPT: Record<ReleasePlatform, string> = {
   win: '.exe,.msi',
   mac: '.dmg,.zip',
   linux: '.AppImage,.deb,.rpm',
+  android: '.apk',
 };
 
 const formatSize = (bytes: number): string => {

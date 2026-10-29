@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Billiard Club palitrasi (client/src/theme/tokens.ts bilan sinxron) -->
+<resources>
+    <!-- Zal foni (bg0) — status bar, navigatsiya paneli va splash -->
+    <color name="hall">#0B0D0C</color>
+    <color name="colorPrimary">#0B0D0C</color>
+    <color name="colorPrimaryDark">#0B0D0C</color>
+    <!-- Mis-oltin urg'u -->
+    <color name="colorAccent">#CFAE62</color>
+</resources>

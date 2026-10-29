@@ -3,10 +3,11 @@ import { theme as antTheme, type ThemeConfig } from 'antd';
 /**
  * BILLIARD CLUB — dizayn tokenlarining YAGONA manbasi.
  *
- * Estetika: hashamatli billiard klubi — boy, chuqur qarag'ay-karbon yuzalar
- * (zich qora EMAS — har bir qatlam aniq ajralib turadi), to'q zumrad (mato)
- * urg'ular, premium oltin (#d4af37 oilasi), kumush matn, jonli holatlar uchun
- * nozik neon-yashil va sekin harakatlanuvchi "aurora" fon nurlari.
+ * Estetika: "tungi billiard zali" + minimalizm. Qorong'i zal (yashil tusli
+ * deyarli qora), chiroq ostidagi MATO yashili, YONG'OQ yog'och bortlar,
+ * MIS-OLTIN urg'u va FIL SUYAGI (shar) rangidagi matn. Gradient, shisha va
+ * nurlar minimal — yuzalar tekis, chegaralar ingichka, ierarxiya tipografiya
+ * va bo'shliq bilan beriladi.
  *
  * MUHIM: index.css dagi :root CSS o'zgaruvchilari va Landing.tsx konstantalari
  * shu fayldagi qiymatlardan olinadi — rang faqat SHU YERDA o'zgartiriladi.
@@ -14,88 +15,100 @@ import { theme as antTheme, type ThemeConfig } from 'antd';
 
 /* ---------------------------------------------------------------- Ranglar */
 
-/** Fon qatlamlari — eng chuquridan (sahifa) ko'tarilganigacha (hover) */
+/** Fon qatlamlari — zal qorong'iligidan (sahifa) ko'tarilganigacha (hover) */
 const bg = {
-  /** Sahifaning eng chuqur foni — boy qarag'ay-karbon (zich qora emas) */
-  bg0: '#0e1513',
-  /** Karbon karta foni */
-  bg1: '#151d1a',
+  /** Sahifa — chiroqsiz zal: yashil tusli deyarli qora */
+  bg0: '#0b0d0c',
+  /** Karta / panel */
+  bg1: '#121513',
   /** Ko'tarilgan yuzalar (modal, dropdown, jadval sarlavhasi) */
-  bg2: '#1c2622',
+  bg2: '#191d1a',
   /** Hover / tanlangan qator foni */
-  bg3: '#243029',
+  bg3: '#20251f',
 } as const;
 
-/** Grafit chegara shkalasi — ko'tarilgan fonda aniq o'qiladigan qilib yoritilgan */
+/** Ingichka chegaralar — minimal, lekin aniq ajratadigan */
 const border = {
-  subtle: '#243029',
-  base: '#2e3b35',
-  strong: '#3d4c44',
+  subtle: '#1d221e',
+  base: '#272d28',
+  strong: '#353c36',
 } as const;
-
-/** Zumrad shkalasi — to'q mato yashilidan yorqin urg'ugacha (biroz to'yinganroq) */
-const emerald = {
-  /** Eng to'q — fon gradientlari uchun */
-  deepest: '#0d2419',
-  /** To'q mato (felt) — tanlangan menyu bandi foni */
-  deep: '#143224',
-  /** Asosiy mato yashili */
-  felt: '#1a4a30',
-  /** O'rtacha zumrad */
-  base: '#216b42',
-  /** Yorqin urg'u (grafik, ikonka) */
-  bright: '#33ab6c',
-  /** Eng yorqin — hoverdagi urg'ular */
-  glow: '#4bd48c',
-} as const;
-
-/** Premium oltin — #d4af37 oilasi (antd stock #faad14 EMAS) */
-const gold = {
-  base: '#d4af37',
-  hover: '#e2c358',
-  active: '#b5922c',
-  /** Xira oltin — ikkilamchi matn urg'usi */
-  dim: '#9c7f2e',
-  /** Shaffof oltin fon (badge, tanlangan holat) */
-  subtle: 'rgba(212, 175, 55, 0.12)',
-  /** Shaffof oltin chiziq/chegara */
-  line: 'rgba(212, 175, 55, 0.22)',
-  /** Tashqi nur (glow) — CTA va faol elementlar atrofidagi oltin yog'du */
-  glow: 'rgba(212, 175, 55, 0.45)',
-  /** Oltin ustidagi matn rangi */
-  contrast: '#141210',
-  /** Brend gradienti (logo, mark) */
-  gradient: 'linear-gradient(135deg, #e2c358 0%, #d4af37 45%, #b5922c 100%)',
-} as const;
-
-/** Kumush matn shkalasi — ko'tarilgan fonda aniqroq ierarxiya */
-const text = {
-  primary: '#eef2f0',
-  secondary: '#b3bfb8',
-  tertiary: '#7d8a83',
-  disabled: '#525c56',
-} as const;
-
-/** Semantik ranglar — palitraga moslashtirilgan */
-const semantic = {
-  success: '#43b97b',
-  warning: '#d9a13d',
-  error: '#d9544d',
-  info: '#5f93b8',
-} as const;
-
-/** Neon-yashil — jonli taymer / faol sessiya urg'usi */
-const neonGreen = '#3fe08c';
 
 /**
- * Aurora — animatsion fon "nur dog'lari" palitrasi.
- * AnimatedBackground komponenti va index.css dagi .aurora-blob-* klasslar
- * shu qiymatlarning nusxasidan foydalanadi.
+ * MATO (felt) shkalasi — billiard stolining yashil matosi. Kalit nomlari
+ * tarixiy ("emerald") — komponentlar shu nomlar bilan murojaat qiladi.
+ */
+const emerald = {
+  /** Eng to'q — chiroqsiz mato soyasi */
+  deepest: '#0b2318',
+  /** To'q mato — tanlangan menyu bandi foni */
+  deep: '#123524',
+  /** Asosiy mato */
+  felt: '#1a5a3a',
+  /** Chiroq ostidagi mato */
+  base: '#1f6e47',
+  /** Yorqin urg'u (grafik, ikonka) */
+  bright: '#2f9a63',
+  /** Eng yorqin — jonli holatlar */
+  glow: '#46d68b',
+} as const;
+
+/** Yong'oq yog'och — stol bortlari (ramka) */
+const wood = {
+  light: '#7a5030',
+  base: '#55351f',
+  dark: '#2f1d11',
+} as const;
+
+/** Mis-oltin — brend urg'usi (tekis, yorqin emas) */
+const gold = {
+  base: '#cfae62',
+  hover: '#dcc07e',
+  active: '#b3924a',
+  /** Xira — ikkilamchi urg'u */
+  dim: '#8f7a48',
+  /** Shaffof fon (badge, tanlangan holat) */
+  subtle: 'rgba(207, 174, 98, 0.12)',
+  /** Shaffof chiziq/chegara */
+  line: 'rgba(207, 174, 98, 0.24)',
+  /** Tashqi nur — juda tejamkor ishlatiladi */
+  glow: 'rgba(207, 174, 98, 0.32)',
+  /** Oltin ustidagi matn rangi */
+  contrast: '#15130e',
+  /** Brend belgisi (logo) uchun */
+  gradient: 'linear-gradient(135deg, #dcc07e 0%, #cfae62 50%, #b3924a 100%)',
+} as const;
+
+/** Fil suyagi (shar) matn shkalasi — iliq, ko'zni charchatmaydi */
+const text = {
+  primary: '#efe9dd',
+  secondary: '#aca697',
+  tertiary: '#78746b',
+  disabled: '#4f4c46',
+} as const;
+
+/** Semantik ranglar — billiard palitrasidan: mato, pauza-amber, qizil shar, bo'r-ko'k */
+const semantic = {
+  success: '#3fa672',
+  warning: '#e0a23b',
+  error: '#d6493f',
+  info: '#5b8fc4',
+} as const;
+
+/** Jonli taymer / faol sessiya urg'usi */
+const neonGreen = '#46d68b';
+
+/** Fil suyagi shar — stol raqami belgisi */
+const ivory = '#f2ede1';
+
+/**
+ * Aurora — eski animatsion fon palitrasi. Minimalizm uchun juda xiralashtirilgan
+ * (faqat auth/blok ekranlarida qolgan).
  */
 const aurora = {
-  emerald: 'rgba(47, 158, 100, 0.20)',
-  gold: 'rgba(212, 175, 55, 0.10)',
-  teal: 'rgba(66, 160, 150, 0.14)',
+  emerald: 'rgba(31, 110, 71, 0.16)',
+  gold: 'rgba(207, 174, 98, 0.06)',
+  teal: 'rgba(40, 110, 100, 0.08)',
 } as const;
 
 /** Grafik (chart) palitrasi — oltin birinchi, keyin palitra ranglari */
@@ -112,13 +125,17 @@ const chart = [
 
 /* ------------------------------------------------------------ Tipografiya */
 
-/** Inter Variable (o'z-o'zidan xosting, @fontsource orqali) + tizim zaxirasi */
+/** Matn: Inter Variable (o'z-o'zidan xosting, @fontsource orqali) + tizim zaxirasi */
 export const FONT_FAMILY =
   "'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
-/** Taymer/raqamli displeylar uchun monospace stek (tabular-nums bilan) */
+/** Sarlavhalar: keng geometrik Unbounded — qisqa, yirik, ishonchli */
+export const FONT_FAMILY_DISPLAY =
+  "'Unbounded Variable', 'Inter Variable', -apple-system, 'Segoe UI', Roboto, sans-serif";
+
+/** Taymer/pul: JetBrains Mono (tabular) — tablo kabi aniq raqamlar */
 export const FONT_FAMILY_MONO =
-  "'Consolas', 'SF Mono', 'JetBrains Mono', 'Menlo', monospace";
+  "'JetBrains Mono Variable', 'Consolas', 'SF Mono', 'Menlo', monospace";
 
 /* -------------------------------------------------------------- Shkalalar */
 
@@ -126,21 +143,20 @@ export const FONT_FAMILY_MONO =
 const spacing = { xxs: 4, xs: 8, sm: 12, md: 16, lg: 24, xl: 32, xxl: 48 } as const;
 
 /** Radius shkalasi (px) */
-const radius = { sm: 8, md: 12, lg: 16, xl: 24, pill: 999 } as const;
+const radius = { sm: 8, md: 12, lg: 16, xl: 22, pill: 999 } as const;
 
-/** Soya/ko'tarilish shkalasi — yumshoqroq va kengroq, chuqurlik hissi uchun */
+/** Soyalar — minimal: chuqurlik chegaralar bilan beriladi, soya kam */
 const shadow = {
-  /** 1-daraja: karta */
-  level1: '0 1px 3px rgba(0, 0, 0, 0.32), 0 4px 16px rgba(0, 0, 0, 0.22)',
+  /** 1-daraja: karta (deyarli sezilmas) */
+  level1: '0 1px 2px rgba(0, 0, 0, 0.4)',
   /** 2-daraja: dropdown, popover */
-  level2: '0 4px 16px rgba(0, 0, 0, 0.38), 0 12px 32px rgba(0, 0, 0, 0.26)',
+  level2: '0 8px 24px rgba(0, 0, 0, 0.45)',
   /** 3-daraja: modal, drawer */
-  level3: '0 10px 32px rgba(0, 0, 0, 0.46), 0 24px 64px rgba(0, 0, 0, 0.3)',
-  /** Faol stol kartasi uchun zumrad-oltin nur */
-  glowActive:
-    '0 0 0 1px rgba(212, 175, 55, 0.35), 0 0 20px rgba(75, 212, 140, 0.14)',
-  /** Har bir kartaning yuqori qirrasidagi nozik yorug'lik — chuqurlik illyuziyasi */
-  cardHighlight: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+  level3: '0 16px 48px rgba(0, 0, 0, 0.55)',
+  /** Faol (tanlangan) element — ingichka oltin halqa */
+  glowActive: '0 0 0 1px rgba(207, 174, 98, 0.45)',
+  /** Kartaning yuqori qirrasidagi juda nozik yorug'lik */
+  cardHighlight: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)',
 } as const;
 
 /** Harakat (motion) davomiyliklari va easinglari */
@@ -158,7 +174,7 @@ const motion = {
 /* ------------------------------------------------------------------ TOKENS */
 
 export const TOKENS = {
-  color: { bg, border, emerald, gold, text, semantic, neonGreen, aurora, chart },
+  color: { bg, border, emerald, wood, gold, text, semantic, neonGreen, ivory, aurora, chart },
   spacing,
   radius,
   shadow,
@@ -197,11 +213,12 @@ export const buildAntdTheme = (): ThemeConfig => ({
     colorTextTertiary: text.tertiary,
     colorTextQuaternary: text.disabled,
 
-    borderRadius: radius.sm,
-    borderRadiusLG: radius.md,
+    borderRadius: 10,
+    borderRadiusLG: 14,
     borderRadiusSM: 6,
 
     fontFamily: FONT_FAMILY,
+    fontFamilyCode: FONT_FAMILY_MONO,
 
     boxShadow: shadow.level2,
     boxShadowSecondary: shadow.level3,
@@ -227,11 +244,10 @@ export const buildAntdTheme = (): ThemeConfig => ({
     },
     Card: {
       colorBgContainer: bg.bg1,
-      colorBorderSecondary: border.subtle,
-      borderRadiusLG: radius.md,
+      colorBorderSecondary: border.base,
+      borderRadiusLG: 14,
       headerBg: 'transparent',
-      /* Yuqori qirra yorug'ligi soya bilan birga — kartaga chuqurlik beradi */
-      boxShadowTertiary: `${shadow.level1}, ${shadow.cardHighlight}`,
+      boxShadowTertiary: 'none',
     },
     Table: {
       headerBg: bg.bg2,
@@ -251,8 +267,8 @@ export const buildAntdTheme = (): ThemeConfig => ({
       defaultBorderColor: border.strong,
       defaultHoverBorderColor: gold.base,
       defaultHoverColor: gold.hover,
-      fontWeight: 500,
-      borderRadius: radius.sm,
+      fontWeight: 600,
+      borderRadius: 10,
     },
     Input: {
       colorBgContainer: bg.bg2,

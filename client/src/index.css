@@ -7,58 +7,68 @@
  */
 
 :root {
-  /* Fon qatlamlari — boy qarag'ay-karbon (zich qora emas) */
-  --bg0: #0e1513;
-  --bg1: #151d1a;
-  --bg2: #1c2622;
-  --bg3: #243029;
+  /* Fon qatlamlari — tungi billiard zali (yashil tusli deyarli qora) */
+  --bg0: #0b0d0c;
+  --bg1: #121513;
+  --bg2: #191d1a;
+  --bg3: #20251f;
 
-  /* Grafit chegaralar */
-  --border-subtle: #243029;
-  --border-base: #2e3b35;
-  --border-strong: #3d4c44;
+  /* Ingichka chegaralar */
+  --border-subtle: #1d221e;
+  --border-base: #272d28;
+  --border-strong: #353c36;
 
-  /* Zumrad shkalasi */
-  --emerald-deepest: #0d2419;
-  --emerald-deep: #143224;
-  --emerald-felt: #1a4a30;
-  --emerald-base: #216b42;
-  --emerald-bright: #33ab6c;
-  --emerald-glow: #4bd48c;
+  /* Mato (felt) shkalasi */
+  --emerald-deepest: #0b2318;
+  --emerald-deep: #123524;
+  --emerald-felt: #1a5a3a;
+  --emerald-base: #1f6e47;
+  --emerald-bright: #2f9a63;
+  --emerald-glow: #46d68b;
 
-  /* Premium oltin */
-  --gold: #d4af37;
-  --gold-hover: #e2c358;
-  --gold-active: #b5922c;
-  --gold-subtle: rgba(212, 175, 55, 0.12);
-  --gold-line: rgba(212, 175, 55, 0.22);
-  --gold-glow: rgba(212, 175, 55, 0.45);
+  /* Yong'oq yog'och — stol bortlari */
+  --wood-light: #7a5030;
+  --wood: #55351f;
+  --wood-dark: #2f1d11;
 
-  /* Aurora — animatsion fon nur dog'lari */
-  --aurora-emerald: rgba(47, 158, 100, 0.2);
-  --aurora-gold: rgba(212, 175, 55, 0.1);
-  --aurora-teal: rgba(66, 160, 150, 0.14);
+  /* Mis-oltin urg'u */
+  --gold: #cfae62;
+  --gold-hover: #dcc07e;
+  --gold-active: #b3924a;
+  --gold-subtle: rgba(207, 174, 98, 0.12);
+  --gold-line: rgba(207, 174, 98, 0.24);
+  --gold-glow: rgba(207, 174, 98, 0.32);
 
-  /* Kumush matn */
-  --text-primary: #eef2f0;
-  --text-secondary: #b3bfb8;
-  --text-tertiary: #7d8a83;
-  --text-disabled: #525c56;
+  /* Aurora (faqat auth/blok ekranlari) — juda xira */
+  --aurora-emerald: rgba(31, 110, 71, 0.16);
+  --aurora-gold: rgba(207, 174, 98, 0.06);
+  --aurora-teal: rgba(40, 110, 100, 0.08);
+
+  /* Fil suyagi matn */
+  --text-primary: #efe9dd;
+  --text-secondary: #aca697;
+  --text-tertiary: #78746b;
+  --text-disabled: #4f4c46;
+  --ivory: #f2ede1;
 
   /* Semantik */
-  --success: #43b97b;
-  --warning: #d9a13d;
-  --error: #d9544d;
-  --info: #5f93b8;
+  --success: #3fa672;
+  --warning: #e0a23b;
+  --error: #d6493f;
+  --info: #5b8fc4;
 
-  /* Neon-yashil — jonli holatlar */
-  --neon-green: #3fe08c;
+  /* Jonli holatlar */
+  --neon-green: #46d68b;
+
+  /* Shriftlar */
+  --font-display: 'Unbounded Variable', 'Inter Variable', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'Consolas', 'SF Mono', 'Menlo', monospace;
 
   /* Radius shkalasi */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-xl: 22px;
 
   color-scheme: dark;
 }
@@ -84,8 +94,14 @@ body {
 
 /* Matn belgilash rangi — oltin tus */
 ::selection {
-  background: rgba(212, 175, 55, 0.28);
+  background: rgba(207, 174, 98, 0.3);
   color: #f5f0e0;
+}
+
+/* Sarlavhalar va yirik raqamlar — keng geometrik shrift */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }
 
 /* Klaviatura fokus halqasi — oltin */
@@ -125,16 +141,16 @@ body {
   background: var(--text-tertiary);
 }
 
-/* Asosiy tugma — nozik oltin gradient (tokens.ts dagi primaryShadow bilan juft).
-   antd colorPrimary yakka rang bo'lgani uchun gradient shu yerda beriladi. */
-.ant-btn-primary:not(:disabled) {
-  background: linear-gradient(180deg, var(--gold-hover) 0%, var(--gold) 62%, var(--gold-active) 100%);
+/* Asosiy tugma — TEKIS mis-oltin (minimalizm: gradient yo'q) */
+.ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):not(.ant-btn-background-ghost) {
+  background: var(--gold);
+  box-shadow: none;
 }
-.ant-btn-primary:not(:disabled):hover {
-  filter: brightness(1.07);
+.ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):not(.ant-btn-background-ghost):hover {
+  background: var(--gold-hover);
 }
-.ant-btn-primary:not(:disabled):active {
-  filter: brightness(0.94);
+.ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):not(.ant-btn-background-ghost):active {
+  background: var(--gold-active);
 }
 
 /* GlassCard — chegara hoverda oltin tusga yumshoq o'tadi */
@@ -166,11 +182,11 @@ body {
   border-color: var(--gold) !important; /* antd Card chegarasidan ustun kelish uchun */
 }
 
-/* Jonli taymer displeyi — barcha raqamli ko'rsatkichlar tabular-nums */
+/* Jonli taymer displeyi — tablo kabi aniq raqamlar */
 .timer-display {
-  font-family: 'Consolas', 'SF Mono', 'JetBrains Mono', 'Menlo', monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 1px;
+  letter-spacing: 0.02em;
 }
 
 @keyframes blink {
@@ -413,19 +429,25 @@ body {
    !important — antd CSS-in-JS qoidasi hujjatga keyinroq qo'shilishidan qat'i
    nazar gradient g'olib chiqishi uchun) */
 .app-sider .ant-menu-item-selected {
-  background-color: transparent !important;
-  background-image: linear-gradient(90deg, var(--emerald-deep) 0%, transparent 92%);
+  background-color: var(--bg3) !important;
+  background-image: none;
+  color: var(--text-primary) !important;
 }
 
+/* Tanlangan band — chap tomonda kichik oltin "shar" belgisi (minimal) */
 .app-sider .ant-menu-item-selected::before {
   content: '';
   position: absolute;
   left: -8px; /* itemMarginInline ni qoplaydi */
-  top: 22%;
-  bottom: 22%;
+  top: 50%;
   width: 3px;
+  height: 18px;
+  transform: translateY(-50%);
   border-radius: 0 3px 3px 0;
   background: var(--gold);
+}
+.app-sider .ant-menu-item-selected .anticon {
+  color: var(--gold);
 }
 
 /* ------------------------------------------------------------------ Mobil

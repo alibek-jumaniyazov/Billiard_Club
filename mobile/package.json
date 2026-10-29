@@ -1,0 +1,23 @@
+{
+  "name": "billiard-club-mobile",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Billiard Club — Android ilova (Capacitor qobig'i: serverdagi veb-ilovani ochadi)",
+  "scripts": {
+    "sync": "cap sync android",
+    "icons": "node ../desktop/build/make-icons.mjs",
+    "build:apk": "node scripts/build-apk.mjs release",
+    "build:apk:debug": "node scripts/build-apk.mjs debug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

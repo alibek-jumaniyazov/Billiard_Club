@@ -146,4 +146,6 @@ export enum ReleasePlatform {
   WIN = 'win',
   MAC = 'mac',
   LINUX = 'linux',
+  /** Android ilova (APK) — o'rnatgich sifatida tarqatiladi, auto-update feed'i yo'q */
+  ANDROID = 'android',
 }

@@ -1,9 +1,9 @@
 {
   "name": "billiardclub-desktop",
   "productName": "Billiard Club",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "Billiard Club РІР‚вЂќ klub boshqaruv tizimining desktop (Windows/macOS/Linux) qobig'i",
+  "description": "Billiard Club — klub boshqaruv tizimining desktop (Windows/macOS/Linux) qobig'i",
   "main": "main.js",
   "author": "Billiard Club",
   "license": "UNLICENSED",

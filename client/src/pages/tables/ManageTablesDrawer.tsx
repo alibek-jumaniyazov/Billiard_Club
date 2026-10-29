@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   App,
+  AutoComplete,
   Button,
   Drawer,
   Form,
@@ -32,6 +33,7 @@ interface TableFormValues {
   number: number;
   pricePerHour: number;
   description?: string;
+  zone?: string;
 }
 
 type Mode = { kind: 'list' } | { kind: 'create' } | { kind: 'edit'; table: BilliardTable };
@@ -84,6 +86,7 @@ const ManageTablesDrawer = ({
       number: table.number,
       pricePerHour: table.pricePerHour,
       description: table.description ?? '',
+      zone: table.zone ?? '',
     });
     setMode({ kind: 'edit', table });
   };
@@ -107,6 +110,8 @@ const ManageTablesDrawer = ({
         number: values.number,
         pricePerHour: values.pricePerHour,
         description: values.description?.trim() || undefined,
+        // Bo'sh satr ham yuboriladi — tahrirda zonani olib tashlash uchun
+        zone: values.zone?.trim() ?? '',
       };
       const res =
         mode.kind === 'edit'
@@ -214,6 +219,14 @@ const ManageTablesDrawer = ({
               style={{ width: '100%' }}
               formatter={moneyFormatter}
               parser={moneyParser}
+            />
+          </Form.Item>
+          <Form.Item name="zone" label={t('tables.zoneOptional')} extra={t('tables.zoneHint')}>
+            <AutoComplete
+              maxLength={50}
+              placeholder={t('tables.zonePlaceholder')}
+              options={[...new Set(tables.map((tbl) => tbl.zone).filter((z): z is string => !!z))].map((z) => ({ value: z }))}
+              filterOption={(input, option) => String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())}
             />
           </Form.Item>
           <Form.Item name="description" label={t('tables.tableDescriptionOptional')}>

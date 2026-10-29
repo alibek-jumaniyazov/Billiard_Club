@@ -20,7 +20,7 @@
  */
 
 import { deflateSync } from 'node:zlib';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,13 +29,15 @@ const REPO = resolve(HERE, '../..');
 
 /* ------------------------------------------------------- Ranglar (tokens) */
 
-const FELT_TOP = [0x1a, 0x4a, 0x30];
-const FELT_BOTTOM = [0x0d, 0x24, 0x19];
-const GOLD_LIGHT = [0xe2, 0xc3, 0x58];
-const GOLD = [0xd4, 0xaf, 0x37];
-const GOLD_DARK = [0xb5, 0x92, 0x2c];
-const CUE = [0xb3, 0xbf, 0xb8];
-const HOLE = [0x0d, 0x24, 0x19];
+const FELT_TOP = [0x1f, 0x6e, 0x47];
+const FELT_BOTTOM = [0x0b, 0x23, 0x18];
+const GOLD_LIGHT = [0xdc, 0xc0, 0x7e];
+const GOLD = [0xcf, 0xae, 0x62];
+const GOLD_DARK = [0xb3, 0x92, 0x4a];
+const CUE = [0xef, 0xe9, 0xdd];
+const HOLE = [0x0b, 0x23, 0x18];
+/** Zal foni (tokens bg0) — Android splash ekrani */
+const HALL = [0x0b, 0x0d, 0x0c];
 
 /* ------------------------------------------------------- Chizish yordamchilari */
 
@@ -118,6 +120,27 @@ const samplePixel = (x, y, opts) => {
   return [Math.round(color[0]), Math.round(color[1]), Math.round(color[2]), 255];
 };
 
+/**
+ * `inset` — Android adaptive ikonka (108dp) uchun: belgi markaziy xavfsiz
+ * zonaga (72dp) kichraytiriladi, chetlar esa mato bilan to'ldiriladi —
+ * ishga tushirgich istalgan shaklda (doira/kvadrat) kesganda ham belgi
+ * butun qoladi va chetida "tikuv" ko'rinmaydi.
+ */
+const sampleWithInset = (x, y, opts) => {
+  const inset = opts.inset ?? 0;
+  if (!inset) return samplePixel(x, y, opts);
+  const pad = 48 * inset;
+  const k = 48 / (48 - 2 * pad);
+  const X = (x - pad) * k;
+  const Y = (y - pad) * k;
+  if (X < 0 || X > 48 || Y < 0 || Y > 48) {
+    const g = clamp01((Math.min(48, Math.max(0, X)) / 48 + Math.min(48, Math.max(0, Y)) / 48) / 2);
+    const c = mixColor(FELT_TOP, FELT_BOTTOM, g);
+    return [Math.round(c[0]), Math.round(c[1]), Math.round(c[2]), 255];
+  }
+  return samplePixel(X, Y, { ...opts, fullBleed: true });
+};
+
 /** Berilgan o'lchamda RGBA bufer chizadi (4x supersampling bilan) */
 const renderRgba = (size, opts = {}) => {
   const SS = 4;
@@ -134,7 +157,7 @@ const renderRgba = (size, opts = {}) => {
         for (let sx = 0; sx < SS; sx += 1) {
           const x = ((px * SS + sx) + 0.5) * scale;
           const y = ((py * SS + sy) + 0.5) * scale;
-          const [pr, pg, pb, pa] = samplePixel(x, y, opts);
+          const [pr, pg, pb, pa] = sampleWithInset(x, y, opts);
           const alpha = pa / 255;
           r += pr * alpha;
           g += pg * alpha;
@@ -266,6 +289,76 @@ write('client/public/icon-512.png', png(512));
 // maskable: fon to'liq (burchaklarsiz), belgi kesilmasin
 write('client/public/icon-512-maskable.png', png(512, { fullBleed: true }));
 write('client/public/apple-touch-icon.png', png(180));
+
+/* ---------------------------------------------------------------- Android */
+
+/**
+ * Splash ekran: zal foni markazida brend belgisi (qisqa tomonning ~22%).
+ * O'lcham Capacitor shablonidagi mavjud splash.png fayllaridan olinadi.
+ */
+const splashPng = (w, h) => {
+  const out = Buffer.alloc(w * h * 4);
+  const markSize = Math.max(48, Math.round(Math.min(w, h) * 0.22));
+  const mark = renderRgba(markSize);
+  const ox = Math.floor((w - markSize) / 2);
+  const oy = Math.floor((h - markSize) / 2);
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const idx = (y * w + x) * 4;
+      let [r, g, b] = HALL;
+      const mx = x - ox;
+      const my = y - oy;
+      if (mx >= 0 && my >= 0 && mx < markSize && my < markSize) {
+        const m = (my * markSize + mx) * 4;
+        const a = mark[m + 3] / 255;
+        r = Math.round(mark[m] * a + r * (1 - a));
+        g = Math.round(mark[m + 1] * a + g * (1 - a));
+        b = Math.round(mark[m + 2] * a + b * (1 - a));
+      }
+      out[idx] = r;
+      out[idx + 1] = g;
+      out[idx + 2] = b;
+      out[idx + 3] = 255;
+    }
+  }
+  // splashPng to'rtburchak — encodePng kvadrat kutadi, shuning uchun IHDR qo'lda
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const raw = Buffer.alloc((w * 4 + 1) * h);
+  for (let y = 0; y < h; y += 1) {
+    raw[y * (w * 4 + 1)] = 0;
+    out.copy(raw, y * (w * 4 + 1) + 1, y * w * 4, (y + 1) * w * 4);
+  }
+  return Buffer.concat([
+    signature,
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', deflateSync(raw, { level: 9 })),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+};
+
+const ANDROID_RES = 'mobile/android/app/src/main/res';
+if (existsSync(resolve(REPO, ANDROID_RES))) {
+  // Ishga tushirgich ikonkalari: eski (API < 26) va adaptive (API 26+) old qatlam
+  const densities = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
+  for (const [name, k] of Object.entries(densities)) {
+    write(`${ANDROID_RES}/mipmap-${name}/ic_launcher.png`, png(Math.round(48 * k)));
+    write(`${ANDROID_RES}/mipmap-${name}/ic_launcher_round.png`, png(Math.round(48 * k)));
+    // 108dp kanvas, belgi markaziy 72dp da (inset = 18/108)
+    write(`${ANDROID_RES}/mipmap-${name}/ic_launcher_foreground.png`, png(Math.round(108 * k), { inset: 1 / 6 }));
+  }
+  // Splash: mavjud fayllar o'lchamida qayta chiziladi (Capacitor logotipi o'rniga)
+  for (const dir of readdirSync(resolve(REPO, ANDROID_RES))) {
+    const file = resolve(REPO, ANDROID_RES, dir, 'splash.png');
+    if (!existsSync(file)) continue;
+    const head = readFileSync(file).subarray(16, 24);
+    write(`${ANDROID_RES}/${dir}/splash.png`, splashPng(head.readUInt32BE(0), head.readUInt32BE(4)));
+  }
+}
 
 // eslint-disable-next-line no-console
 console.log('Tayyor.');

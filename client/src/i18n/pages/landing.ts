@@ -36,6 +36,8 @@ export default {
     heroTrust1: 'Karta talab qilinmaydi',
     heroTrust2: '5 daqiqada ishga tushadi',
     heroTrust3: 'Internetsiz ham ishlaydi',
+    platformWeb: 'Brauzer',
+    scoreboardAria: "Jonli tablo: VIP stol, o'yin vaqti va summa",
     heroTableHint: 'Soqqani teshikka urib tushiring 🎯',
     heroTableAria: 'Interaktiv rus bilyardi stoli',
     // Ijtimoiy isbot — ko'rsatkichlar
@@ -417,6 +419,8 @@ export default {
     heroTrust1: 'Карта не требуется',
     heroTrust2: 'Запуск за 5 минут',
     heroTrust3: 'Работает без интернета',
+    platformWeb: 'Браузер',
+    scoreboardAria: 'Живое табло: VIP-стол, время игры и сумма',
     heroTableHint: 'Забейте шар в лузу 🎯',
     heroTableAria: 'Интерактивный стол для русского бильярда',
     // Социальное доказательство — показатели

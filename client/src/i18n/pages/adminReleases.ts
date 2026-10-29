@@ -27,6 +27,7 @@ export default {
     pf_win: 'Windows',
     pf_mac: 'macOS',
     pf_linux: 'Linux',
+    pf_android: 'Android (APK)',
 
     published: 'Nashr etilgan',
     draft: 'Nashr etilmagan',
@@ -73,6 +74,7 @@ export default {
     pf_win: 'Windows',
     pf_mac: 'macOS',
     pf_linux: 'Linux',
+    pf_android: 'Android (APK)',
 
     published: 'Опубликован',
     draft: 'Не опубликован',

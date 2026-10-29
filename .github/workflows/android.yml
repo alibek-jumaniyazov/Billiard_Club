@@ -1,0 +1,50 @@
+# Billiard Club — Android APK (bulutda yig'ish).
+#
+# `mobile-v*` tegi push qilinganda yoki qo'lda (Actions → Run workflow) ishga tushadi.
+# Repozitoriy sirlari bo'lsa — imzolangan RELEASE APK, bo'lmasa — DEBUG APK.
+#   ANDROID_KEYSTORE_BASE64   — base64 bilan kodlangan .jks fayl
+#   ANDROID_KEYSTORE_PASSWORD — kalit paroli (store va key bir xil)
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['mobile-v*']
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    # `if:` ichida secrets ga to'g'ridan-to'g'ri murojaat qilib bo'lmaydi — env orqali
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install
+        working-directory: mobile
+        run: npm ci
+      - name: Signing key (ixtiyoriy)
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: mobile/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p keystore
+          echo "$KEYSTORE_B64" | base64 -d > keystore/billiard-release.jks
+          printf 'storeFile=keystore/billiard-release.jks\nstorePassword=%s\nkeyAlias=billiardclub\nkeyPassword=%s\n' "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD" > keystore.properties
+      - name: Build APK
+        working-directory: mobile
+        run: |
+          if [ -f android/keystore.properties ]; then npm run build:apk; else npm run build:apk:debug; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: billiard-club-apk
+          path: mobile/dist/*.apk
+          if-no-files-found: error

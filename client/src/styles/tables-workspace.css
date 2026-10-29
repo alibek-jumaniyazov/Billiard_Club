@@ -1,4 +1,25 @@
 .tables-workspace { min-width: 0; }
+/* Pul paneli: ochiq stollardagi kutilayotgan summa · smenada olingan · kassada naqd */
+.tables-money { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.tables-money.is-single { grid-template-columns: minmax(0, 1fr); }
+.tables-money__cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 14px 18px; border: 1px solid var(--border-base); border-radius: 14px; background: var(--bg1); color: var(--text-primary); transition: border-color .15s; }
+a.tables-money__cell:hover { border-color: var(--gold-line); color: var(--text-primary); }
+.tables-money__cell > span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.tables-money__cell > span .anticon { font-size: 11px; color: var(--text-tertiary); }
+.tables-money__cell .tabular-nums { font-family: var(--font-mono); }
+.tables-money__cell.is-live { border-color: rgba(70, 214, 139, .22); background: linear-gradient(160deg, rgba(31, 110, 71, .14), var(--bg1) 60%); }
+.tables-money__cell.is-live > span:first-child::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--neon-green); box-shadow: 0 0 0 0 rgba(70, 214, 139, .5); animation: tables-live-dot 1.8s ease-out infinite; }
+@keyframes tables-live-dot { 0% { box-shadow: 0 0 0 0 rgba(70, 214, 139, .5); } 100% { box-shadow: 0 0 0 8px rgba(70, 214, 139, 0); } }
+.tables-money__cell.is-wide { grid-column: span 2; }
+.tables-money__cell.is-muted strong { color: var(--gold); font-size: 14px; font-weight: 650; }
+/* Zonalar (zallar) */
+.tables-zone + .tables-zone { margin-top: 26px; }
+.tables-zone__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); }
+.tables-zone__head h3 { margin: 0; font-family: var(--font-display); font-size: 15px; font-weight: 650; letter-spacing: -.01em; color: var(--text-primary); }
+.tables-zone__head span { font-size: 12px; color: var(--text-tertiary); white-space: nowrap; }
+/* Bron belgisi */
+.pool-reservation { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 2px 9px; border-radius: 999px; background: rgba(0, 0, 0, .3); color: #f3d58c; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.table-row__info em.is-reservation { color: var(--gold); }
 .tables-workspace .ant-btn { min-height: 44px; }
 .tables-overview { display: grid; grid-template-columns: 1.35fr repeat(3, 1fr); border: 1px solid var(--border-base); background: var(--bg1); border-radius: 14px; margin-bottom: 22px; overflow: hidden; }
 .tables-overview__occupancy, .tables-overview__metric { padding: 18px 22px; min-width: 0; }
@@ -30,53 +51,101 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 .tables-filter-hint { color: var(--text-secondary); font-size: 12px; margin: 9px 0 0; }
 .tables-board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr)); gap: 16px; align-items: stretch; }
 .tables-board-grid--compact { grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr)); gap: 8px; }
-.table-work-card.ant-card { height: 100%; min-width: 0; border: 1px solid var(--border-base); border-top: 2px solid var(--border-strong); border-radius: 13px; box-shadow: none; background: var(--bg1); transition: border-color .15s ease; }
-.table-work-card.ant-card:hover { border-color: var(--border-strong); box-shadow: none; }
-.table-work-card.is-busy { border-top-color: var(--gold); }
-.table-work-card.is-paused { border-top-color: var(--warning); }
-.table-work-card.is-free { border-top-color: var(--success); }
-.table-work-card .ant-card-body { padding: 18px 18px 8px; display: flex; flex-direction: column; min-height: 310px; height: 100%; gap: 14px; }
-.table-work-card__header, .table-work-card__identity, .table-work-card__utilities, .table-work-card__utility-buttons { display: flex; align-items: center; }
-.table-work-card__header { justify-content: space-between; gap: 8px; align-items: flex-start; }
-.table-work-card__identity { gap: 10px; min-width: 0; }
-.table-work-card__identity > div { min-width: 0; }
-.table-work-card__number { min-width: 38px; color: var(--text-tertiary); font-size: 25px; font-weight: 550; font-variant-numeric: tabular-nums; letter-spacing: -.05em; }
-.table-work-card h2 { margin: 0 0 3px; font-size: 15px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.table-work-card__rate { display: block; font-size: 11px; color: var(--text-tertiary); line-height: 1.5; }
-.table-work-card__numbers { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 4px; }
-.table-work-card__caption { display: block; margin-bottom: 4px; color: var(--text-tertiary); font-size: 11px; line-height: 1.4; }
-.table-work-card__amount { margin-left: auto; text-align: right; min-width: 0; }
-.table-work-card__amount > span:last-child { font-size: 23px !important; }
-.table-work-card__guest { display: flex; gap: 10px; justify-content: space-between; color: var(--text-secondary); font-size: 12px; }
-.table-work-card__guest > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.table-work-card__guest > span:last-child { flex-shrink: 0; color: var(--text-tertiary); }
-.table-work-card__guest .anticon, .table-work-card__details .anticon, .table-work-card__history .anticon { margin-right: 6px; }
-.table-work-card__details { display: flex; gap: 8px; flex-wrap: wrap; color: var(--text-secondary); font-size: 11px; }
-.table-work-card__details .ant-tag { margin: 0; }
-.table-work-card__actions { display: flex; gap: 8px; margin-top: auto; }
-.table-work-card__actions .ant-btn { flex: 1; min-width: 0; padding: 0 10px; font-size: 13px; }
-.table-work-card__utilities { gap: 8px; justify-content: space-between; margin-top: auto; border-top: 1px solid var(--border-subtle); padding-top: 3px; }
-.table-work-card__utilities .ant-btn { padding: 0 8px; font-size: 12px; color: var(--text-secondary); }
-.table-work-card__utilities .ant-btn-icon-only { width: 44px; }
-.table-work-card__utility-buttons { gap: 0; }
-.table-work-card__history { color: var(--text-tertiary); font-size: 11px; }
-.table-work-card__available { display: flex; flex-direction: column; gap: 6px; flex: 1; justify-content: center; padding: 10px 0; }
-.table-work-card__available strong { font-size: 20px; font-weight: 550; color: var(--text-primary); }
-.table-work-card__available > span:last-child { color: var(--text-tertiary); font-size: 12px; }
-.table-work-card__available .table-work-card__caption { color: var(--success); margin-bottom: 0; }
-.table-work-card__warning { margin: -6px 0 4px; color: var(--warning); font-size: 11px; display: flex; gap: 6px; align-items: center; }
-.table-work-card__empty { color: var(--text-secondary); padding: 20px 0; }
-.table-work-card .ant-btn.has-light-error { color: var(--error); }
-.table-work-card .ant-btn.is-light-on { color: var(--gold); }
-.table-work-card.is-focused { outline: 2px solid var(--gold); outline-offset: 4px; scroll-margin-top: 95px; }
+/* ================= Haqiqiy billiard stoli kartasi (yuqoridan ko'rinish) =================
+   Bort — yong'oq yog'och (tola chiziqlari bilan), olmos nishonlar, 6 luza, mato.
+   Mato yorug'ligi chiroq holati: band — yoqilgan, bo'sh — o'chiq, pauza — xira. */
+.pool-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; border-radius: 18px; }
+.pool-card__table { position: relative; padding: 11px; border-radius: 18px; flex: 1; display: flex;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, .28), transparent 10%, transparent 90%, rgba(0, 0, 0, .28)),
+    repeating-linear-gradient(97deg, rgba(255, 255, 255, .028) 0 2px, transparent 2px 11px),
+    linear-gradient(160deg, var(--wood-light) 0%, var(--wood) 42%, var(--wood-dark) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 -2px 0 rgba(0, 0, 0, .4), 0 10px 26px rgba(0, 0, 0, .42);
+  transition: box-shadow .3s ease; }
+/* Olmos nishonlar — uzun bortlarda */
+.pool-card__table::before, .pool-card__table::after { content: ''; position: absolute; left: 5%; right: 5%; height: 4px; pointer-events: none;
+  background: radial-gradient(circle, rgba(242, 237, 225, .7) 0 1.3px, transparent 1.7px) 0 50% / 12.5% 100% repeat-x; }
+.pool-card__table::before { top: 3.5px; }
+.pool-card__table::after { bottom: 3.5px; }
+/* 6 ta luza: burchaklar va uzun bortlar o'rtasi */
+.pool-card__pockets { position: absolute; inset: 7px; z-index: 2; pointer-events: none;
+  --pocket: radial-gradient(circle, #040504 0 6.5px, rgba(0, 0, 0, .55) 8px, transparent 9.5px);
+  background:
+    radial-gradient(circle at 0 0, #040504 0 7px, rgba(0, 0, 0, .55) 8.5px, transparent 10px),
+    radial-gradient(circle at 50% 0, #040504 0 6px, rgba(0, 0, 0, .55) 7.5px, transparent 9px),
+    radial-gradient(circle at 100% 0, #040504 0 7px, rgba(0, 0, 0, .55) 8.5px, transparent 10px),
+    radial-gradient(circle at 0 100%, #040504 0 7px, rgba(0, 0, 0, .55) 8.5px, transparent 10px),
+    radial-gradient(circle at 50% 100%, #040504 0 6px, rgba(0, 0, 0, .55) 7.5px, transparent 9px),
+    radial-gradient(circle at 100% 100%, #040504 0 7px, rgba(0, 0, 0, .55) 8.5px, transparent 10px); }
+/* Mato: chiroq dog'i + mato donadorligi + bort soyasi */
+.pool-card__felt { position: relative; z-index: 1; flex: 1; min-width: 0; min-height: 172px; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 13px; border-radius: 7px;
+  background:
+    radial-gradient(ellipse 85% 75% at 50% 38%, rgba(255, 255, 255, .08), transparent 72%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, #23784e, #175a3a);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .22), inset 0 0 26px rgba(0, 0, 0, .38);
+  transition: filter .45s ease; }
+/* Chiroq: bo'sh stolda o'chiq, pauzada xira, o'yinda yoqilgan (yuqoridan nur) */
+.pool-card.is-free .pool-card__felt { filter: brightness(.6) saturate(.7); }
+.pool-card.is-paused .pool-card__felt { filter: brightness(.78) saturate(.8); }
+.pool-card.is-busy .pool-card__felt::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(ellipse 75% 95% at 50% -12%, rgba(255, 238, 190, .16), transparent 62%); }
+.pool-card.is-busy .pool-card__table { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 -2px 0 rgba(0, 0, 0, .4), 0 0 0 1px var(--gold-line), 0 14px 32px rgba(0, 0, 0, .5); }
+.pool-card.is-focused .pool-card__table { outline: 2px solid var(--gold); outline-offset: 3px; }
+.pool-card.is-focused { scroll-margin-top: 95px; }
+.pool-card:focus-visible { outline: none; }
+
+/* Billiard shari — stol raqami: bo'sh — oq, o'yinda — sariq (1), pauza — to'q sariq (5) */
+.pool-ball { flex-shrink: 0; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: #1a1712; font-family: var(--font-display); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; position: relative;
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, var(--ivory) 36%, #cdc6b3 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset -2px -3px 6px rgba(0, 0, 0, .16); }
+.is-busy .pool-ball { background: radial-gradient(circle at 32% 28%, #fff6cf 0%, #e9c457 34%, #a8801f 100%); }
+.is-paused .pool-ball { background: radial-gradient(circle at 32% 28%, #ffe0bf 0%, #e8892f 36%, #9a4f12 100%); }
+.pool-ball.is-sm { width: 30px; height: 30px; font-size: 12px; }
+
+.pool-card__top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pool-card__title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pool-card__title h2 { margin: 0; font-size: 14px; font-weight: 650; color: var(--ivory); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 0 rgba(0, 0, 0, .3); }
+.pool-card__title > span { font-size: 11px; color: rgba(242, 237, 225, .62); }
+.pool-chip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; background: rgba(0, 0, 0, .3); color: rgba(242, 237, 225, .85); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.pool-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.is-busy .pool-chip { color: #8ff0b8; }
+.is-paused .pool-chip { color: #f3c674; }
+
+.pool-card__live { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; margin-top: auto; }
+.pool-card__timer { font-size: 27px; font-weight: 600; color: var(--ivory); text-shadow: 0 1px 0 rgba(0, 0, 0, .35); }
+.is-paused .pool-card__timer { color: #f3c674; }
+.pool-card__live .tabular-nums { font-family: var(--font-mono); color: var(--ivory) !important; text-shadow: 0 1px 0 rgba(0, 0, 0, .35); }
+.pool-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; font-size: 12px; color: rgba(242, 237, 225, .74); }
+.pool-card__meta > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.pool-card__meta > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; display: inline-block; }
+.pool-card__meta > span:first-child .anticon { margin-right: 5px; }
+.pool-card__meta .is-warning { color: #f3c674; }
+.pool-card__idle { margin: auto 0 0; display: flex; flex-direction: column; gap: 3px; }
+.pool-card__idle strong { font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: -.01em; color: var(--ivory); }
+.pool-card__idle span { font-size: 12px; color: rgba(242, 237, 225, .62); }
+
+.pool-card.is-free .pool-card__felt { cursor: pointer; }
+.pool-card.is-free .pool-card__felt:hover, .pool-card.is-free .pool-card__felt:focus-visible { filter: brightness(.78) saturate(.85); outline: none; }
+.pool-card__actions { display: flex; align-items: center; gap: 6px; }
+.pool-card__primary.is-start.ant-btn { color: var(--gold); border-color: var(--gold-line); background: transparent; }
+.pool-card__primary.is-start.ant-btn:hover { color: var(--gold-hover); border-color: var(--gold); background: var(--gold-subtle); }
+.pool-card__actions .ant-btn-icon-only { width: 44px; min-width: 44px; flex-shrink: 0; }
+.pool-card__primary.ant-btn { flex: 1; min-width: 0; }
+.pool-card .ant-btn.has-light-error { color: var(--error); }
+.pool-card .ant-btn.is-light-on { color: var(--gold); }
+.pool-card__warning { margin: -4px 0 0; display: flex; align-items: center; gap: 6px; color: var(--warning); font-size: 11px; }
+.pool-card .table-plan-badge { background: rgba(0, 0, 0, .3); color: #cfe3ff; }
+.pool-card .table-plan-badge.is-soon { color: #f3c674; background: rgba(0, 0, 0, .3); }
+.pool-card .table-plan-badge.is-expired { color: #fff; background: var(--error); }
 /* Ixcham ro'yxat: har stol bitta qator — telefonda butun zal bir ekranga sig'adi */
-.table-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; grid-template-areas: "num info live actions" "warn warn warn warn"; align-items: center; column-gap: 14px; min-width: 0; padding: 10px 12px 10px 14px; border: 1px solid var(--border-base); border-left: 3px solid var(--border-strong); border-radius: 12px; background: var(--bg1); transition: border-color .15s ease; }
+.table-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; grid-template-areas: "num info live actions" "warn warn warn warn"; align-items: center; column-gap: 14px; min-width: 0; padding: 10px 12px 10px 14px; border: 1px solid var(--border-base); border-left: 3px solid var(--border-strong); border-radius: 12px; background: var(--bg1); transition: border-color .15s ease; }
 .table-row:hover { border-color: var(--border-strong); }
 .table-row.is-busy { border-left-color: var(--gold); }
 .table-row.is-paused { border-left-color: var(--warning); }
 .table-row.is-free { border-left-color: var(--success); }
 .table-row.is-focused { outline: 2px solid var(--gold); outline-offset: 3px; scroll-margin-top: 95px; }
-.table-row__num { grid-area: num; color: var(--text-tertiary); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.table-row__num { grid-area: num; }
 .table-row__info { grid-area: info; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .table-row__info strong { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table-row__info > span { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 12px; min-width: 0; font-size: 12px; color: var(--text-secondary); }
@@ -95,7 +164,6 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 .table-plan-badge.is-soon { color: var(--warning); background: rgba(217, 161, 61, .14); }
 .table-plan-badge.is-expired { color: #fff; background: var(--error); animation: table-plan-pulse 1.4s ease-in-out infinite; }
 @keyframes table-plan-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(217, 84, 77, .55); } 50% { box-shadow: 0 0 0 6px rgba(217, 84, 77, 0); } }
-.table-work-card__plan { margin-top: -6px; }
 .table-row__warning { grid-area: warn; display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--warning); font-size: 11px; }
 .table-pos-modal .ant-modal-content { display: flex; flex-direction: column; max-height: calc(100dvh - 32px); padding: 24px; }
 .table-pos-modal .ant-modal-header { padding-right: 32px; }
@@ -148,6 +216,11 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 @media (min-width: 1600px) { .tables-board-grid--comfortable { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .table-pos-products { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tables-result-count { display: none; } }
 @media (max-width: 600px) {
+  .tables-money { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tables-money__cell { padding: 11px 12px; }
+  .tables-money__cell.is-live { grid-column: 1 / -1; }
+  .tables-money__cell.is-wide { grid-column: 1 / -1; }
+  .tables-money__cell .tabular-nums { font-size: 17px !important; }
   .tables-overview { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
   .tables-overview__occupancy, .tables-overview__metric { padding: 12px 8px; }
   .tables-overview__label { font-size: 10px; gap: 4px; line-height: 1.4; min-height: 28px; align-items: flex-start; }
@@ -163,7 +236,6 @@ button.tables-overview__metric:hover { background: var(--bg2); }
   .tables-board-grid { grid-template-columns: 1fr; gap: 12px; }
   .tables-board-grid--compact { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .table-row { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "num info live" "actions actions actions" "warn warn warn"; row-gap: 10px; column-gap: 10px; padding: 10px 10px 10px 12px; }
-  .table-row__num { font-size: 17px; }
   .table-row__actions { justify-content: flex-end; }
   .table-row__primary.ant-btn { flex: 1; min-width: 0; }
   /* Bo'sh stol — bitta qator: raqam, nom/narx va "Boshlash" */
@@ -177,7 +249,6 @@ button.tables-overview__metric:hover { background: var(--bg2); }
   .tables-workspace .workspace-page-header__actions .ant-btn > span:not(.ant-btn-icon) { display: none; }
   .tables-board-filters { width: 100%; }
   .tables-filter { padding-inline: 10px; }
-  .table-work-card .ant-card-body { min-height: 290px; }
   .table-pos-modal { top: 0; padding-bottom: 0; }
   .table-pos-modal .ant-modal-content { padding: 18px 15px; max-height: calc(100dvh - 24px); }
   .table-pos-layout { grid-template-columns: 1fr; gap: 20px; }
@@ -190,4 +261,4 @@ button.tables-overview__metric:hover { background: var(--bg2); }
   .table-checkout-drawer .ant-drawer-footer .ant-row > .ant-col:last-child { flex: 0 0 100%; max-width: 100%; }
 }
 .table-plan-picker .ant-segmented-item-label { padding-inline: 4px; font-size: 13px; }
-@media (prefers-reduced-motion: reduce) { .tables-occupancy-track span, .table-work-card.ant-card { transition: none; } .table-plan-badge.is-expired { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .tables-occupancy-track span, .pool-card__felt { transition: none; } .table-plan-badge.is-expired { animation: none; } }

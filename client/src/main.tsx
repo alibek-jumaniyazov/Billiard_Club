@@ -2,6 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import '@fontsource-variable/inter'; // Inter Variable — o'z-o'zidan xosting (tokens.ts: FONT_FAMILY)
+import '@fontsource-variable/unbounded'; // sarlavhalar (tokens.ts: FONT_FAMILY_DISPLAY)
+import '@fontsource-variable/jetbrains-mono'; // taymer va pul (tokens.ts: FONT_FAMILY_MONO)
 import './i18n';
 import './index.css';
 import './offline/install';

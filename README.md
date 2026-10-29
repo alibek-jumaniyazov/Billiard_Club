@@ -10,6 +10,7 @@ stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun k
 | `server/` | NestJS 11 · TypeORM · PostgreSQL · JWT · class-validator |
 | `client/` | Vite · React 18 · TypeScript · Ant Design 5 · react-i18next (uz/ru) · service worker (oflayn) |
 | `desktop/` | Electron qobiq — Windows/macOS/Linux uchun o'rnatiladigan dastur |
+| `mobile/` | Capacitor qobiq — Android ilova (APK) |
 | `bridge/` | Klub tarmog'idagi chiroq agenti (ixtiyoriy) |
 
 ### Biznes model
@@ -134,7 +135,8 @@ yuborilmagan amallar bo'lsa yopishdan oldin ogohlantirish.
 
 **`/download`** — yagona ommaviy sahifa: joriy versiya, hajmi, chiqarilgan sanasi,
 o'zgarishlar ro'yxati va SHA-512 nazorat summasi. Platforma avtomatik aniqlanadi
-(Windows/macOS/Linux). Desktop qobiq **ichida** ochilsa yuklab olish tugmasi o'rniga
+(Windows/macOS/Linux/Android; `/download#windows` yoki `/download#android` bilan
+majburan tanlash mumkin). Desktop qobiq **ichida** ochilsa yuklab olish tugmasi o'rniga
 joriy versiya va yangilanish holati ko'rsatiladi.
 
 Fayllar **o'z serveringizda** turadi — GitHub yoki boshqa tashqi xizmat ishlatilmaydi
@@ -160,6 +162,22 @@ Yangi versiya chiqarish: `desktop/package.json` dagi versiyani oshiring →
 reliz `/download` da ham, auto-update feed'ida ham ko'rinmaydi.
 
 Tafsilot: **[desktop/README.md](desktop/README.md)**
+
+## Android ilova
+
+`mobile/` — Capacitor qobig'i (≈3 MB APK, Android 7.0+). Desktop dastur kabi u ham
+serverdagi veb-ilovani ochadi: yangi imkoniyatlar APK ni qayta o'rnatmasdan keladi,
+internet uzilsa oflayn navbat ishlaydi, server umuman ochilmasa — "qayta urinish" ekrani.
+
+```bash
+npm run mobile:apk     # imzolangan release APK → mobile/dist/BilliardClub-<versiya>.apk
+```
+
+Birinchi yig'ishda imzo kaliti yaratiladi (`mobile/android/keystore*`, git'ga kirmaydi) —
+**zaxiralang**, kalitsiz o'rnatilgan ilovalarni yangilab bo'lmaydi. APK superadmin
+panelida **Desktop relizlari → Android (APK)** orqali nashr etiladi va `/download` da
+telefon uchun o'rnatish qadamlari bilan chiqadi. GitHub Actions'da yig'ish:
+`.github/workflows/android.yml`. Tafsilot: **[mobile/README.md](mobile/README.md)**
 
 ## Superadmin — klub ma'lumotlari konsoli
 
@@ -213,6 +231,23 @@ vaqt ko'rinadi, 5 daqiqa qolganda sariq, tugaganda qizil belgi va **ovozli signa
 "⋯" menyusidan "+30 daqiqa", "+1 soat" yoki cheklovni olib tashlash mumkin.
 Hisob baribir **haqiqiy vaqt bo'yicha soniyalik** — bu faqat kassir uchun ogohlantirish.
 
+## Stollar paneli
+
+- **Haqiqiy stol ko'rinishi** — har bir karta yog'och bortli, cho'ntakli billiard stoli:
+  bo'sh stol xira (chiroq o'chiq), band stol yorug' (chiroq yoniq), pauza — o'rtacha.
+- **Zonalar** — "Stollarni boshqarish"da stolga zona yoziladi (masalan, *VIP*,
+  *Rus bilyardi*, *Pul*); panel stollarni zona bo'yicha guruhlaydi. Zonasizlar oxirida.
+- **Jonli pul paneli** — ochiq stollardagi kutilayotgan summa har soniyada yangilanadi
+  (stol kartasidagi formula bilan bir xil); kassir/admin uchun ochiq smenaning tushumi
+  va kassadagi naqd ham shu yerda.
+- **Bron belgisi** — keyingi 6 soatdagi tasdiqlangan/kutilayotgan bron stol kartasida
+  vaqt va mijoz nomi bilan ko'rinadi.
+
+Dizayn tizimi: `client/src/theme/tokens.ts` (yagona manba) va `client/src/index.css`
+dagi CSS o'zgaruvchilar. Ranglar — billiard movuti yashili, yong'oq yog'och,
+latun-oltin va fil suyagi; shriftlar — Unbounded (sarlavhalar) va JetBrains Mono (raqamlar, taymerlar),
+ikkalasi ham o'z serverdan (`@fontsource`), tashqi CDN'siz.
+
 ## Landing arizalari (savdo voronkasi)
 
 Landing'dagi "Bepul konsultatsiya" formasi `POST /api/public/leads` ga yuboriladi:
@@ -262,9 +297,11 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
 1. `npm run typecheck && npm test && npm run build`
 2. **`npm run migrate`** — MAJBURIY. Kutilayotgan migratsiyalar:
    `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`, `TrialClaims`,
-   `TrialTelegramVerification`, `Leads`, `CashShifts` va `SessionPlannedMinutes`.
+   `TrialTelegramVerification`, `Leads`, `CashShifts`, `SessionPlannedMinutes`,
+   `TableZones` va `AndroidReleases`.
    Ularsiz qarzni hisobdan chiqarish, yangi foydalanuvchini ro‘yxatdan o‘tkazish,
-   landing arizalari, kassa smenalari va belgilangan vaqtli o‘yin ishlamaydi.
+   landing arizalari, kassa smenalari, belgilangan vaqtli o‘yin, stol zonalari va
+   Android relizlari ishlamaydi.
 3. Chiroqning `DIRECT` rejimidan foydalanadigan klub bo'lsa —
    `LIGHTS_DIRECT_ALLOWED_CIDRS` ni to'ldiring (pastdagi izohga qarang),
    aks holda DIRECT rejim ishlamaydi. `BRIDGE` rejimi ta'sirlanmaydi.

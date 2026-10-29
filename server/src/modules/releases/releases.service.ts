@@ -27,10 +27,16 @@ const ALLOWED_EXT: Record<ReleasePlatform, string[]> = {
   [ReleasePlatform.WIN]: ['.exe', '.msi'],
   [ReleasePlatform.MAC]: ['.dmg', '.zip'],
   [ReleasePlatform.LINUX]: ['.appimage', '.deb', '.rpm'],
+  [ReleasePlatform.ANDROID]: ['.apk'],
 };
 
-/** electron-updater qaysi platformada qaysi kanal faylini so'raydi */
-export const CHANNEL_FILE: Record<ReleasePlatform, string> = {
+/**
+ * electron-updater qaysi platformada qaysi kanal faylini so'raydi.
+ * Android bu ro'yxatda YO'Q: ilova qobig'i veb-ilovani serverdan ochadi,
+ * ya'ni ilova ichidagi hamma narsa avtomatik yangilanadi; APK ning o'zi
+ * kamdan-kam o'zgaradi va /download sahifasidan qayta o'rnatiladi.
+ */
+export const CHANNEL_FILE: Partial<Record<ReleasePlatform, string>> = {
   [ReleasePlatform.WIN]: 'latest.yml',
   [ReleasePlatform.MAC]: 'latest-mac.yml',
   [ReleasePlatform.LINUX]: 'latest-linux.yml',

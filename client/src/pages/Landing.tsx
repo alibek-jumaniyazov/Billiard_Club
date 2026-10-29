@@ -10,6 +10,7 @@ import {
   CoffeeOutlined,
   CreditCardOutlined,
   DashboardOutlined,
+  AndroidFilled,
   GlobalOutlined,
   InstagramOutlined,
   MailOutlined,
@@ -19,6 +20,7 @@ import {
   SendOutlined,
   StarFilled,
   TeamOutlined,
+  WindowsFilled,
 } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -26,9 +28,7 @@ import {
   motion,
   MotionConfig,
   useMotionValueEvent,
-  useReducedMotion,
   useScroll,
-  useTransform,
 } from 'framer-motion';
 import { useAppSettings } from '../context/AppSettingsContext';
 import {
@@ -39,7 +39,7 @@ import {
   VENDOR_NAME,
 } from '../constants';
 import { TOKENS } from '../theme/tokens';
-import { AnimatedBackground, BilliardTable, BrandLogo, GlassCard } from '../components/ui';
+import { BilliardTable, BrandLogo } from '../components/ui';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { formatNumber } from '../utils/format';
 import { publicApi } from '../api';
@@ -53,6 +53,7 @@ import RoiCalculator from './landing/RoiCalculator';
 import Comparison from './landing/Comparison';
 import LeadForm from './landing/LeadForm';
 import { FinalCta, StickyCta } from './landing/FinalCta';
+import Scoreboard from './landing/Scoreboard';
 import './landing/landing.css';
 
 const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
@@ -164,96 +165,10 @@ const TESTIMONIALS = [
   { k: 't4', color: gold.dim },
 ] as const;
 
-/* ------------------------------------------------ Dekorativ SVG soqqalar */
-
-interface FloatingBallSpec {
-  num: number;
-  color: string;
-  left: string;
-  top: string;
-  size: number;
-  delay: number;
-  duration: number;
-  opacity: number;
-  hideSm?: boolean;
-}
-
-const HERO_BALLS: FloatingBallSpec[] = [
-  { num: 1, color: gold.base, left: '5%', top: '14%', size: 34, delay: 0, duration: 12, opacity: 0.5, hideSm: true },
-  { num: 3, color: semantic.error, left: '88%', top: '10%', size: 26, delay: 1.2, duration: 14, opacity: 0.4, hideSm: true },
-  { num: 2, color: semantic.info, left: '72%', top: '80%', size: 30, delay: 0.6, duration: 11, opacity: 0.35, hideSm: true },
-  { num: 6, color: emerald.bright, left: '30%', top: '84%', size: 24, delay: 2, duration: 13, opacity: 0.4 },
-  { num: 9, color: gold.hover, left: '58%', top: '6%', size: 22, delay: 1.6, duration: 15.5, opacity: 0.35, hideSm: true },
-];
-
-/** Billiard soqqasi SVG motivi (raqamli, yumshoq soya bilan) */
-const BallSvg = ({ num, color, size }: { num: number; color: string; size: number }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-    <defs>
-      <radialGradient id={`lp-ball-${num}`} cx="0.32" cy="0.28" r="0.9">
-        {/* Yaltiroq nuqta va soya — neytral oq/qora (palitra rangi emas) */}
-        <stop offset="0%" stopColor="rgb(255, 255, 255)" stopOpacity="0.9" />
-        <stop offset="30%" stopColor={color} />
-        <stop offset="80%" stopColor={color} />
-        <stop offset="100%" stopColor="rgb(0, 0, 0)" stopOpacity="0.55" />
-      </radialGradient>
-    </defs>
-    <circle cx="20" cy="20" r="19" fill={`url(#lp-ball-${num})`} />
-    <circle cx="20" cy="20" r="7.5" fill="rgb(255, 255, 255)" fillOpacity="0.92" />
-    <text
-      x="20"
-      y="23.2"
-      textAnchor="middle"
-      fontSize="9"
-      fontWeight="700"
-      fill="rgb(0, 0, 0)"
-      fillOpacity="0.8"
-    >
-      {num}
-    </text>
-  </svg>
-);
-
-/** Hero fonida suzib yuruvchi soqqa — faqat transform (y/x) animatsiyasi.
-    Uzun davomiylik + turli fazadagi yon siljish suzishni yumshoq qiladi. */
-const FloatingBall = ({ ball }: { ball: FloatingBallSpec }) => (
-  <motion.div
-    aria-hidden
-    className={ball.hideSm ? 'lp-hide-sm' : undefined}
-    animate={{ y: [0, -14, 0], x: [0, 6, 0] }}
-    transition={{
-      y: { duration: ball.duration, repeat: Infinity, ease: 'easeInOut', delay: ball.delay },
-      x: { duration: ball.duration * 1.4, repeat: Infinity, ease: 'easeInOut', delay: ball.delay },
-    }}
-    style={{
-      position: 'absolute',
-      left: ball.left,
-      top: ball.top,
-      width: ball.size,
-      height: ball.size,
-      opacity: ball.opacity,
-      pointerEvents: 'none',
-      willChange: 'transform',
-    }}
-  >
-    <BallSvg num={ball.num} color={ball.color} size={ball.size} />
-  </motion.div>
-);
-
 /* ------------------------------------------------- Bo'lim ajratuvchi qatlam */
 
-/** Bo'limlar orasidagi yumshoq gradient o'tish (zumrad → shaffof) —
-    sahifa tekis qora plitalar to'plami bo'lib ko'rinmasligi uchun */
-const SectionDivider = () => (
-  <div
-    aria-hidden
-    style={{
-      height: 80,
-      background: `linear-gradient(180deg, ${emerald.deepest} 0%, ${hexToRgba(emerald.deepest, 0)} 100%)`,
-      pointerEvents: 'none',
-    }}
-  />
-);
+/** Bo'limlar orasidagi ingichka ajratuvchi chiziq (minimalizm) */
+const SectionDivider = () => <div aria-hidden className="lp-divider" />;
 
 /* ------------------------------------------------------------------ Sahifa */
 
@@ -263,13 +178,11 @@ const Landing = () => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
-  const reduceMotion = useReducedMotion();
 
-  /* Skroll qiymati — navbar zichligi va hero parallaksi uchun.
+  /* Skroll qiymati — navbar zichligi uchun.
      MotionValue to'g'ridan-to'g'ri transformga yoziladi: layout o'qilmaydi,
      state faqat 40px chegara kesilganda almashadi (React o'zi bail out qiladi). */
   const { scrollY } = useScroll();
-  const heroBallsY = useTransform(scrollY, [0, 640], [0, 80]);
   useMotionValueEvent(scrollY, 'change', (y) => setNavScrolled(y > 40));
 
   useDocumentHead('landing.metaTitle', 'landing.metaDescription');
@@ -440,7 +353,7 @@ const Landing = () => {
         className="lp-root"
         style={{
           minHeight: '100vh',
-          background: `linear-gradient(165deg, ${bg.bg0} 0%, ${emerald.deepest} 48%, ${emerald.deep} 100%)`,
+          background: bg.bg0,
           color: text.primary,
           overflowX: 'hidden',
         }}
@@ -568,23 +481,9 @@ const Landing = () => {
 
         <main>
           {/* -------------------------------------------------------- Hero */}
-          <section style={{ position: 'relative', overflow: 'hidden', isolation: 'isolate' }}>
-            {/* Fon: jonli aurora nurlari + donadorlik — hero kontenti ORQASIDA suzadi */}
-            <AnimatedBackground variant="aurora" withGrain />
-            {/* Suzuvchi soqqalar qatlami — skrollda nozik parallaks (faqat transform) */}
-            <motion.div
-              aria-hidden
-              style={{
-                position: 'absolute',
-                inset: 0,
-                pointerEvents: 'none',
-                y: reduceMotion ? 0 : heroBallsY,
-              }}
-            >
-              {HERO_BALLS.map((ball) => (
-                <FloatingBall key={ball.num} ball={ball} />
-              ))}
-            </motion.div>
+          <section className="lp-hero" style={{ position: 'relative', overflow: 'hidden', isolation: 'isolate' }}>
+            {/* Minimal fon: qorong'i zal va stol ustidagi chiroq nuri (aurora/soqqalar yo'q) */}
+            <div className="lp-hero-lamp" aria-hidden />
 
             <div
               className="lp-container"
@@ -616,17 +515,7 @@ const Landing = () => {
                         {t('landing.heroBadge')}
                       </span>
                     </motion.div>
-                    <motion.h1
-                      variants={fadeUp}
-                      style={{
-                        fontSize: 'clamp(32px, 5vw, 56px)',
-                        lineHeight: 1.12,
-                        fontWeight: 800,
-                        color: text.primary,
-                        letterSpacing: -0.5,
-                        margin: '22px 0 18px',
-                      }}
-                    >
+                    <motion.h1 variants={fadeUp} className="lp-hero-title">
                       {t('landing.heroTitle')}
                     </motion.h1>
                     <motion.p
@@ -671,6 +560,18 @@ const Landing = () => {
                         </li>
                       ))}
                     </motion.ul>
+                    {/* Platformalar — ClubTime kabi: dastur qayerda ishlashi birinchi ekranda */}
+                    <motion.div variants={fadeUp} className="lp-platforms">
+                      <Link to="/download#windows" className="lp-platform">
+                        <WindowsFilled aria-hidden /> Windows
+                      </Link>
+                      <Link to="/download#android" className="lp-platform">
+                        <AndroidFilled aria-hidden /> Android
+                      </Link>
+                      <Link to="/login" className="lp-platform">
+                        <GlobalOutlined aria-hidden /> {t('landing.platformWeb')}
+                      </Link>
+                    </motion.div>
                   </motion.div>
                 </Col>
                 <Col xs={24} lg={11}>
@@ -683,6 +584,7 @@ const Landing = () => {
                       hint={t('landing.heroTableHint')}
                       ariaLabel={t('landing.heroTableAria')}
                     />
+                    <Scoreboard />
                   </motion.div>
                 </Col>
               </Row>
@@ -746,55 +648,12 @@ const Landing = () => {
                 <Row gutter={[20, 20]}>
                   {FEATURE_ITEMS.map(({ key, icon }) => (
                     <Col xs={24} sm={12} lg={6} key={key}>
-                      <motion.div
-                        variants={fadeUp}
-                        whileHover={{ y: -6 }}
-                        transition={{
-                          type: 'tween',
-                          duration: TOKENS.motion.duration.base,
-                          ease: TOKENS.motion.easing.out,
-                        }}
-                        style={{ height: '100%' }}
-                      >
-                        <GlassCard padding={24} style={{ height: '100%' }}>
-                          <div
-                            style={{
-                              width: 48,
-                              height: 48,
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: gold.subtle,
-                              border: `1px solid ${gold.line}`,
-                              color: gold.base,
-                              fontSize: 20,
-                            }}
-                          >
-                            {icon}
-                          </div>
-                          <h3
-                            style={{
-                              fontSize: 16,
-                              fontWeight: 700,
-                              color: text.primary,
-                              margin: '18px 0 8px',
-                              lineHeight: 1.35,
-                            }}
-                          >
-                            {t(`landing.${key}Title`)}
-                          </h3>
-                          <p
-                            style={{
-                              color: text.secondary,
-                              fontSize: 14,
-                              lineHeight: 1.65,
-                              margin: 0,
-                            }}
-                          >
-                            {t(`landing.${key}Desc`)}
-                          </p>
-                        </GlassCard>
+                      <motion.div variants={fadeUp} className="lp-feature">
+                        <span className="lp-feature__icon" aria-hidden>
+                          {icon}
+                        </span>
+                        <h3>{t(`landing.${key}Title`)}</h3>
+                        <p>{t(`landing.${key}Desc`)}</p>
                       </motion.div>
                     </Col>
                   ))}

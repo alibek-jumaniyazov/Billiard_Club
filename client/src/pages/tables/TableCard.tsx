@@ -1,8 +1,8 @@
-import { memo, useEffect } from 'react';
-import { App, Button, Card, Dropdown, Tag, Tooltip } from 'antd';
+import { memo, useEffect, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { App, Button, Dropdown, Tooltip } from 'antd';
 import {
-  BellOutlined, BulbOutlined, CaretRightOutlined, ClockCircleOutlined, CloseCircleOutlined,
-  CloudSyncOutlined, CoffeeOutlined, DollarOutlined, DownOutlined, EllipsisOutlined, FieldTimeOutlined,
+  BellOutlined, BulbOutlined, CalendarOutlined, CaretRightOutlined, ClockCircleOutlined, CloseCircleOutlined,
+  CloudSyncOutlined, CoffeeOutlined, DollarOutlined, EllipsisOutlined, FieldTimeOutlined,
   HistoryOutlined, HourglassOutlined, PauseCircleOutlined, PlayCircleOutlined, StopOutlined, SwapOutlined,
   SyncOutlined, UserOutlined,
 } from '@ant-design/icons';
@@ -95,6 +95,8 @@ export interface TableCardProps {
   lightPending?: boolean;
   canCheckout: boolean;
   canManage: boolean;
+  /** Eng yaqin bron yorlig'i ("Bron 21:00 · Aziza") — bo'lsa kartada ko'rinadi */
+  reservation?: string;
   onStart: (table: BilliardTable) => void;
   onOrder: (table: BilliardTable) => void;
   onTransfer: (table: BilliardTable) => void;
@@ -108,7 +110,7 @@ export interface TableCardProps {
 }
 
 const TableCard = memo(({
-  variant = 'card', table, focused, session, segments, offsetMs, online, pending, lightPending, canCheckout, canManage,
+  variant = 'card', table, focused, session, segments, offsetMs, online, pending, lightPending, canCheckout, canManage, reservation,
   onStart, onOrder, onTransfer, onCheckout, onPauseResume, onCancel, onLightToggle, onLightAuto, onPlanChange,
 }: TableCardProps) => {
   const { t, i18n } = useTranslation();
@@ -194,7 +196,7 @@ const TableCard = memo(({
     return (
       <div id={`workspace-table-${table.id}`} tabIndex={focused ? -1 : undefined}
         className={`table-row ${stateClass}${focused ? ' is-focused' : ''}`}>
-        <span className="table-row__num" aria-label={`${t('common.table')} ${table.number}`}>{String(table.number).padStart(2, '0')}</span>
+        <span className="pool-ball is-sm table-row__num" aria-label={`${t('common.table')} ${table.number}`}>{table.number}</span>
         <div className="table-row__info">
           <strong title={displayName}>{displayName}</strong>
           {isBusy && session ? <span>
@@ -203,7 +205,11 @@ const TableCard = memo(({
             {session.barAmount > 0 && <em><CoffeeOutlined />{formatNumber(session.barAmount)}</em>}
             {isOfflineSession && <em className="is-warning"><CloudSyncOutlined />{t('offline.queuePending')}</em>}
             {session.plannedMinutes ? <PlannedBadge session={session} offsetMs={offsetMs} /> : null}
-          </span> : <span>{formatNumber(table.pricePerHour)} {currency} / {t('tables.perHour')}</span>}
+            {reservation && <em className="is-reservation"><CalendarOutlined />{reservation}</em>}
+          </span> : <span>
+            {formatNumber(table.pricePerHour)} {currency} / {t('tables.perHour')}
+            {reservation && <em className="is-reservation"><CalendarOutlined />{reservation}</em>}
+          </span>}
         </div>
         <div className="table-row__live">
           {isBusy && session ? <>
@@ -240,62 +246,86 @@ const TableCard = memo(({
     );
   }
 
+  /*
+   * KARTA = HAQIQIY BILLIARD STOLI (yuqoridan ko'rinish): yong'oq yog'och bort,
+   * olmos nishonlar, 6 ta luza va mato. Mato yorug'ligi chiroq holatini
+   * takrorlaydi: band — chiroq yoqilgan (yorqin mato), bo'sh — o'chiq (xira).
+   * Stol raqami billiard shari: bo'sh — oq (biton), o'yinda — sariq, pauza — to'q sariq.
+   */
   return (
-    <Card id={`workspace-table-${table.id}`} tabIndex={focused ? -1 : undefined}
-      className={`table-work-card ${stateClass}${focused ? ' is-focused' : ''}`}>
-      <div className="table-work-card__header">
-        <div className="table-work-card__identity">
-          <span className="table-work-card__number" aria-label={`${t('common.table')} ${table.number}`}>{String(table.number).padStart(2, '0')}</span>
-          <div><h2 title={table.name}>{displayName}</h2>
-            <span className="table-work-card__rate">{formatNumber(table.pricePerHour)} {currency} / {t('tables.perHour')}</span></div>
+    <div id={`workspace-table-${table.id}`} tabIndex={focused ? -1 : undefined}
+      className={`pool-card ${stateClass}${focused ? ' is-focused' : ''}`}>
+      <div className="pool-card__table">
+        <span className="pool-card__pockets" aria-hidden />
+        {/* Bo'sh stol matosi bosiladi — "stolga bosing, o'yin boshlanadi" */}
+        <div className="pool-card__felt"
+          {...(!isBusy ? {
+            role: 'button', tabIndex: 0, 'aria-label': `${t('tables.start')} — ${displayName}`,
+            onClick: () => onStart(table),
+            onKeyDown: (e: ReactKeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStart(table); }
+            },
+          } : {})}>
+          <div className="pool-card__top">
+            <span className="pool-ball" aria-label={`${t('common.table')} ${table.number}`}>{table.number}</span>
+            <div className="pool-card__title">
+              <h2 title={displayName}>{displayName}</h2>
+              <span>{formatNumber(table.pricePerHour)} {currency} / {t('tables.perHour')}</span>
+            </div>
+            <span className="pool-chip">{t(isBusy ? isPaused ? 'status.paused' : 'status.active' : 'status.free')}</span>
+          </div>
+
+          {isBusy && session ? <>
+            <div className="pool-card__live">
+              <ElapsedTime from={session.startTime} computeMs={(now) => sessionElapsedMs(session, now + offsetMs)} paused={isPaused}
+                className="pool-card__timer" />
+              <LiveAmount session={session} fallbackPrice={table.pricePerHour} segments={segments} offsetMs={offsetMs} currency={currency} />
+            </div>
+            <div className="pool-card__meta">
+              <span title={session.customerName || t('tables.guest')}><UserOutlined />{session.customerName || t('tables.guest')}</span>
+              <span><ClockCircleOutlined />{formatClock(session.startTime)}</span>
+              {session.barAmount > 0 && <span><CoffeeOutlined />{formatNumber(session.barAmount)}</span>}
+              {isOfflineSession && <span className="is-warning"><CloudSyncOutlined />{t('offline.queuePending')}</span>}
+              {session.plannedMinutes ? <PlannedBadge session={session} offsetMs={offsetMs} /> : null}
+              {reservation && <span className="pool-reservation"><CalendarOutlined />{reservation}</span>}
+            </div>
+          </> : isBusy ? <p className="pool-card__idle"><span>{t('tables.sessionUnavailable')}</span></p> : (
+            <div className="pool-card__idle">
+              {reservation && <span className="pool-reservation"><CalendarOutlined />{reservation}</span>}
+              <strong>{t('tables.freeToStart')}</strong>
+              <span><HistoryOutlined /> {t('tables.todayCompleted', { n: table.todayCompletedSessions ?? 0 })}</span>
+            </div>
+          )}
         </div>
-        <StatusTag status={isBusy ? isPaused ? 'paused' : 'active' : 'free'} label={t(isBusy ? isPaused ? 'status.paused' : 'status.active' : 'status.free')} />
       </div>
 
-      {isBusy && session ? <>
-        <div className="table-work-card__numbers">
-          <div><span className="table-work-card__caption">{t('common.duration')}</span>
-            <ElapsedTime from={session.startTime} computeMs={(now) => sessionElapsedMs(session, now + offsetMs)} paused={isPaused}
-              style={{ fontSize: 28, fontWeight: 650, color: isPaused ? TOKENS.color.semantic.warning : TOKENS.color.text.primary, display: 'block' }} />
-          </div>
-          <div className="table-work-card__amount"><span className="table-work-card__caption">{t('tables.liveTotalCaption')}</span>
-            <LiveAmount session={session} fallbackPrice={table.pricePerHour} segments={segments} offsetMs={offsetMs} currency={currency} />
-          </div>
-        </div>
-        <div className="table-work-card__guest">
-          <span title={session.customerName || t('tables.guest')}><UserOutlined />{session.customerName || t('tables.guest')}</span>
-          <span><ClockCircleOutlined />{formatClock(session.startTime)}</span>
-        </div>
-        {session.plannedMinutes ? <div className="table-work-card__plan"><PlannedBadge session={session} offsetMs={offsetMs} /></div> : null}
-        {(session.barAmount > 0 || isOfflineSession) && <div className="table-work-card__details">
-          {session.barAmount > 0 && <span><CoffeeOutlined />{formatNumber(session.barAmount)} {currency}</span>}
-          {isOfflineSession && <Tag icon={<CloudSyncOutlined />} color="warning">{t('offline.queuePending')}</Tag>}
-        </div>}
-        <div className="table-work-card__actions">
-          <Button icon={<CoffeeOutlined />} onClick={() => onOrder(table)}>{t('tables.addOrder')}</Button>
-          {canCheckout && <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : undefined}>
-            <Button type="primary" icon={<DollarOutlined />} disabled={offlineBlocked || pending} onClick={() => onCheckout(table)}>{t('tables.end')}</Button>
-          </Tooltip>}
-        </div>
-      </> : isBusy ? <p className="table-work-card__empty">{t('tables.sessionUnavailable')}</p> : <>
-        <div className="table-work-card__available"><span className="table-work-card__caption">{t('tables.readyForGame')}</span>
-          <strong>{t('tables.freeToStart')}</strong><span>{t('tables.startGuestHint')}</span></div>
-        <Button className="table-work-card__start" type="primary" ghost block icon={<PlayCircleOutlined />} onClick={() => onStart(table)}>{t('tables.start')}</Button>
-      </>}
-
-      <div className="table-work-card__utilities">
-        {isBusy && session ? <Button type="text" icon={isPaused ? <CaretRightOutlined /> : <PauseCircleOutlined />} loading={pending}
-          onClick={() => onPauseResume(session, table)}>{t(isPaused ? 'tables.resume' : 'tables.pause')}</Button>
-          : <span className="table-work-card__history"><HistoryOutlined />{t('tables.todayCompleted', { n: table.todayCompletedSessions ?? 0 })}</span>}
-        <div className="table-work-card__utility-buttons">
+      <div className="pool-card__actions">
+        {isBusy && session ? <>
+          <Tooltip title={t(isPaused ? 'tables.resume' : 'tables.pause')}>
+            <Button icon={isPaused ? <CaretRightOutlined /> : <PauseCircleOutlined />} loading={pending}
+              aria-label={t(isPaused ? 'tables.resume' : 'tables.pause')} onClick={() => onPauseResume(session, table)} />
+          </Tooltip>
+          <Tooltip title={t('tables.addOrder')}>
+            <Button icon={<CoffeeOutlined />} aria-label={t('tables.addOrder')} onClick={() => onOrder(table)} />
+          </Tooltip>
           {lightButton}
           {moreItems.length > 0 && <Dropdown menu={{ items: moreItems }} trigger={['click']} placement="bottomRight">
-            <Button type="text" icon={<DownOutlined />}>{t('tables.moreActions')}</Button>
+            <Button icon={<EllipsisOutlined />} aria-label={t('tables.moreActions')} />
           </Dropdown>}
-        </div>
+          {canCheckout && <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : undefined}>
+            <Button className="pool-card__primary" type="primary" icon={<DollarOutlined />} disabled={offlineBlocked || pending}
+              onClick={() => onCheckout(table)}>{t('tables.end')}</Button>
+          </Tooltip>}
+        </> : isBusy ? null : <>
+          {lightButton}
+          {moreItems.length > 0 && <Dropdown menu={{ items: moreItems }} trigger={['click']} placement="bottomRight">
+            <Button icon={<EllipsisOutlined />} aria-label={t('tables.moreActions')} />
+          </Dropdown>}
+          <Button className="pool-card__primary is-start" icon={<PlayCircleOutlined />} onClick={() => onStart(table)}>{t('tables.start')}</Button>
+        </>}
       </div>
-      {hasLight && lightError && <p className="table-work-card__warning" title={lightError}><BulbOutlined />{t('tables.lightAttention')}</p>}
-    </Card>
+      {hasLight && lightError && <p className="pool-card__warning" title={lightError}><BulbOutlined />{t('tables.lightAttention')}</p>}
+    </div>
   );
 });
 TableCard.displayName = 'TableCard';
