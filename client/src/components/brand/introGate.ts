@@ -2,8 +2,12 @@
  * BREND INTRO'SI qachon ko'rsatiladi — sof qaror (sinovlanadi) va brauzerdan
  * holatni o'qish.
  *
- *  - Saytda: faqat bosh sahifaga (landing) birinchi marta kirgan mehmonga;
- *    kirgan foydalanuvchi, bo'limga havola (#narxlar) yoki boshqa sahifalar — yo'q.
+ *  - Saytda: faqat bosh sahifaga (landing, /ru/ ham) birinchi marta kirgan
+ *    mehmonga; kirgan foydalanuvchi, bo'limga havola (#narxlar) yoki boshqa
+ *    sahifalar — yo'q.
+ *  - Qidiruvdan (Google, Yandex…) kelgan mehmon va qidiruv/ijtimoiy tarmoq
+ *    botlari intro'ni KO'RMAYDI: ular izlagan narsasini darhol ko'rsin, Google
+ *    esa sahifani yopib turadigan oynani (interstitial) yoqtirmaydi.
  *  - Dasturda (Windows/Android): har ishga tushganda bir marta — haqiqiy dastur
  *    "splash"i kabi. Android'da tizim splash ekrani belgini allaqachon ko'rsatgan,
  *    shuning uchun intro tayyor belgidan davom etadi (`assembled`).
@@ -11,6 +15,7 @@
  *    (testlar) yoki shu sessiyada allaqachon ko'rsatilgan bo'lsa — yo'q.
  */
 import { useSyncExternalStore } from 'react';
+import { isLandingPath } from '../../seo/site';
 import { isAndroidShell, isAppShell } from '../../utils/appShell';
 
 export type IntroVariant = 'full' | 'assembled';
@@ -24,14 +29,22 @@ export interface IntroContext {
   reducedMotion: boolean;
   automated: boolean;
   alreadyPlayed: boolean;
+  /** Qidiruv, ijtimoiy tarmoq yoki tezlik o'lchash boti */
+  bot: boolean;
+  /** Qidiruv tizimidan kelgan (document.referrer) */
+  fromSearch: boolean;
 }
+
+const BOT_UA = /bot|crawl|spider|slurp|mediapartners|lighthouse|pagespeed|headless|facebookexternalhit|whatsapp|preview/i;
+const SEARCH_REFERRER = /^https?:\/\/([^/]+\.)?(google|yandex|bing|duckduckgo|yahoo|baidu|ecosia|brave|mail)\./i;
 
 export const INTRO_SESSION_KEY = 'bc.intro.v1';
 
 export const introVariant = (c: IntroContext): IntroVariant | null => {
   if (c.reducedMotion || c.automated || c.alreadyPlayed) return null;
   if (c.appShell) return c.androidShell ? 'assembled' : 'full';
-  if (c.pathname === '/' && !c.hash && !c.signedIn) return 'full';
+  if (c.bot || c.fromSearch) return null;
+  if (isLandingPath(c.pathname) && !c.hash && !c.signedIn) return 'full';
   return null;
 };
 
@@ -53,6 +66,8 @@ export const readIntroContext = (): IntroContext => ({
   reducedMotion: safe(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches, false),
   automated: safe(() => navigator.webdriver === true, false),
   alreadyPlayed: safe(() => sessionStorage.getItem(INTRO_SESSION_KEY) === '1', false),
+  bot: safe(() => BOT_UA.test(navigator.userAgent), false),
+  fromSearch: safe(() => SEARCH_REFERRER.test(document.referrer), false),
 });
 
 export const markIntroPlayed = (): void => {

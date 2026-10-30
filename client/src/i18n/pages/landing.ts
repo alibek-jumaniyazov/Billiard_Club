@@ -5,10 +5,14 @@
  */
 export default {
   uz: {
-    // SEO meta (useDocumentHead)
-    metaTitle: 'Billiard Club — billiard klublari uchun boshqaruv tizimi',
+    // SEO meta (useDocumentHead + build paytida statik <head>: vite-plugin-seo.ts).
+    // Sarlavha ~60, tavsif ~155 belgidan oshmasin — Google natijasida kesilmaydi
+    metaTitle: 'Billiard klub dasturi — stol taymeri, bar, kassa | Billiard Club',
     metaDescription:
-      "Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. {{days}} kun bepul sinab ko'ring.",
+      'Billiard klub uchun dastur: stol vaqti avtomatik hisoblanadi, bar POS, qarzlar, hisobotlar, chiroq avtomatikasi. Windows, Android, brauzer. {{days}} kun bepul.',
+    metaKeywords:
+      "billiard klub dasturi, bilyard klub dasturi, billiard dasturi, billiard klub boshqaruvi, billiard stol taymeri, bilyard stol vaqti, billiard kassa dasturi, billiard CRM, bar POS, billiard klub ochish, billiard Toshkent, bilyard O'zbekiston",
+    ogImageAlt: 'Billiard Club — billiard klublari uchun boshqaruv dasturi: stollar, bar va kassa',
     metaLoginTitle: 'Kirish — Billiard Club',
     metaLoginDescription:
       "Billiard Club hisobingizga kiring va klubingizni istalgan qurilmadan boshqaring.",
@@ -481,10 +485,13 @@ export default {
     footerBuiltBy: 'Ishlab chiquvchi',
   },
   ru: {
-    // SEO meta (useDocumentHead)
-    metaTitle: 'Billiard Club — система управления бильярдным клубом',
+    // SEO meta (useDocumentHead + статический <head> при сборке: vite-plugin-seo.ts)
+    metaTitle: 'Программа для бильярдного клуба — таймер, бар, касса | Billiard Club',
     metaDescription:
-      'Живые таймеры столов, бар POS, журнал долгов и финансовые отчёты — единая облачная система для вашего бильярдного клуба. Попробуйте {{days}} дней бесплатно.',
+      'Программа для бильярдного клуба: учёт времени столов, бар POS, долги, отчёты, автоматический свет. Windows, Android, браузер. {{days}} дней бесплатно.',
+    metaKeywords:
+      'программа для бильярдного клуба, программа для бильярда, учет бильярдного клуба, таймер бильярдных столов, автоматизация бильярдной, бильярд CRM, касса для бильярдного клуба, управление бильярдным клубом, бильярд Ташкент, бильярд Узбекистан',
+    ogImageAlt: 'Billiard Club — программа для управления бильярдным клубом: столы, бар и касса',
     metaLoginTitle: 'Вход — Billiard Club',
     metaLoginDescription:
       'Войдите в аккаунт Billiard Club и управляйте клубом с любого устройства.',

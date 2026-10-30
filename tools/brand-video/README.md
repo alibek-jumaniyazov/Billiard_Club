@@ -52,3 +52,23 @@ desktop/node_modules/.bin/electron tools/brand-video/render.cjs --ffmpeg=C:/ffmp
 
 Logotip yoki animatsiya (`logoMotion.ts`) o'zgarsa, videolarni qayta yarating. Sayt intro'si
 yangi kod bilan avtomatik yangilanadi.
+
+## Bannerlar va ikonkalar — `banners.cjs`
+
+Landingdagi jonli demo panel (haqiqiy stol kartalari) suratga olinib, brend kompozitsiyasiga
+joylanadi. Natija:
+
+| Fayl | Nima uchun |
+|---|---|
+| `client/public/og-cover.png` | 1200×630, o'zbekcha: Google, Telegram, Facebook havola ko'rinishi |
+| `client/public/og-cover-ru.png` | 1200×630, ruscha |
+| `client/public/favicon.ico` | 48×48: qidiruv natijasidagi ikonka |
+| `client/public/brand/billiardclub-logo-1024.png` | Kvadrat logotip: Google Business, 2GIS, kataloglar |
+
+```bash
+desktop/node_modules/.bin/electron tools/brand-video/banners.cjs --url=http://localhost:5173 --ffmpeg=C:/ffmpeg/bin/ffmpeg.exe
+```
+
+`--url` — landing ochiladigan manzil: dev server (`npm run dev`) yoki `https://billiardclub.uz`.
+Banner matnlari skript ichida (`TEXT`). Sahifadagi SEO matnlari esa landing tarjimalaridan
+olinadi (`docs/SEO.md`).

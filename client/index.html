@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Qidiruv tizimlari va eski brauzerlar /favicon.ico ni so'raydi (48×48) -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="mask-icon" href="/favicon.svg" color="#d4af37" />
     <!-- iOS SVG ikonkani tushunmaydi — «Bosh ekranga qo'shish» uchun PNG kerak -->
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
@@ -19,205 +21,21 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="format-detection" content="telephone=no" />
-
-    <!-- Asosiy SEO (uz — standart til; sarlavha/meta har route/tilda
-         src/hooks/useDocumentHead.ts orqali reaktiv yangilanadi) -->
-    <title>Billiard Club — billiard klublari uchun boshqaruv tizimi</title>
-    <meta
-      name="description"
-      content="Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. Bepul sinab ko'ring."
-    />
-    <meta name="robots" content="index, follow" />
     <meta name="author" content="Billiard Club" />
-    <meta
-      name="keywords"
-      content="billiard, bilyard, klub boshqaruvi, stol taymer, bar POS, CRM, hisobot, бильярд, управление клубом, POS, отчёты"
-    />
-    <link rel="canonical" href="https://billiardclub.uz/" />
 
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Billiard Club" />
-    <meta property="og:title" content="Billiard Club — billiard klublari uchun boshqaruv tizimi" />
-    <meta
-      property="og:description"
-      content="Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. Bepul sinab ko'ring."
-    />
-    <meta property="og:url" content="https://billiardclub.uz/" />
-    <meta property="og:image" content="https://billiardclub.uz/og-cover.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Billiard Club — billiard klublari uchun boshqaruv tizimi" />
-    <meta property="og:locale" content="uz_UZ" />
-    <meta property="og:locale:alternate" content="ru_RU" />
+    <!-- JavaScript ishlasa sahifani React chizadi: qidiruv botlari uchun
+         statik matn (#seo-static) foydalanuvchiga bir lahza ham ko'rinmaydi -->
+    <script>document.documentElement.classList.add('js');</script>
+    <style>html.js #seo-static { display: none; }</style>
 
-    <!-- Twitter card -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Billiard Club — billiard klublari uchun boshqaruv tizimi" />
-    <meta
-      name="twitter:description"
-      content="Jonli stol taymerlari, bar POS, qarzlar daftari va moliyaviy hisobotlar — billiard klubingiz uchun yagona bulutli tizim. Bepul sinab ko'ring."
-    />
-    <meta name="twitter:image" content="https://billiardclub.uz/og-cover.png" />
-    <meta name="twitter:image:alt" content="Billiard Club — billiard klublari uchun boshqaruv tizimi" />
-
-    <!-- JSON-LD: Organization -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "Billiard Club",
-        "url": "https://billiardclub.uz/",
-        "logo": "https://billiardclub.uz/favicon.svg",
-        "email": "avilab.com@gmail.com",
-        "sameAs": ["https://t.me/alibek_jumaniyazov", "https://www.instagram.com/avilab.uz"],
-        "contactPoint": {
-          "@type": "ContactPoint",
-          "contactType": "customer support",
-          "telephone": "+998886003230",
-          "email": "avilab.com@gmail.com",
-          "availableLanguage": ["uz", "ru"]
-        }
-      }
-    </script>
-
-    <!-- JSON-LD: SoftwareApplication (tariflar server seed bilan sinxron) -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Billiard Club",
-        "url": "https://billiardclub.uz/",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web",
-        "inLanguage": ["uz", "ru"],
-        "description": "Billiard klublari uchun boshqaruv tizimi: jonli stol taymerlari, bar POS, qarzlar daftari, moliyaviy hisobotlar va xodimlar rollari.",
-        "offers": [
-          {
-            "@type": "Offer",
-            "name": "Oylik obuna",
-            "price": "290000",
-            "priceCurrency": "UZS",
-            "category": "subscription"
-          },
-          {
-            "@type": "Offer",
-            "name": "6 oylik obuna",
-            "price": "1490000",
-            "priceCurrency": "UZS",
-            "category": "subscription"
-          },
-          {
-            "@type": "Offer",
-            "name": "Yillik obuna",
-            "price": "2490000",
-            "priceCurrency": "UZS",
-            "category": "subscription"
-          }
-        ]
-      }
-    </script>
-
-    <!-- JSON-LD: FAQPage (src/i18n/pages/landing.ts dagi uz FAQ bilan sinxron) -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Bepul sinov qanday ishlaydi?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Bepul sinov faqat yangi foydalanuvchilar uchun bir marta beriladi. Telegram botida o'z telefon raqamingizni tasdiqlab, ro'yxatdan o'tganingizdan so'ng barcha imkoniyatlar ochiladi. Karta yoki SMS to'lovi talab qilinmaydi. Sinov tugagach, mavjud hisobingizda qulay tarifni tanlab davom etasiz."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Obuna tugasa, ma'lumotlarim o'chib ketadimi?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Yo'q. Ma'lumotlaringiz to'liq saqlanadi — faqat kirish vaqtincha yopiladi. To'lovdan so'ng tizim zudlik bilan qayta ochiladi va hammasi joyida bo'ladi."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Qanday qurilma kerak?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Maxsus qurilma shart emas: telefon, planshet yoki kompyuterdagi brauzer kifoya. Xohlasangiz, kassa kompyuteriga Windows, macOS yoki Linux dasturini o'rnatishingiz mumkin."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Xodimlarim uchun alohida hisoblar boʼladimi?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Ha. Admin, kassir va operator rollari mavjud — har bir xodim o'z login-paroli bilan kiradi va faqat o'z vazifalariga ruxsat oladi."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Stol vaqti qanday hisoblanadi?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sessiya ochilganda taymer avtomatik boshlanadi, pauza va boshqa stolga ko'chirish mumkin. Summa soatlik narx asosida soniyasigacha aniq hisoblanadi, bar buyurtmalari ham shu hisobga qo'shiladi."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Tizim qaysi tillarda ishlaydi?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Interfeys o'zbek va rus tillarida. Tilni istalgan payt bir bosishda almashtirish mumkin."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "To'lov qanday amalga oshiriladi?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Tarifni tanlab, Telegram orqali menejer bilan bog'lanasiz. To'lov tasdiqlangach, obuna zudlik bilan faollashadi."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Internet uzilib qolsa nima bo'ladi?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Kassa ishlashda davom etadi: o'yin boshlash, pauza va bar buyurtmalari qurilmada navbatga yoziladi va aloqa tiklanishi bilan avtomatik yuboriladi. Taymer vaqtni yo'qotmaydi. Faqat hisob-kitob (yakunlash) va qarz to'lovi aniqlik uchun internet qaytgach bajariladi."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Stol chirog'ini avtomatik boshqarish uchun nima kerak?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Har bir stol chirog'iga Wi-Fi rele (masalan, Shelly yoki Tasmota) ulanadi va klubdagi kompyuterda kichik agent dastur ishga tushiriladi. Shundan so'ng o'yin boshlanganda chiroq o'zi yonadi, yakunlanganda o'zi o'chadi. Bu imkoniyat ixtiyoriy — o'rnatish bo'yicha bepul maslahat beramiz."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Ma'lumotlarim xavfsizmi?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Har bir klub ma'lumotlari alohida saqlanadi va faqat shifrlangan aloqa orqali uzatiladi. Har bir xodim o'z login-paroli bilan kiradi va faqat o'z vazifasiga ruxsat oladi, muhim amallar jurnalga yoziladi."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Hozir daftar yoki Excel'da ishlayman — o'tish qiyinmi?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Yo'q. Stollar, narxlar va bar menyusini 10–15 daqiqada kiritasiz, xodimlarga alohida login berasiz va shu kuniyoq ishlay boshlaysiz. Jamoamiz o'rnatish va o'rgatishda bepul yordam beradi."
-            }
-          }
-        ]
-      }
-    </script>
+    <!-- SEO: sarlavha, tavsif, canonical, hreflang, Open Graph, JSON-LD — build
+         paytida har sahifa uchun vite-plugin-seo.ts to'ldiradi (manba: src/seo/site.ts
+         va landing tarjimalari). Bu yerga qo'lda yozmang. -->
+    <!--seo:head-->
+    <!--/seo:head-->
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><!--seo:body--><!--/seo:body--></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

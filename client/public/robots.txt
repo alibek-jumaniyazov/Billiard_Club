@@ -1,4 +1,29 @@
+# Billiard Club — billiardclub.uz
+# Ommaviy sahifalar: / (o'zbekcha), /ru/ (ruscha), /download, /register, /login.
+# Ish joyi va admin sahifalari kirishsiz ochilmaydi — qidiruvda keraksiz.
+
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /tables
+Disallow: /sessions
+Disallow: /orders
+Disallow: /products
+Disallow: /debts
+Disallow: /reports
+Disallow: /customers
+Disallow: /reservations
+Disallow: /game
+Disallow: /expenses
+Disallow: /shifts
+Disallow: /feedback
+Disallow: /notifications
+Disallow: /subscription
+Disallow: /profile
+Disallow: /staff
+Disallow: /settings
+Disallow: /locked
 
 Sitemap: https://billiardclub.uz/sitemap.xml

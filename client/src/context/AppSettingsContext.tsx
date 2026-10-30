@@ -47,6 +47,11 @@ localStorage.removeItem('theme');
 
 export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
   const [lang, setLangState] = useState<Lang>(getStoredLang);
+
+  // /ru/ dan kirgan foydalanuvchi uchun til eslab qolinadi (kirish, ish joyi ham ruscha)
+  useEffect(() => {
+    localStorage.setItem('lang', getStoredLang());
+  }, []);
   const [currencySymbol, setCurrencySymbolState] = useState<string | null>(null);
 
   useEffect(() => {

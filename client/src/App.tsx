@@ -6,6 +6,9 @@ import BrandLogo from './components/ui/BrandLogo';
 import { TOKENS } from './theme/tokens';
 import { viewingClub } from './api/client';
 import { useAuth } from './context/AuthContext';
+import { useAppSettings } from './context/AppSettingsContext';
+import { useRobotsMeta } from './hooks/useDocumentHead';
+import { isLandingPath } from './seo/site';
 import type { UserRole } from './types';
 import Login from './pages/Login';
 import Locked from './pages/Locked';
@@ -143,12 +146,33 @@ const App = () => {
   ) : (
     <Navigate to={user ? homeFor(user.role) : '/login'} replace />
   );
+  const { lang } = useAppSettings();
+  // Ish joyi, admin va 404 sahifalari qidiruvga tushmaydi (noindex)
+  useRobotsMeta();
+
+  /**
+   * Landing ikki manzilda: `/` — o'zbekcha, `/ru/` — ruscha (Google har birini
+   * o'z tilidagi qidiruvda ko'rsatadi). Ruscha tanlagan foydalanuvchi bosh
+   * sahifaga kirsa, ruscha manzilga o'tadi.
+   */
+  const landingAt = (routeLang: 'uz' | 'ru') =>
+    inAppShell ? (
+      appEntry
+    ) : loading ? (
+      <FullScreenSpin />
+    ) : user && !showLanding ? (
+      <Navigate to={homeFor(user.role)} replace />
+    ) : routeLang === 'uz' && lang === 'ru' ? (
+      <Navigate to={{ pathname: '/ru/', search: location.search }} replace />
+    ) : (
+      <Landing />
+    );
 
   // Brend intro'si o'ynayotganda sahifa uning ostida, belgi yig'ilib bo'lgach
   // chiziladi (introGate.ts). Landing kodi esa shu orada oldindan yuklanadi.
   const introReleased = useIntroHoldReleased();
   useEffect(() => {
-    if (plannedIntro() && !inAppShell && location.pathname === '/') void loadLanding();
+    if (plannedIntro() && !inAppShell && isLandingPath(location.pathname)) void loadLanding();
     // Faqat birinchi ochilishda
   }, []);
   if (!introReleased) return <FullScreenSpin />;
@@ -157,20 +181,8 @@ const App = () => {
     <Suspense fallback={<FullScreenSpin />}>
       <Routes>
         {/* Ommaviy sahifalar */}
-        <Route
-          path="/"
-          element={
-            inAppShell ? (
-              appEntry
-            ) : loading ? (
-              <FullScreenSpin />
-            ) : user && !showLanding ? (
-              <Navigate to={homeFor(user.role)} replace />
-            ) : (
-              <Landing />
-            )
-          }
-        />
+        <Route path="/" element={landingAt('uz')} />
+        <Route path="/ru" element={landingAt('ru')} />
         <Route
           path="/register"
           element={

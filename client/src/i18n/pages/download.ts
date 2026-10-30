@@ -4,9 +4,9 @@ export default {
     title: 'Kompyuter va telefon uchun ilova',
     subtitle:
       'Klubingiz bir hisobda: kompyuter, Android va iPhone. O‘rnatish, obuna va saqlash holatini shu yerda tekshiring.',
-    metaTitle: 'Ilovani yuklab olish — Billiard Club',
+    metaTitle: 'Billiard Club dasturini yuklab olish — Windows va Android',
     metaDesc:
-      'Billiard Club ilovasini Windows va Android uchun yuklab oling. Avtomatik yangilanadi, internet uzilganda ham ishlaydi.',
+      'Billiard klub dasturini Windows kompyuter va Android telefonga bepul yuklab oling. Avtomatik yangilanadi, internet uzilganda ham ishlaydi.',
 
     downloadFor: '{{platform}} uchun yuklab olish',
     version: 'Versiya {{version}}',
@@ -93,9 +93,9 @@ export default {
     title: 'Приложение для компьютера и телефона',
     subtitle:
       'Ваш клуб в одном аккаунте: компьютер, Android и iPhone. Установка, подписка и состояние хранилища в одном месте.',
-    metaTitle: 'Скачать приложение — Billiard Club',
+    metaTitle: 'Скачать программу Billiard Club — Windows и Android',
     metaDesc:
-      'Скачайте приложение Billiard Club для Windows и Android. Обновляется автоматически, работает и при обрыве интернета.',
+      'Скачайте программу для бильярдного клуба на компьютер с Windows и телефон Android. Обновляется автоматически, работает без интернета.',
 
     downloadFor: 'Скачать для {{platform}}',
     version: 'Версия {{version}}',

@@ -15,7 +15,7 @@ import {
   StarFilled,
   WindowsFilled,
 } from '@ant-design/icons';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   motion,
@@ -34,6 +34,7 @@ import {
 import { TOKENS } from '../theme/tokens';
 import { BrandLogo } from '../components/ui';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { LANDING_PATH, langFromPath } from '../seo/site';
 import { formatNumber } from '../utils/format';
 import { publicApi } from '../api';
 import { setTrialDays } from '../i18n';
@@ -159,7 +160,20 @@ const Landing = () => {
   const { t } = useTranslation();
   const { lang, setLang } = useAppSettings();
   const navigate = useNavigate();
+  const { pathname, search } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  /* Til = manzil: `/` o'zbekcha, `/ru/` ruscha (qidiruv tizimlari ikkalasini
+     alohida indekslaydi). Til almashtirilsa manzil ham almashadi. */
+  const switchLang = (next: 'uz' | 'ru') => {
+    setLang(next);
+    navigate({ pathname: LANDING_PATH[next], search });
+  };
+  useEffect(() => {
+    const routeLang = langFromPath(pathname) ?? 'uz';
+    if (routeLang !== lang) setLang(routeLang);
+    // Faqat manzil o'zgarganda (tilni tugma o'zi manzil bilan birga almashtiradi)
+  }, [pathname]);
   const [navScrolled, setNavScrolled] = useState(false);
 
   /* Skroll qiymati — navbar zichligi uchun.
@@ -269,7 +283,7 @@ const Landing = () => {
     <Segmented
       size={size}
       value={lang}
-      onChange={(value) => setLang(value as 'uz' | 'ru')}
+      onChange={(value) => switchLang(value as 'uz' | 'ru')}
       options={[
         { label: 'UZ', value: 'uz' },
         { label: 'RU', value: 'ru' },
@@ -503,8 +517,11 @@ const Landing = () => {
                 <Col xs={24} lg={13}>
                   <motion.div initial="hidden" animate="visible" variants={stagger}>
                     <motion.div variants={fadeUp}>
-                      <span
+                      {/* H1 — qidiruv so'zi bilan ("billiard klublari uchun boshqaruv tizimi");
+                          katta shior esa H2. Ko'rinish avvalgidek. */}
+                      <h1
                         style={{
+                          margin: 0,
                           display: 'inline-flex',
                           alignItems: 'center',
                           padding: '6px 14px',
@@ -518,11 +535,11 @@ const Landing = () => {
                         }}
                       >
                         {t('landing.heroBadge')}
-                      </span>
+                      </h1>
                     </motion.div>
-                    <motion.h1 variants={fadeUp} className="lp-hero-title">
+                    <motion.h2 variants={fadeUp} className="lp-hero-title">
                       {t('landing.heroTitle')}
-                    </motion.h1>
+                    </motion.h2>
                     <motion.p
                       variants={fadeUp}
                       style={{
@@ -1065,6 +1082,32 @@ const Landing = () => {
                   style={{ fontWeight: 600 }}
                 >
                   {VENDOR_NAME}
+                </a>
+                {' · '}
+                <a
+                  className="lp-nav-link"
+                  href={LANDING_PATH.uz}
+                  hrefLang="uz"
+                  lang="uz"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    switchLang('uz');
+                  }}
+                >
+                  O'zbekcha
+                </a>
+                {' · '}
+                <a
+                  className="lp-nav-link"
+                  href={LANDING_PATH.ru}
+                  hrefLang="ru"
+                  lang="ru"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    switchLang('ru');
+                  }}
+                >
+                  Русский
                 </a>
               </span>
               {langSwitcher()}

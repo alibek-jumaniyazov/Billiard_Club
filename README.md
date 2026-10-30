@@ -315,9 +315,23 @@ ikkalasi ham o'z serverdan (`@fontsource`), tashqi CDN'siz.
 suyagi shar (harf qorinlari), chiroq yoritgan mato ustida. Bitta geometriya uch joyda:
 `client/public/favicon.svg`, `BrandLogo.tsx` va `desktop/build/make-icons.mjs` (`MARK`) —
 `npm run icons` Windows, PWA va Android ikonkalari hamda splash ekranlarni qayta chizadi.
-Ijtimoiy tarmoq muqovasi: `client/public/og-cover.svg` → `og-cover.png`.
+Ijtimoiy tarmoq va qidiruv bannerlari (`og-cover.png`, `og-cover-ru.png`), `favicon.ico` va
+kvadrat logotip `tools/brand-video/banners.cjs` bilan yasaladi (haqiqiy dastur ekrani bilan).
 
 Landingni tizimga kirgan holda ko'rish: `/?landing`.
+
+## SEO
+
+Landing ikki manzilda: `/` o'zbekcha, `/ru/` ruscha. Build paytida `client/vite-plugin-seo.ts`
+har ommaviy sahifa uchun alohida HTML yasaydi:
+
+- sarlavha, tavsif, canonical va hreflang;
+- Open Graph va JSON-LD (tashkilot, dastur, tariflar, savol-javob);
+- JavaScript ishlatmaydigan botlar uchun to'liq matn;
+- `sitemap.xml`.
+
+Ish joyi va admin sahifalari `noindex`. Ma'lumotlar bitta joyda: `client/src/seo/site.ts`.
+Search Console, Yandex.Webmaster va keyingi qadamlar: **[docs/SEO.md](docs/SEO.md)**.
 
 ## Landing arizalari (savdo voronkasi)
 

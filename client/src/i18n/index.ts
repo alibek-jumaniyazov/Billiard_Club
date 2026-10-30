@@ -1,5 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { langFromPath } from '../seo/site';
 import common from './common';
 import dashboard from './pages/dashboard';
 import tables from './pages/tables';
@@ -80,8 +81,13 @@ const buildLocale = (lang: Lang): Record<string, string> => {
   return merged;
 };
 
+/**
+ * Boshlang'ich til: manzil (/ru/ — ruscha landing, qidiruv tizimlari uchun
+ * alohida sahifa) birinchi, keyin foydalanuvchi tanlovi (localStorage).
+ */
 export const getStoredLang = (): Lang =>
-  (localStorage.getItem('lang') === 'ru' ? 'ru' : 'uz') as Lang;
+  (langFromPath(window.location.pathname) ??
+    (localStorage.getItem('lang') === 'ru' ? 'ru' : 'uz')) as Lang;
 
 /**
  * Sinov muddatining STANDART qiymati — serverdan javob kelgunicha ishlatiladi.
