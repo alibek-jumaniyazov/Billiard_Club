@@ -2,6 +2,9 @@
 <html lang="uz">
   <head>
     <meta charset="UTF-8" />
+    <!-- Qidiruv tizimlari tasdiqlash teglari — <head> ning eng boshida (ba'zi
+         tekshiruvchilar sahifaning faqat boshini o'qiydi). vite-plugin-seo.ts -->
+    <!--seo:verify--><!--/seo:verify-->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Qidiruv tizimlari va eski brauzerlar /favicon.ico ni so'raydi (48×48) -->
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
@@ -28,14 +31,17 @@
     <script>document.documentElement.classList.add('js');</script>
     <style>html.js #seo-static { display: none; }</style>
 
-    <!-- SEO: sarlavha, tavsif, canonical, hreflang, Open Graph, JSON-LD — build
-         paytida har sahifa uchun vite-plugin-seo.ts to'ldiradi (manba: src/seo/site.ts
-         va landing tarjimalari). Bu yerga qo'lda yozmang. -->
+    <!-- SEO: sarlavha, tavsif, canonical, hreflang, Open Graph — build paytida har
+         sahifa uchun vite-plugin-seo.ts to'ldiradi (manba: src/seo/site.ts va landing
+         tarjimalari). Bu yerga qo'lda yozmang. -->
     <!--seo:head-->
     <!--/seo:head-->
   </head>
   <body>
     <div id="root"><!--seo:body--><!--/seo:body--></div>
+    <!-- JSON-LD (tuzilgan ma'lumotlar) — #root dan TASHQARIDA: React #root ni
+         tozalaganda o'chib ketmasin; <head> ni ham og'irlashtirmaydi -->
+    <!--seo:data--><!--/seo:data-->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -46,6 +46,12 @@ const HEAD_START = '<!--seo:head-->';
 const HEAD_END = '<!--/seo:head-->';
 const BODY_START = '<!--seo:body-->';
 const BODY_END = '<!--/seo:body-->';
+/** Tasdiqlash teglari — <head> boshida (Bing kabi tekshiruvchilar sahifaning faqat boshini o'qiydi) */
+const VERIFY_START = '<!--seo:verify-->';
+const VERIFY_END = '<!--/seo:verify-->';
+/** JSON-LD — <body> da, #root dan tashqarida (React uni o'chirmaydi, <head> yengil qoladi) */
+const DATA_START = '<!--seo:data-->';
+const DATA_END = '<!--/seo:data-->';
 
 const FEATURES = 8;
 const FAQ = 11;
@@ -277,7 +283,7 @@ interface Verification {
   bing?: string;
 }
 
-const headFor = (page: Page, verify: Verification): string => {
+const headFor = (page: Page): string => {
   const url = absoluteUrl(page.path);
   const image = absoluteUrl(page.image);
   const other: SeoLang = page.lang === 'uz' ? 'ru' : 'uz';
@@ -312,13 +318,19 @@ const headFor = (page: Page, verify: Verification): string => {
     `<meta name="twitter:description" content="${esc(page.description)}" />`,
     `<meta name="twitter:image" content="${image}" />`,
     `<meta name="twitter:image:alt" content="${esc(page.imageAlt)}" />`,
-    ...(verify.google ? [`<meta name="google-site-verification" content="${esc(verify.google)}" />`] : []),
-    ...(verify.yandex ? [`<meta name="yandex-verification" content="${esc(verify.yandex)}" />`] : []),
-    ...(verify.bing ? [`<meta name="msvalidate.01" content="${esc(verify.bing)}" />`] : []),
-    `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': page.jsonLd }).replace(/</g, '\\u003c')}</script>`,
   ];
   return tags.join('\n    ');
 };
+
+const verifyFor = (verify: Verification): string =>
+  [
+    ...(verify.google ? [`<meta name="google-site-verification" content="${esc(verify.google)}" />`] : []),
+    ...(verify.yandex ? [`<meta name="yandex-verification" content="${esc(verify.yandex)}" />`] : []),
+    ...(verify.bing ? [`<meta name="msvalidate.01" content="${esc(verify.bing)}" />`] : []),
+  ].join('\n    ');
+
+const dataFor = (page: Page): string =>
+  `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': page.jsonLd }).replace(/</g, '\\u003c')}</script>`;
 
 const between = (html: string, start: string, end: string, content: string) => {
   const a = html.indexOf(start);
@@ -327,13 +339,13 @@ const between = (html: string, start: string, end: string, content: string) => {
   return `${html.slice(0, a + start.length)}\n    ${content}\n    ${html.slice(b)}`;
 };
 
-export const renderPage = (html: string, page: Page, verify: Verification = {}): string =>
-  between(
-    between(html, HEAD_START, HEAD_END, headFor(page, verify)),
-    BODY_START,
-    BODY_END,
-    page.body,
-  ).replace(/<html lang="[^"]*"/, `<html lang="${page.lang}"`);
+export const renderPage = (html: string, page: Page, verify: Verification = {}): string => {
+  let out = between(html, VERIFY_START, VERIFY_END, verifyFor(verify));
+  out = between(out, HEAD_START, HEAD_END, headFor(page));
+  out = between(out, BODY_START, BODY_END, page.body);
+  out = between(out, DATA_START, DATA_END, dataFor(page));
+  return out.replace(/<html lang="[^"]*"/, `<html lang="${page.lang}"`);
+};
 
 const sitemap = (date: string): string => {
   const alternates = [
