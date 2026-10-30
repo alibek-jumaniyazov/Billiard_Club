@@ -8,6 +8,7 @@ import './i18n';
 import './index.css';
 import './offline/install';
 import App from './App';
+import { BrandIntroHost } from './components/brand/BrandIntro';
 import ErrorBoundary from './components/ErrorBoundary';
 import { TickerProvider } from './components/ui';
 import { AppSettingsProvider } from './context/AppSettingsContext';
@@ -31,6 +32,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <ConnectionProvider>
               <TickerProvider>
                 <App />
+                {/* Brend intro'si — butun ilova ustida, o'zi qaror qiladi va o'zi yopiladi */}
+                <BrandIntroHost />
               </TickerProvider>
             </ConnectionProvider>
           </AuthProvider>

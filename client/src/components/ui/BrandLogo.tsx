@@ -1,5 +1,6 @@
 import { useId, type CSSProperties } from 'react';
 import { FONT_FAMILY_DISPLAY, TOKENS } from '../../theme/tokens';
+import '../brand/brand.css';
 
 interface BrandLogoProps {
   /** Belgi (mark) balandligi, px */
@@ -8,6 +9,8 @@ interface BrandLogoProps {
   withWordmark?: boolean;
   style?: CSSProperties;
   className?: string;
+  /** Yuklanish ekrani: ustki shar pastkisiga "tegib" turadi, belgi ustidan yorug'lik o'tadi */
+  animated?: boolean;
 }
 
 const { gold, emerald, text, ivory } = TOKENS.color;
@@ -20,17 +23,21 @@ const { gold, emerald, text, ivory } = TOKENS.color;
  * Geometriya client/public/favicon.svg va desktop/build/make-icons.mjs (MARK)
  * bilan AYNAN bir xil — ikonkalar ham shu belgidan chiziladi.
  *
+ * `data-brand-logo` / `data-brand-word` — brend intro'si (components/brand/BrandIntro)
+ * belgini aynan shu logotip o'rniga "qo'ndiradi".
+ *
  * Gradient ID lari har nusxada noyob (useId): sahifada bir nechta logo bor va
  * ulardan biri yashirin (display:none) bo'lsa, umumiy ID li gradientlar
  * boshqa nusxalarda ham "yo'qolib" qolardi.
  */
-const BrandLogo = ({ size = 40, withWordmark = false, style, className }: BrandLogoProps) => {
+const BrandLogo = ({ size = 40, withWordmark = false, style, className, animated = false }: BrandLogoProps) => {
   const uid = useId().replace(/:/g, '');
   const id = (name: string) => `bl-${name}-${uid}`;
 
   return (
     <span
       className={className}
+      data-brand-logo=""
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -45,6 +52,7 @@ const BrandLogo = ({ size = 40, withWordmark = false, style, className }: BrandL
         viewBox="0 0 48 48"
         role="img"
         aria-label="Billiard Club"
+        className={animated ? 'bl-animated' : undefined}
         style={{ flexShrink: 0, display: 'block' }}
       >
         <defs>
@@ -74,6 +82,18 @@ const BrandLogo = ({ size = 40, withWordmark = false, style, className }: BrandL
           <clipPath id={id('stem')}>
             <rect x="13.6" y="8" width="5" height="32" rx="2.5" />
           </clipPath>
+          {animated && (
+            <>
+              <clipPath id={id('tile')}>
+                <rect x="1" y="1" width="46" height="46" rx="12" />
+              </clipPath>
+              <linearGradient id={id('sheen')} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor="#fff9ec" stopOpacity="0" />
+                <stop offset="0.5" stopColor="#fff9ec" stopOpacity="0.32" />
+                <stop offset="1" stopColor="#fff9ec" stopOpacity="0" />
+              </linearGradient>
+            </>
+          )}
           <filter id={id('shadow')} x="-20%" y="-20%" width="150%" height="150%">
             <feDropShadow dx="0.8" dy="1.3" stdDeviation="0.9" floodColor="#03120b" floodOpacity="0.55" />
           </filter>
@@ -100,14 +120,22 @@ const BrandLogo = ({ size = 40, withWordmark = false, style, className }: BrandL
             <rect x="13.6" y="10.6" width="5" height="0.5" fill={gold.active} />
           </g>
           {/* Ikki shar — "B" qorinlari */}
-          <circle cx="24.9" cy="15.5" r="7.5" fill={`url(#${id('ivory')})`} />
-          <circle cx="25.9" cy="31.5" r="8.5" fill={`url(#${id('ivory')})`} />
+          <circle className="bl-ball-a" cx="24.9" cy="15.5" r="7.5" fill={`url(#${id('ivory')})`} />
+          <circle className="bl-ball-b" cx="25.9" cy="31.5" r="8.5" fill={`url(#${id('ivory')})`} />
         </g>
-        <circle cx="22.2" cy="12.2" r="1.8" fill={`url(#${id('spec')})`} />
-        <circle cx="22.84" cy="27.76" r="2.04" fill={`url(#${id('spec')})`} />
+        <circle className="bl-ball-a" cx="22.2" cy="12.2" r="1.8" fill={`url(#${id('spec')})`} />
+        <circle className="bl-ball-b" cx="22.84" cy="27.76" r="2.04" fill={`url(#${id('spec')})`} />
+        {animated && (
+          <g clipPath={`url(#${id('tile')})`}>
+            <g transform="rotate(24 24 24)">
+              <rect className="bl-sheen" x="17" y="-12" width="14" height="72" fill={`url(#${id('sheen')})`} />
+            </g>
+          </g>
+        )}
       </svg>
       {withWordmark && (
         <span
+          data-brand-word=""
           style={{
             fontFamily: FONT_FAMILY_DISPLAY,
             fontSize: Math.max(13, size * 0.38),

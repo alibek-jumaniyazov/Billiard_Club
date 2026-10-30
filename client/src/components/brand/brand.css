@@ -1,0 +1,107 @@
+/* ============================================================
+   BREND: intro (logo animatsiyasi) va yuklanish belgisi
+   ============================================================ */
+
+/* Intro — butun ekran ustida. Birinchi kadr chizilgunicha ham zal qorong'iligi
+   turadi (sahifa bir lahza "lip" etib ko'rinmasin) */
+.bc-intro-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #090c0b;
+  touch-action: none;
+  cursor: pointer;
+}
+
+/* Belgi sarlavhaga uchayotganda (yoki so'nayotganda) fonni canvas o'zi
+   so'ndiradi, sahifa esa darhol bosiladigan bo'ladi */
+.bc-intro-canvas.is-landing {
+  background: transparent;
+  pointer-events: none;
+}
+
+/* Intro paytida sahifadagi haqiqiy logotip yashirin — belgi aynan uning
+   o'rniga qo'nadi, so'ng u ko'rinadi (ikki nusxa ustma-ust chiqmaydi) */
+html.bc-intro [data-brand-target] {
+  visibility: hidden;
+}
+
+/* ---------- Yuklanish ekrani: "B" belgisi — sharlar bir-biriga "tegib" turadi */
+
+.bc-loader {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+
+.bc-loader__bar {
+  position: relative;
+  width: 132px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(219, 179, 92, 0.14);
+}
+
+.bc-loader__bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #dbb35c, transparent);
+  animation: bc-loader-bar 1.25s ease-in-out infinite;
+}
+
+@keyframes bc-loader-bar {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(260%); }
+}
+
+/* SVG ichida px = viewBox birligi (48 birlikli belgi) */
+.bl-animated .bl-ball-a {
+  animation: bl-tap 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.bl-animated .bl-ball-b {
+  animation: bl-recoil 1.6s ease-out infinite;
+}
+
+.bl-animated .bl-sheen {
+  animation: bl-sheen 1.6s ease-in-out infinite;
+}
+
+/* Ustki shar ko'tarilib, pastkisiga "chiq" etib tushadi */
+@keyframes bl-tap {
+  0%, 100% { transform: translateY(0); }
+  24% { transform: translateY(-2.8px); }
+  46% { transform: translateY(0); }
+}
+
+/* Pastki shar zarbani ozgina qabul qiladi */
+@keyframes bl-recoil {
+  0%, 45% { transform: translateY(0); }
+  51% { transform: translateY(0.7px); }
+  62%, 100% { transform: translateY(0); }
+}
+
+/* Belgi ustidan yorug'lik o'tadi */
+@keyframes bl-sheen {
+  0%, 46% { transform: translateX(-64px); }
+  100% { transform: translateX(64px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bl-animated .bl-ball-a,
+  .bl-animated .bl-ball-b,
+  .bl-animated .bl-sheen,
+  .bc-loader__bar::after {
+    animation: none;
+  }
+}

@@ -223,6 +223,24 @@ qilinadi (`NativeUpdateBanner`). Fayl yuklash tizim brauzeriga beriladi (`MainAc
 DownloadListener) — WebView'ning o'zi APK ni yuklamaydi. Windows dasturi esa o'zi yangilanadi:
 `latest.yml` → yuklab olish → sha512 tekshiruvi (1.2.0 → 1.3.0 kanali lokal sinovdan o'tgan).
 
+## Brend animatsiyasi va videolar
+
+"B" logotipi (tik turgan kiy va ikki shar) uchun bitta animatsiya. Sayt, dasturlar va
+videolarda u bir xil, chunki kadr faqat vaqtga bog'liq: `client/src/brand/logoMotion.ts`.
+
+- **Saytda** landingga birinchi kirgan mehmon 2.5–3 soniyalik intro ko'radi: chiroq yonadi,
+  belgi yig'iladi, yozuv chiqadi va belgi sarlavhadagi logotip o'rniga "qo'nadi". Intro bir
+  sessiyada bir marta chiqadi va bosish, tugma yoki aylantirish bilan darhol yopiladi.
+  "Harakatni kamaytirish" yoqilgan bo'lsa, umuman chiqmaydi.
+- **Windows va Android dasturida** intro har ishga tushganda splash ekran o'rnida chiqadi.
+  Android'da u tizim splash ekranidagi belgidan uzilishsiz davom etadi. Dasturlarni qayta
+  yig'ish shart emas: ular serverdagi veb-ilovani ochadi.
+- **Yuklanish ekranida** kulrang aylana o'rniga jonli "B" turadi: ustki shar pastkisiga tegib
+  turadi.
+- **Videolar** `client/public/brand/` da (saytda `/brand/...`): 16:9 (YouTube, taqdimot),
+  9:16 (story, Reels) va 1:1 (post). Har biri 6 soniya, 1080p 60 fps, ovozi bilan. Qayta
+  yaratish: **[tools/brand-video](tools/brand-video/README.md)**.
+
 ## Superadmin — klub ma'lumotlari konsoli
 
 `/admin/clubs/:id/data` — istalgan klubning to'liq ma'lumotini **faqat o'qish** rejimida

@@ -1,6 +1,6 @@
-import { lazy, ReactNode, Suspense } from 'react';
+import { lazy, ReactNode, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { Spin } from 'antd';
+import { useTranslation } from 'react-i18next';
 import AppLayout from './components/layout/AppLayout';
 import BrandLogo from './components/ui/BrandLogo';
 import { TOKENS } from './theme/tokens';
@@ -11,8 +11,10 @@ import Login from './pages/Login';
 import Locked from './pages/Locked';
 import NotFound from './pages/NotFound';
 import { isAppShell } from './utils/appShell';
+import { plannedIntro, useIntroHoldReleased } from './components/brand/introGate';
 
-const Landing = lazy(() => import('./pages/Landing'));
+const loadLanding = () => import('./pages/Landing');
+const Landing = lazy(loadLanding);
 const Download = lazy(() => import('./pages/Download'));
 const Register = lazy(() => import('./pages/Register'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -46,25 +48,26 @@ const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 
 /**
  * Sovuq start (auth tekshiruvi) va har lazy-marshrut uchun YAGONA fallback.
- * Yakka kulrang Spin "buzilganmi?" degan taassurot berardi — brend belgisi +
- * nom + nozik yuklagich ilova ataylab yuklanayotganini ko'rsatadi.
+ * Yakka kulrang Spin "buzilganmi?" degan taassurot berardi — jonli brend
+ * belgisi (ustki shar pastkisiga "tegib" turadi) va nozik oltin chiziq ilova
+ * ataylab yuklanayotganini ko'rsatadi. `data-app-loading` — brend intro'si
+ * sahifa yuklanib bo'lishini shu belgidan biladi.
  */
-const FullScreenSpin = () => (
-  <div
-    style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 18,
-      background: TOKENS.color.bg.bg0,
-    }}
-  >
-    <BrandLogo size={56} withWordmark />
-    <Spin />
-  </div>
-);
+const FullScreenSpin = () => {
+  const { t } = useTranslation();
+  return (
+    <div
+      className="bc-loader"
+      style={{ background: TOKENS.color.bg.bg0 }}
+      role="status"
+      aria-label={t('common.loading')}
+      data-app-loading=""
+    >
+      <BrandLogo size={56} withWordmark animated />
+      <span className="bc-loader__bar" aria-hidden="true" />
+    </div>
+  );
+};
 
 /**
  * Autentifikatsiya qilingan foydalanuvchining "bosh sahifasi".
@@ -140,6 +143,15 @@ const App = () => {
   ) : (
     <Navigate to={user ? homeFor(user.role) : '/login'} replace />
   );
+
+  // Brend intro'si o'ynayotganda sahifa uning ostida, belgi yig'ilib bo'lgach
+  // chiziladi (introGate.ts). Landing kodi esa shu orada oldindan yuklanadi.
+  const introReleased = useIntroHoldReleased();
+  useEffect(() => {
+    if (plannedIntro() && !inAppShell && location.pathname === '/') void loadLanding();
+    // Faqat birinchi ochilishda
+  }, []);
+  if (!introReleased) return <FullScreenSpin />;
 
   return (
     <Suspense fallback={<FullScreenSpin />}>

@@ -55,11 +55,11 @@ const Login = () => {
       <header className="auth-topbar">
         {inAppShell ? (
           // Dastur ichida sayt yo'q — logotip hech qayerga olib bormaydi
-          <span className="auth-home">
+          <span className="auth-home" data-brand-target="">
             <BrandLogo size={34} withWordmark />
           </span>
         ) : (
-          <Link to="/" className="auth-home" title={t('login.backHome')}>
+          <Link to="/" className="auth-home" title={t('login.backHome')} data-brand-target="">
             <BrandLogo size={34} withWordmark />
           </Link>
         )}

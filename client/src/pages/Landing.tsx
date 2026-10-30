@@ -387,7 +387,8 @@ const Landing = () => {
               gap: 12,
             }}
           >
-            <Link to="/" aria-label="Billiard Club">
+            {/* data-brand-target — brend intro'si belgini shu logotip o'rniga qo'ndiradi */}
+            <Link to="/" aria-label="Billiard Club" data-brand-target="">
               <span className="lp-brand-full">
                 <BrandLogo size={34} withWordmark />
               </span>

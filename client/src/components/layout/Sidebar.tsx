@@ -225,6 +225,7 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
       }}
     >
       <div
+        data-brand-target=""
         style={{
           flexShrink: 0,
           display: 'flex',

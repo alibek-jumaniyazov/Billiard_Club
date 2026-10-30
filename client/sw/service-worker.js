@@ -84,6 +84,11 @@ self.addEventListener('fetch', (event) => {
   // o'zining tenant bilan kalitlangan keshidan javob beradi.
   if (url.pathname.startsWith('/api/')) return;
 
+  // Video (brend videolari, /brand/*.mp4) — brauzerning o'ziga: u qismlab
+  // (Range → 206) yuklaydi, 206 javobni keshga yozib bo'lmaydi, katta faylni
+  // oflayn keshda saqlash esa shart emas
+  if (request.headers.has('range') || /\.(mp4|webm|mov)$/i.test(url.pathname)) return;
+
   // SPA navigatsiyasi: avval tarmoq, bo'lmasa keshdagi qobiq
   if (request.mode === 'navigate') {
     event.respondWith(
