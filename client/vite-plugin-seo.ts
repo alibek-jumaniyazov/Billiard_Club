@@ -7,6 +7,7 @@ import {
   LANDING_PATH,
   OG_IMAGE,
   PLAN_PRICES,
+  SEARCH_VERIFICATION,
   SITE_NAME,
   SITE_ORIGIN,
   absoluteUrl,
@@ -366,11 +367,11 @@ export const seoPlugin = (): Plugin => {
     enforce: 'post',
 
     configResolved(config) {
-      // Search Console / Yandex.Webmaster / Bing tasdiqlash kodlari (.env, ixtiyoriy)
+      // Search Console / Yandex.Webmaster / Bing tasdiqlash kodlari: src/seo/site.ts, .env ustun
       verify = {
-        google: config.env.VITE_GOOGLE_SITE_VERIFICATION,
-        yandex: config.env.VITE_YANDEX_VERIFICATION,
-        bing: config.env.VITE_BING_VERIFICATION,
+        google: config.env.VITE_GOOGLE_SITE_VERIFICATION || SEARCH_VERIFICATION.google,
+        yandex: config.env.VITE_YANDEX_VERIFICATION || SEARCH_VERIFICATION.yandex,
+        bing: config.env.VITE_BING_VERIFICATION || SEARCH_VERIFICATION.bing,
       };
     },
 

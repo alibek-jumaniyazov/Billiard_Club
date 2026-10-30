@@ -49,11 +49,19 @@ roziligi bilan qo'ying.
    - **Sitemaps** bo'limida `https://billiardclub.uz/sitemap.xml` ni yuboring.
    - **URL Inspection** orqali `/` va `/ru/` uchun "Request indexing" bosing.
 3. **Yandex.Webmaster** — <https://webmaster.yandex.ru>
-   - Saytni qo'shing va tasdiqlang: `VITE_YANDEX_VERIFICATION=<kod>`.
+   - Tasdiqlash fayli qo'yilgan: `client/public/yandex_32bce71309dcf287.html`. Deploydan keyin
+     «Проверить» ni bosing.
    - Regionni "Узбекистан" qilib belgilang, sitemap yuboring.
    - Ruscha qidiruvlarning sezilarli qismi Yandex orqali bo'ladi.
-4. **Bing Webmaster Tools** — Search Console'dan import qiling (`VITE_BING_VERIFICATION`).
-   ChatGPT qidiruvi va Copilot ham Bing indeksidan foydalanadi.
+4. **Bing Webmaster Tools** — tasdiqlash ikki usulda tayyor:
+   - fayl `client/public/BingSiteAuth.xml`;
+   - har sahifadagi `msvalidate.01` meta teg (kod `client/src/seo/site.ts` →
+     `SEARCH_VERIFICATION`).
+   Deploydan keyin «Verify» ni bosing. ChatGPT qidiruvi va Copilot ham Bing indeksidan
+   foydalanadi.
+
+Faylni yoki tegni keyin o'chirmang: qidiruv tizimlari tasdiqni vaqti-vaqti bilan qayta
+tekshiradi.
 5. **Google Business Profile, 2GIS va Yandex Business** — kompaniya kartochkasini oching:
    - logotip: `client/public/brand/billiardclub-logo-1024.png`;
    - muqova: `og-cover.png`;

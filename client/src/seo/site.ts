@@ -27,6 +27,17 @@ export const CONTACT = {
   instagram: 'https://www.instagram.com/avilab.uz',
 } as const;
 
+/**
+ * Qidiruv tizimlari tasdiqlash kodlari — har sahifa <head> iga meta teg bo'lib
+ * tushadi (vite-plugin-seo.ts). Kodlar sir emas: sahifa manbasida baribir ko'rinadi.
+ * `.env` dagi VITE_*_VERIFICATION ularni almashtira oladi.
+ *  - Bing: shu teg + client/public/BingSiteAuth.xml
+ *  - Yandex: fayl orqali — client/public/yandex_32bce71309dcf287.html
+ */
+export const SEARCH_VERIFICATION: { google?: string; yandex?: string; bing?: string } = {
+  bing: '9EC34CCAD6FF10C6EE32A7B442B0461B',
+};
+
 /** Server standarti (platform-config: trialDays) — superadmin o'zgartirsa sahifa o'zi yangilanadi */
 export const DEFAULT_TRIAL_DAYS = 7;
 
