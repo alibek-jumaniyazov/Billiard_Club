@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Checkbox, Col, Input, InputNumber, Row, Skeleton, Space, Switch, Table, Tag, Typography } from 'antd';
 import { CrownOutlined, SaveOutlined, UndoOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -46,7 +46,7 @@ const planGrid = (plans: Plan[]) => {
  * shu yerda belgilaydi. Katak almashtirilganda qoida (yuqori tarif quyisidan
  * kam emas) avtomatik saqlanadi — server ham qoidaga zid sozlamani rad etadi.
  */
-const TierSettings = ({ onSaved }: { onSaved?: () => void }) => {
+const TierSettings = ({ onSaved, plansVersion = 0 }: { onSaved?: () => void; plansVersion?: number }) => {
   const { t, i18n } = useTranslation();
   const { message } = App.useApp();
   const lang = i18n.language;
@@ -78,10 +78,18 @@ const TierSettings = ({ onSaved }: { onSaved?: () => void }) => {
     void load();
   }, [load]);
 
+  // «Tarif qatorlari» tabida tarif o'zgarsa — narxlar jadvali yangilanadi.
+  // Saqlanmagan o'zgarish bo'lsa tegilmaydi (saqlanganda baribir qayta yuklanadi)
+  const dirtyRef = useRef(false);
+  useEffect(() => {
+    if (plansVersion > 0 && !dirtyRef.current) void load();
+  }, [plansVersion, load]);
+
   const grid = useMemo(() => planGrid(plans), [plans]);
   const tiersDirty = !!draft && JSON.stringify(draft) !== JSON.stringify(config);
   const changedPlans = plans.filter((p) => prices[p.id] && (prices[p.id].price !== p.price || prices[p.id].isActive !== p.isActive));
   const dirty = tiersDirty || changedPlans.length > 0;
+  dirtyRef.current = dirty;
 
   const reset = () => {
     setDraft(config);
@@ -136,6 +144,10 @@ const TierSettings = ({ onSaved }: { onSaved?: () => void }) => {
           />
         );
       }
+      // Xodim qo'shish o'chiq — son amal qilmaydi, klubda faqat egasi
+      if (row.key === 'staff' && !draft[code].features.staff) {
+        return <Text type="secondary">{t('tiers.ownerOnly')}</Text>;
+      }
       const value = draft[code].limits[row.key];
       return (
         <Space direction="vertical" size={4} style={{ alignItems: 'center' }}>
@@ -180,11 +192,21 @@ const TierSettings = ({ onSaved }: { onSaved?: () => void }) => {
             {
               title: '',
               key: 'label',
-              render: (_: unknown, row: (typeof matrixRows)[number]) => (
-                <Text strong={row.kind === 'limit'}>
-                  {row.kind === 'feature' ? t(`tiers.feature_${row.key}`) : t(`tiers.limit_${row.key}`)}
-                </Text>
-              ),
+              render: (_: unknown, row: (typeof matrixRows)[number]) => {
+                const hintKey = row.kind === 'feature' ? `tiers.featureHint_${row.key}` : null;
+                return (
+                  <div>
+                    <Text strong={row.kind === 'limit'}>
+                      {row.kind === 'feature' ? t(`tiers.feature_${row.key}`) : t(`tiers.limit_${row.key}`)}
+                    </Text>
+                    {hintKey && i18n.exists(hintKey) && (
+                      <Text type="secondary" style={{ display: 'block', fontSize: 12, lineHeight: 1.4 }}>
+                        {t(hintKey)}
+                      </Text>
+                    )}
+                  </div>
+                );
+              },
             },
             ...tierColumns,
           ]}

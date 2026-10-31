@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App, Button, Empty, Form, Input, InputNumber, Modal, Select, Skeleton, Typography } from 'antd';
-import { CoffeeOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { App, Button, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Skeleton, Typography } from 'antd';
+import {
+  CoffeeOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  ShoppingCartOutlined,
+  StopOutlined,
+} from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, isNetworkError, ordersApi, productsApi } from '../../api';
 import { MoneyText } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
+import { useAuth } from '../../context/AuthContext';
 import { useConnection } from '../../context/ConnectionContext';
 import { newActionKey, queueOrder } from '../../offline/pos';
 import { TOKENS } from '../../theme/tokens';
-import type { BilliardTable, Product } from '../../types';
+import type { BilliardTable, Order, Product } from '../../types';
 import { formatMoney } from '../../utils/format';
 import { isFormValidationError } from '../../utils/formErrors';
 
@@ -65,6 +73,43 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
   const items = Form.useWatch('items', form);
   const currency = useCurrency();
   const { online } = useConnection();
+  const { hasRole } = useAuth();
+  // Bekor qilish huquqi server bilan bir xil: kassir va admin (operator — yo'q)
+  const canCancel = hasRole('superadmin', 'admin', 'kassir');
+
+  /**
+   * STOLDA — shu stolga allaqachon qo'shilgan bar mahsulotlari. Xato qo'shilgan
+   * bo'lsa shu yerdan bekor qilinadi (hamma tarifda; «Buyurtmalar» bo'limi shart
+   * emas). Sessiyaning ochiq buyurtmasi bitta — bekor qilish uni butunlay oladi.
+   */
+  const [openOrder, setOpenOrder] = useState<Order | null>(null);
+  const sessionId = session && !session.offlineLocalId ? session.id : null;
+  useEffect(() => {
+    setOpenOrder(null);
+    if (!table || sessionId === null || !online) return;
+    let alive = true;
+    ordersApi
+      .openForSession(sessionId)
+      .then((res) => {
+        if (alive) setOpenOrder(res.data ?? null);
+      })
+      .catch(() => undefined); // ko'rsatilmaydi — asosiy ish (qo'shish) to'xtamasin
+    return () => {
+      alive = false;
+    };
+  }, [table, sessionId, online]);
+
+  const cancelOpenOrder = async () => {
+    if (!openOrder) return;
+    try {
+      const res = await ordersApi.cancel(openOrder.id);
+      message.success(res.message);
+      setOpenOrder(null);
+      onOrdered();
+    } catch (err) {
+      message.error(errorMessage(err, t('common.error')));
+    }
+  };
 
   useEffect(() => {
     if (!table) return;
@@ -253,6 +298,55 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
           </div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('tables.noMatchingProducts')} />}
         </section>
         <aside className="table-pos-basket" aria-label={t('tables.basket')}>
+          {openOrder && (openOrder.items?.length ?? 0) > 0 && (
+            <section
+              aria-label={t('tables.onTable')}
+              style={{
+                marginBottom: 12,
+                padding: '10px 12px',
+                borderRadius: TOKENS.radius.md,
+                border: `1px solid ${TOKENS.color.border.subtle}`,
+                background: TOKENS.color.bg.bg2,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                <Text strong>{t('tables.onTable')}</Text>
+                <Text strong className="tabular-nums">
+                  {formatMoney(openOrder.totalAmount, currency)}
+                </Text>
+              </div>
+              <ul style={{ listStyle: 'none', margin: '6px 0 10px', padding: 0 }}>
+                {openOrder.items?.map((item) => (
+                  <li key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <Text type="secondary" style={{ fontSize: 12.5 }}>
+                      {item.product?.name ?? `#${item.productId}`} × {item.quantity}
+                    </Text>
+                    <Text className="tabular-nums" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+                      {formatMoney(item.subtotal, currency)}
+                    </Text>
+                  </li>
+                ))}
+              </ul>
+              {canCancel ? (
+                <Popconfirm
+                  title={t('tables.cancelBarOrderConfirm')}
+                  description={t('tables.cancelBarOrderDesc')}
+                  okText={t('common.yes')}
+                  cancelText={t('common.no')}
+                  okButtonProps={{ danger: true }}
+                  onConfirm={cancelOpenOrder}
+                >
+                  <Button size="small" danger block icon={<StopOutlined />} disabled={submitting}>
+                    {t('tables.cancelBarOrder')}
+                  </Button>
+                </Popconfirm>
+              ) : (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('tables.cancelBarOrderRole')}
+                </Text>
+              )}
+            </section>
+          )}
           <div className="table-pos-basket__header"><h3><ShoppingCartOutlined />{t('tables.basket')}</h3><span>{t('tables.basketItems', { n: itemCount })}</span></div>
           {itemCount === 0 && <p className="table-pos-basket__empty">{t('tables.emptyBasket')}</p>}
           <Form form={form} layout="vertical" disabled={submitting}>

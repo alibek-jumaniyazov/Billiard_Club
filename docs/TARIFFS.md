@@ -25,32 +25,52 @@ Landingda eng katta tejash beradigan muddat "Eng yaxshi taklif" deb belgilanadi.
 | | Standart | Pro | VIP |
 |---|---|---|---|
 | Stollar | 6 tagacha | 15 tagacha | Cheksiz |
-| Foydalanuvchilar (egasi bilan) | 3 tagacha | 8 tagacha | Cheksiz |
-| Bar va buyurtmalar | ✓ | ✓ | ✓ |
+| Foydalanuvchilar (egasi bilan) | Faqat egasi | Faqat egasi | Cheksiz |
+| Bar: mahsulotlar va stolga sotish | ✓ | ✓ | ✓ |
+| Buyurtmalar bo'limi (ro'yxat va statistika) | — | ✓ | ✓ |
 | Qarzlar daftari | ✓ | ✓ | ✓ |
 | Moliyaviy hisobotlar | ✓ | ✓ | ✓ |
 | Mijozlar bazasi | — | ✓ | ✓ |
 | Stol bron qilish | — | ✓ | ✓ |
 | Xarajatlar hisobi | — | ✓ | ✓ |
 | Kassa smenasi va Z-hisobot | — | ✓ | ✓ |
+| Xodim qo'shish (kassir, operator, admin) | — | — | ✓ |
 | Chiroq avtomatikasi | — | — | ✓ |
+
+**Bar va buyurtmalar alohida.** "Bar" — mahsulotlar ombori va stolga mahsulot qo'shish
+(stol kartasidagi bar tugmasi). "Buyurtmalar bo'limi" — barcha buyurtmalar ro'yxati va
+bugungi statistika. Buyurtmalar bo'limi bar'siz yoqilmaydi: jadval buni o'zi kuzatadi,
+server ham bunday sozlamani rad etadi.
+
+**Xato qo'shilgan mahsulotni bekor qilish** — bar'ning o'zida, ya'ni Standartda ham bor.
+Stolning bar oynasida "Stolda" bloki bor: u yerda shu stolga qo'shilgan mahsulotlar
+ko'rinadi. Kassir yoki admin ularni bekor qila oladi, operator esa yo'q. Stolning bar
+buyurtmasi bitta, shuning uchun bekor qilish stoldagi barcha bar mahsulotlarini birga
+oladi va to'g'risi qayta qo'shiladi. Mahsulotlar omborga qaytadi, amal jurnalga yoziladi.
+
+**Xodim qo'shish.** O'chiq darajada klubda faqat egasi ishlaydi. Mavjud xodimlar o'chirilmaydi
+va ularni boshqarish (bloklash, parol almashtirish) ochiq qoladi, faqat yangisini qo'shish yoki
+bloklanganini qayta yoqish yopiladi. "Foydalanuvchilar" soni xodim qo'shish yoqilgan darajada
+ishlaydi (Standart 3, Pro 8 — tayyor qiymatlar).
 
 Stol taymeri, pauza va stolni o'tkazish, soatbay hisob, oflayn rejim hamda Windows va
 Android ilovalari **hamma darajada** bor. Ular darajaga bog'liq emas.
 
 ## Superadmin qanday sozlaydi
 
-Sozlash joyi: **To'lovlar → Tarif darajalari**.
+Sozlash joyi: superadmin menyusidagi alohida **Tariflar** sahifasi. Unda ikkita tab bor:
+**Tarif darajalari** va **Tarif qatorlari**.
 
 - **Imkoniyatlar va cheklovlar jadvali.** Kalitlar bilan bo'limlarni yoqasiz yoki
   o'chirasiz. Stollar va foydalanuvchilar sonini yozasiz yoki "Cheksiz" ni belgilaysiz.
+  Xodim qo'shish o'chiq darajada foydalanuvchilar katagida "Faqat egasi" yoziladi.
   Jadval qoidani o'zi saqlaydi: Standartda yoqilgan imkoniyat Pro va VIP'da ham yoqiladi,
   VIP'da o'chirilgani esa quyidagilarda ham o'chadi. Server ham qoidaga zid sozlamani
   rad etadi va `400` qaytaradi.
 - **Nomi va qisqa tavsifi** — uz/ru. Bular obuna sahifasida va landingda ko'rinadi.
 - **Narxlar jadvali** — daraja × muddat. Har katakda narx va "Sotuvda" kaliti bor.
   O'chirilgan tarif sotuvda ko'rinmaydi.
-- **To'lovlar → Tariflar** — har bir tarif qatori va uning "Daraja" maydoni. Shu yerda
+- **Tariflar → Tarif qatorlari** — har bir tarif qatori va uning "Daraja" maydoni. Shu yerda
   maxsus tarif ham qo'shish mumkin, masalan 45 kunlik aksiya. 1/3/6/12 oyga tushmaydigan
   tarif obuna sahifasida "Boshqa takliflar" bo'limida chiqadi.
 - **Klublar** — har bir klubning darajasi ro'yxatda ko'rinadi. Tahrirlash oynasida darajani
@@ -82,8 +102,8 @@ keshlaydi, saqlanganda esa kesh darhol yangilanadi.
 
 | Qatlam | Nima qiladi |
 |---|---|
-| Server (asosiy himoya) | `SubscriptionGuard` + `@RequireFeature('…')` yopiq bo'limga `403 FEATURE_LOCKED` qaytaradi. Stol yoki foydalanuvchi qo'shishda limit oshsa `403 LIMIT_REACHED` qaytadi. Qarzga yopish `debts` imkoniyatini, chiroq agenti esa `lights` ni tekshiradi |
-| Klient (qulaylik) | Menyuda qulf belgisi va "Pro tarifida" izohi chiqadi. Yopiq sahifa o'rnida "Tarifni oshirish" kartasi ko'rinadi. Pastki mobil panelda yopiq bo'lim ko'rsatilmaydi. Stol qo'shish va xodim qo'shish tugmalari limitda o'chadi |
+| Server (asosiy himoya) | `SubscriptionGuard` + `@RequireFeature('…')` yopiq bo'limga `403 FEATURE_LOCKED` qaytaradi. Stol yoki foydalanuvchi qo'shishda limit oshsa `403 LIMIT_REACHED` qaytadi. Stolga mahsulot qo'shish va stoldagi buyurtmani bekor qilish `bar` ni, buyurtmalar ro'yxati va statistikasi `orders` ni, xodim qo'shish `staff` ni, qarzga yopish `debts` ni, chiroq agenti esa `lights` ni tekshiradi |
+| Klient (qulaylik) | Menyuda qulf belgisi va "Pro tarifida" izohi chiqadi. Yopiq sahifa o'rnida "Tarifni oshirish" kartasi ko'rinadi. Pastki mobil panelda va bosh sahifadagi tezkor amallarda yopiq bo'lim ko'rsatilmaydi. Stol qo'shish tugmasi limitda o'chadi. Xodimlar sahifasida qo'shish tugmasi o'chadi va "Xodim qo'shish — VIP tarifida" izohi chiqadi |
 
 Superadmin (klubni ko'rish rejimida ham) hech qanday cheklovga tushmaydi.
 
@@ -112,4 +132,4 @@ tizimlari uchun statik matn build paytidagi standart qiymatlardan yig'iladi.
 2. **Hamma mavjud klublar VIP bo'ladi.** Hech kimning ishlayotgan bo'limi to'satdan
    yopilmaydi. Keyingi to'lovda klub o'zi tanlagan darajaga o'tadi. Kerak bo'lsa, darajani
    Klublar sahifasidan qo'lda almashtirasiz.
-3. Narxlar tasdiqlangan; o'zgartirish kerak bo'lsa — **To'lovlar → Tarif darajalari**.
+3. Narxlar tasdiqlangan; o'zgartirish kerak bo'lsa — **Tariflar → Tarif darajalari**.

@@ -1,15 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import type { Plan, TiersConfig } from '../types';
-import { durationSlot, groupPlans, minTierFor, monthsOf, priceInfo, setLimit, toggleFeature } from './tiers';
+import {
+  CARD_FEATURES,
+  durationSlot,
+  groupPlans,
+  limitValue,
+  minTierFor,
+  monthsOf,
+  priceInfo,
+  setLimit,
+  toggleFeature,
+} from './tiers';
 
 const features = (on: boolean) => ({
   bar: on,
+  orders: on,
   debts: on,
   reports: on,
   customers: on,
   reservations: on,
   expenses: on,
   shifts: on,
+  staff: on,
   lights: on,
 });
 
@@ -30,7 +42,7 @@ const config: TiersConfig = {
     taglineUz: '',
     taglineRu: '',
     limits: { tables: 15, staff: 8 },
-    features: { ...features(true), lights: false },
+    features: { ...features(true), staff: false, lights: false },
   },
   vip: {
     code: 'vip',
@@ -94,6 +106,31 @@ describe('admin jadvali qoidani buzmaydi', () => {
     expect(minTierFor(config, 'lights')).toBe('vip');
     // Asl obyekt o'zgarmaydi
     expect(config.pro.features.customers).toBe(true);
+  });
+
+  it('«Buyurtmalar» bar bilan: yoqilsa bar ham yoqiladi, bar o‘chirilsa buyurtmalar ham o‘chadi', () => {
+    const on = toggleFeature({ ...config, standard: { ...config.standard, features: { ...config.standard.features, bar: false } } }, 'standard', 'orders', true);
+    expect([on.standard, on.pro, on.vip].map((t) => [t.features.bar, t.features.orders])).toEqual([
+      [true, true],
+      [true, true],
+      [true, true],
+    ]);
+    const off = toggleFeature(config, 'pro', 'bar', false);
+    expect([off.standard, off.pro, off.vip].map((t) => [t.features.bar, t.features.orders])).toEqual([
+      [false, false],
+      [false, false],
+      [true, true],
+    ]);
+  });
+
+  it('xodim qo‘shish o‘chiq darajada — faqat egasi; kartada alohida band emas', () => {
+    expect(limitValue(config.standard, 'staff')).toBe('owner');
+    expect(limitValue(config.pro, 'staff')).toBe('owner');
+    expect(limitValue(config.vip, 'staff')).toBeNull();
+    expect(limitValue(config.standard, 'tables')).toBe(6);
+    expect(minTierFor(config, 'staff')).toBe('vip');
+    expect(CARD_FEATURES).not.toContain('staff');
+    expect(CARD_FEATURES).toContain('orders');
   });
 
   it('cheklov: yuqori daraja quyisidan kam bo‘lmaydi, null — cheksiz', () => {

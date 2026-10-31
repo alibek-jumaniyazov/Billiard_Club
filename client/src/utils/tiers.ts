@@ -8,16 +8,36 @@ export const TIER_ORDER: TierCode[] = ['standard', 'pro', 'vip'];
 
 export const FEATURE_ORDER: FeatureKey[] = [
   'bar',
+  'orders',
   'debts',
   'reports',
   'customers',
   'reservations',
   'expenses',
   'shifts',
+  'staff',
   'lights',
 ];
 
+/** Bir darajaning o'zida: «Buyurtmalar» bar'siz bo'lmaydi (server: FEATURE_REQUIRES) */
+export const FEATURE_REQUIRES: Partial<Record<FeatureKey, FeatureKey>> = { orders: 'bar' };
+
+/**
+ * Mijozga ko'rinadigan kartalardagi imkoniyatlar. Xodim qo'shish alohida band
+ * bo'lib chiqmaydi — u «Foydalanuvchilar» qatorida ("Faqat egasi").
+ */
+export const CARD_FEATURES: FeatureKey[] = FEATURE_ORDER.filter((key) => key !== 'staff');
+
 export const LIMIT_ORDER: LimitKey[] = ['tables', 'staff'];
+
+/**
+ * Kartadagi cheklov qiymati. Xodim qo'shish o'chiq darajada sozlamadagi son
+ * amal qilmaydi — klubda faqat egasi ('owner').
+ */
+export const limitValue = (
+  tier: Pick<TierDefinition, 'limits' | 'features'>,
+  key: LimitKey,
+): number | null | 'owner' => (key === 'staff' && !tier.features.staff ? 'owner' : tier.limits[key]);
 
 /** Admin ro'yxatlaridagi qisqa yorliq — kod bo'yicha (superadmin bergan nomdan mustaqil) */
 const TIER_LABEL: Record<TierCode, { uz: string; ru: string }> = {
@@ -76,14 +96,14 @@ export const DEFAULT_TIERS_CONFIG: TiersConfig = {
     taglineUz: "O'sayotgan klub uchun: bron, mijozlar, smenalar",
     taglineRu: 'Для растущего клуба: брони, клиенты, смены',
     limits: { tables: 15, staff: 8 },
-    features: { ...allFeatures(true), lights: false },
+    features: { ...allFeatures(true), staff: false, lights: false },
   },
   vip: {
     code: 'vip',
     nameUz: 'VIP',
     nameRu: 'VIP',
-    taglineUz: 'Hammasi cheksiz, chiroq avtomatikasi bilan',
-    taglineRu: 'Всё без ограничений, с автоматикой света',
+    taglineUz: 'Hammasi cheksiz: xodimlar va chiroq avtomatikasi',
+    taglineRu: 'Всё без ограничений: сотрудники и автоматика света',
     limits: { tables: null, staff: null },
     features: allFeatures(true),
   },
@@ -148,10 +168,17 @@ const rank = (value: number | null) => (value === null ? Infinity : value);
 export const toggleFeature = (config: TiersConfig, tier: TierCode, feature: FeatureKey, on: boolean): TiersConfig => {
   const next = structuredClone(config);
   const level = TIER_ORDER.indexOf(tier);
-  TIER_ORDER.forEach((code, i) => {
-    if (on && i >= level) next[code].features[feature] = true;
-    if (!on && i <= level) next[code].features[feature] = false;
-  });
+  const apply = (key: FeatureKey, value: boolean) =>
+    TIER_ORDER.forEach((code, i) => {
+      if (value && i >= level) next[code].features[key] = true;
+      if (!value && i <= level) next[code].features[key] = false;
+    });
+  apply(feature, on);
+  // Bog'liqlik: «Buyurtmalar» yoqilsa bar ham yoqiladi, bar o'chirilsa — buyurtmalar ham
+  for (const [key, needs] of Object.entries(FEATURE_REQUIRES) as [FeatureKey, FeatureKey][]) {
+    if (on && feature === key) apply(needs, true);
+    if (!on && feature === needs) apply(key, false);
+  }
   return next;
 };
 

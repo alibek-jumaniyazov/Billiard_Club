@@ -40,7 +40,7 @@ import { minTierFor, tierName } from '../../utils/tiers';
 
 /** Menyu bandi → tarif imkoniyati (App.tsx dagi Protected feature bilan bir xil) */
 const FEATURE_BY_PATH: Record<string, FeatureKey> = {
-  '/orders': 'bar',
+  '/orders': 'orders',
   '/products': 'bar',
   '/debts': 'debts',
   '/reports': 'reports',
@@ -85,6 +85,7 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
             { key: '/admin', icon: <PieChartOutlined />, label: t('menu.adminDashboard') },
             { key: '/admin/clubs', icon: <ShopOutlined />, label: t('menu.clubs') },
             { key: '/admin/billing', icon: <DollarOutlined />, label: t('menu.adminBilling') },
+            { key: '/admin/tariffs', icon: <CrownOutlined />, label: t('menu.adminTariffs') },
             { key: '/admin/leads', icon: <SolutionOutlined />, label: t('menu.adminLeads') },
           ],
         },

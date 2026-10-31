@@ -31,7 +31,7 @@ export default {
 
     // Savdo boshqaruvi
     'billing.title': 'Savdo boshqaruvi',
-    'billing.subtitle': 'Hisob-fakturalar, tariflar va chegirma kuponlari',
+    'billing.subtitle': 'Hisob-fakturalar va chegirma kuponlari',
     'billing.tabInvoices': 'Hisob-fakturalar',
     'billing.tabPlans': 'Tariflar',
     'billing.tabCoupons': 'Kuponlar',
@@ -349,7 +349,7 @@ export default {
 
     // Управление продажами
     'billing.title': 'Управление продажами',
-    'billing.subtitle': 'Счета, тарифы и купоны на скидку',
+    'billing.subtitle': 'Счета и купоны на скидку',
     'billing.tabInvoices': 'Счета',
     'billing.tabPlans': 'Тарифы',
     'billing.tabCoupons': 'Купоны',

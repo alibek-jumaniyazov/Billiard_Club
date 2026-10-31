@@ -32,6 +32,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { apiErrorMessage, errorMessage, staffApi, subscriptionApi } from '../api';
 import {
   EmptyState,
@@ -45,7 +46,8 @@ import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { User, UserRole } from '../types';
 import { isFormValidationError } from '../utils/formErrors';
-import { useEntitlements } from '../hooks/useEntitlements';
+import { useEntitlements, useTiersConfig } from '../hooks/useEntitlements';
+import { minTierFor, tierName } from '../utils/tiers';
 
 const { Text } = Typography;
 
@@ -74,7 +76,8 @@ const emptyCounts = (): Record<UserRole, number> => ({
 });
 
 const Staff = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const { message } = App.useApp();
   const { user: currentUser } = useAuth();
 
@@ -89,8 +92,13 @@ const Staff = () => {
 
   const [roleCounts, setRoleCounts] = useState<Record<UserRole, number>>(emptyCounts);
   const [staffTotal, setStaffTotal] = useState(0);
-  // Tarif cheklovi: faol hisoblar EGASI BILAN (server ham tekshiradi)
-  const staffLimit = useEntitlements().limit('staff');
+  // Tarif: xodim qo'shish imkoniyati va faol hisoblar soni EGASI BILAN (server ham tekshiradi)
+  const { can, limit } = useEntitlements();
+  const canAddStaff = can('staff');
+  const staffLimit = limit('staff');
+  const tiersConfig = useTiersConfig();
+  const staffTier = tiersConfig ? minTierFor(tiersConfig, 'staff') : null;
+  const staffTierName = tiersConfig && staffTier ? tierName(tiersConfig[staffTier], i18n.language) : 'VIP';
   const [activeAccounts, setActiveAccounts] = useState<number | null>(null);
   useEffect(() => {
     if (staffLimit === null) return;
@@ -100,6 +108,7 @@ const Staff = () => {
       .catch(() => setActiveAccounts(null));
   }, [staffLimit, staffTotal]);
   const atStaffLimit = staffLimit !== null && activeAccounts !== null && activeAccounts >= staffLimit;
+  const addBlocked = !canAddStaff || atStaffLimit;
   const [statsLoading, setStatsLoading] = useState(true);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -247,6 +256,7 @@ const Staff = () => {
     {
       title: t('staff.fullName'),
       dataIndex: 'name',
+      width: 220,
       render: (name: string, record) => (
         <Space size={8}>
           <Text strong>{name}</Text>
@@ -333,12 +343,14 @@ const Staff = () => {
             <Button icon={<ReloadOutlined />} onClick={refetchAll} />
             <Tooltip
               title={
-                staffLimit !== null && activeAccounts !== null
-                  ? `${t('tiers.limitReachedTitle', { label: t('tiers.limit_staff'), used: activeAccounts, max: staffLimit })}${atStaffLimit ? ` · ${t('tiers.limitReachedHint')}` : ''}`
-                  : undefined
+                !canAddStaff
+                  ? t('tiers.staffLocked', { tier: staffTierName })
+                  : staffLimit !== null && activeAccounts !== null
+                    ? `${t('tiers.limitReachedTitle', { label: t('tiers.limit_staff'), used: activeAccounts, max: staffLimit })}${atStaffLimit ? ` · ${t('tiers.limitReachedHint')}` : ''}`
+                    : undefined
               }
             >
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} disabled={atStaffLimit}>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} disabled={addBlocked}>
                 {t('staff.addStaff')}
               </Button>
             </Tooltip>
@@ -386,6 +398,22 @@ const Staff = () => {
         }
       />
 
+      {/* Tarifda xodim qo'shish yo'q — sababi va yo'li (borlarini boshqarish ochiq) */}
+      {!canAddStaff && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: TOKENS.spacing.md }}
+          message={t('tiers.staffLocked', { tier: staffTierName })}
+          description={t('tiers.staffLockedHint')}
+          action={
+            <Button size="small" type="primary" onClick={() => navigate('/subscription')}>
+              {t('tiers.lockedCta')}
+            </Button>
+          }
+        />
+      )}
+
       {!loaded ? (
         <Card>
           <Skeleton active paragraph={{ rows: 6 }} />
@@ -421,7 +449,7 @@ const Staff = () => {
             columns={columns}
             dataSource={staff}
             loading={loading}
-            scroll={{ x: 1000 }}
+            scroll={{ x: 1240 }}
             locale={{
               emptyText: (
                 <EmptyState
@@ -433,6 +461,7 @@ const Staff = () => {
                       type="primary"
                       icon={<PlusOutlined />}
                       onClick={() => setCreateOpen(true)}
+                      disabled={addBlocked}
                     >
                       {t('staff.addStaff')}
                     </Button>

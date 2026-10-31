@@ -46,6 +46,7 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
   '/admin/clubs': 'menu.clubs',
   '/admin/releases': 'menu.adminReleases',
   '/admin/billing': 'menu.adminBilling',
+  '/admin/tariffs': 'menu.adminTariffs',
   '/admin/feedback': 'menu.adminFeedback',
   '/admin/leads': 'menu.adminLeads',
   '/admin/notifications': 'menu.adminNotifications',

@@ -45,6 +45,7 @@ const AdminClubsPage = lazy(() => import('./pages/admin/AdminClubsPage'));
 const AdminClubData = lazy(() => import('./pages/admin/AdminClubData'));
 const AdminReleases = lazy(() => import('./pages/admin/AdminReleases'));
 const AdminBilling = lazy(() => import('./pages/admin/AdminBilling'));
+const AdminTariffs = lazy(() => import('./pages/admin/AdminTariffs'));
 const AdminFeedback = lazy(() => import('./pages/admin/AdminFeedback'));
 const AdminLeads = lazy(() => import('./pages/admin/AdminLeads'));
 const AdminNotifications = lazy(() => import('./pages/admin/AdminNotifications'));
@@ -271,6 +272,15 @@ const App = () => {
               </Protected>
             }
           />
+          {/* Tariflar: tarif darajalari (imkoniyat, cheklov, narx) va tarif qatorlari */}
+          <Route
+            path="/admin/tariffs"
+            element={
+              <Protected roles={['superadmin']}>
+                <AdminTariffs />
+              </Protected>
+            }
+          />
           <Route
             path="/admin/feedback"
             element={
@@ -343,7 +353,7 @@ const App = () => {
           <Route
             path="/orders"
             element={
-              <Protected roles={['admin', 'kassir', 'operator']} feature="bar">
+              <Protected roles={['admin', 'kassir', 'operator']} feature="orders">
                 <Orders />
               </Protected>
             }

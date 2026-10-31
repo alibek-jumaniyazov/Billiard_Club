@@ -41,7 +41,7 @@ test('migratsiya: 12 ta tarif (3 daraja × 1/3/6/12 oy), Standart narxlari buyur
   await assert.rejects(database.query(`UPDATE clubs SET tier = 'gold' WHERE id = $1`, [club.id]));
 });
 
-test("stollar va xodimlar soni tarif cheklovidan oshmaydi (o'chirilgan stol hisobga kirmaydi)", { timeout: 20000 }, async () => {
+test("stollar soni cheklanadi (o'chirilgan stol hisobga kirmaydi); xodim qo'shish — faqat VIP, yoqilsa soni cheklanadi", { timeout: 20000 }, async () => {
   const club = await database.getRepository(Club).save({ name: 'Standart klub', tier: 'standard' });
   const tables = new TablesService(database, database.getRepository(Table), database.getRepository(Session), undefined, tiers);
   const max = DEFAULT_TIERS.standard.limits.tables;
@@ -56,19 +56,33 @@ test("stollar va xodimlar soni tarif cheklovidan oshmaydi (o'chirilgan stol hiso
   await tables.create(club.id, { name: 'Yangi', number: max + 1, pricePerHour: 20000 });
 
   const staff = new StaffService(database.getRepository(User), database.getRepository(RefreshSession), undefined, tiers);
-  const staffMax = DEFAULT_TIERS.standard.limits.staff;
   const stamp = Date.now();
-  for (let i = 0; i < staffMax; i += 1) {
-    await staff.create(club.id, { name: `Xodim ${i}`, username: `tier_staff_${stamp}_${i}`, password: 'parol12345', role: UserRole.KASSIR });
-  }
-  await assert.rejects(
-    staff.create(club.id, { name: 'Ortiqcha', username: `tier_staff_${stamp}_x`, password: 'parol12345', role: UserRole.ADMIN }),
-    (e) => code(e) === 'LIMIT_REACHED',
-  );
+  const add = (suffix, role = UserRole.KASSIR) =>
+    staff.create(club.id, { name: `Xodim ${suffix}`, username: `tier_staff_${stamp}_${suffix}`, password: 'parol12345', role });
 
-  // Pro ga o'tgach yana qo'shish mumkin
+  // Standart va Pro: xodim qo'shib bo'lmaydi (admin hisobi ochib aylanib o'tish ham yo'q)
+  await assert.rejects(add('std'), (e) => code(e) === 'FEATURE_LOCKED');
+  await assert.rejects(add('std_admin', UserRole.ADMIN), (e) => code(e) === 'FEATURE_LOCKED');
   await database.getRepository(Club).update(club.id, { tier: 'pro' });
-  await staff.create(club.id, { name: 'Pro xodim', username: `tier_staff_${stamp}_pro`, password: 'parol12345', role: UserRole.OPERATOR });
+  await assert.rejects(add('pro'), (e) => code(e) === 'FEATURE_LOCKED');
+
+  // Superadmin Pro'ga xodim qo'shishni 2 ta hisob bilan yoqsa — son cheklovi ishlaydi
+  const custom = JSON.parse(JSON.stringify(DEFAULT_TIERS));
+  custom.standard.limits.staff = 2;
+  custom.pro.limits.staff = 2;
+  custom.pro.features.staff = true;
+  await tiers.update(custom);
+  try {
+    await add('pro1');
+    await add('pro2');
+    await assert.rejects(add('pro3'), (e) => code(e) === 'LIMIT_REACHED');
+
+    // VIP — cheksiz
+    await database.getRepository(Club).update(club.id, { tier: 'vip' });
+    await add('vip', UserRole.OPERATOR);
+  } finally {
+    await tiers.update(DEFAULT_TIERS); // keyingi testlar standart sozlama bilan
+  }
 });
 
 test("to'lov (shartnoma) klubni sotib olingan darajaga o'tkazadi, sozlama bazada saqlanadi", { timeout: 15000 }, async () => {

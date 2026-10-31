@@ -2,14 +2,23 @@
 export default {
   uz: {
     // Imkoniyatlar
-    feature_bar: 'Bar va buyurtmalar',
+    feature_bar: 'Bar: mahsulotlar va stolga sotish',
+    feature_orders: "Buyurtmalar bo'limi",
     feature_debts: 'Qarzlar daftari',
     feature_reports: 'Moliyaviy hisobotlar',
     feature_customers: 'Mijozlar bazasi',
     feature_reservations: 'Stol bron qilish',
     feature_expenses: 'Xarajatlar hisobi',
     feature_shifts: 'Kassa smenasi va Z-hisobot',
+    feature_staff: "Xodim qo'shish (kassir, operator)",
     feature_lights: 'Chiroq avtomatikasi',
+    featureHint_bar: "Mahsulotlar ombori, stolga mahsulot qo'shish va xato qo'shilganini bekor qilish",
+    featureHint_orders: "Barcha buyurtmalar ro'yxati va bugungi statistika. Bar bilan birga ishlaydi",
+    featureHint_staff: "O'chiq bo'lsa klubda faqat egasi ishlaydi. Nechta bo'lishi — «Foydalanuvchilar» qatorida",
+    ownerOnly: 'Faqat egasi',
+    staffLocked: "Xodim qo'shish — {{tier}} tarifida",
+    staffLockedHint:
+      "Tarifingizda xodim qo'shib bo'lmaydi: klubda faqat egasi ishlaydi. Mavjud xodimlarni boshqarish (bloklash, parol) ochiq.",
     // Cheklovlar
     limit_tables: 'Stollar',
     limit_staff: 'Foydalanuvchilar (egasi bilan)',
@@ -43,6 +52,7 @@ export default {
     otherPlans: 'Boshqa takliflar',
     durationLabel: 'Muddat',
     overLimit: 'Sizda hozir {{used}} ta — bu tarifda {{max}} tagacha',
+    overLimitOwner: 'Sizda hozir {{used}} ta hisob — bu tarifda faqat egasi',
     downgradeWarn:
       "Bu tarif hozirgisidan past. To'lov tasdiqlangach klub {{tier}} imkoniyatlari bilan ishlaydi — qolgan kunlar ham shu tarifda davom etadi.",
     // Yopiq bo'lim
@@ -59,6 +69,11 @@ export default {
     usage: 'Band',
     upgradeHint: "Yuqori tarifga o'tsangiz, qolgan kunlaringiz ham yangi tarifda davom etadi.",
     // Admin
+    pageTitle: 'Tariflar',
+    pageSubtitle: 'Tarif darajalari: imkoniyatlar, cheklovlar va narxlar',
+    plansTab: 'Tarif qatorlari',
+    plansHint:
+      "Har bir sotiladigan tarif — daraja × muddat. Maxsus muddatli tarif (masalan 45 kunlik aksiya) ham shu yerda qo'shiladi va obuna sahifasida «Boshqa takliflar» bo'lib chiqadi.",
     adminTab: 'Tarif darajalari',
     adminIntro:
       "Har bir tarif nima qila olishini shu yerda belgilaysiz. Yuqori tarif quyisidagi hamma narsani oladi: Standartda yoqilgan imkoniyat Pro va VIP'da ham avtomatik yoqiladi.",
@@ -87,14 +102,23 @@ export default {
     defaultTier: 'Sinov tarifi: {{tier}}',
   },
   ru: {
-    feature_bar: 'Бар и заказы',
+    feature_bar: 'Бар: товары и продажа к столу',
+    feature_orders: 'Раздел «Заказы»',
     feature_debts: 'Журнал долгов',
     feature_reports: 'Финансовые отчёты',
     feature_customers: 'База клиентов',
     feature_reservations: 'Бронирование столов',
     feature_expenses: 'Учёт расходов',
     feature_shifts: 'Кассовые смены и Z-отчёт',
+    feature_staff: 'Добавление сотрудников (кассир, оператор)',
     feature_lights: 'Автоматика света',
+    featureHint_bar: 'Склад товаров, добавление к столу и отмена ошибочно добавленного',
+    featureHint_orders: 'Список всех заказов и статистика за день. Работает вместе с баром',
+    featureHint_staff: 'Если выключено — в клубе работает только владелец. Сколько — в строке «Пользователи»',
+    ownerOnly: 'Только владелец',
+    staffLocked: 'Добавление сотрудников — в тарифе {{tier}}',
+    staffLockedHint:
+      'В вашем тарифе нельзя добавлять сотрудников: в клубе работает только владелец. Управление существующими (блокировка, пароль) доступно.',
     limit_tables: 'Столы',
     limit_staff: 'Пользователи (с владельцем)',
     unlimited: 'Без ограничений',
@@ -125,6 +149,7 @@ export default {
     otherPlans: 'Другие предложения',
     durationLabel: 'Срок',
     overLimit: 'Сейчас у вас {{used}} — в этом тарифе до {{max}}',
+    overLimitOwner: 'Сейчас у вас {{used}} учётных записей — в этом тарифе только владелец',
     downgradeWarn:
       'Этот тариф ниже текущего. После подтверждения оплаты клуб будет работать с возможностями {{tier}} — оставшиеся дни тоже продолжатся в нём.',
     lockedTitle: '«{{feature}}» — в тарифе {{tier}}',
@@ -138,6 +163,11 @@ export default {
     yourTier: 'Ваш тариф',
     usage: 'Занято',
     upgradeHint: 'При переходе на старший тариф оставшиеся дни продолжаются уже в новом тарифе.',
+    pageTitle: 'Тарифы',
+    pageSubtitle: 'Уровни тарифов: возможности, ограничения и цены',
+    plansTab: 'Строки тарифов',
+    plansHint:
+      'Каждый продаваемый тариф — уровень × срок. Тариф с особым сроком (например, акция на 45 дней) добавляется здесь и показывается в подписке как «Другие предложения».',
     adminTab: 'Уровни тарифов',
     adminIntro:
       'Здесь вы задаёте, что умеет каждый тариф. Старший тариф получает всё от младшего: функция, включённая в «Стандарт», автоматически включается в Pro и VIP.',

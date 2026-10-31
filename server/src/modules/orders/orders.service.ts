@@ -53,6 +53,18 @@ export class OrdersService {
   }
 
   /**
+   * Stoldagi ochiq buyurtma (pozitsiyalari va mahsulot nomlari bilan) — stol
+   * oynasida "stolda nima bor" va xatoni bekor qilish uchun. Yo'q bo'lsa null.
+   */
+  async findOpenForSession(clubId: number, sessionId: number) {
+    return this.orderRepo.findOne({
+      where: { clubId, sessionId, status: OrderStatus.OPEN },
+      relations: { items: { product: true } },
+      order: { items: { id: 'ASC' } },
+    });
+  }
+
+  /**
    * Bugungi bar savdosi — TO'LIQ ma'lumot bo'yicha (sahifadagi 10 ta yozuv emas).
    * "Bugun" chegarasi klub vaqt mintaqasida (dashboard/hisobotlar bilan bir xil).
    *

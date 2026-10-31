@@ -28,13 +28,15 @@ export class StaffService {
   ) {}
 
   /**
-   * Tarif cheklovi: faol hisoblar EGASI BILAN (admin/kassir/operator) — Standartda
-   * masalan 3 ta. Cheklovga yetgan bo'lsa 403 LIMIT_REACHED.
+   * Tarif cheklovi. Xodim qo'shish tarifda bo'lmasa — 403 FEATURE_LOCKED (faqat
+   * egasi ishlaydi). Bo'lsa — faol hisoblar EGASI BILAN (admin/kassir/operator)
+   * soni; cheklovga yetgan bo'lsa 403 LIMIT_REACHED.
    */
   private async assertStaffLimit(clubId: number): Promise<void> {
     if (!this.tiers) return;
     const club = await this.userRepo.manager.getRepository(Club).findOne({ where: { id: clubId }, select: { id: true, tier: true } });
     if (!club) return;
+    await this.tiers.assertFeature(club, 'staff');
     const current = await this.userRepo.count({
       where: { clubId, isActive: true, role: In([UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR]) },
     });

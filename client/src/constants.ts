@@ -251,6 +251,7 @@ export const NAV_DESTINATIONS: ReadonlyArray<{
   { path: '/admin', titleKey: 'menu.adminDashboard', roles: ['superadmin'] },
   { path: '/admin/clubs', titleKey: 'menu.clubs', roles: ['superadmin'] },
   { path: '/admin/billing', titleKey: 'menu.adminBilling', roles: ['superadmin'] },
+  { path: '/admin/tariffs', titleKey: 'menu.adminTariffs', roles: ['superadmin'] },
   { path: '/admin/leads', titleKey: 'menu.adminLeads', roles: ['superadmin'] },
   { path: '/admin/feedback', titleKey: 'menu.adminFeedback', roles: ['superadmin'] },
   { path: '/admin/notifications', titleKey: 'menu.adminNotifications', roles: ['superadmin'] },

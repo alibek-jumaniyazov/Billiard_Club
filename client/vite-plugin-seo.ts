@@ -14,12 +14,13 @@ import {
   type SeoLang,
 } from './src/seo/site';
 import {
+  CARD_FEATURES,
   DEFAULT_TIERS_CONFIG,
   DEFAULT_TIER_PRICES,
   DURATION_MONTHS,
-  FEATURE_ORDER,
   LIMIT_ORDER,
   TIER_ORDER,
+  limitValue,
   tierName,
   tierTagline,
 } from './src/utils/tiers';
@@ -230,10 +231,12 @@ const landingBody = (lang: SeoLang) => {
         return `${offer.duration} — ${money(offer.price, lang)}${extra}`;
       });
     const limits = LIMIT_ORDER.map((key) => {
-      const max = def.limits[key];
-      return `${fill(tt[`limit_${key}`])}: ${max === null ? fill(tt.unlimited) : tr(tt.upTo, { count: max })}`;
+      const value = limitValue(def, key);
+      const shown =
+        value === 'owner' ? fill(tt.ownerOnly) : value === null ? fill(tt.unlimited) : tr(tt.upTo, { count: value });
+      return `${fill(tt[`limit_${key}`])}: ${shown}`;
     });
-    const features = FEATURE_ORDER.filter((key) => def.features[key]).map((key) => fill(tt[`feature_${key}`]));
+    const features = CARD_FEATURES.filter((key) => def.features[key]).map((key) => fill(tt[`feature_${key}`]));
     return `<h3>${esc(tierName(def, lang))}</h3><p>${esc(tierTagline(def, lang))}</p>${list(prices)}${list([...limits, ...features])}`;
   }).join('\n');
 

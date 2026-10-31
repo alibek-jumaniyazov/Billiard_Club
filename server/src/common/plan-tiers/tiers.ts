@@ -16,25 +16,39 @@
 export const TIER_CODES = ['standard', 'pro', 'vip'] as const;
 export type TierCode = (typeof TIER_CODES)[number];
 
-/** Darajaga qarab yopiladigan bo'limlar */
+/**
+ * Darajaga qarab yopiladigan bo'limlar:
+ *  - bar    — mahsulotlar (ombor), stolga bar mahsuloti qo'shish va stoldagi
+ *             xato buyurtmani bekor qilish;
+ *  - orders — «Buyurtmalar» bo'limi: barcha buyurtmalar ro'yxati va bugungi
+ *             statistika (bar'siz ma'nosiz — FEATURE_REQUIRES);
+ *  - staff  — xodim (kassir, operator, admin) qo'shish. O'chiq bo'lsa klubda
+ *             faqat egasi ishlaydi; borlarini boshqarish (bloklash, parol) ochiq.
+ */
 export const FEATURE_KEYS = [
   'bar',
+  'orders',
   'debts',
   'reports',
   'customers',
   'reservations',
   'expenses',
   'shifts',
+  'staff',
   'lights',
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
+
+/** Bir darajaning o'zida: kalit yoqilgan bo'lsa, qiymatdagisi ham yoqilgan bo'lishi shart */
+export const FEATURE_REQUIRES: Partial<Record<FeatureKey, FeatureKey>> = { orders: 'bar' };
 
 /**
  * Soni cheklanadigan narsalar (null — cheksiz):
  *  - tables — faol stollar;
  *  - staff — faol foydalanuvchi hisoblari EGASI BILAN birga (admin, kassir,
  *    operator). Faqat kassirlarni sanash mumkin emas: unda cheklovni qo'shimcha
- *    "admin" hisobi ochib aylanib o'tish mumkin bo'lardi.
+ *    "admin" hisobi ochib aylanib o'tish mumkin bo'lardi. Son faqat `staff`
+ *    imkoniyati yoqilgan darajada amal qiladi, aks holda — faqat egasi.
  */
 export const LIMIT_KEYS = ['tables', 'staff'] as const;
 export type LimitKey = (typeof LIMIT_KEYS)[number];
@@ -72,6 +86,7 @@ export const DEFAULT_TIERS: TiersConfig = {
     nameRu: 'Стандарт',
     taglineUz: 'Kichik klub uchun: stollar, bar va kassa',
     taglineRu: 'Для небольшого клуба: столы, бар и касса',
+    // staff soni — xodim qo'shish yoqilsa ishlaydigan tayyor qiymat (hozir faqat egasi)
     limits: { tables: 6, staff: 3 },
     features: { ...allFeatures(false), bar: true, debts: true, reports: true },
   },
@@ -82,14 +97,14 @@ export const DEFAULT_TIERS: TiersConfig = {
     taglineUz: "O'sayotgan klub uchun: bron, mijozlar, smenalar",
     taglineRu: 'Для растущего клуба: брони, клиенты, смены',
     limits: { tables: 15, staff: 8 },
-    features: { ...allFeatures(true), lights: false },
+    features: { ...allFeatures(true), staff: false, lights: false },
   },
   vip: {
     code: 'vip',
     nameUz: 'VIP',
     nameRu: 'VIP',
-    taglineUz: 'Hammasi cheksiz, chiroq avtomatikasi bilan',
-    taglineRu: 'Всё без ограничений, с автоматикой света',
+    taglineUz: 'Hammasi cheksiz: xodimlar va chiroq avtomatikasi',
+    taglineRu: 'Всё без ограничений: сотрудники и автоматика света',
     limits: { tables: null, staff: null },
     features: allFeatures(true),
   },
@@ -128,6 +143,11 @@ const limitRank = (value: number | null) => (value === null ? Infinity : value);
  */
 export const tierViolations = (config: TiersConfig): string[] => {
   const problems: string[] = [];
+  for (const code of TIER_CODES) {
+    for (const [key, needs] of Object.entries(FEATURE_REQUIRES) as [FeatureKey, FeatureKey][]) {
+      if (config[code].features[key] && !config[code].features[needs]) problems.push(`${code}.features.${key}`);
+    }
+  }
   for (let i = 1; i < TIER_CODES.length; i += 1) {
     const lower = config[TIER_CODES[i - 1]];
     const higher = config[TIER_CODES[i]];
@@ -184,6 +204,12 @@ export const shapeTiers = (raw: unknown): TiersConfig => {
  */
 export const normalizeTiers = (raw: unknown): TiersConfig => {
   const result = shapeTiers(raw);
+  // Bog'liqlik: «Buyurtmalar» yoqilgan darajada bar ham yoqiladi
+  for (const code of TIER_CODES) {
+    for (const [key, needs] of Object.entries(FEATURE_REQUIRES) as [FeatureKey, FeatureKey][]) {
+      if (result[code].features[key]) result[code].features[needs] = true;
+    }
+  }
   // Qoidaga keltirish: pastdan yuqoriga
   for (let i = 1; i < TIER_CODES.length; i += 1) {
     const lower = result[TIER_CODES[i - 1]];
@@ -196,9 +222,16 @@ export const normalizeTiers = (raw: unknown): TiersConfig => {
   return result;
 };
 
+/** Xodim qo'shish o'chiq darajada amaldagi hisoblar chegarasi — faqat egasi */
+export const OWNER_ONLY = 1;
+
 export const entitlementsFor = (config: TiersConfig, tier: TierCode): Entitlements => ({
   tier,
-  limits: { ...config[tier].limits },
+  limits: {
+    ...config[tier].limits,
+    // Sozlamadagi son xodim qo'shish yoqilgandagina amal qiladi
+    staff: config[tier].features.staff ? config[tier].limits.staff : OWNER_ONLY,
+  },
   features: { ...config[tier].features },
 });
 

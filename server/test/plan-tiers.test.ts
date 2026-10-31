@@ -8,11 +8,14 @@ import { ClubStatus, UserRole } from '../src/entities/enums';
 import { SubscriptionGuard } from '../src/common/guards/subscription.guard';
 import { REQUIRE_FEATURE_KEY } from '../src/common/decorators/require-feature.decorator';
 import { PlanTiersService } from '../src/common/plan-tiers/plan-tiers.service';
+import { OrdersController } from '../src/modules/orders/orders.controller';
 import {
   DEFAULT_TIERS,
   DEFAULT_TIER_PRICES,
   FEATURE_KEYS,
+  OWNER_ONLY,
   PLAN_DURATIONS,
+  entitlementsFor,
   minTierFor,
   minTierForLimit,
   normalizeTiers,
@@ -43,6 +46,63 @@ test('standart sozlama qoidaga mos: VIP ⊇ Pro ⊇ Standart', () => {
   // Buyurtmachi bergan Standart narxlari
   assert.deepEqual([...DEFAULT_TIER_PRICES.standard], [179000, 499000, 949000, 1790000]);
   assert.deepEqual(PLAN_DURATIONS.map((d) => d.months), [1, 3, 6, 12]);
+});
+
+test("bar va buyurtmalar alohida; xodim qo'shish faqat VIP da", async () => {
+  // Standart: bar bor (stolga mahsulot), «Buyurtmalar» bo'limi yo'q
+  assert.equal(DEFAULT_TIERS.standard.features.bar, true);
+  assert.equal(DEFAULT_TIERS.standard.features.orders, false);
+  assert.equal(DEFAULT_TIERS.pro.features.orders, true);
+  assert.equal(minTierFor(DEFAULT_TIERS, 'orders'), 'pro');
+  assert.equal(minTierFor(DEFAULT_TIERS, 'staff'), 'vip');
+
+  // Xodim qo'shish o'chiq darajada amaldagi chegara — faqat egasi
+  assert.equal(entitlementsFor(DEFAULT_TIERS, 'standard').limits.staff, OWNER_ONLY);
+  assert.equal(entitlementsFor(DEFAULT_TIERS, 'pro').limits.staff, OWNER_ONLY);
+  assert.equal(entitlementsFor(DEFAULT_TIERS, 'vip').limits.staff, null);
+
+  const service = new PlanTiersService(memoryRepo(DEFAULT_TIERS));
+  await assert.rejects(service.assertFeature({ tier: 'pro' } as Club, 'staff'), (e) => {
+    assert.equal(body(e).code, 'FEATURE_LOCKED');
+    assert.deepEqual(body(e).args, { tier: 'VIP', tierRu: 'VIP' });
+    return true;
+  });
+
+  // «Buyurtmalar» bar'siz bo'lmaydi: panel rad etadi, bazadagisi tuzatiladi
+  const orphan = clone(DEFAULT_TIERS) as Record<string, any>;
+  orphan.pro.features.bar = false;
+  orphan.vip.features.bar = false;
+  orphan.standard.features.bar = false;
+  assert.ok(tierViolations(shapeTiers(orphan)).includes('pro.features.orders'));
+  await assert.rejects(service.update(orphan), (e) => status(e) === 400);
+  assert.equal(normalizeTiers(orphan).pro.features.bar, true);
+
+  // Eski (yangi kalitlarsiz) sozlama — standart qiymatlar bilan to'ldiriladi
+  const legacy = clone(DEFAULT_TIERS) as Record<string, any>;
+  for (const code of ['standard', 'pro', 'vip']) {
+    delete legacy[code].features.orders;
+    delete legacy[code].features.staff;
+  }
+  const filled = normalizeTiers(legacy);
+  assert.deepEqual(
+    [filled.standard, filled.pro, filled.vip].map((tier) => [tier.features.orders, tier.features.staff]),
+    [
+      [false, false],
+      [true, false],
+      [true, true],
+    ],
+  );
+});
+
+test("stol oynasi (qo'shish, ko'rish, xatoni bekor qilish) — bar; «Buyurtmalar» ro'yxati — orders", () => {
+  const reflector = new Reflector();
+  const feature = (method: 'create' | 'cancel' | 'openForSession' | 'findAll' | 'todayStats') =>
+    reflector.getAllAndOverride(REQUIRE_FEATURE_KEY, [OrdersController.prototype[method], OrdersController]);
+  assert.equal(feature('create'), 'bar');
+  assert.equal(feature('openForSession'), 'bar');
+  assert.equal(feature('cancel'), 'bar');
+  assert.equal(feature('findAll'), 'orders');
+  assert.equal(feature('todayStats'), 'orders');
 });
 
 test("bazadagi buzilgan sozlama o'qishda qoidaga keltiriladi", () => {

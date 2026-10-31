@@ -21,7 +21,7 @@ export default function MobileNavigation({ onOpenMenu, menuOpen }: { onOpenMenu:
           : []),
         { to: '/tables', label: 'menu.tables', icon: <TableOutlined /> },
         // Tarifda yo'q bo'lim pastki panelda joy egallamaydi ("Yana" menyusida qulf bilan bor)
-        ...(can('bar') ? [{ to: '/orders', label: 'menu.orders', icon: <CoffeeOutlined /> }] : []),
+        ...(can('orders') ? [{ to: '/orders', label: 'menu.orders', icon: <CoffeeOutlined /> }] : []),
         ...(can('reservations') ? [{ to: '/reservations', label: 'menu.reservations', icon: <CalendarOutlined /> }] : []),
       ];
   return (

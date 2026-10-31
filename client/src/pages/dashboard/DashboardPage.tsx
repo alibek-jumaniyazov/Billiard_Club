@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom';
 import { EmptyState, PageHeader, PageTransition, StatCard } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useEntitlements } from '../../hooks/useEntitlements';
 import { TOKENS } from '../../theme/tokens';
 import { formatClock, formatMoney } from '../../utils/format';
 import ActiveSessionsList from './ActiveSessionsList';
@@ -57,6 +58,7 @@ const itemVariants = {
 const DashboardPage = () => {
   const { t } = useTranslation();
   const { club } = useAuth();
+  const { can } = useEntitlements();
   const {
     stats,
     loading,
@@ -183,15 +185,22 @@ const DashboardPage = () => {
           <Link className="workday-action workday-action--primary" to="/tables?view=free">
             <PlayCircleOutlined /><span><strong>{t('workspace.startGame')}</strong><small>{t('workspace.startHint')}</small></span>
           </Link>
-          <Link className="workday-action" to="/orders">
-            <CoffeeOutlined /><span><strong>{t('workspace.bar')}</strong><small>{t('workspace.barHint')}</small></span>
-          </Link>
-          <Link className="workday-action" to="/reservations">
-            <CalendarOutlined /><span><strong>{t('menu.reservations')}</strong><small>{t('workspace.reservationHint')}</small></span>
-          </Link>
-          <Link className="workday-action" to="/debts">
-            <CreditCardOutlined /><span><strong>{t('menu.debts')}</strong><small>{t('workspace.debtHint')}</small></span>
-          </Link>
+          {/* Tarifda yo'q bo'lim tezkor amallarda ko'rsatilmaydi */}
+          {can('orders') && (
+            <Link className="workday-action" to="/orders">
+              <CoffeeOutlined /><span><strong>{t('workspace.bar')}</strong><small>{t('workspace.barHint')}</small></span>
+            </Link>
+          )}
+          {can('reservations') && (
+            <Link className="workday-action" to="/reservations">
+              <CalendarOutlined /><span><strong>{t('menu.reservations')}</strong><small>{t('workspace.reservationHint')}</small></span>
+            </Link>
+          )}
+          {can('debts') && (
+            <Link className="workday-action" to="/debts">
+              <CreditCardOutlined /><span><strong>{t('menu.debts')}</strong><small>{t('workspace.debtHint')}</small></span>
+            </Link>
+          )}
         </div>
       </section>
 

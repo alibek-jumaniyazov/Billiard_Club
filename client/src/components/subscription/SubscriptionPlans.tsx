@@ -34,12 +34,13 @@ import { TOKENS } from '../../theme/tokens';
 import type { Invoice, LimitKey, Plan, TierCode } from '../../types';
 import { formatNumber } from '../../utils/format';
 import {
+  CARD_FEATURES,
   DURATION_MONTHS,
-  FEATURE_ORDER,
   LIMIT_ORDER,
   TIER_ORDER,
   durationSlot,
   groupPlans,
+  limitValue,
   priceInfo,
   tierLabel,
   tierName,
@@ -458,7 +459,8 @@ const SubscriptionPlans = ({
                 <div style={{ height: 1, background: border.subtle, margin: '18px 0 14px' }} />
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                   {LIMIT_ORDER.map((key) => {
-                    const max = def.limits[key];
+                    const value = limitValue(def, key);
+                    const max = value === 'owner' ? 1 : value;
                     const used = usage?.[key];
                     const over = max !== null && typeof used === 'number' && used > max;
                     return (
@@ -468,12 +470,16 @@ const SubscriptionPlans = ({
                             {t(`tiers.limit_${key}`)}
                           </Text>
                           <Text strong className="tabular-nums" style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-                            {max === null ? t('tiers.unlimited') : t('tiers.upTo', { count: max })}
+                            {value === 'owner'
+                              ? t('tiers.ownerOnly')
+                              : value === null
+                                ? t('tiers.unlimited')
+                                : t('tiers.upTo', { count: value })}
                           </Text>
                         </div>
                         {over && (
                           <Text style={{ display: 'block', fontSize: 12, color: semantic.warning }}>
-                            {t('tiers.overLimit', { used, max })}
+                            {value === 'owner' ? t('tiers.overLimitOwner', { used }) : t('tiers.overLimit', { used, max })}
                           </Text>
                         )}
                       </li>
@@ -481,7 +487,7 @@ const SubscriptionPlans = ({
                   })}
                 </ul>
                 <ul style={{ listStyle: 'none', margin: '10px 0 0', padding: 0 }}>
-                  {FEATURE_ORDER.map((key) => {
+                  {CARD_FEATURES.map((key) => {
                     const on = def.features[key];
                     return (
                       <li

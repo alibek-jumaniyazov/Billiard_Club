@@ -34,7 +34,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTiersConfig } from '../hooks/useEntitlements';
 import { TOKENS } from '../theme/tokens';
-import type { Invoice, InvoiceStatus, Plan, SubscriptionStatus } from '../types';
+import type { Invoice, InvoiceStatus, LimitKey, Plan, SubscriptionStatus } from '../types';
 import { formatNumber } from '../utils/format';
 import { LIMIT_ORDER, tierLabel, tierName } from '../utils/tiers';
 
@@ -214,10 +214,22 @@ const Subscription = () => {
         ? tierName(tiersConfig[club.tier], lang)
         : tierLabel(club.tier, lang)
       : null;
-    const anyLimitFull =
-      !!entitlements &&
-      !!usage &&
-      LIMIT_ORDER.some((key) => entitlements.limits[key] !== null && (usage[key] ?? 0) >= (entitlements.limits[key] ?? 0));
+    /**
+     * Cheklov holati. Xodim qo'shish tarifda bo'lmasa — "Faqat egasi": to'liq
+     * hisoblanmaydi, faqat egasidan tashqari faol hisob qolgan bo'lsa ogohlantiradi.
+     */
+    const limitState = (key: LimitKey) => {
+      const used = usage?.[key] ?? 0;
+      const max = entitlements?.limits[key] ?? null;
+      const ownerOnly = key === 'staff' && entitlements?.features.staff === false;
+      return {
+        used,
+        max,
+        ownerOnly,
+        full: ownerOnly ? used > 1 : max !== null && used >= max,
+      };
+    };
+    const anyLimitFull = !!entitlements && !!usage && LIMIT_ORDER.some((key) => limitState(key).full);
     const endMs = club.effectiveEndsAt ? new Date(club.effectiveEndsAt).getTime() : null;
 
     // Holat SERVER qarori bo'yicha: noto'g'ri qurilma soati "tugagan"/"faol"
@@ -402,9 +414,7 @@ const Subscription = () => {
                 }}
               >
                 {LIMIT_ORDER.map((key) => {
-                  const max = entitlements.limits[key];
-                  const used = usage[key] ?? 0;
-                  const full = max !== null && used >= max;
+                  const { used, max, ownerOnly, full } = limitState(key);
                   return (
                     <div key={key}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -416,10 +426,10 @@ const Subscription = () => {
                           className="tabular-nums"
                           style={{ fontSize: 13, color: full ? semantic.warning : text.primary }}
                         >
-                          {`${used} / ${max === null ? t('tiers.unlimited') : max}`}
+                          {`${used} / ${ownerOnly ? t('tiers.ownerOnly') : max === null ? t('tiers.unlimited') : max}`}
                         </Text>
                       </div>
-                      {max !== null && (
+                      {max !== null && !ownerOnly && (
                         <Progress
                           percent={Math.min(100, (used / Math.max(1, max)) * 100)}
                           showInfo={false}

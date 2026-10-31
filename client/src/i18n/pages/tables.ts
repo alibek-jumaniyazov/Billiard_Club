@@ -115,6 +115,11 @@ export default {
     liveTotalCaption: 'jami (stol + bar)',
     submitOrder: "Hisobga qo'shish",
     noItems: 'Kamida bitta mahsulot tanlang',
+    onTable: 'Stolda',
+    cancelBarOrder: 'Bekor qilish',
+    cancelBarOrderConfirm: 'Stoldagi barcha bar mahsulotlari bekor qilinsinmi?',
+    cancelBarOrderDesc: "Mahsulotlar omborga qaytadi. To'g'risini keyin qayta qo'shasiz.",
+    cancelBarOrderRole: 'Bekor qilish — kassir yoki admin',
     // Hisob-kitob (checkout)
     end: 'Hisob-kitob',
     checkoutTitle: 'Hisob-kitob',
@@ -457,6 +462,11 @@ export default {
     liveTotalCaption: 'итого (стол + бар)',
     submitOrder: 'Добавить к счёту',
     noItems: 'Выберите хотя бы один товар',
+    onTable: 'На столе',
+    cancelBarOrder: 'Отменить',
+    cancelBarOrderConfirm: 'Отменить все товары бара на этом столе?',
+    cancelBarOrderDesc: 'Товары вернутся на склад. Правильные добавите заново.',
+    cancelBarOrderRole: 'Отменить может кассир или администратор',
     // Расчёт (checkout)
     end: 'Расчёт',
     checkoutTitle: 'Расчёт',

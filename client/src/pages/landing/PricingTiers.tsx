@@ -8,14 +8,15 @@ import { TOKENS } from '../../theme/tokens';
 import type { Plan, TierCode } from '../../types';
 import { formatNumber } from '../../utils/format';
 import {
+  CARD_FEATURES,
   DEFAULT_TIERS_CONFIG,
   DEFAULT_TIER_PRICES,
   DURATION_DAYS,
   DURATION_MONTHS,
-  FEATURE_ORDER,
   LIMIT_ORDER,
   TIER_ORDER,
   groupPlans,
+  limitValue,
   type DurationMonths,
   tierName,
   tierTagline,
@@ -193,7 +194,7 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
             <div style={{ borderTop: `1px solid ${border.subtle}`, margin: '18px 0 14px' }} />
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
               {LIMIT_ORDER.map((key) => {
-                const max = def.limits[key];
+                const value = limitValue(def, key);
                 return (
                   <li
                     key={key}
@@ -201,7 +202,11 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
                   >
                     <span style={{ color: text.secondary }}>{t(`tiers.limit_${key}`)}</span>
                     <strong className="tabular-nums" style={{ color: text.primary, whiteSpace: 'nowrap' }}>
-                      {max === null ? t('tiers.unlimited') : t('tiers.upTo', { count: max })}
+                      {value === 'owner'
+                        ? t('tiers.ownerOnly')
+                        : value === null
+                          ? t('tiers.unlimited')
+                          : t('tiers.upTo', { count: value })}
                     </strong>
                   </li>
                 );
@@ -218,7 +223,7 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
                 flex: 1,
               }}
             >
-              {FEATURE_ORDER.map((key) => {
+              {CARD_FEATURES.map((key) => {
                 const on = def.features[key];
                 return (
                   <li

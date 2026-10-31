@@ -10,11 +10,21 @@ import { CancelOrderDto, CreateOrderDto, ListOrdersQueryDto } from './dto/orders
 import { OrdersService } from './orders.service';
 import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
-// Tarifda "bar" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
-@RequireFeature('bar')
+// «Buyurtmalar» bo'limi (ro'yxat, statistika) — `orders` imkoniyati. Stol oynasidagi
+// ishlar — mahsulot qo'shish, stoldagi buyurtmani ko'rish va xatoni bekor qilish —
+// bar'ning o'zi. Tarifda bo'lmasa — 403 FEATURE_LOCKED
+@RequireFeature('orders')
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
+
+  /** Stoldagi (faol sessiyadagi) ochiq bar buyurtmasi — bo'lmasa null */
+  @RequireFeature('bar')
+  @Get('open/:sessionId')
+  async openForSession(@ClubId() clubId: number, @Param('sessionId', ParseIntPipe) sessionId: number) {
+    const data = await this.ordersService.findOpenForSession(clubId, sessionId);
+    return { success: true, data };
+  }
 
   @Get()
   async findAll(@ClubId() clubId: number, @Query() query: ListOrdersQueryDto) {
@@ -28,6 +38,7 @@ export class OrdersController {
     return { success: true, data };
   }
 
+  @RequireFeature('bar')
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
   @Post()
   async create(
@@ -40,7 +51,12 @@ export class OrdersController {
     return { success: true, message: t(lang, 'orders.created'), data };
   }
 
-  /** Ochiq buyurtmani bekor qilish (ombor qaytariladi) — kassir va admin */
+  /**
+   * Ochiq buyurtmani bekor qilish (ombor qaytariladi) — kassir va admin.
+   * Faqat OCHIQ (yakunlanmagan stoldagi) buyurtma — xato qo'shilganini tuzatish
+   * bar'ning o'zi, shuning uchun Standartda ham bor (stol oynasidan).
+   */
+  @RequireFeature('bar')
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
   @HttpCode(200)
   @Post(':id/cancel')

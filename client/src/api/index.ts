@@ -224,6 +224,8 @@ export const ordersApi = {
   ) => post<Order>('/orders', body, key),
   /** Ochiq buyurtmani bekor qilish (ombor qaytariladi) */
   cancel: (id: number) => post<Order>(`/orders/${id}/cancel`),
+  /** Stoldagi (faol sessiyadagi) ochiq buyurtma — bo'lmasa null */
+  openForSession: (sessionId: number) => get<Order | null>(`/orders/open/${sessionId}`),
 };
 
 export const debtsApi = {

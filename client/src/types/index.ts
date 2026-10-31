@@ -51,12 +51,14 @@ export type TierCode = 'standard' | 'pro' | 'vip';
 /** Darajaga qarab yopiladigan bo'limlar */
 export type FeatureKey =
   | 'bar'
+  | 'orders'
   | 'debts'
   | 'reports'
   | 'customers'
   | 'reservations'
   | 'expenses'
   | 'shifts'
+  | 'staff'
   | 'lights';
 
 /** Soni cheklanadigan narsalar (null — cheksiz). staff — hisoblar egasi bilan */

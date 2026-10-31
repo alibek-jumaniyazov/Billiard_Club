@@ -22,8 +22,9 @@ stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun k
   sahifasidagi "N kun bepul" matnlari ham shu qiymatdan yig'iladi, ya'ni sayt va tizim
   hech qachon bir-biriga zid bo'lmaydi.
 - **Tarif darajalari** — Standart, Pro va VIP. Har bir daraja qaysi bo'limlarni ochishini
-  (bar, bron, mijozlar, smenalar, chiroq va h.k.), stollar va foydalanuvchilar sonini hamda
-  narxlarni superadmin o'zi belgilaydi (*To'lovlar → Tarif darajalari*). Yuqori daraja
+  (bar, buyurtmalar, bron, mijozlar, smenalar, xodim qo'shish, chiroq va h.k.), stollar va
+  foydalanuvchilar sonini hamda narxlarni superadmin o'zi belgilaydi (alohida *Tariflar*
+  sahifasi). Yuqori daraja
   quyisidagi hamma narsani oladi. Batafsil: [docs/TARIFFS.md](docs/TARIFFS.md).
 - Klub qo'shilganda sizga **Telegram** orqali xabar keladi. Obuna tugashidan oldingi
   eslatma chegaralari ham shu panelda sozlanadi (standart: 3 va 1 kun qolganda).
@@ -374,8 +375,8 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
   CI uchun `TEST_POSTGRES_URL` alohida test PostgreSQL serverini ko'rsatadi.
 
 - `server/test/plan-tiers.test.ts` va `06-plan-tiers.postgres.test.cjs` — tarif darajalari:
-  yuqori daraja quyisidan kam bo'lmasligi, yopiq bo'lim va limit (7-stol, 4-foydalanuvchi)
-  rad etilishi, shartnoma darajani o'rnatishi. `client/src/utils/tiers.test.ts` — oyiga narx
+  yuqori daraja quyisidan kam bo'lmasligi, bar va buyurtmalar alohidaligi, yopiq bo'lim,
+  7-stol va xodim qo'shish (faqat VIP; yoqilsa soni cheklanadi) rad etilishi, shartnoma darajani o'rnatishi. `client/src/utils/tiers.test.ts` — oyiga narx
   va tejash (buyurtmachi narxlari bilan), admin jadvali qoidasi; `tiers.sync.test.ts` —
   klient zaxirasi server standartidan uzoqlashmasligi.
 - `client/src/utils/session.test.ts` — sessiya taymeri va summasi: pauza,
