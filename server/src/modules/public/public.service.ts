@@ -59,7 +59,7 @@ export class PublicService {
     // Sinov muddati SUPERADMIN sozlamasidan (platform_settings) — ilgari u
     // shu faylda qat'iy 7 kun bo'lib yozilgan edi va uni o'zgartirish uchun
     // kodni tahrirlab, qayta deploy qilish kerak edi.
-    const { trialDays } = await this.platformConfig.get();
+    const { trialDays, trialTier } = await this.platformConfig.get();
     // Expensive password work happens before acquiring identity/club locks.
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
@@ -77,6 +77,8 @@ export class PublicService {
         address: dto.address.trim(),
         status: trialDays > 0 ? ClubStatus.TRIAL : ClubStatus.EXPIRED,
         trialEndsAt,
+        // Sinov davridagi tarif darajasi — platforma sozlamasidan (standart VIP)
+        tier: trialTier,
         notes: "Landing orqali o'zi ro'yxatdan o'tgan",
       });
 

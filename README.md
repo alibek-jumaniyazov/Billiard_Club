@@ -1,6 +1,6 @@
 # Billiard Club — Billiard klublar uchun boshqaruv tizimi (SaaS)
 
-Billiard klublariga **oylik obuna** asosida sotiladigan, ko'p-klubli (multi-tenant) boshqaruv tizimi:
+Billiard klublariga **obuna** asosida (Standart / Pro / VIP · 1, 3, 6 oy yoki 1 yil) sotiladigan, ko'p-klubli (multi-tenant) boshqaruv tizimi:
 stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun klublarni boshqarish paneli.
 
 ## Arxitektura
@@ -21,6 +21,10 @@ stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun k
   o'zgartiriladi (*Sozlamalar → Platforma qoidalari*), kodga tegish shart emas. Landing
   sahifasidagi "N kun bepul" matnlari ham shu qiymatdan yig'iladi, ya'ni sayt va tizim
   hech qachon bir-biriga zid bo'lmaydi.
+- **Tarif darajalari** — Standart, Pro va VIP. Har bir daraja qaysi bo'limlarni ochishini
+  (bar, bron, mijozlar, smenalar, chiroq va h.k.), stollar va foydalanuvchilar sonini hamda
+  narxlarni superadmin o'zi belgilaydi (*To'lovlar → Tarif darajalari*). Yuqori daraja
+  quyisidagi hamma narsani oladi. Batafsil: [docs/TARIFFS.md](docs/TARIFFS.md).
 - Klub qo'shilganda sizga **Telegram** orqali xabar keladi. Obuna tugashidan oldingi
   eslatma chegaralari ham shu panelda sozlanadi (standart: 3 va 1 kun qolganda).
 - Muddati tugagan/bloklangan klub foydalanuvchilari tizimga kira oladi, lekin **blok ekranidan** o'ta olmaydi —
@@ -369,6 +373,11 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
   mahalliy PostgreSQL binarlari bilan yangi vaqtinchalik bazani yaratadi va yopadi.
   CI uchun `TEST_POSTGRES_URL` alohida test PostgreSQL serverini ko'rsatadi.
 
+- `server/test/plan-tiers.test.ts` va `06-plan-tiers.postgres.test.cjs` — tarif darajalari:
+  yuqori daraja quyisidan kam bo'lmasligi, yopiq bo'lim va limit (7-stol, 4-foydalanuvchi)
+  rad etilishi, shartnoma darajani o'rnatishi. `client/src/utils/tiers.test.ts` — oyiga narx
+  va tejash (buyurtmachi narxlari bilan), admin jadvali qoidasi; `tiers.sync.test.ts` —
+  klient zaxirasi server standartidan uzoqlashmasligi.
 - `client/src/utils/session.test.ts` — sessiya taymeri va summasi: pauza,
   transfer (segmentlar), kumulyativ yaxlitlash, muhrlangan narx. Bu fayl
   serverdagi `billSegments` formulasining nusxasi bo'lgani uchun har bir
@@ -395,10 +404,12 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
 2. **`npm run migrate`** — MAJBURIY. Kutilayotgan migratsiyalar:
    `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`, `TrialClaims`,
    `TrialTelegramVerification`, `Leads`, `CashShifts`, `SessionPlannedMinutes`,
-   `TableZones` va `AndroidReleases`.
+   `TableZones`, `AndroidReleases` va `TierPlans`.
    Ularsiz qarzni hisobdan chiqarish, yangi foydalanuvchini ro‘yxatdan o‘tkazish,
-   landing arizalari, kassa smenalari, belgilangan vaqtli o‘yin, stol zonalari va
-   Android relizlari ishlamaydi.
+   landing arizalari, kassa smenalari, belgilangan vaqtli o‘yin, stol zonalari,
+   Android relizlari va tarif darajalari ishlamaydi. `TierPlans` dan keyin hamma
+   mavjud klublar **VIP** bo'ladi — hech kimning bo'limi to'satdan yopilmaydi
+   ([docs/TARIFFS.md](docs/TARIFFS.md)).
 3. Chiroqning `DIRECT` rejimidan foydalanadigan klub bo'lsa —
    `LIGHTS_DIRECT_ALLOWED_CIDRS` ni to'ldiring (pastdagi izohga qarang),
    aks holda DIRECT rejim ishlamaydi. `BRIDGE` rejimi ta'sirlanmaydi.

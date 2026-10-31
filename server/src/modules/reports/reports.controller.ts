@@ -6,10 +6,13 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../entities/enums';
 import { ReportQueryDto } from './dto/reports.dto';
 import { ReportsService, ReportType } from './reports.service';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
 const REPORT_TYPES: ReportType[] = ['daily', 'weekly', 'monthly', 'custom'];
 
 @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
+// Tarifda "reports" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
+@RequireFeature('reports')
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}

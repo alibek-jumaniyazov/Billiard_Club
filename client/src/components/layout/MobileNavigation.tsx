@@ -3,10 +3,12 @@ import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { viewingClub } from '../../api/client';
+import { useEntitlements } from '../../hooks/useEntitlements';
 
 export default function MobileNavigation({ onOpenMenu, menuOpen }: { onOpenMenu: () => void; menuOpen: boolean }) {
   const { t } = useTranslation();
   const { hasRole } = useAuth();
+  const { can } = useEntitlements();
   const platform = hasRole('superadmin') && !viewingClub.get();
   const items = platform
     ? [
@@ -18,8 +20,9 @@ export default function MobileNavigation({ onOpenMenu, menuOpen }: { onOpenMenu:
           ? [{ to: '/dashboard', label: 'workspace.overview', icon: <DashboardOutlined /> }]
           : []),
         { to: '/tables', label: 'menu.tables', icon: <TableOutlined /> },
-        { to: '/orders', label: 'menu.orders', icon: <CoffeeOutlined /> },
-        { to: '/reservations', label: 'menu.reservations', icon: <CalendarOutlined /> },
+        // Tarifda yo'q bo'lim pastki panelda joy egallamaydi ("Yana" menyusida qulf bilan bor)
+        ...(can('bar') ? [{ to: '/orders', label: 'menu.orders', icon: <CoffeeOutlined /> }] : []),
+        ...(can('reservations') ? [{ to: '/reservations', label: 'menu.reservations', icon: <CalendarOutlined /> }] : []),
       ];
   return (
     <nav className="mobile-navigation" aria-label={t('workspace.navigation')}>

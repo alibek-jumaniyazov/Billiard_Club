@@ -6,8 +6,11 @@ import { arrivalQueue, RESERVATION_LOOKAHEAD_MS, RESERVATION_LOOKBACK_MS } from 
 interface Snapshot<T> { data: T | null; failed: boolean; at: number | null }
 const empty = <T,>(): Snapshot<T> => ({ data: null, failed: false, at: null });
 
-/** Separate failures keep a relay outage from hiding the arrival queue. */
-export function useOperations(scope: number | undefined, clockOffset: number) {
+/**
+ * Separate failures keep a relay outage from hiding the arrival queue.
+ * `withArrivals` — tarifda bron bo'lmasa so'rov yuborilmaydi (xato emas, bo'sh).
+ */
+export function useOperations(scope: number | undefined, clockOffset: number, withArrivals = true) {
   const [lights, setLights] = useState<Snapshot<LightsOverview>>(empty);
   const [arrivals, setArrivals] = useState<Snapshot<Reservation[]>>(empty);
   const [loading, setLoading] = useState(true);
@@ -25,7 +28,9 @@ export function useOperations(scope: number | undefined, clockOffset: number) {
     setLoading(true);
     const [lightResult, arrivalResult] = await Promise.allSettled([
       lightsApi.overview(),
-      Promise.all(['pending', 'confirmed'].map((status) => reservationsApi.list({ ...query, status }))),
+      withArrivals
+        ? Promise.all(['pending', 'confirmed'].map((status) => reservationsApi.list({ ...query, status })))
+        : Promise.resolve([]),
     ]);
     if (request !== generation.current) return;
     setLights((previous) => lightResult.status === 'fulfilled'
@@ -36,7 +41,7 @@ export function useOperations(scope: number | undefined, clockOffset: number) {
       : { ...previous, failed: true });
     busy.current = false;
     setLoading(false);
-  }, []);
+  }, [withArrivals]);
 
   useEffect(() => {
     setLights(empty());

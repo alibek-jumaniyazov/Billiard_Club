@@ -8,7 +8,10 @@ import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
 import { CancelOrderDto, CreateOrderDto, ListOrdersQueryDto } from './dto/orders.dto';
 import { OrdersService } from './orders.service';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
+// Tarifda "bar" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
+@RequireFeature('bar')
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}

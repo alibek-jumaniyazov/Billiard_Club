@@ -11,6 +11,7 @@ import { OfflineAuditInterceptor } from './common/audit/offline-audit.intercepto
 import { IdempotencyModule } from './common/idempotency/idempotency.module';
 import { LicenseModule } from './common/license/license.module';
 import { PlatformConfigModule } from './common/platform-config/platform-config.module';
+import { PlanTiersModule } from './common/plan-tiers/plan-tiers.module';
 import { IdempotencyInterceptor } from './common/idempotency/idempotency.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -63,6 +64,7 @@ import { ShiftsModule } from './modules/shifts/shifts.module';
     IdempotencyModule,
     LicenseModule,
     PlatformConfigModule,
+    PlanTiersModule,
     TelegramModule,
     AuthModule,
     PublicModule,

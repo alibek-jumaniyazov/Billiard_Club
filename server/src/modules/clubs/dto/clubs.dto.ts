@@ -17,6 +17,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ClubStatus } from '../../../entities/enums';
+import { TIER_CODES, TierCode } from '../../../common/plan-tiers/tiers';
 
 /** Klublar ro'yxati: qidiruv, holat filtri va sahifalash */
 export class ListClubsQueryDto {
@@ -84,6 +85,11 @@ export class CreateClubDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Tarif darajasi (Standart / Pro / VIP). Berilmasa — platformadagi sinov darajasi */
+  @IsOptional()
+  @IsIn(TIER_CODES)
+  tier?: TierCode;
 }
 
 export class UpdateClubDto {
@@ -110,6 +116,11 @@ export class UpdateClubDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Superadmin klub darajasini qo'lda almashtiradi (masalan kelishuv bo'yicha) */
+  @IsOptional()
+  @IsIn(TIER_CODES)
+  tier?: TierCode;
 }
 
 export class ExtendSubscriptionDto {
@@ -161,4 +172,9 @@ export class CreateContractDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  /** Shartnoma qaysi daraja uchun — berilsa klub shu darajaga o'tadi */
+  @IsOptional()
+  @IsIn(TIER_CODES)
+  tier?: TierCode;
 }

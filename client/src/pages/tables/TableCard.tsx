@@ -98,7 +98,8 @@ export interface TableCardProps {
   /** Eng yaqin bron yorlig'i ("Bron 21:00 · Aziza") — bo'lsa kartada ko'rinadi */
   reservation?: string;
   onStart: (table: BilliardTable) => void;
-  onOrder: (table: BilliardTable) => void;
+  /** Bar (tarif imkoniyati) — berilmasa buyurtma tugmasi ko'rinmaydi */
+  onOrder?: (table: BilliardTable) => void;
   onTransfer: (table: BilliardTable) => void;
   onCheckout: (table: BilliardTable) => void;
   onPauseResume: (session: Session, table: BilliardTable) => void;
@@ -227,9 +228,9 @@ const TableCard = memo(({
               <Button icon={isPaused ? <CaretRightOutlined /> : <PauseCircleOutlined />} loading={pending}
                 aria-label={t(isPaused ? 'tables.resume' : 'tables.pause')} onClick={() => onPauseResume(session, table)} />
             </Tooltip>
-            <Tooltip title={t('tables.addOrder')}>
+            {onOrder && <Tooltip title={t('tables.addOrder')}>
               <Button icon={<CoffeeOutlined />} aria-label={t('tables.addOrder')} onClick={() => onOrder(table)} />
-            </Tooltip>
+            </Tooltip>}
             {lightButton}
             {moreItems.length > 0 && <Dropdown menu={{ items: moreItems }} trigger={['click']} placement="bottomRight">
               <Button icon={<EllipsisOutlined />} aria-label={t('tables.moreActions')} />
@@ -307,9 +308,9 @@ const TableCard = memo(({
             <Button icon={isPaused ? <CaretRightOutlined /> : <PauseCircleOutlined />} loading={pending}
               aria-label={t(isPaused ? 'tables.resume' : 'tables.pause')} onClick={() => onPauseResume(session, table)} />
           </Tooltip>
-          <Tooltip title={t('tables.addOrder')}>
+          {onOrder && <Tooltip title={t('tables.addOrder')}>
             <Button icon={<CoffeeOutlined />} aria-label={t('tables.addOrder')} onClick={() => onOrder(table)} />
-          </Tooltip>
+          </Tooltip>}
           {lightButton}
           {moreItems.length > 0 && <Dropdown menu={{ items: moreItems }} trigger={['click']} placement="bottomRight">
             <Button icon={<EllipsisOutlined />} aria-label={t('tables.moreActions')} />

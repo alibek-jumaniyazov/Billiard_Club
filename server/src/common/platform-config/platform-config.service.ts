@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PlatformSetting } from '../../entities/platform-setting.entity';
+import { isTierCode, TierCode } from '../plan-tiers/tiers';
 
 /** platform_settings dagi kalit */
 export const PLATFORM_CONFIG_KEY = 'platform_config';
@@ -31,6 +32,11 @@ export interface PlatformConfig {
    * Masalan [1, 3] — 3 kun qolganda va 1 kun qolganda.
    */
   expiryReminderDays: number[];
+  /**
+   * Sinovdagi klub qaysi tarif darajasida ishlaydi (Standart / Pro / VIP).
+   * Standart VIP — yangi mijoz hamma imkoniyatni ko'rib, keyin tanlasin.
+   */
+  trialTier: TierCode;
 }
 
 /**
@@ -40,6 +46,7 @@ export interface PlatformConfig {
 export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   trialDays: 7,
   expiryReminderDays: [1, 3],
+  trialTier: 'vip',
 };
 
 /**
@@ -158,7 +165,9 @@ export class PlatformConfigService {
       expiryReminderDays = cleaned;
     }
 
-    return { trialDays, expiryReminderDays };
+    const trialTier = isTierCode(obj.trialTier) ? obj.trialTier : DEFAULT_PLATFORM_CONFIG.trialTier;
+
+    return { trialDays, expiryReminderDays, trialTier };
   }
 
   private clampInt(raw: unknown, fallback: number, min: number, max: number): number {

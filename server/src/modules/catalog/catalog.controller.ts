@@ -26,7 +26,10 @@ import {
   UpdateCategoryDto,
   UpdateProductDto,
 } from './dto/catalog.dto';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
+// Tarifda "bar" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
+@RequireFeature('bar')
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly catalogService: CatalogService) {}
@@ -68,6 +71,8 @@ export class CategoriesController {
   }
 }
 
+// Tarifda "bar" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
+@RequireFeature('bar')
 @Controller('products')
 export class ProductsController {
   constructor(private readonly catalogService: CatalogService) {}

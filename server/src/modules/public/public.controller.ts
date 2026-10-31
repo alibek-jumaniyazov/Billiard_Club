@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { LicenseService } from '../../common/license/license.service';
 import { PlatformConfigService } from '../../common/platform-config/platform-config.service';
+import { PlanTiersService } from '../../common/plan-tiers/plan-tiers.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { t } from '../../common/i18n/messages';
 import { AuthService } from '../auth/auth.service';
@@ -20,6 +21,7 @@ export class PublicController {
     private readonly license: LicenseService,
     private readonly platformConfig: PlatformConfigService,
     private readonly trialVerification: TrialVerificationService,
+    private readonly tiers: PlanTiersService,
   ) {}
 
   @Public()
@@ -76,6 +78,13 @@ export class PublicController {
   @Get('plans')
   async plans() {
     return { success: true, data: await this.publicService.plans() };
+  }
+
+  /** Landing uchun tarif darajalari: Standart / Pro / VIP imkoniyatlari va cheklovlari */
+  @Public()
+  @Get('tiers')
+  async tierList() {
+    return { success: true, data: await this.tiers.get() };
   }
 
   /**

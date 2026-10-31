@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsDateString,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -18,6 +19,7 @@ import {
   TRIAL_DAYS_MAX,
   TRIAL_DAYS_MIN,
 } from '../../../common/platform-config/platform-config.service';
+import { TIER_CODES, TierCode } from '../../../common/plan-tiers/tiers';
 
 export class AuditLogsQueryDto {
   @IsOptional()
@@ -85,6 +87,11 @@ export class UpdatePlatformConfigDto {
   @Max(REMINDER_DAY_MAX, { each: true })
   @Type(() => Number)
   expiryReminderDays?: number[];
+
+  /** Sinovdagi klub darajasi: 'standard' | 'pro' | 'vip' */
+  @IsOptional()
+  @IsIn(TIER_CODES)
+  trialTier?: TierCode;
 }
 
 /** Klub ma'lumotlari konsolining sahifalash parametrlari */

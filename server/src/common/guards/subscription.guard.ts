@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,6 +15,9 @@ import { User } from '../../entities/user.entity';
 import { AuditService } from '../audit/audit.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { SKIP_SUBSCRIPTION_KEY } from '../decorators/skip-subscription.decorator';
+import { REQUIRE_FEATURE_KEY } from '../decorators/require-feature.decorator';
+import { PlanTiersService } from '../plan-tiers/plan-tiers.service';
+import type { FeatureKey } from '../plan-tiers/tiers';
 
 /** O'qish so'rovlari uchun impersonatsiya audit yozuvi chastotasi (klub+admin boshiga) */
 const IMPERSONATION_LOG_TTL_MS = 60_000;
@@ -22,6 +26,8 @@ const IMPERSONATION_LOG_TTL_MS = 60_000;
  * Obuna nazorati (SaaS yadrosi):
  *  - Klub bloklangan bo'lsa — 403 CLUB_BLOCKED
  *  - Sinov/obuna muddati tugagan bo'lsa — 403 SUBSCRIPTION_EXPIRED (statusni cron yangilaydi)
+ *  - Endpoint @RequireFeature bilan belgilangan bo'lsa va klub tarifida bu
+ *    imkoniyat yo'q bo'lsa — 403 FEATURE_LOCKED (Standart → Pro → VIP)
  *  - Aks holda req.clubId va req.club o'rnatiladi (tenant konteksti)
  *
  * Superadmin uchun: X-Club-Id header orqali istalgan klub kontekstida
@@ -38,6 +44,7 @@ export class SubscriptionGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly audit: AuditService,
     @InjectRepository(Club) private readonly clubRepo: Repository<Club>,
+    @Optional() private readonly tiers?: PlanTiersService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -91,6 +98,12 @@ export class SubscriptionGuard implements CanActivate {
         code: 'SUBSCRIPTION_EXPIRED',
       });
     }
+
+    const feature = this.reflector.getAllAndOverride<FeatureKey | undefined>(REQUIRE_FEATURE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (feature && this.tiers) await this.tiers.assertFeature(club, feature);
 
     request.clubId = club.id;
     request.club = club;

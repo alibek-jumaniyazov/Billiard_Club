@@ -3,14 +3,12 @@ import { Avatar, Button, Col, Collapse, Drawer, Row, Segmented } from 'antd';
 import {
   ArrowRightOutlined,
   CheckCircleFilled,
-  CheckCircleOutlined,
   AndroidFilled,
   GlobalOutlined,
   InstagramOutlined,
   MailOutlined,
   MenuOutlined,
   PhoneOutlined,
-  SafetyCertificateOutlined,
   SendOutlined,
   StarFilled,
   WindowsFilled,
@@ -35,7 +33,7 @@ import { TOKENS } from '../theme/tokens';
 import { BrandLogo } from '../components/ui';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { LANDING_PATH, langFromPath } from '../seo/site';
-import { formatNumber } from '../utils/format';
+import { DEFAULT_TIER_PRICES, TIER_ORDER } from '../utils/tiers';
 import { publicApi } from '../api';
 import { setTrialDays } from '../i18n';
 import type { Plan } from '../types';
@@ -52,6 +50,7 @@ import FeatureBento from './landing/FeatureBento';
 import HeroStage from './landing/HeroStage';
 import CapabilityStrip from './landing/CapabilityStrip';
 import HowItWorks from './landing/HowItWorks';
+import PricingTiers, { pricesFrom } from './landing/PricingTiers';
 import './landing/landing.css';
 
 const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
@@ -60,7 +59,6 @@ const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
 const NAV_BG = hexToRgba(bg.bg0, 0.82);
 /** 40px dan pastga aylantirilganda navbar foni biroz zichlashadi */
 const NAV_BG_SCROLLED = hexToRgba(bg.bg0, 0.94);
-const CARD_TINT = 'rgba(255, 255, 255, 0.03)';
 
 /**
  * Navigatsiya havolalari. `secondary` — 1200px dan tor ekranda yuqori
@@ -76,71 +74,9 @@ const NAV_LINKS: { id: string; key: string; secondary?: boolean; drawerOnly?: bo
   { id: 'contact', key: 'navContact', drawerOnly: true },
 ];
 
-const PLAN_FEATURE_KEYS = ['planFeat1', 'planFeat2', 'planFeat3', 'planFeat4'] as const;
 const HERO_TRUST_KEYS = ['heroTrust1', 'heroTrust2', 'heroTrust3'] as const;
-const GUARANTEE_KEYS = ['guarantee1', 'guarantee2', 'guarantee3'] as const;
 /** MUHIM: index.html dagi FAQPage JSON-LD bilan sinxron (uz matnlar) */
 const FAQ_COUNT = 11;
-
-/**
- * Tariflar — ZAXIRA ro'yxati. Sahifa ochilganda ommaviy GET /public/plans
- * (superadmin boshqaradigan faol tariflar) so'raladi va shu ro'yxat o'rniga
- * qo'yiladi. So'rov muvaffaqiyatsiz bo'lsa yoki tarif bo'lmasa — quyidagi
- * statik nusxa ko'rsatiladi (sahifa hech qachon bo'sh ko'rinmaydi).
- */
-interface PlanTier {
-  code: 'monthly' | 'semiannual' | 'yearly';
-  price: number;
-  months: number;
-  days: number;
-  savePercent: number;
-  nameKey: string;
-  periodKey: string;
-  highlighted?: boolean;
-}
-
-const PLAN_TIERS: PlanTier[] = [
-  {
-    code: 'monthly',
-    price: 290000,
-    months: 1,
-    days: 30,
-    savePercent: 0,
-    nameKey: 'planMonthlyName',
-    periodKey: 'planMonthlyPeriod',
-  },
-  {
-    code: 'semiannual',
-    price: 1490000,
-    months: 6,
-    days: 180,
-    savePercent: 14,
-    nameKey: 'planSemiName',
-    periodKey: 'planSemiPeriod',
-  },
-  {
-    code: 'yearly',
-    price: 2490000,
-    months: 12,
-    days: 365,
-    savePercent: 28,
-    nameKey: 'planYearName',
-    periodKey: 'planYearPeriod',
-    highlighted: true,
-  },
-];
-
-/** Tarif kartasi — jonli (API) yoki zaxira (PLAN_TIERS) uchun yagona ko'rinish shakli */
-interface PlanCard {
-  key: string;
-  name: string;
-  periodLabel: string;
-  price: number;
-  months: number;
-  days: number;
-  savePercent: number;
-  highlighted: boolean;
-}
 
 const TESTIMONIALS = [
   { k: 't1', color: gold.base },
@@ -185,7 +121,7 @@ const Landing = () => {
   useDocumentHead('landing.metaTitle', 'landing.metaDescription');
 
   /* Ommaviy tariflar — superadmin boshqaradigan faol tariflar (GET /public/plans).
-     So'rov muvaffaqiyatsiz bo'lsa yoki bo'sh bo'lsa PLAN_TIERS zaxirasi ishlaydi. */
+     So'rov muvaffaqiyatsiz bo'lsa yoki bo'sh bo'lsa server standarti (utils/tiers.ts) ishlaydi. */
   const [livePlans, setLivePlans] = useState<Plan[] | null>(null);
   useEffect(() => {
     let alive = true;
@@ -231,45 +167,12 @@ const Landing = () => {
     };
   }, []);
 
-  const planCards = useMemo<PlanCard[]>(() => {
-    if (livePlans && livePlans.length > 0) {
-      const sorted = [...livePlans].sort((a, b) => a.durationDays - b.durationDays);
-      const base = sorted[0];
-      const perDayBase = base.price / Math.max(1, base.durationDays);
-      // Faqat bitta karta ajratiladi — eng uzoq muddatlisi (teng bo'lsa oxirgisi)
-      return sorted.map((p, i) => ({
-        key: p.code,
-        name: lang === 'ru' ? p.nameRu : p.nameUz,
-        periodLabel: `${p.durationDays} ${t('common.days')}`,
-        price: p.price,
-        months: Math.max(1, Math.round(p.durationDays / 30)),
-        days: Math.max(1, p.durationDays),
-        savePercent: perDayBase
-          ? Math.max(
-              0,
-              Math.round((1 - p.price / Math.max(1, p.durationDays) / perDayBase) * 100),
-            )
-          : 0,
-        highlighted: sorted.length > 1 && i === sorted.length - 1,
-      }));
-    }
-    return PLAN_TIERS.map((p) => ({
-      key: p.code,
-      name: t(`landing.${p.nameKey}`),
-      periodLabel: t(`landing.${p.periodKey}`),
-      price: p.price,
-      months: p.months,
-      days: p.days,
-      savePercent: p.savePercent,
-      highlighted: Boolean(p.highlighted),
-    }));
-  }, [livePlans, lang, t]);
-
-  /** Kalkulyator uchun eng qisqa tarifning bir oylik narxi */
+  /** Kalkulyator uchun eng arzon darajaning 1 oylik narxi (jonli, bo'lmasa server standarti) */
   const monthlyPrice = useMemo(() => {
-    const first = planCards[0];
-    return first ? Math.round(first.price / Math.max(1, first.months)) : PLAN_TIERS[0].price;
-  }, [planCards]);
+    const prices = pricesFrom(livePlans);
+    const monthly = TIER_ORDER.map((code) => prices[code][1]).filter((p): p is number => typeof p === 'number');
+    return monthly.length ? Math.min(...monthly) : DEFAULT_TIER_PRICES.standard[1];
+  }, [livePlans]);
 
   const goRegister = () => navigate('/register');
 
@@ -635,200 +538,7 @@ const Landing = () => {
           <SectionDivider />
 
           {/* ------------------------------------------------------ Tariflar */}
-          <section id="pricing" className="lp-section">
-            <div className="lp-container">
-              <SectionHeading
-                overline={t('landing.pricingOverline')}
-                title={t('landing.pricingTitle')}
-                subtitle={t('landing.pricingSubtitle')}
-              />
-              <motion.div
-                variants={stagger}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, amount: 0.1 }}
-              >
-                <Row gutter={[24, 32]} align="stretch">
-                  {planCards.map((plan) => (
-                    <Col xs={24} md={8} key={plan.key}>
-                      <motion.div variants={fadeUp} style={{ height: '100%' }}>
-                        <div
-                          className={plan.highlighted ? 'lp-plan-glow' : undefined}
-                          style={{
-                            height: '100%',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            position: 'relative',
-                            borderRadius: TOKENS.radius.xl,
-                            border: plan.highlighted
-                              ? `1px solid ${gold.base}`
-                              : `1px solid ${border.base}`,
-                            background: plan.highlighted
-                              ? `linear-gradient(170deg, ${gold.subtle}, ${CARD_TINT} 45%)`
-                              : bg.bg1,
-                            boxShadow: plan.highlighted
-                              ? TOKENS.shadow.glowActive
-                              : TOKENS.shadow.level1,
-                            padding: '32px 28px 28px',
-                          }}
-                        >
-                          {plan.highlighted && (
-                            <span
-                              style={{
-                                position: 'absolute',
-                                top: -13,
-                                left: '50%',
-                                transform: 'translateX(-50%)',
-                                padding: '4px 14px',
-                                borderRadius: TOKENS.radius.pill,
-                                background: gold.gradient,
-                                color: gold.contrast,
-                                fontSize: 12.5,
-                                fontWeight: 700,
-                                letterSpacing: 0.4,
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {t('landing.bestValue')}
-                            </span>
-                          )}
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 8,
-                            }}
-                          >
-                            <span style={{ fontSize: 17, fontWeight: 700, color: text.primary }}>
-                              {plan.name}
-                            </span>
-                            {plan.savePercent > 0 && (
-                              <span
-                                style={{
-                                  padding: '3px 10px',
-                                  borderRadius: TOKENS.radius.pill,
-                                  background: emerald.deep,
-                                  color: emerald.glow,
-                                  fontSize: 12.5,
-                                  fontWeight: 600,
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {t('landing.save', { percent: plan.savePercent })}
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ marginTop: 18 }}>
-                            <span
-                              className="tabular-nums"
-                              style={{
-                                fontSize: 34,
-                                fontWeight: 800,
-                                color: text.primary,
-                                lineHeight: 1,
-                              }}
-                            >
-                              {formatNumber(plan.price)}
-                            </span>
-                            <span style={{ fontSize: 15, color: text.secondary, fontWeight: 500 }}>
-                              {' '}
-                              {t('common.sum')} / {plan.periodLabel}
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              marginTop: 8,
-                              fontSize: 13.5,
-                              color: plan.months > 1 ? gold.base : text.tertiary,
-                              minHeight: 20,
-                            }}
-                          >
-                            {plan.months > 1
-                              ? t('landing.perMonth', {
-                                  amount: formatNumber(Math.round(plan.price / plan.months)),
-                                })
-                              : ' '}
-                          </div>
-                          {/* Kunlik narx — "bir soatlik o'yindan arzon" hissi */}
-                          <span className="lp-plan-perday" style={{ alignSelf: 'flex-start' }}>
-                            {t('landing.planPerDay', {
-                              amount: formatNumber(Math.round(plan.price / plan.days / 100) * 100),
-                            })}
-                          </span>
-                          <div
-                            style={{
-                              borderTop: `1px solid ${border.subtle}`,
-                              margin: '18px 0',
-                            }}
-                          />
-                          <ul
-                            style={{
-                              listStyle: 'none',
-                              margin: 0,
-                              padding: 0,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 12,
-                              flex: 1,
-                            }}
-                          >
-                            {PLAN_FEATURE_KEYS.map((featKey) => (
-                              <li
-                                key={featKey}
-                                style={{
-                                  display: 'flex',
-                                  gap: 10,
-                                  alignItems: 'flex-start',
-                                  color: text.secondary,
-                                  fontSize: 14,
-                                  lineHeight: 1.5,
-                                }}
-                              >
-                                <CheckCircleOutlined
-                                  style={{ color: gold.base, fontSize: 15, marginTop: 3 }}
-                                />
-                                {t(`landing.${featKey}`)}
-                              </li>
-                            ))}
-                          </ul>
-                          <Button
-                            block
-                            size="large"
-                            type={plan.highlighted ? 'primary' : 'default'}
-                            className={plan.highlighted ? 'lp-cta-btn' : undefined}
-                            style={{ marginTop: 24, height: 46, fontWeight: 600 }}
-                            onClick={goRegister}
-                          >
-                            {t('landing.planCta')}
-                          </Button>
-                        </div>
-                      </motion.div>
-                    </Col>
-                  ))}
-                </Row>
-                <motion.ul variants={fadeUp} className="lp-guarantees">
-                  {GUARANTEE_KEYS.map((key) => (
-                    <li key={key}>
-                      <SafetyCertificateOutlined aria-hidden /> {t(`landing.${key}`)}
-                    </li>
-                  ))}
-                </motion.ul>
-                <motion.p
-                  variants={fadeUp}
-                  style={{
-                    textAlign: 'center',
-                    color: text.tertiary,
-                    fontSize: 13.5,
-                    marginTop: 18,
-                    marginBottom: 0,
-                  }}
-                >
-                  {t('landing.pricingNote')}
-                </motion.p>
-              </motion.div>
-            </div>
-          </section>
+          <PricingTiers plans={livePlans} onCta={goRegister} />
 
           {/* ------------------------------------------------ Mijozlar fikri */}
           <section id="testimonials" className="lp-section lp-section--panel">

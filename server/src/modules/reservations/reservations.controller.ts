@@ -20,6 +20,7 @@ import {
   UpdateReservationDto,
 } from './dto/reservations.dto';
 import { ReservationsService } from './reservations.service';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
 const STAFF_ROLES = [
   UserRole.SUPERADMIN,
@@ -28,6 +29,8 @@ const STAFF_ROLES = [
   UserRole.OPERATOR,
 ] as const;
 
+// Tarifda "reservations" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
+@RequireFeature('reservations')
 @Controller('reservations')
 export class ReservationsController {
   constructor(private readonly reservationsService: ReservationsService) {}

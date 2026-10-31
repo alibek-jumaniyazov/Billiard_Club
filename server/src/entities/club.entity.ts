@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -8,9 +9,12 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { ClubStatus } from './enums';
+import type { TierCode } from '../common/plan-tiers/tiers';
 import { User } from './user.entity';
 
 @Entity('clubs')
+// DB darajasidagi cheklov migratsiyada (TierPlans) — metadatada ham e'lon qilinadi
+@Check('chk_clubs_tier', `"tier" IN ('standard', 'pro', 'vip')`)
 export class Club {
   @PrimaryGeneratedColumn()
   id: number;
@@ -36,6 +40,15 @@ export class Club {
 
   @Column({ type: 'timestamptz', nullable: true })
   subscriptionEndsAt: Date | null;
+
+  /**
+   * Tarif darajasi: 'standard' | 'pro' | 'vip' (common/plan-tiers). Imkoniyat va
+   * cheklovlar shunga qarab beriladi. To'lov tasdiqlanganda sotib olingan tarif
+   * darajasiga o'tadi; sinovdagi klub — platforma sozlamasidagi daraja.
+   * Migratsiyagacha bo'lgan klublar 'vip' (hech narsa yopilmaydi).
+   */
+  @Column({ type: 'varchar', length: 20, default: 'vip' })
+  tier: TierCode;
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;

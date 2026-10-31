@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -15,6 +16,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { DataSource, IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
 import { LicenseService } from '../../common/license/license.service';
+import { PlanTiersService } from '../../common/plan-tiers/plan-tiers.service';
 import { Club } from '../../entities/club.entity';
 import { RefreshSession } from '../../entities/refresh-session.entity';
 import { User } from '../../entities/user.entity';
@@ -110,6 +112,7 @@ export class AuthService {
     @InjectRepository(Club) private readonly clubRepo: Repository<Club>,
     @InjectRepository(RefreshSession)
     private readonly refreshRepo: Repository<RefreshSession>,
+    @Optional() private readonly tiers?: PlanTiersService,
   ) {}
 
   // ==================== Token yaratish ====================
@@ -360,7 +363,7 @@ export class AuthService {
 
     return {
       user: this.sanitize(user),
-      club: this.clubInfo(club),
+      club: await this.clubInfo(club),
       license: this.license.issue(club, user),
       ...tokens,
     };
@@ -493,7 +496,7 @@ export class AuthService {
       });
       return {
         user: this.sanitize(user),
-        club: this.clubInfo(club),
+        club: await this.clubInfo(club),
         license: this.license.issue(club, user),
         accessToken: result.accessToken,
         refreshToken: null as string | null,
@@ -502,7 +505,7 @@ export class AuthService {
 
     return {
       user: this.sanitize(user),
-      club: this.clubInfo(club),
+      club: await this.clubInfo(club),
       license: this.license.issue(club, user),
       accessToken: result.tokens.accessToken,
       refreshToken: result.tokens.refreshToken as string | null,
@@ -722,11 +725,16 @@ export class AuthService {
     // Ruxsatnoma AYNAN shu yerda ham beriladi: klient ilova ochilganda
     // /auth/me ni chaqiradi va oflayn nazorat uchun eng yangi muddatni
     // shundan oladi (login har kuni takrorlanmaydi).
-    return { user: this.sanitize(user), club: this.clubInfo(club), license: this.license.issue(club, user) };
+    return { user: this.sanitize(user), club: await this.clubInfo(club), license: this.license.issue(club, user) };
   }
 
-  /** Klientga kerakli klub obuna ma'lumotlari (blok ekrani uchun ham) */
-  private clubInfo(club: Club | null) {
+  /**
+   * Klientga kerakli klub obuna ma'lumotlari (blok ekrani uchun ham).
+   * `entitlements` — tarif darajasi bo'yicha nima ochiq/yopiq: klient menyu,
+   * tugma va sahifalarni shunga qarab ko'rsatadi (cheklovni server baribir
+   * o'zi tekshiradi). Oflayn rejimda ham shu keshlangan javob ishlatiladi.
+   */
+  private async clubInfo(club: Club | null) {
     if (!club) return null;
     return {
       id: club.id,
@@ -736,6 +744,8 @@ export class AuthService {
       subscriptionEndsAt: club.subscriptionEndsAt,
       effectiveEndsAt: club.effectiveEndsAt,
       isExpired: club.isExpired,
+      tier: club.tier,
+      entitlements: this.tiers ? await this.tiers.entitlements(club) : null,
     };
   }
 

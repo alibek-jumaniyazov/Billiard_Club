@@ -7,6 +7,7 @@ import { productsApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import { TOKENS } from '../../theme/tokens';
 import type { LiveDashboardStats } from './types';
+import { useEntitlements } from '../../hooks/useEntitlements';
 
 const { Text, Title } = Typography;
 
@@ -31,6 +32,8 @@ const OnboardingChecklist = ({ stats }: Props) => {
 
   const [dismissed, setDismissed] = useState(false);
   const [productCount, setProductCount] = useState<number | null>(null);
+  // Bar tarifda bo'lmasa mahsulot qadami ko'rsatilmaydi va so'ralmaydi
+  const canBar = useEntitlements().can('bar');
 
   // Yopilgan holatni klub bo'yicha localStorage dan o'qiymiz (xavfsiz)
   useEffect(() => {
@@ -51,7 +54,7 @@ const OnboardingChecklist = ({ stats }: Props) => {
   const relevant = !!stats && hasRole('admin') && !dismissed && !gamesDone;
 
   useEffect(() => {
-    if (!relevant || productCount !== null) return;
+    if (!relevant || !canBar || productCount !== null) return;
     let alive = true;
     productsApi
       .list()
@@ -60,17 +63,19 @@ const OnboardingChecklist = ({ stats }: Props) => {
     return () => {
       alive = false;
     };
-  }, [relevant, productCount]);
+  }, [relevant, canBar, productCount]);
 
   const productsDone = (productCount ?? 0) > 0;
 
   const steps = useMemo(
     () => [
       { done: tablesDone, label: t('dashboard.onbTables'), hint: t('dashboard.onbTablesHint'), action: t('dashboard.onbGoTables'), to: '/tables' },
-      { done: productsDone, label: t('dashboard.onbProducts'), hint: t('dashboard.onbProductsHint'), action: t('dashboard.onbGoProducts'), to: '/products' },
+      ...(canBar
+        ? [{ done: productsDone, label: t('dashboard.onbProducts'), hint: t('dashboard.onbProductsHint'), action: t('dashboard.onbGoProducts'), to: '/products' }]
+        : []),
       { done: gamesDone, label: t('dashboard.onbGame'), hint: t('dashboard.onbGameHint'), action: t('dashboard.onbGoGame'), to: '/tables' },
     ],
-    [tablesDone, productsDone, gamesDone, t],
+    [tablesDone, productsDone, gamesDone, canBar, t],
   );
 
   if (!relevant) return null;

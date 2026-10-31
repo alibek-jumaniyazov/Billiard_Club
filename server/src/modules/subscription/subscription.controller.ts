@@ -46,6 +46,12 @@ export class SubscriptionController {
     return { success: true, data };
   }
 
+  /** Tarif darajalari: har birining imkoniyatlari va cheklovlari (taqqoslash jadvali uchun) */
+  @Get('tiers')
+  async tiers() {
+    return { success: true, data: await this.subscriptionService.tiers() };
+  }
+
   /** To'lov so'rovi: PENDING hisob-faktura yaratiladi, superadmin xabardor qilinadi */
   @Post('purchase')
   async purchase(@CurrentUser() user: User, @Body() dto: PurchaseDto, @Lang() lang: Language) {

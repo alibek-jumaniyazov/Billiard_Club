@@ -14,6 +14,7 @@ import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SkipSubscription } from '../../common/decorators/skip-subscription.decorator';
 import { t } from '../../common/i18n/messages';
+import { PlanTiersService } from '../../common/plan-tiers/plan-tiers.service';
 import { UserRole } from '../../entities/enums';
 import { AdminBillingService } from './admin-billing.service';
 import {
@@ -34,7 +35,28 @@ import {
 @SkipSubscription()
 @Controller('admin')
 export class AdminBillingController {
-  constructor(private readonly adminBillingService: AdminBillingService) {}
+  constructor(
+    private readonly adminBillingService: AdminBillingService,
+    private readonly tiers: PlanTiersService,
+  ) {}
+
+  // ==================== Tarif darajalari (Standart / Pro / VIP) ====================
+
+  /** Har daraja: nomi, qisqa tavsifi, imkoniyatlari va cheklovlari */
+  @Get('tiers')
+  async listTiers() {
+    return { success: true, data: await this.tiers.get() };
+  }
+
+  /**
+   * To'liq sozlamani saqlash. Body sinf emas (ichma-ich obyekt) — tekshiruv
+   * PlanTiersService da: shakl + "yuqori daraja quyisidan kam emas" qoidasi.
+   */
+  @Put('tiers')
+  async updateTiers(@Body() body: Record<string, unknown>, @Lang() lang: Language) {
+    const data = await this.tiers.update(body);
+    return { success: true, message: t(lang, 'subscription.tiersUpdated'), data };
+  }
 
   // ==================== Tariflar ====================
 

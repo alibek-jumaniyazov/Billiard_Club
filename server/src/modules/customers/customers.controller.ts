@@ -16,7 +16,10 @@ import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, ListCustomersQueryDto, UpdateCustomerDto } from './dto/customers.dto';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
+// Tarifda "customers" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
+@RequireFeature('customers')
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}

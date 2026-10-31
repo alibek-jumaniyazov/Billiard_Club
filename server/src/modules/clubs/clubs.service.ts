@@ -24,6 +24,7 @@ import { Settings } from '../../entities/settings.entity';
 import { Table } from '../../entities/table.entity';
 import { User } from '../../entities/user.entity';
 import { PlatformConfigService } from '../../common/platform-config/platform-config.service';
+import type { TierCode } from '../../common/plan-tiers/tiers';
 import { TelegramService } from '../../telegram/telegram.service';
 import {
   CreateClubDto,
@@ -137,7 +138,8 @@ export class ClubsService {
     // Standart qiymat SOZLAMADAN keladi (superadmin panelida o'zgartiriladi).
     // Formadagi `trialDays` bu klub uchun BIR MARTALIK istisno sifatida
     // qoladi — ba'zan alohida mijozga uzunroq sinov berish kerak bo'ladi.
-    const trialDays = dto.trialDays ?? (await this.platformConfig.get()).trialDays;
+    const config = await this.platformConfig.get();
+    const trialDays = dto.trialDays ?? config.trialDays;
     const trialEndsAt = new Date(Date.now() + trialDays * DAY_MS);
 
     const club = await this.dataSource.transaction(async (manager) => {
@@ -148,6 +150,8 @@ export class ClubsService {
         address: dto.address ?? null,
         status: ClubStatus.TRIAL,
         trialEndsAt,
+        // Superadmin darajani o'zi tanlashi mumkin, aks holda sinov darajasi
+        tier: dto.tier ?? config.trialTier,
         notes: dto.notes ?? null,
       });
 
@@ -188,6 +192,7 @@ export class ClubsService {
       ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
       ...(dto.address !== undefined ? { address: dto.address } : {}),
       ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+      ...(dto.tier !== undefined ? { tier: dto.tier } : {}),
     });
     await this.clubRepo.save(club);
     return this.withMeta(club);
@@ -410,6 +415,7 @@ export class ClubsService {
           ? { endDate: new Date(dto.endDate!) }
           : { durationMonths: CONTRACT_MONTHS[dto.type] }),
         notes: dto.notes ?? null,
+        tier: dto.tier,
       }),
     );
 
@@ -450,6 +456,12 @@ export class ClubsService {
       durationMonths?: number;
       endDate?: Date;
       notes: string | null;
+      /**
+       * Sotib olingan tarif darajasi. Berilsa klub SHU darajaga o'tadi —
+       * qolgan kunlar ham yangi darajada davom etadi (yuqoriga o'tishda
+       * mijoz yutadi, pastga o'tish esa mijozning o'z tanlovi).
+       */
+      tier?: TierCode;
     },
   ): Promise<Contract> {
     const locked = await manager.findOne(Club, {
@@ -491,6 +503,7 @@ export class ClubsService {
     await manager.update(Club, clubId, {
       subscriptionEndsAt: endDate,
       ...(locked.status !== ClubStatus.BLOCKED ? { status: ClubStatus.ACTIVE } : {}),
+      ...(data.tier ? { tier: data.tier } : {}),
     });
     return contract;
   }

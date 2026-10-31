@@ -10,7 +10,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'crypto';
 import { DataSource, IsNull, Not, Raw, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { PlanTiersService } from '../../common/plan-tiers/plan-tiers.service';
 import { ClubBridge } from '../../entities/club-bridge.entity';
+import type { Club } from '../../entities/club.entity';
 import { BRIDGE_ONLY_DRIVERS, LightDriver, LightMode } from '../../entities/enums';
 import type { LightDeviceConfig } from '../../entities/light-config.type';
 import { Settings } from '../../entities/settings.entity';
@@ -433,7 +435,20 @@ export class LightsService {
     private readonly eventRepo: Repository<TableLightEvent>,
     // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
     @Optional() private readonly auditService?: AuditService,
+    @Optional() private readonly tiers?: PlanTiersService,
   ) {}
+
+  /**
+   * Klub tarifida "Chiroq avtomatikasi" bormi. Yo'q bo'lsa avtomatika to'xtaydi:
+   * kerakli holat bo'sh qaytadi (agent ham, DIRECT rejim ham hech narsani
+   * yoqib-o'chirmaydi), boshqaruv API'si esa 403 (RequireFeature).
+   */
+  private async lightsAllowed(clubId: number): Promise<boolean> {
+    if (!this.tiers) return true;
+    const rows: Array<{ tier: string }> = await this.dataSource.query('SELECT "tier" FROM "clubs" WHERE "id" = $1', [clubId]);
+    if (!rows.length) return true;
+    return this.tiers.hasFeature({ tier: rows[0].tier as Club['tier'] }, 'lights');
+  }
 
   // ---------------------------------------------------------------------------
   // Kerakli holat (desired state)
@@ -460,6 +475,7 @@ export class LightsService {
    * tanlash uchun), shuning uchun so'rov alohida metodga ajratilgan.
    */
   private async desiredRows(clubId: number): Promise<DesiredRow[]> {
+    if (!(await this.lightsAllowed(clubId))) return [];
     const rows: DesiredRow[] = await this.dataSource.query(
       `SELECT t.id                                   AS "tableId",
               t.number                               AS "tableNumber",

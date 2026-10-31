@@ -25,6 +25,7 @@ import {
   TableOutlined,
   TeamOutlined,
   WalletOutlined,
+  LockOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +34,21 @@ import { useAuth } from '../../context/AuthContext';
 import { ROLE_COLORS } from '../../constants';
 import { TOKENS } from '../../theme/tokens';
 import { BrandLogo } from '../ui';
+import { useEntitlements, useTiersConfig } from '../../hooks/useEntitlements';
+import type { FeatureKey } from '../../types';
+import { minTierFor, tierName } from '../../utils/tiers';
+
+/** Menyu bandi → tarif imkoniyati (App.tsx dagi Protected feature bilan bir xil) */
+const FEATURE_BY_PATH: Record<string, FeatureKey> = {
+  '/orders': 'bar',
+  '/products': 'bar',
+  '/debts': 'debts',
+  '/reports': 'reports',
+  '/customers': 'customers',
+  '/reservations': 'reservations',
+  '/expenses': 'expenses',
+  '/shifts': 'shifts',
+};
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -46,8 +62,10 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, hasRole } = useAuth();
+  const { can } = useEntitlements();
+  const tiersConfig = useTiersConfig();
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
@@ -199,9 +217,33 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
       children: [{ key: '/game', icon: <PlayCircleOutlined />, label: t('menu.game') }],
     });
 
-    return groups;
+    // Tarifda yo'q bo'limlar ko'rinib turadi (yangi imkoniyatni bilib qo'yish uchun),
+    // lekin qulf belgisi va kerakli tarif nomi bilan; bosilsa "tarifni oshirish" kartasi
+    return groups.map((group) =>
+      'children' in group && Array.isArray(group.children)
+        ? {
+            ...group,
+            children: group.children.map((item) => {
+              const feature = FEATURE_BY_PATH[String(item.key)];
+              if (!feature || can(feature)) return item;
+              const needed = tiersConfig ? minTierFor(tiersConfig, feature) : null;
+              const neededName = tiersConfig && needed ? tierName(tiersConfig[needed], i18n.language) : '';
+              return {
+                ...item,
+                title: neededName ? t('tiers.lockedMenu', { tier: neededName }) : undefined,
+                label: (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, opacity: 0.62 }}>
+                    {item.label}
+                    <LockOutlined aria-label={neededName ? t('tiers.lockedMenu', { tier: neededName }) : undefined} style={{ fontSize: 11 }} />
+                  </span>
+                ),
+              };
+            }),
+          }
+        : group,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collapsed, hasRole, t, isSuperadmin, viewing?.id]);
+  }, [collapsed, hasRole, t, isSuperadmin, viewing?.id, can, tiersConfig, i18n.language]);
 
   // /admin/* sahifalarida to'liq yo'l tanlanadi; klub sahifalarida birinchi segment
   const selectedKey = location.pathname.startsWith('/admin')

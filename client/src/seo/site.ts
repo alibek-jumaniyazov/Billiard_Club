@@ -41,13 +41,6 @@ export const SEARCH_VERIFICATION: { google?: string; yandex?: string; bing?: str
 /** Server standarti (platform-config: trialDays) — superadmin o'zgartirsa sahifa o'zi yangilanadi */
 export const DEFAULT_TRIAL_DAYS = 7;
 
-/** Server seed dagi tariflar (Landing ham shu zaxira ro'yxatni ishlatadi) */
-export const PLAN_PRICES = [
-  { code: 'monthly', price: 290000, months: 1 },
-  { code: 'semiannual', price: 1490000, months: 6 },
-  { code: 'yearly', price: 2490000, months: 12 },
-] as const;
-
 /** Qidiruv tizimlari indekslaydigan sahifalar; qolganlari (ish joyi, admin) — noindex */
 const PUBLIC_PATHS = new Set(['/', '/ru', '/download', '/register', '/login']);
 

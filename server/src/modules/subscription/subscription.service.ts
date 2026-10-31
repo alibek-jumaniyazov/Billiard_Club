@@ -5,12 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
+import { PlanTiersService } from '../../common/plan-tiers/plan-tiers.service';
 import { Club } from '../../entities/club.entity';
 import { Coupon } from '../../entities/coupon.entity';
-import { ClubStatus, InvoiceStatus } from '../../entities/enums';
+import { ClubStatus, InvoiceStatus, UserRole } from '../../entities/enums';
 import { Invoice } from '../../entities/invoice.entity';
 import { Plan } from '../../entities/plan.entity';
+import { Table } from '../../entities/table.entity';
+import { User } from '../../entities/user.entity';
 import { TelegramService } from '../../telegram/telegram.service';
 import {
   couponDiscount,
@@ -35,7 +38,13 @@ export class SubscriptionService {
     @InjectRepository(Club) private readonly clubRepo: Repository<Club>,
     @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
     @InjectRepository(Invoice) private readonly invoiceRepo: Repository<Invoice>,
+    private readonly tierService: PlanTiersService,
   ) {}
+
+  /** Tarif darajalari sozlamasi (taqqoslash jadvali uchun) */
+  async tiers() {
+    return this.tierService.get();
+  }
 
   /** Klubning obuna holati: muddatlar, qolgan kunlar, joriy/oxirgi faktura, faol tarif */
   async status(clubId: number) {
@@ -47,6 +56,15 @@ export class SubscriptionService {
     const daysLeft = effectiveEndsAt
       ? Math.max(0, Math.ceil((new Date(effectiveEndsAt).getTime() - Date.now()) / DAY_MS))
       : null;
+
+    // Tarif darajasi va hozir qancha joy band — "4 / 6 stol" ko'rinishi uchun
+    const [entitlements, tablesUsed, staffUsed] = await Promise.all([
+      this.tierService.entitlements(club),
+      this.dataSource.getRepository(Table).count({ where: { clubId, isActive: true } }),
+      this.dataSource.getRepository(User).count({
+        where: { clubId, isActive: true, role: In([UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR]) },
+      }),
+    ]);
 
     const [currentInvoice, lastInvoice, lastPaidInvoice] = await Promise.all([
       // Tasdiqlanishi kutilayotgan faktura (bo'lsa)
@@ -79,7 +97,10 @@ export class SubscriptionService {
         effectiveEndsAt,
         isExpired,
         daysLeft,
+        tier: club.tier,
       },
+      entitlements,
+      usage: { tables: tablesUsed, staff: staffUsed },
       currentInvoice,
       lastInvoice,
       activePlan: lastPaidInvoice?.plan ?? null,

@@ -36,6 +36,7 @@ import ManageTablesDrawer from './ManageTablesDrawer';
 import OrderModal from './OrderModal';
 import StartModal from './StartModal';
 import TableCard from './TableCard';
+import { useEntitlements } from '../../hooks/useEntitlements';
 import TransferModal from './TransferModal';
 import { parseTableView, selectBoardTables, tableMatchesView, type TableSort, type TableView } from './table-board';
 import '../../styles/tables-workspace.css';
@@ -109,6 +110,12 @@ const TablesPage = () => {
   const currency = useCurrency();
   const canCheckout = hasRole('admin', 'kassir', 'superadmin');
   const canManage = hasRole('admin', 'superadmin');
+  // Tarif (Standart / Pro / VIP): yo'q imkoniyat so'ralmaydi va tugmasi ko'rinmaydi
+  const { can } = useEntitlements();
+  const canBar = can('bar');
+  const canLights = can('lights');
+  const canReservations = can('reservations');
+  const canShifts = can('shifts');
 
   const [tables, setTables] = useState<BilliardTable[]>([]);
   const [loading, setLoading] = useState(true);
@@ -586,7 +593,7 @@ const TablesPage = () => {
   /** Yaqin bronlar (6 soat ichida) — har stol uchun eng yaqini kartada ko'rinadi */
   const [reservations, setReservations] = useState<Reservation[]>([]);
   useEffect(() => {
-    if (!online) return;
+    if (!online || !canReservations) return;
     let alive = true;
     const load = () => {
       const from = new Date(Date.now() - 30 * 60_000);
@@ -606,7 +613,7 @@ const TablesPage = () => {
       alive = false;
       window.clearInterval(id);
     };
-  }, [online]);
+  }, [online, canReservations]);
   const reservationByTable = useMemo(() => {
     const map = new Map<number, string>();
     const upcoming = reservations
@@ -638,13 +645,13 @@ const TablesPage = () => {
         canManage={canManage}
         reservation={reservationByTable.get(table.id)}
         onStart={openStart}
-        onOrder={openOrder}
+        onOrder={canBar ? openOrder : undefined}
         onTransfer={openTransfer}
         onCheckout={openCheckout}
         onPauseResume={handlePauseResume}
         onCancel={handleCancel}
-        onLightToggle={handleLightToggle}
-        onLightAuto={handleLightAuto}
+        onLightToggle={canLights ? handleLightToggle : undefined}
+        onLightAuto={canLights ? handleLightAuto : undefined}
         onPlanChange={handlePlanChange}
       />
     );
@@ -669,13 +676,15 @@ const TablesPage = () => {
             {/* Chiroq boshqaruvi — ixtiyoriy imkoniyat. Kassir/operatorga ham
                 ochiq: server ularga ko'rish, qo'lda boshqarish, master va
                 jurnalni bergan; ichkarida `canEdit` sozlashni bloklaydi */}
-            <Tooltip title={t('tables.lightsTitle')}>
-              <Button
-                icon={<BulbOutlined />}
-                onClick={() => setLightsOpen(true)}
-                aria-label={t('tables.lightsTitle')}
-              >{t('tables.lightsTitle')}</Button>
-            </Tooltip>
+            {canLights && (
+              <Tooltip title={t('tables.lightsTitle')}>
+                <Button
+                  icon={<BulbOutlined />}
+                  onClick={() => setLightsOpen(true)}
+                  aria-label={t('tables.lightsTitle')}
+                >{t('tables.lightsTitle')}</Button>
+              </Tooltip>
+            )}
             <Tooltip title={t('btn.refresh')}>
               <Button
                 icon={<ReloadOutlined />}
@@ -693,7 +702,7 @@ const TablesPage = () => {
           segmentsMap={segmentsMap}
           offsetMs={offsetMs}
           currency={currency}
-          showShift={canCheckout}
+          showShift={canCheckout && canShifts}
           online={online}
         />
       )}
@@ -843,11 +852,13 @@ const TablesPage = () => {
 
       {/* Chiroq boshqaruvi (ixtiyoriy imkoniyat) — barcha xodimlarga ochiq,
           sozlash huquqi javobdagi `canEdit` bilan cheklanadi */}
-      <LightSettingsDrawer
-        open={lightsOpen}
-        onClose={() => setLightsOpen(false)}
-        onChanged={silentRefresh}
-      />
+      {canLights && (
+        <LightSettingsDrawer
+          open={lightsOpen}
+          onClose={() => setLightsOpen(false)}
+          onChanged={silentRefresh}
+        />
+      )}
       </section>
     </PageTransition>
   );

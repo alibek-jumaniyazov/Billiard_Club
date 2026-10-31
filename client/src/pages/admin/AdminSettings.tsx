@@ -20,7 +20,8 @@ import { errorMessage, platformApi } from '../../api';
 import { PageHeader, PageTransition } from '../../components/ui';
 import { TELEGRAM_EVENTS, type TelegramEvent } from '../../constants';
 import { TOKENS } from '../../theme/tokens';
-import type { PlatformConfig } from '../../types';
+import type { PlatformConfig, TierCode } from '../../types';
+import { tierOptions } from '../../utils/tiers';
 
 /** Eslatma uchun tanlash mumkin bo'lgan kunlar (server chegarasi: 1..30) */
 const REMINDER_OPTIONS = [1, 2, 3, 5, 7, 10, 14, 21, 30];
@@ -33,7 +34,7 @@ const { Text } = Typography;
  * kesh ishlatadi, o'zgarish ko'pi bilan bir daqiqada kuchga kiradi.
  */
 const AdminSettings = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { message } = App.useApp();
 
   const [events, setEvents] = useState<Record<string, boolean> | null>(null);
@@ -46,7 +47,7 @@ const AdminSettings = () => {
   const [config, setConfig] = useState<PlatformConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [configSaving, setConfigSaving] = useState(false);
-  const [configForm] = Form.useForm<{ trialDays: number; expiryReminderDays?: number[] }>();
+  const [configForm] = Form.useForm<{ trialDays: number; trialTier: TierCode; expiryReminderDays?: number[] }>();
 
   useEffect(() => {
     let cancelled = false;
@@ -112,12 +113,14 @@ const AdminSettings = () => {
    */
   const saveConfig = async (values: {
     trialDays: number;
+    trialTier: TierCode;
     expiryReminderDays?: number[];
   }) => {
     setConfigSaving(true);
     try {
       const res = await platformApi.updateConfig({
         trialDays: values.trialDays,
+        trialTier: values.trialTier,
         expiryReminderDays: values.expiryReminderDays ?? [],
       });
       setConfig(res.data);
@@ -206,6 +209,7 @@ const AdminSettings = () => {
             onFinish={(v) => void saveConfig(v)}
             initialValues={{
               trialDays: config?.trialDays ?? 7,
+              trialTier: config?.trialTier ?? 'vip',
               expiryReminderDays: config?.expiryReminderDays ?? [1, 3],
             }}
           >
@@ -216,6 +220,10 @@ const AdminSettings = () => {
               rules={[{ required: true, type: 'number', min: 0, max: 365 }]}
             >
               <InputNumber min={0} max={365} style={{ width: 200 }} addonAfter={t('common.days')} />
+            </Form.Item>
+
+            <Form.Item name="trialTier" label={t('tiers.trialTier')} extra={t('tiers.trialTierHint')}>
+              <Select style={{ width: 200 }} options={tierOptions(i18n.language)} />
             </Form.Item>
 
             <Form.Item

@@ -1,8 +1,10 @@
 import { Alert, Button, Skeleton } from 'antd';
-import { ArrowRightOutlined, BulbOutlined, CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, BulbOutlined, CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, LockOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useEntitlements, useTiersConfig } from '../../hooks/useEntitlements';
+import { minTierFor, tierName } from '../../utils/tiers';
 import { lightHealth, needsLightAttention } from '../tables/lights/light-health';
 import { lightCopy } from '../tables/lights/light-copy';
 import type { LiveDashboardStats } from './types';
@@ -15,7 +17,13 @@ export default function OperationsPanel({ stats, clockOffset }: { stats: LiveDas
   const { club } = useAuth();
   const ru = i18n.language.startsWith('ru');
   const copy = lightCopy(ru);
-  const { lights, arrivals, loading, refresh } = useOperations(club?.id, clockOffset);
+  const { can } = useEntitlements();
+  const tiersConfig = useTiersConfig();
+  // Tarif: bron va chiroq boshqaruvi bo'lmasa — ular so'ralmaydi, o'rnida qisqa izoh
+  const canReservations = can('reservations');
+  const canLights = can('lights');
+  const { lights, arrivals, loading, refresh } = useOperations(club?.id, clockOffset, canReservations);
+  const reservationsTier = tiersConfig ? minTierFor(tiersConfig, 'reservations') : null;
   const now = Date.now() + clockOffset;
   const timezone = stats?.timezone ?? 'Asia/Tashkent';
   const data = lights.data;
@@ -57,7 +65,7 @@ export default function OperationsPanel({ stats, clockOffset }: { stats: LiveDas
               className={`club-room-table is-${table.sessionStatus === 'paused' ? 'paused' : table.sessionStatus ? 'busy' : 'free'}`}
               title={`${table.tableName} · ${t(table.sessionStatus ? `status.${table.sessionStatus}` : 'status.free')}`}>
               <span className="club-room-table__rail"><b>{String(table.tableNumber).padStart(2, '0')}</b>
-                {data.mode !== 'off' && table.driver !== 'none' && <BulbOutlined className={needsLightAttention(health(table)) ? 'needs-attention' : ''}
+                {canLights && data.mode !== 'off' && table.driver !== 'none' && <BulbOutlined className={needsLightAttention(health(table)) ? 'needs-attention' : ''}
                   aria-label={copy.health[health(table)]} />}</span>
               <strong>{table.tableName}</strong>
               <small>{t(table.sessionStatus ? `status.${table.sessionStatus}` : 'status.free')}</small>
@@ -65,16 +73,19 @@ export default function OperationsPanel({ stats, clockOffset }: { stats: LiveDas
           </div>
           {!tables.length && <p className="club-operations__empty">{ru ? 'Добавьте первые столы в разделе «Столы».' : '«Stollar» bo‘limida birinchi stollarni qo‘shing.'}</p>}
         </>}
-        <Link className={`club-light-summary ${lights.failed || lightIssues.length || (data?.mode === 'bridge' && !data.bridge.online) ? 'needs-attention' : ''}`} to="/tables?panel=lights">
+        {canLights && <Link className={`club-light-summary ${lights.failed || lightIssues.length || (data?.mode === 'bridge' && !data.bridge.online) ? 'needs-attention' : ''}`} to="/tables?panel=lights">
           <BulbOutlined /><span><strong>{ru ? 'Управление светом' : 'Chiroqlar boshqaruvi'}</strong><small>{lights.failed ? copy.pollingError : lightSummary}</small></span><ArrowRightOutlined />
-        </Link>
+        </Link>}
       </section>
       <section className="club-operations__arrivals" aria-label={ru ? 'Ближайшие гости' : 'Yaqin mehmonlar'}>
         <div className="club-operations__section-title"><h3><CalendarOutlined /> {ru ? 'Ближайшие гости' : 'Yaqin mehmonlar'}</h3>
           <Link to="/reservations" aria-label={t('menu.reservations')}><ArrowRightOutlined /></Link></div>
         <p className="club-operations__caption">{ru ? 'На 24 часа вперёд · опоздания до 1 часа' : 'Keyingi 24 soat · 1 soatgacha kechikkanlar'}</p>
+        {!canReservations && <div className="club-operations__empty"><LockOutlined />
+          <strong>{t('tiers.lockedMenu', { tier: tiersConfig && reservationsTier ? tierName(tiersConfig[reservationsTier], i18n.language) : 'Pro' })}</strong>
+          <span>{t('tiers.feature_reservations')}</span></div>}
         {arrivals.failed && <Alert showIcon type="warning" message={ru ? 'Брони не обновлены' : 'Bronlar yangilanmadi'} />}
-        {!arrivals.data && loading ? <Skeleton active paragraph={{ rows: 3 }} /> : <div className="club-arrivals">
+        {canReservations && (!arrivals.data && loading ? <Skeleton active paragraph={{ rows: 3 }} /> : <div className="club-arrivals">
           {arrivals.data?.map((row) => {
             const late = Date.parse(row.startsAt) < now;
             const sameDay = clubDateKey(row.startsAt, timezone) === clubDateKey(now, timezone);
@@ -88,16 +99,16 @@ export default function OperationsPanel({ stats, clockOffset }: { stats: LiveDas
           })}
           {arrivals.data?.length === 0 && !arrivals.failed && <div className="club-operations__empty"><CalendarOutlined />
             <strong>{ru ? 'Ближайших броней нет' : 'Yaqin vaqtga bron yo‘q'}</strong><span>{ru ? 'Новая бронь появится здесь автоматически.' : 'Yangi bron shu yerda avtomatik ko‘rinadi.'}</span></div>}
-        </div>}
+        </div>)}
         <Link className="club-operations__footer-link" to="/reservations">{ru ? 'Открыть календарь броней' : 'Bronlar taqvimini ochish'} <ArrowRightOutlined /></Link>
       </section>
     </div>
-    {data && !lights.failed && (paused > 0 || lightIssues.length > 0) && <div className="club-operations__attention">
+    {data && !lights.failed && (paused > 0 || (canLights && lightIssues.length > 0)) && <div className="club-operations__attention">
       <strong>{ru ? 'Требует внимания' : 'E’tibor kerak'}</strong>
       {paused > 0 && <Link to="/tables?view=paused"><ClockCircleOutlined /> {paused} {ru ? 'столов на паузе' : 'ta stol pauzada'} <ArrowRightOutlined /></Link>}
-      {lightIssues.length > 0 && <Link to="/tables?panel=lights"><BulbOutlined /> {lightIssues.length} {ru ? 'реле требуют проверки' : 'ta rele tekshirishni kutmoqda'} <ArrowRightOutlined /></Link>}
+      {canLights && lightIssues.length > 0 && <Link to="/tables?panel=lights"><BulbOutlined /> {lightIssues.length} {ru ? 'реле требуют проверки' : 'ta rele tekshirishni kutmoqda'} <ArrowRightOutlined /></Link>}
     </div>}
-    {data && tables.length > 0 && !lights.failed && paused === 0 && lightIssues.length === 0 && <div className="club-operations__quiet"><CheckCircleOutlined />
+    {data && tables.length > 0 && !lights.failed && paused === 0 && (!canLights || lightIssues.length === 0) && <div className="club-operations__quiet"><CheckCircleOutlined />
       {ru ? 'Столов на паузе нет' : 'Pauzadagi stollar yo‘q'}
       {lights.at && <span>{ru ? 'Обновлено' : 'Yangilandi'} {timeFormat.format(lights.at)}</span>}</div>}
   </section>;

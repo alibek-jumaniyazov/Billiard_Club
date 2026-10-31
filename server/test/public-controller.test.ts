@@ -8,6 +8,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DataSource } from 'typeorm';
 import { LicenseService } from '../src/common/license/license.service';
 import { PlatformConfigService } from '../src/common/platform-config/platform-config.service';
+import { PlanTiersService } from '../src/common/plan-tiers/plan-tiers.service';
 import { AuthService } from '../src/modules/auth/auth.service';
 import { PublicController } from '../src/modules/public/public.controller';
 import { PublicService } from '../src/modules/public/public.service';
@@ -30,6 +31,7 @@ const verifier = new TrialVerificationService({} as DataSource, new ConfigServic
     { provide: AuthService, useValue: { setRefreshCookie: () => { cookieWrites += 1; } } },
     { provide: LicenseService, useValue: {} },
     { provide: PlatformConfigService, useValue: { get: async () => ({ trialDays: 3 }) } },
+    { provide: PlanTiersService, useValue: { get: async () => ({}) } },
   ],
 })
 class TestModule {}

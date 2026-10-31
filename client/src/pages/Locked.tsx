@@ -275,6 +275,8 @@ const Locked = () => {
                 onRetry={() => void fetchPlans()}
                 pendingInvoice={subStatus?.currentInvoice ?? null}
                 activePlanCode={subStatus?.activePlan?.code ?? null}
+                currentTier={subStatus && !subStatus.club.isExpired ? subStatus.club.tier : null}
+                usage={subStatus?.usage ?? null}
                 onChanged={handleChanged}
               />
             )}

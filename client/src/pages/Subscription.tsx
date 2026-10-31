@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   App,
   Button,
@@ -16,6 +16,7 @@ import {
   CrownOutlined,
   ReloadOutlined,
   StopOutlined,
+  TrophyOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -31,9 +32,11 @@ import {
   StatusTag,
 } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { useTiersConfig } from '../hooks/useEntitlements';
 import { TOKENS } from '../theme/tokens';
 import type { Invoice, InvoiceStatus, Plan, SubscriptionStatus } from '../types';
 import { formatNumber } from '../utils/format';
+import { LIMIT_ORDER, tierLabel, tierName } from '../utils/tiers';
 
 const { Text, Title } = Typography;
 const { gold, emerald, semantic, text, bg } = TOKENS.color;
@@ -55,7 +58,8 @@ const DAY_MS = 86_400_000;
 
 const Subscription = () => {
   const { t, i18n } = useTranslation();
-  const { user } = useAuth();
+  const { user, club: authClub, refreshMe } = useAuth();
+  const tiersConfig = useTiersConfig();
   const { message } = App.useApp();
   const lang = i18n.language;
 
@@ -132,6 +136,17 @@ const Subscription = () => {
     void fetchInvoices(1);
   }, [isAdmin, fetchStatus, fetchPlans, fetchInvoices]);
 
+  // Server bergan tarif sessiyadagidan farq qilsa (to'lov tasdiqlandi yoki
+  // superadmin imkoniyatlarni o'zgartirdi) — menyu va bo'limlar darhol ochilsin
+  const syncedEntitlements = useRef<string | null>(null);
+  useEffect(() => {
+    if (!status?.entitlements || !authClub) return;
+    const fresh = JSON.stringify(status.entitlements);
+    if (fresh === JSON.stringify(authClub.entitlements ?? null) || syncedEntitlements.current === fresh) return;
+    syncedEntitlements.current = fresh;
+    void refreshMe().catch(() => undefined);
+  }, [status?.entitlements, authClub, refreshMe]);
+
   /** Xarid/bekor qilishdan keyin holat va tarix yangilanadi */
   const handleChanged = useCallback(async () => {
     await Promise.all([fetchStatus(), fetchInvoices(1)]);
@@ -193,7 +208,16 @@ const Subscription = () => {
       );
     }
 
-    const { club, activePlan } = status;
+    const { club, activePlan, entitlements, usage } = status;
+    const tierTitle = club.tier
+      ? tiersConfig
+        ? tierName(tiersConfig[club.tier], lang)
+        : tierLabel(club.tier, lang)
+      : null;
+    const anyLimitFull =
+      !!entitlements &&
+      !!usage &&
+      LIMIT_ORDER.some((key) => entitlements.limits[key] !== null && (usage[key] ?? 0) >= (entitlements.limits[key] ?? 0));
     const endMs = club.effectiveEndsAt ? new Date(club.effectiveEndsAt).getTime() : null;
 
     // Holat SERVER qarori bo'yicha: noto'g'ri qurilma soati "tugagan"/"faol"
@@ -323,6 +347,17 @@ const Subscription = () => {
                 gap: 12,
               }}
             >
+              {tierTitle && (
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12.5, display: 'block' }}>
+                    {t('tiers.clubTier')}
+                  </Text>
+                  <Text strong style={{ fontSize: 15, color: gold.hover }}>
+                    <TrophyOutlined style={{ color: gold.base, marginRight: 6 }} />
+                    {tierTitle}
+                  </Text>
+                </div>
+              )}
               <div>
                 <Text type="secondary" style={{ fontSize: 12.5, display: 'block' }}>
                   {t('subscription.activePlan')}
@@ -356,6 +391,54 @@ const Subscription = () => {
                 </Text>
               </div>
             </div>
+            {/* Tarif cheklovlari: band / ruxsat */}
+            {entitlements && usage && (
+              <div
+                style={{
+                  marginTop: 16,
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 12,
+                }}
+              >
+                {LIMIT_ORDER.map((key) => {
+                  const max = entitlements.limits[key];
+                  const used = usage[key] ?? 0;
+                  const full = max !== null && used >= max;
+                  return (
+                    <div key={key}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <Text type="secondary" style={{ fontSize: 12.5 }}>
+                          {t(`tiers.limit_${key}`)}
+                        </Text>
+                        <Text
+                          strong
+                          className="tabular-nums"
+                          style={{ fontSize: 13, color: full ? semantic.warning : text.primary }}
+                        >
+                          {`${used} / ${max === null ? t('tiers.unlimited') : max}`}
+                        </Text>
+                      </div>
+                      {max !== null && (
+                        <Progress
+                          percent={Math.min(100, (used / Math.max(1, max)) * 100)}
+                          showInfo={false}
+                          size="small"
+                          strokeColor={full ? semantic.warning : emerald.bright}
+                          trailColor={bg.bg3}
+                          style={{ margin: 0 }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {anyLimitFull && (
+              <Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12.5 }}>
+                {t('tiers.limitReachedHint')}
+              </Text>
+            )}
             {club.isExpired && (
               <Text
                 style={{ display: 'block', marginTop: 12, color: semantic.warning, fontSize: 13 }}
@@ -467,6 +550,8 @@ const Subscription = () => {
         onRetry={() => void fetchPlans()}
         pendingInvoice={status?.currentInvoice ?? null}
         activePlanCode={status?.activePlan?.code ?? null}
+        currentTier={status && !status.club.isExpired ? status.club.tier : null}
+        usage={status?.usage ?? null}
         onChanged={handleChanged}
       />
 

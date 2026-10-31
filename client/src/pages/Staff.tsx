@@ -17,6 +17,7 @@ import {
   Table,
   Tag,
   Typography,
+  Tooltip,
 } from 'antd';
 import {
   CrownOutlined,
@@ -31,7 +32,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { apiErrorMessage, errorMessage, staffApi } from '../api';
+import { apiErrorMessage, errorMessage, staffApi, subscriptionApi } from '../api';
 import {
   EmptyState,
   PageHeader,
@@ -44,6 +45,7 @@ import { useAuth } from '../context/AuthContext';
 import { TOKENS } from '../theme/tokens';
 import type { User, UserRole } from '../types';
 import { isFormValidationError } from '../utils/formErrors';
+import { useEntitlements } from '../hooks/useEntitlements';
 
 const { Text } = Typography;
 
@@ -87,6 +89,17 @@ const Staff = () => {
 
   const [roleCounts, setRoleCounts] = useState<Record<UserRole, number>>(emptyCounts);
   const [staffTotal, setStaffTotal] = useState(0);
+  // Tarif cheklovi: faol hisoblar EGASI BILAN (server ham tekshiradi)
+  const staffLimit = useEntitlements().limit('staff');
+  const [activeAccounts, setActiveAccounts] = useState<number | null>(null);
+  useEffect(() => {
+    if (staffLimit === null) return;
+    subscriptionApi
+      .status()
+      .then((res) => setActiveAccounts(res.data?.usage?.staff ?? null))
+      .catch(() => setActiveAccounts(null));
+  }, [staffLimit, staffTotal]);
+  const atStaffLimit = staffLimit !== null && activeAccounts !== null && activeAccounts >= staffLimit;
   const [statsLoading, setStatsLoading] = useState(true);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -318,9 +331,17 @@ const Staff = () => {
         extra={
           <>
             <Button icon={<ReloadOutlined />} onClick={refetchAll} />
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-              {t('staff.addStaff')}
-            </Button>
+            <Tooltip
+              title={
+                staffLimit !== null && activeAccounts !== null
+                  ? `${t('tiers.limitReachedTitle', { label: t('tiers.limit_staff'), used: activeAccounts, max: staffLimit })}${atStaffLimit ? ` · ${t('tiers.limitReachedHint')}` : ''}`
+                  : undefined
+              }
+            >
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} disabled={atStaffLimit}>
+                {t('staff.addStaff')}
+              </Button>
+            </Tooltip>
           </>
         }
         stats={

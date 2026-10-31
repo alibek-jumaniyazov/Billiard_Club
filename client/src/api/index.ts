@@ -81,6 +81,8 @@ import type {
   TelegramSettings,
   TokenPair,
   User,
+  TiersConfig,
+  TierCode,
 } from '../types';
 
 const get = async <T>(url: string, params?: object): Promise<ApiResponse<T>> =>
@@ -320,6 +322,8 @@ export const reservationsApi = {
 export const subscriptionApi = {
   status: () => get<SubscriptionStatus>('/subscription'),
   plans: () => get<Plan[]>('/subscription/plans'),
+  /** Standart / Pro / VIP: imkoniyat va cheklovlar (taqqoslash jadvali) */
+  tiers: () => get<TiersConfig>('/subscription/tiers'),
   purchase: (body: PurchasePayload) => post<Invoice>('/subscription/purchase', body),
   invoices: (params?: { page?: number; limit?: number }) =>
     get<Invoice[]>('/subscription/invoices', params),
@@ -328,6 +332,9 @@ export const subscriptionApi = {
 
 /** Superadmin savdo paneli: tariflar, kuponlar, hisob-fakturalar */
 export const adminBillingApi = {
+  /** Tarif darajalari — superadmin har biriga imkoniyat va cheklov belgilaydi */
+  tiers: () => get<TiersConfig>('/admin/tiers'),
+  updateTiers: (body: TiersConfig) => put<TiersConfig>('/admin/tiers', body),
   plans: () => get<Plan[]>('/admin/plans'),
   createPlan: (body: PlanPayload & { code: string; nameUz: string; nameRu: string; durationDays: number; price: number }) =>
     post<Plan>('/admin/plans', body),
@@ -528,7 +535,7 @@ export const adminApi = {
   contracts: (id: number) => get<Contract[]>(`/admin/clubs/${id}/contracts`),
   addContract: (
     id: number,
-    body: { type: ContractType; amount: number; endDate?: string; notes?: string },
+    body: { type: ContractType; amount: number; endDate?: string; notes?: string; tier?: TierCode },
   ) => post<Contract>(`/admin/clubs/${id}/contracts`, body),
   removeContract: (id: number, contractId: number) =>
     del<void>(`/admin/clubs/${id}/contracts/${contractId}`),
@@ -549,6 +556,8 @@ export type TrialVerificationStatus =
 export const publicApi = {
   /** Ommaviy tariflar — superadmin boshqaradigan faol tariflar (landing narxlari) */
   plans: () => get<Plan[]>('/public/plans'),
+  /** Tarif darajalari (Standart / Pro / VIP) — landing narxlar bo'limi uchun */
+  tiers: () => get<TiersConfig>('/public/tiers'),
   /** Desktop dasturning so'nggi relizlari (/download sahifasi) */
   releases: () => get<AppReleaseInfo[]>('/public/download'),
   /** Oflayn ruxsatnomani tekshirish uchun ochiq kalit (sir emas) */

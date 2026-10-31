@@ -10,6 +10,9 @@ import {
   Query,
 } from '@nestjs/common';
 import { ClubId } from '../../common/decorators/club-id.decorator';
+import { CurrentClub } from '../../common/decorators/current-club.decorator';
+import { PlanTiersService } from '../../common/plan-tiers/plan-tiers.service';
+import { Club } from '../../entities/club.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -29,7 +32,10 @@ import { SessionsService } from './sessions.service';
 
 @Controller('sessions')
 export class SessionsController {
-  constructor(private readonly sessionsService: SessionsService) {}
+  constructor(
+    private readonly sessionsService: SessionsService,
+    private readonly tiers: PlanTiersService,
+  ) {}
 
   @Get()
   async findAll(@ClubId() clubId: number, @Query() query: ListSessionsQueryDto) {
@@ -69,10 +75,15 @@ export class SessionsController {
   async end(
     @ClubId() clubId: number,
     @CurrentUser() user: User,
+    @CurrentClub() club: Club | undefined,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: EndSessionDto,
     @Lang() lang: Language,
   ) {
+    // Qarzga yozish — "Qarzlar daftari" imkoniyati (tarif). Superadmin tekshirilmaydi.
+    if (dto.isDebt === true && club && user.role !== UserRole.SUPERADMIN) {
+      await this.tiers.assertFeature(club, 'debts');
+    }
     const data = await this.sessionsService.end(clubId, user, id, dto);
     return {
       success: true,

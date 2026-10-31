@@ -69,6 +69,7 @@ import {
   type SegmentLike,
   type SessionTiming,
 } from '../../utils/session';
+import { useEntitlements } from '../../hooks/useEntitlements';
 
 const { Text, Title } = Typography;
 
@@ -468,7 +469,8 @@ const CheckoutDrawer = ({
   const adjustmentAmount = isAdmin ? watchedAdjustment : 0;
   const split = Form.useWatch('split', form) ?? false;
   const payments = Form.useWatch('payments', form);
-  const isDebt = Form.useWatch('isDebt', form) ?? false;
+  const canDebts = useEntitlements().can('debts');
+  const isDebt = (Form.useWatch('isDebt', form) ?? false) && canDebts;
   const isTableDebt = Form.useWatch('isTableDebt', form) ?? false;
   const isBarDebt = Form.useWatch('isBarDebt', form) ?? false;
 
@@ -1381,8 +1383,8 @@ const CheckoutDrawer = ({
               </div>
             )}
 
-            {/* Qarz */}
-            <Form.Item
+            {/* Qarz — "Qarzlar daftari" tarif imkoniyati; yo'q bo'lsa tanlov ko'rinmaydi */}
+            {canDebts && <Form.Item
               name="isDebt"
               valuePropName="checked"
               label={t('tables.debtQuestion')}
@@ -1394,7 +1396,7 @@ const CheckoutDrawer = ({
                 checkedChildren={t('status.debt')}
                 unCheckedChildren={t('status.paid')}
               />
-            </Form.Item>
+            </Form.Item>}
 
             {isDebt && (
               <>

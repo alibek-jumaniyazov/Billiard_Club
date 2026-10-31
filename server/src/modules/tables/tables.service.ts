@@ -8,6 +8,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Not, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { PlanTiersService } from '../../common/plan-tiers/plan-tiers.service';
+import { Club } from '../../entities/club.entity';
 import { LightDriver, LightMode, SessionStatus } from '../../entities/enums';
 import { Session } from '../../entities/session.entity';
 import { Table } from '../../entities/table.entity';
@@ -24,6 +26,7 @@ export class TablesService {
     @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
     // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
     @Optional() private readonly auditService?: AuditService,
+    @Optional() private readonly tiers?: PlanTiersService,
   ) {}
 
   /**
@@ -107,6 +110,11 @@ export class TablesService {
   }
 
   async create(clubId: number, dto: CreateTableDto) {
+    // Tarif cheklovi: Standartda masalan 6 tagacha faol stol (common/plan-tiers)
+    if (this.tiers) {
+      const club = await this.dataSource.getRepository(Club).findOne({ where: { id: clubId }, select: { id: true, tier: true } });
+      if (club) await this.tiers.assertLimit(club, 'tables', await this.tableRepo.count({ where: { clubId, isActive: true } }));
+    }
     await this.ensureNumberFree(clubId, dto.number);
     return this.tableRepo.save({
       clubId,

@@ -18,11 +18,14 @@ import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
 import { DebtsService } from './debts.service';
 import { ListDebtsQueryDto, PayDebtDto, WriteOffDebtDto } from './dto/debts.dto';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
 // Qarzlar mijoz PII si va summalarini o'z ichiga oladi — OPERATOR ko'rmaydi.
 // O'zgartiruvchi endpointlar (pay/remove) o'z @Roles i bilan bu class-darajani
 // override qiladi; o'qish endpointlari (findAll/payments) shu ro'yxatga tayanadi.
 @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
+// Tarifda "debts" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
+@RequireFeature('debts')
 @Controller('debts')
 export class DebtsController {
   constructor(private readonly debtsService: DebtsService) {}

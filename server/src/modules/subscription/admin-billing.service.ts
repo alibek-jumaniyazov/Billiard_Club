@@ -60,6 +60,7 @@ export class AdminBillingService {
       sortOrder: dto.sortOrder ?? 0,
       isActive: dto.isActive ?? true,
       features: dto.features ?? null,
+      tier: dto.tier ?? 'standard',
     });
   }
 
@@ -81,6 +82,7 @@ export class AdminBillingService {
     if (dto.sortOrder !== undefined) plan.sortOrder = dto.sortOrder;
     if (dto.isActive !== undefined) plan.isActive = dto.isActive;
     if (dto.features !== undefined) plan.features = dto.features;
+    if (dto.tier !== undefined) plan.tier = dto.tier;
 
     return this.planRepo.save(plan);
   }
@@ -258,6 +260,8 @@ export class AdminBillingService {
         amount: inv.amount,
         durationDays,
         notes: `Hisob-faktura ${inv.number}`,
+        // Klub sotib olgan darajaga o'tadi (Standart / Pro / VIP)
+        tier: plan.tier,
       });
 
       // Kupon ishlatildi — usedCount faqat TASDIQLASHDA oshadi.

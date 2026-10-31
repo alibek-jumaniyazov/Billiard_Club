@@ -29,6 +29,7 @@ import {
   ReloadOutlined,
   StopOutlined,
   TagsOutlined,
+  CrownOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
@@ -37,9 +38,11 @@ import { adminBillingApi, errorMessage } from '../../api';
 import { EmptyState, PageHeader, PageTransition, StatusTag } from '../../components/ui';
 import { planPeriodKey } from '../../constants';
 import { TOKENS } from '../../theme/tokens';
-import type { Coupon, CouponType, Invoice, InvoiceStatus, Plan } from '../../types';
+import type { Coupon, CouponType, Invoice, InvoiceStatus, Plan, TierCode } from '../../types';
 import { formatMoney, formatNumber } from '../../utils/format';
+import { TIER_TAG_COLOR, tierLabel, tierOptions } from '../../utils/tiers';
 import ClubSelect from './ClubSelect';
+import TierSettings from './TierSettings';
 
 const { Text } = Typography;
 
@@ -61,6 +64,7 @@ const moneyParser = (v: string | undefined) =>
 
 interface PlanFormValues {
   code: string;
+  tier: TierCode;
   nameUz: string;
   nameRu: string;
   descriptionUz?: string;
@@ -239,6 +243,7 @@ const AdminBilling = () => {
     if (plan) {
       planForm.setFieldsValue({
         code: plan.code,
+        tier: plan.tier ?? 'standard',
         nameUz: plan.nameUz,
         nameRu: plan.nameRu,
         descriptionUz: plan.descriptionUz ?? undefined,
@@ -250,7 +255,7 @@ const AdminBilling = () => {
       });
     } else {
       planForm.resetFields();
-      planForm.setFieldsValue({ isActive: true, sortOrder: 0 });
+      planForm.setFieldsValue({ isActive: true, sortOrder: 0, tier: 'standard' });
     }
     setPlanModalOpen(true);
   };
@@ -261,6 +266,7 @@ const AdminBilling = () => {
     try {
       const body = {
         code: values.code,
+        tier: values.tier,
         nameUz: values.nameUz,
         nameRu: values.nameRu,
         descriptionUz: values.descriptionUz || undefined,
@@ -570,6 +576,12 @@ const AdminBilling = () => {
       dataIndex: 'code',
       width: 130,
       render: (code: string) => <Text code>{code}</Text>,
+    },
+    {
+      title: t('tiers.adminTier'),
+      dataIndex: 'tier',
+      width: 110,
+      render: (tier: TierCode) => <Tag color={TIER_TAG_COLOR[tier]}>{tierLabel(tier, i18n.language)}</Tag>,
     },
     {
       title: t('common.name'),
@@ -960,6 +972,16 @@ const AdminBilling = () => {
             ),
             children: invoicesTab,
           },
+          {
+            key: 'tiers',
+            label: (
+              <Space size={6}>
+                <CrownOutlined />
+                {t('tiers.adminTab')}
+              </Space>
+            ),
+            children: <TierSettings onSaved={() => void fetchPlans()} />,
+          },
           { key: 'plans', label: t('admin.billing.tabPlans'), children: plansTab },
           { key: 'coupons', label: t('admin.billing.tabCoupons'), children: couponsTab },
         ]}
@@ -1062,6 +1084,10 @@ const AdminBilling = () => {
               </Form.Item>
             </Col>
           </Row>
+          {/* Qaysi daraja sotiladi — to'lov tasdiqlanganda klub shu darajaga o'tadi */}
+          <Form.Item name="tier" label={t('tiers.adminTier')} rules={[{ required: true }]}>
+            <Select options={tierOptions(i18n.language)} />
+          </Form.Item>
           <Row gutter={12}>
             <Col xs={24} sm={12}>
               <Form.Item

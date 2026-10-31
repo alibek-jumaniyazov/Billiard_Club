@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -16,6 +17,7 @@ import {
   Min,
 } from 'class-validator';
 import { CouponType, InvoiceStatus } from '../../../entities/enums';
+import { TIER_CODES, TierCode } from '../../../common/plan-tiers/tiers';
 
 // ==================== Klub egasi (owner) ====================
 
@@ -99,6 +101,11 @@ export class CreatePlanDto {
   @IsOptional()
   @IsObject()
   features?: Record<string, unknown>;
+
+  /** Tarif darajasi: 'standard' | 'pro' | 'vip' */
+  @IsOptional()
+  @IsIn(TIER_CODES)
+  tier?: TierCode;
 }
 
 export class UpdatePlanDto {
@@ -154,6 +161,11 @@ export class UpdatePlanDto {
   @IsOptional()
   @IsObject()
   features?: Record<string, unknown>;
+
+  /** Tarif darajasi: 'standard' | 'pro' | 'vip' */
+  @IsOptional()
+  @IsIn(TIER_CODES)
+  tier?: TierCode;
 }
 
 // ==================== Superadmin: kuponlar ====================

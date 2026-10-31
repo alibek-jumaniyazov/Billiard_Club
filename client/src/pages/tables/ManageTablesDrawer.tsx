@@ -25,6 +25,7 @@ import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable } from '../../types';
 import { moneyFormatter, moneyParser } from '../../utils/format';
+import { useEntitlements } from '../../hooks/useEntitlements';
 
 const { Text } = Typography;
 
@@ -65,6 +66,11 @@ const ManageTablesDrawer = ({
   const [mode, setMode] = useState<Mode>({ kind: 'list' });
   const [submitting, setSubmitting] = useState(false);
   const currency = useCurrency();
+  // Tarif cheklovi (masalan Standartda 6 tagacha stol) — server ham tekshiradi
+  const { limit } = useEntitlements();
+  const tableLimit = limit('tables');
+  const activeTables = tables.filter((tbl) => tbl.isActive !== false).length;
+  const atLimit = tableLimit !== null && activeTables >= tableLimit;
 
   useEffect(() => {
     if (!open) return;
@@ -174,9 +180,17 @@ const ManageTablesDrawer = ({
             {mode.kind === 'edit' ? t('btn.save') : t('btn.add')}
           </Button>
         ) : (
-          <Button type="primary" block icon={<PlusOutlined />} onClick={openCreate}>
-            {t('tables.addTable')}
-          </Button>
+          <>
+            <Button type="primary" block icon={<PlusOutlined />} onClick={openCreate} disabled={atLimit}>
+              {t('tables.addTable')}
+            </Button>
+            {tableLimit !== null && (
+              <div style={{ marginTop: 8, fontSize: 12, textAlign: 'center', color: atLimit ? TOKENS.color.gold.base : TOKENS.color.text.tertiary }}>
+                {t('tiers.limitReachedTitle', { label: t('tiers.limit_tables'), used: activeTables, max: tableLimit })}
+                {atLimit && <> · {t('tiers.limitReachedHint')}</>}
+              </div>
+            )}
+          </>
         )
       }
     >

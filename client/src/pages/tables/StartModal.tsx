@@ -9,6 +9,7 @@ import { newActionKey, queueStartSession } from '../../offline/pos';
 import { isFormValidationError } from '../../utils/formErrors';
 import type { BilliardTable, Reservation, Session } from '../../types';
 import { formatClock, formatMoney } from '../../utils/format';
+import { useEntitlements } from '../../hooks/useEntitlements';
 
 interface StartValues {
   customerName?: string;
@@ -58,11 +59,14 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
   const [form] = Form.useForm<StartValues>();
   const [submitting, setSubmitting] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  // Bron — tarif imkoniyati; yo'q bo'lsa ogohlantirish uchun so'ralmaydi
+  const canReservations = useEntitlements().can('reservations');
 
   useEffect(() => {
     if (!table) return;
     form.resetFields();
     setReservations([]);
+    if (!canReservations) return;
     // Bron ogohlantirishi — xato bo'lsa jimgina e'tiborsiz (boshlashga to'siq emas)
     let alive = true;
     const from = new Date();
@@ -79,7 +83,7 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
     return () => {
       alive = false;
     };
-  }, [table, form]);
+  }, [table, form, canReservations]);
 
   const handleOk = async () => {
     if (!table) return;

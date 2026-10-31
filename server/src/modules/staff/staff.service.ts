@@ -7,8 +7,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
-import { Brackets, IsNull, Repository } from 'typeorm';
+import { Brackets, In, IsNull, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { PlanTiersService } from '../../common/plan-tiers/plan-tiers.service';
+import { Club } from '../../entities/club.entity';
+import { UserRole } from '../../entities/enums';
 import { RefreshSession } from '../../entities/refresh-session.entity';
 import { User } from '../../entities/user.entity';
 import { CreateStaffDto, ListStaffQueryDto, UpdateStaffDto } from './dto/staff.dto';
@@ -21,7 +24,22 @@ export class StaffService {
     private readonly refreshRepo: Repository<RefreshSession>,
     // Global AuditModule ro'yxatdan o'tmagan bo'lsa ham servis ishga tushaveradi
     @Optional() private readonly auditService?: AuditService,
+    @Optional() private readonly tiers?: PlanTiersService,
   ) {}
+
+  /**
+   * Tarif cheklovi: faol hisoblar EGASI BILAN (admin/kassir/operator) — Standartda
+   * masalan 3 ta. Cheklovga yetgan bo'lsa 403 LIMIT_REACHED.
+   */
+  private async assertStaffLimit(clubId: number): Promise<void> {
+    if (!this.tiers) return;
+    const club = await this.userRepo.manager.getRepository(Club).findOne({ where: { id: clubId }, select: { id: true, tier: true } });
+    if (!club) return;
+    const current = await this.userRepo.count({
+      where: { clubId, isActive: true, role: In([UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR]) },
+    });
+    await this.tiers.assertLimit(club, 'staff', current);
+  }
 
   async findAll(clubId: number, query: ListStaffQueryDto) {
     const page = query.page ?? 1;
@@ -58,6 +76,7 @@ export class StaffService {
   async create(clubId: number, dto: CreateStaffDto) {
     const exists = await this.userRepo.findOne({ where: { username: dto.username } });
     if (exists) throw new ConflictException({ key: 'staff.usernameTaken' });
+    await this.assertStaffLimit(clubId);
 
     const hash = await bcrypt.hash(dto.password, 12);
     const user = await this.userRepo.save({
@@ -91,6 +110,9 @@ export class StaffService {
     ) {
       throw new BadRequestException({ key: 'staff.cannotChangeSelf' });
     }
+
+    // Bloklangan hisobni qayta yoqish ham yangi o'rin egallaydi — tarif cheklovi
+    if (dto.isActive === true && !user.isActive) await this.assertStaffLimit(clubId);
 
     const updates: Partial<User> = {};
     if (dto.name !== undefined) updates.name = dto.name;

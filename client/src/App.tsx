@@ -9,7 +9,9 @@ import { useAuth } from './context/AuthContext';
 import { useAppSettings } from './context/AppSettingsContext';
 import { useRobotsMeta } from './hooks/useDocumentHead';
 import { isLandingPath } from './seo/site';
-import type { UserRole } from './types';
+import { useEntitlements } from './hooks/useEntitlements';
+import UpgradeCard from './components/subscription/UpgradeCard';
+import type { FeatureKey, UserRole } from './types';
 import Login from './pages/Login';
 import Locked from './pages/Locked';
 import NotFound from './pages/NotFound';
@@ -93,8 +95,18 @@ const SUPERADMIN_VIEW_BLOCKED = ['/feedback', '/notifications', '/subscription']
  *  2) obuna holati (muddati tugagan/bloklangan klub -> /locked)
  *  3) rol tekshiruvi (superadmin "klubni ko'rish" rejimida klub sahifalariga kira oladi)
  */
-const Protected = ({ roles, children }: { roles?: UserRole[]; children: ReactNode }) => {
+const Protected = ({
+  roles,
+  feature,
+  children,
+}: {
+  roles?: UserRole[];
+  /** Tarif imkoniyati (Standart / Pro / VIP): yo'q bo'lsa sahifa o'rnida "tarifni oshirish" */
+  feature?: FeatureKey;
+  children: ReactNode;
+}) => {
   const { user, loading, hasRole, subscriptionLocked, offlineAccess } = useAuth();
+  const { can } = useEntitlements();
   const location = useLocation();
 
   if (loading) return <FullScreenSpin />;
@@ -128,6 +140,7 @@ const Protected = ({ roles, children }: { roles?: UserRole[]; children: ReactNod
   if (roles && !hasRole(...roles)) {
     return <Navigate to={homeFor(user.role)} replace />;
   }
+  if (feature && !can(feature)) return <UpgradeCard feature={feature} />;
   return <>{children}</>;
 };
 
@@ -330,7 +343,7 @@ const App = () => {
           <Route
             path="/orders"
             element={
-              <Protected roles={['admin', 'kassir', 'operator']}>
+              <Protected roles={['admin', 'kassir', 'operator']} feature="bar">
                 <Orders />
               </Protected>
             }
@@ -338,7 +351,7 @@ const App = () => {
           <Route
             path="/products"
             element={
-              <Protected roles={['admin', 'kassir', 'operator']}>
+              <Protected roles={['admin', 'kassir', 'operator']} feature="bar">
                 <Products />
               </Protected>
             }
@@ -346,7 +359,7 @@ const App = () => {
           <Route
             path="/debts"
             element={
-              <Protected roles={['admin', 'kassir']}>
+              <Protected roles={['admin', 'kassir']} feature="debts">
                 <Debts />
               </Protected>
             }
@@ -354,7 +367,7 @@ const App = () => {
           <Route
             path="/reports"
             element={
-              <Protected roles={['admin', 'kassir']}>
+              <Protected roles={['admin', 'kassir']} feature="reports">
                 <Reports />
               </Protected>
             }
@@ -362,7 +375,7 @@ const App = () => {
           <Route
             path="/customers"
             element={
-              <Protected roles={['admin', 'kassir', 'operator']}>
+              <Protected roles={['admin', 'kassir', 'operator']} feature="customers">
                 <Customers />
               </Protected>
             }
@@ -370,7 +383,7 @@ const App = () => {
           <Route
             path="/reservations"
             element={
-              <Protected roles={['admin', 'kassir', 'operator']}>
+              <Protected roles={['admin', 'kassir', 'operator']} feature="reservations">
                 <Reservations />
               </Protected>
             }
@@ -386,7 +399,7 @@ const App = () => {
           <Route
             path="/expenses"
             element={
-              <Protected roles={['admin', 'kassir']}>
+              <Protected roles={['admin', 'kassir']} feature="expenses">
                 <Expenses />
               </Protected>
             }
@@ -395,7 +408,7 @@ const App = () => {
           <Route
             path="/shifts"
             element={
-              <Protected roles={['admin', 'kassir']}>
+              <Protected roles={['admin', 'kassir']} feature="shifts">
                 <Shifts />
               </Protected>
             }

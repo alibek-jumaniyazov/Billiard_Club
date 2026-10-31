@@ -1,18 +1,28 @@
 import type { Plugin } from 'vite';
 import landingText from './src/i18n/pages/landing';
 import downloadText from './src/i18n/pages/download';
+import tiersText from './src/i18n/pages/tiers';
 import {
   CONTACT,
   DEFAULT_TRIAL_DAYS,
   LANDING_PATH,
   OG_IMAGE,
-  PLAN_PRICES,
   SEARCH_VERIFICATION,
   SITE_NAME,
   SITE_ORIGIN,
   absoluteUrl,
   type SeoLang,
 } from './src/seo/site';
+import {
+  DEFAULT_TIERS_CONFIG,
+  DEFAULT_TIER_PRICES,
+  DURATION_MONTHS,
+  FEATURE_ORDER,
+  LIMIT_ORDER,
+  TIER_ORDER,
+  tierName,
+  tierTagline,
+} from './src/utils/tiers';
 
 /**
  * SEO PLAGINI — har ommaviy sahifa uchun alohida, qidiruv tizimlariga tayyor HTML.
@@ -41,6 +51,7 @@ import {
 type Dict = Record<string, string>;
 const LANDING = landingText as unknown as Record<SeoLang, Dict>;
 const DOWNLOAD = downloadText as unknown as Record<SeoLang, Dict>;
+const TIERS = tiersText as unknown as Record<SeoLang, Dict>;
 
 const HEAD_START = '<!--seo:head-->';
 const HEAD_END = '<!--/seo:head-->';
@@ -68,6 +79,10 @@ const esc = (value: string): string =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const range = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
+
+/** {{name}} o'rinlarini to'ldirib, keyin fill() — tarif matnlari uchun */
+const tr = (value: string | undefined, vars: Record<string, string | number>): string =>
+  fill((value ?? '').replace(/\{\{\s*(\w+)\s*\}\}/g, (all, key: string) => (key in vars ? String(vars[key]) : all)));
 
 const money = (price: number, lang: SeoLang) =>
   `${price.toLocaleString('ru-RU').replace(/\u00a0/g, ' ')} ${lang === 'ru' ? 'сум' : "so'm"}`;
@@ -120,11 +135,17 @@ const website = () => ({
   publisher: { '@id': ORG_ID },
 });
 
-const planName = (lang: SeoLang, code: string) => {
-  const t = LANDING[lang];
-  const key = code === 'monthly' ? 'planMonthlyName' : code === 'semiannual' ? 'planSemiName' : 'planYearName';
-  return fill(t[key]) || code;
-};
+/** Tariflar (server standarti): Standart / Pro / VIP × 1 / 3 / 6 / 12 oy */
+const tierOffers = (lang: SeoLang) =>
+  TIER_ORDER.flatMap((code) =>
+    DURATION_MONTHS.map((months) => ({
+      tier: tierName(DEFAULT_TIERS_CONFIG[code], lang),
+      duration: fill(TIERS[lang][`duration_${months}`]),
+      months,
+      price: DEFAULT_TIER_PRICES[code][months],
+      monthly: DEFAULT_TIER_PRICES[code][1],
+    })),
+  );
 
 const software = (lang: SeoLang, url: string, description: string) => ({
   '@type': 'SoftwareApplication',
@@ -139,10 +160,10 @@ const software = (lang: SeoLang, url: string, description: string) => ({
   screenshot: absoluteUrl(OG_IMAGE[lang]),
   downloadUrl: absoluteUrl('/download'),
   featureList: range(FEATURES).map((i) => fill(LANDING[lang][`feature${i}Title`])).filter(Boolean),
-  offers: PLAN_PRICES.map((plan) => ({
+  offers: tierOffers(lang).map((offer) => ({
     '@type': 'Offer',
-    name: planName(lang, plan.code),
-    price: String(plan.price),
+    name: `${offer.tier} · ${offer.duration}`,
+    price: String(offer.price),
     priceCurrency: 'UZS',
     category: 'subscription',
     url: `${absoluteUrl(LANDING_PATH[lang])}#pricing`,
@@ -192,7 +213,29 @@ const landingBody = (lang: SeoLang) => {
   const faq = range(FAQ)
     .map((i) => ({ q: fill(t[`faq${i}Q`]), a: fill(t[`faq${i}A`]) }))
     .filter((x) => x.q && x.a);
-  const plans = PLAN_PRICES.map((plan) => `${planName(lang, plan.code)} — ${money(plan.price, lang)}`);
+  const tt = TIERS[lang];
+  const tierBlocks = TIER_ORDER.map((code) => {
+    const def = DEFAULT_TIERS_CONFIG[code];
+    const prices = tierOffers(lang)
+      .filter((offer) => offer.tier === tierName(def, lang))
+      .map((offer) => {
+        const extra =
+          offer.months > 1
+            ? ` (${tr(offer.price % offer.months === 0 ? tt.perMonth : tt.perMonthApprox, {
+                price: money(Math.round(offer.price / offer.months), lang),
+              })}, ${tr(tt.save, {
+                amount: money(offer.monthly * offer.months - offer.price, lang),
+              })})`
+            : '';
+        return `${offer.duration} — ${money(offer.price, lang)}${extra}`;
+      });
+    const limits = LIMIT_ORDER.map((key) => {
+      const max = def.limits[key];
+      return `${fill(tt[`limit_${key}`])}: ${max === null ? fill(tt.unlimited) : tr(tt.upTo, { count: max })}`;
+    });
+    const features = FEATURE_ORDER.filter((key) => def.features[key]).map((key) => fill(tt[`feature_${key}`]));
+    return `<h3>${esc(tierName(def, lang))}</h3><p>${esc(tierTagline(def, lang))}</p>${list(prices)}${list([...limits, ...features])}`;
+  }).join('\n');
 
   return `<div id="seo-static" lang="${lang}">
 <header><p><a href="${LANDING_PATH[lang]}">${SITE_NAME}</a></p>
@@ -208,7 +251,9 @@ ${features.map((x) => `<h3>${esc(x.title)}</h3><p>${esc(x.desc)}</p>`).join('\n'
 <section id="offline"><h2>${f('offlineTitle')}</h2><p>${f('offlineDesc')}</p>${list(pick(lang, ['offlineB1', 'offlineB2', 'offlineB3']))}</section>
 <section id="devices"><h2>${f('devicesTitle')}</h2><p>${f('devicesDesc')}</p>${list(pick(lang, ['devicesB1', 'devicesB2', 'devicesB3']))}<p><a href="/download">${f('devicesCta')}</a></p></section>
 <section id="how"><h2>${f('howTitle')}</h2><ol>${steps.map((x) => `<li><strong>${esc(x.title)}</strong> — ${esc(x.desc)}</li>`).join('')}</ol></section>
-<section id="pricing"><h2>${f('pricingTitle')}</h2><p>${f('pricingSubtitle')}</p>${list(plans)}${list(pick(lang, ['planFeat1', 'planFeat2', 'planFeat3', 'planFeat4']))}</section>
+<section id="pricing"><h2>${f('pricingTitle')}</h2><p>${f('pricingSubtitle')}</p>
+${tierBlocks}
+<p>${f('planBaseTitle')}:</p>${list(pick(lang, ['planFeat1', 'planFeat2', 'planFeat3', 'planFeat4']))}</section>
 <section id="faq"><h2>${f('faqTitle')}</h2>
 ${faq.map((x) => `<h3>${esc(x.q)}</h3><p>${esc(x.a)}</p>`).join('\n')}</section>
 ${contactBlock(lang)}

@@ -19,9 +19,12 @@ import { User } from '../../entities/user.entity';
 import { CreateExpenseDto, ListExpensesQueryDto, UpdateExpenseDto } from './dto/expenses.dto';
 import { EXPENSE_CATEGORY_SUGGESTIONS } from './expense-categories';
 import { ExpensesService } from './expenses.service';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
 /** Xarajatlar — moliyaviy bo'lim: operator ko'rmaydi, kassir kiritadi, admin boshqaradi */
 @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
+// Tarifda "expenses" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
+@RequireFeature('expenses')
 @Controller('expenses')
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}

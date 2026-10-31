@@ -19,7 +19,7 @@
 |---|---|
 | Har sahifa uchun alohida HTML: `/` (o'zbekcha), `/ru/` (ruscha), `/download` | `client/vite-plugin-seo.ts` (build paytida) |
 | Har sahifada: sarlavha, tavsif, kalit so'zlar, canonical, hreflang (uz/ru/x-default), Open Graph, Twitter | o'sha plagin |
-| JSON-LD: Organization, WebSite, SoftwareApplication (3 tarif, imkoniyatlar), FAQPage (11 savol) | o'sha plagin, matnlar landing tarjimalaridan |
+| JSON-LD: Organization, WebSite, SoftwareApplication (12 taklif: Standart/Pro/VIP × 1/3/6/12 oy, imkoniyatlar), FAQPage (11 savol) | o'sha plagin, matnlar landing tarjimalaridan |
 | JavaScript ishlatmaydigan botlar uchun to'liq matn (`#seo-static`). Foydalanuvchiga ko'rinmaydi | `client/index.html` (`html.js`) |
 | Ruscha landing alohida manzilda, til tugmasi manzilni ham almashtiradi | `App.tsx` (`/ru`), `Landing.tsx` |
 | Sahifa almashganda canonical va `og:*` yangilanadi | `hooks/useDocumentHead.ts` |
@@ -29,8 +29,11 @@
 | Bannerlar 1200×630 (uz/ru, haqiqiy dastur ekrani bilan), `favicon.ico`, 1024 px logotip | `tools/brand-video/banners.cjs` |
 | Qidiruvdan kelgan mehmon va botlar brend intro'sini ko'rmaydi (Google sahifani to'sadigan oynalarni yoqtirmaydi) | `components/brand/introGate.ts` |
 
-Ma'lumotlar bitta joyda: `client/src/seo/site.ts` (domen, kontaktlar, tariflar, sinov kunlari).
-Tarif yoki sinov muddati o'zgarsa, shu yerda ham yangilang.
+Ma'lumotlar bitta joyda: `client/src/seo/site.ts` (domen, kontaktlar, sinov kunlari).
+Tariflarning standart narxi va imkoniyatlari `client/src/utils/tiers.ts` da (server standarti
+bilan bir xil — `tiers.sync.test.ts` tekshiradi). Panelda o'zgartirilgan narxlar landingga API
+orqali o'zi chiqadi; qidiruv tizimlari uchun statik matn va JSON-LD esa build paytidagi
+standart qiymatlardan yig'iladi. Standart narx o'zgarsa, shu fayllarni ham yangilang.
 
 **Sharhlar:** landingdagi mijoz sharhlari (`testimonials`) atayin JSON-LD ga **qo'shilmagan**.
 Google soxta yoki tasdiqlanmagan sharhlarni jazolaydi. Sharhlarni faqat haqiqiy mijozlarning

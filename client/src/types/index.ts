@@ -44,6 +44,43 @@ export interface User {
   updatedAt: string;
 }
 
+/* ---------- Tarif darajalari (server: common/plan-tiers/tiers.ts bilan bir xil) ---------- */
+
+export type TierCode = 'standard' | 'pro' | 'vip';
+
+/** Darajaga qarab yopiladigan bo'limlar */
+export type FeatureKey =
+  | 'bar'
+  | 'debts'
+  | 'reports'
+  | 'customers'
+  | 'reservations'
+  | 'expenses'
+  | 'shifts'
+  | 'lights';
+
+/** Soni cheklanadigan narsalar (null — cheksiz). staff — hisoblar egasi bilan */
+export type LimitKey = 'tables' | 'staff';
+
+export interface TierDefinition {
+  code: TierCode;
+  nameUz: string;
+  nameRu: string;
+  taglineUz: string;
+  taglineRu: string;
+  limits: Record<LimitKey, number | null>;
+  features: Record<FeatureKey, boolean>;
+}
+
+export type TiersConfig = Record<TierCode, TierDefinition>;
+
+/** Klubning amaldagi huquqlari (/auth/me va /subscription) */
+export interface Entitlements {
+  tier: TierCode;
+  limits: Record<LimitKey, number | null>;
+  features: Record<FeatureKey, boolean>;
+}
+
 export interface ClubInfo {
   id: number;
   name: string;
@@ -52,6 +89,9 @@ export interface ClubInfo {
   subscriptionEndsAt: string | null;
   effectiveEndsAt: string | null;
   isExpired: boolean;
+  /** Eski server javobida bo'lmasligi mumkin — unda hech narsa yopilmaydi */
+  tier?: TierCode;
+  entitlements?: Entitlements | null;
 }
 
 export interface Club extends ClubInfo {
@@ -772,6 +812,8 @@ export interface PlatformConfig {
   trialDays: number;
   /** Obuna tugashidan necha kun oldin eslatma yuborilsin (bo'sh = o'chirilgan) */
   expiryReminderDays: number[];
+  /** Sinovdagi klub qaysi tarif darajasida ishlaydi (standart VIP) */
+  trialTier: TierCode;
 }
 
 /** Desktop dastur qaysi platforma uchun */
@@ -809,10 +851,11 @@ export interface AppRelease extends AppReleaseInfo {
   updatedAt: string;
 }
 
-/** Obuna tarifi (uz+ru nomlar birga keladi, klient tanlaydi) */
+/** Obuna tarifi: daraja × muddat (uz+ru nomlar birga keladi, klient tanlaydi) */
 export interface Plan {
   id: number;
   code: string;
+  tier: TierCode;
   nameUz: string;
   nameRu: string;
   descriptionUz: string | null;
@@ -875,7 +918,11 @@ export interface SubscriptionStatus {
     effectiveEndsAt: string | null;
     isExpired: boolean;
     daysLeft: number | null;
+    tier: TierCode;
   };
+  entitlements: Entitlements;
+  /** Hozir band: faol stollar va hisoblar (egasi bilan) */
+  usage: Record<LimitKey, number>;
   currentInvoice: Invoice | null;
   lastInvoice: Invoice | null;
   activePlan: Plan | null;
@@ -1204,6 +1251,7 @@ export interface PurchasePayload {
 
 export interface PlanPayload {
   code?: string;
+  tier?: TierCode;
   nameUz?: string;
   nameRu?: string;
   descriptionUz?: string;

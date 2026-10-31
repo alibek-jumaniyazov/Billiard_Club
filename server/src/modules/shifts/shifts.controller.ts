@@ -8,12 +8,15 @@ import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
 import { CloseShiftDto, ListShiftsQueryDto, OpenShiftDto } from './dto/shifts.dto';
 import { ShiftsService } from './shifts.service';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
 /**
  * Kassa smenalari — pul bilan ishlaydigan rollar (admin, kassir).
  * Operator kassani ko'rmaydi: hisobotda klubning tushumi bor.
  */
 @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
+// Tarifda "shifts" imkoniyati bo'lmasa — 403 FEATURE_LOCKED (common/plan-tiers)
+@RequireFeature('shifts')
 @Controller('shifts')
 export class ShiftsController {
   constructor(private readonly shifts: ShiftsService) {}

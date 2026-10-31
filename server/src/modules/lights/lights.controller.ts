@@ -28,6 +28,7 @@ import {
   UpdateTableLightDto,
 } from './dto/lights.dto';
 import { LightsService, LightTableConfig } from './lights.service';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 
 /**
  * Klub paneli uchun chiroq boshqaruvi (opt-in imkoniyat).
@@ -43,6 +44,11 @@ import { LightsService, LightTableConfig } from './lights.service';
  * tafsilotlari faqat sozlash huquqi borlarga ko'rinadi. Javobdagi `canEdit`
  * bayrog'i klientga qaysi bo'limlarni ko'rsatishni aytadi.
  * Bridge tokeni javobda FAQAT bir marta (chiqarilgan paytda) ko'rinadi.
+ */
+/*
+ * Tarif: chiroqni BOSHQARISH ("lights" imkoniyati) — har boshqaruv amalida
+ * @RequireFeature. Umumiy ko'rinish (GET /lights) esa hammaga ochiq: boshqaruv
+ * panelidagi zal ko'rinishi (bo'sh/band/pauza) shu javobdan chiziladi.
  */
 @Controller('lights')
 export class LightsController {
@@ -66,6 +72,7 @@ export class LightsController {
 
   /** Chiroq rejimi va vaqt qoidalari (grace, bron oldidan yoqish, sinxronizatsiya) */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
+  @RequireFeature('lights')
   @Put('settings')
   async updateSettings(
     @ClubId() clubId: number,
@@ -78,6 +85,7 @@ export class LightsController {
 
   /** Stolning rele sozlamalari (manzil va drayverga xos maydonlar servisda tekshiriladi) */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
+  @RequireFeature('lights')
   @Put('tables/:id')
   async updateTable(
     @ClubId() clubId: number,
@@ -97,6 +105,7 @@ export class LightsController {
    */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
   @HttpCode(200)
+  @RequireFeature('lights')
   @Post('tables/:id/test')
   async test(
     @ClubId() clubId: number,
@@ -135,6 +144,7 @@ export class LightsController {
   /** Qo'lda yoqish/o'chirish; on=null (yoki yuborilmasa) — override bekor qilinadi */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
   @HttpCode(200)
+  @RequireFeature('lights')
   @Post('tables/:id/override')
   async override(
     @ClubId() clubId: number,
@@ -166,6 +176,7 @@ export class LightsController {
    */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
   @HttpCode(200)
+  @RequireFeature('lights')
   @Post('all')
   async overrideAll(
     @ClubId() clubId: number,
@@ -189,6 +200,7 @@ export class LightsController {
    * Kassir/operator uchun `ok=false` bayrog'ining o'zi yetarli.
    */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
+  @RequireFeature('lights')
   @Get('events')
   async events(
     @ClubId() clubId: number,
@@ -207,6 +219,7 @@ export class LightsController {
    */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
   @HttpCode(200)
+  @RequireFeature('lights')
   @Post('discover')
   async startDiscover(
     @ClubId() clubId: number,
@@ -230,6 +243,7 @@ export class LightsController {
    * bir xil javob oladi. Javobda skanerlangan `subnet` ham bor.
    */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
+  @RequireFeature('lights')
   @Get('discover')
   async discovered(@ClubId() clubId: number) {
     return { success: true, data: await this.lightsService.discoverResult(clubId) };
@@ -242,6 +256,7 @@ export class LightsController {
    */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
   @HttpCode(200)
+  @RequireFeature('lights')
   @Post('bridge/token')
   async issueToken(
     @ClubId() clubId: number,

@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import * as bcrypt from 'bcryptjs';
 import { AppDataSource } from './data-source';
+import { DEFAULT_TIERS, DEFAULT_TIER_PRICES, PLAN_DURATIONS, TIER_CODES } from '../common/plan-tiers/tiers';
 import { Category } from '../entities/category.entity';
 import { Club } from '../entities/club.entity';
 import { ClubStatus, UserRole } from '../entities/enums';
@@ -56,38 +57,18 @@ async function seed() {
 
   // ---------- Obuna tariflari ----------
   const planRepo = AppDataSource.getRepository(Plan);
-  const defaultPlans: Array<Partial<Plan> & { code: string }> = [
-    {
-      code: 'monthly',
-      nameUz: 'Oylik',
-      nameRu: 'Месячный',
-      descriptionUz: '30 kunlik obuna — barcha imkoniyatlar',
-      descriptionRu: 'Подписка на 30 дней — все возможности',
-      durationDays: 30,
-      price: 290000,
-      sortOrder: 1,
-    },
-    {
-      code: 'semiannual',
-      nameUz: '6 oylik',
-      nameRu: 'Полугодовой',
-      descriptionUz: '180 kunlik obuna — oylikdan 14% tejamkor',
-      descriptionRu: 'Подписка на 180 дней — на 14% выгоднее месячной',
-      durationDays: 180,
-      price: 1490000,
-      sortOrder: 2,
-    },
-    {
-      code: 'yearly',
-      nameUz: 'Yillik',
-      nameRu: 'Годовой',
-      descriptionUz: '365 kunlik obuna — oylikdan 28% tejamkor',
-      descriptionRu: 'Подписка на 365 дней — на 28% выгоднее месячной',
-      durationDays: 365,
-      price: 2490000,
-      sortOrder: 3,
-    },
-  ];
+  // Daraja (Standart / Pro / VIP) × muddat (1/3/6/12 oy) — TierPlans migratsiyasi bilan bir xil
+  const defaultPlans: Array<Partial<Plan> & { code: string }> = TIER_CODES.flatMap((tier, level) =>
+    PLAN_DURATIONS.map((d, i) => ({
+      code: `${tier}_${d.months}m`,
+      tier,
+      nameUz: `${DEFAULT_TIERS[tier].nameUz} · ${d.uz}`,
+      nameRu: `${DEFAULT_TIERS[tier].nameRu} · ${d.ru}`,
+      durationDays: d.days,
+      price: DEFAULT_TIER_PRICES[tier][i],
+      sortOrder: (level + 1) * 10 + i + 1,
+    })),
+  );
   for (const plan of defaultPlans) {
     const existingPlan = await planRepo.findOne({ where: { code: plan.code } });
     if (!existingPlan) {

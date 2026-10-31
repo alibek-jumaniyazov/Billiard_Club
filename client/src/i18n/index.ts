@@ -32,6 +32,7 @@ import adminReleases from './pages/adminReleases';
 import workspace from './pages/workspace';
 import shifts from './pages/shifts';
 import billiard from './pages/billiard';
+import tiers from './pages/tiers';
 
 export type Lang = 'uz' | 'ru';
 
@@ -69,6 +70,7 @@ const pages: Record<string, PageDict> = {
   adminReleases,
   shifts,
   billiard,
+  tiers,
 };
 
 const buildLocale = (lang: Lang): Record<string, string> => {

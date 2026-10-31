@@ -60,9 +60,11 @@ import type {
   ContractType,
   Invoice,
   InvoiceStatus,
+  TierCode,
 } from '../../types';
 import { formatMoney, formatNumber } from '../../utils/format';
 import { isFormValidationError } from '../../utils/formErrors';
+import { TIER_TAG_COLOR, tierLabel, tierOptions } from '../../utils/tiers';
 import { readClubFilters } from './adminWorkspace';
 import './admin-workspace.css';
 
@@ -84,6 +86,8 @@ interface ContractFormValues {
   amount: number;
   endDate?: Dayjs;
   notes?: string;
+  /** Bo'sh — klubning joriy darajasi o'zgarmaydi */
+  tier?: TierCode;
 }
 
 /** Tasodifiy xavfsiz parol */
@@ -130,6 +134,7 @@ const AdminClubsPage = () => {
    * Platforma sozlamasidan olinadi; so'rov yiqilsa serverdagi standart (7).
    */
   const [defaultTrialDays, setDefaultTrialDays] = useState(7);
+  const [defaultTrialTier, setDefaultTrialTier] = useState<TierCode>('vip');
   useEffect(() => {
     let alive = true;
     void platformApi
@@ -138,6 +143,7 @@ const AdminClubsPage = () => {
         if (alive && typeof res.data?.trialDays === 'number') {
           setDefaultTrialDays(res.data.trialDays);
         }
+        if (alive && res.data?.trialTier) setDefaultTrialTier(res.data.trialTier);
       })
       .catch(() => undefined);
     return () => {
@@ -548,6 +554,7 @@ const AdminClubsPage = () => {
             ? values.endDate.endOf('day').toISOString()
             : undefined,
         notes: values.notes || undefined,
+        tier: values.tier,
       });
       message.success(res.message);
       contractForm.resetFields();
@@ -579,7 +586,7 @@ const AdminClubsPage = () => {
     { key: 'panel', icon: <LoginOutlined />, label: t('adminClubs.viewAsClub'), onClick: () => handleEnterClub(club) },
     { key: 'contracts', icon: <FileTextOutlined />, label: t('adminClubs.contractBtn'), onClick: () => openDetail(club, 'contracts') },
     { key: 'edit', icon: <EditOutlined />, label: t('adminClubs.editClub'), onClick: () => {
-      editForm.setFieldsValue({ name: club.name, ownerName: club.ownerName, phone: club.phone, address: club.address, notes: club.notes });
+      editForm.setFieldsValue({ name: club.name, ownerName: club.ownerName, phone: club.phone, address: club.address, notes: club.notes, tier: club.tier });
       setEditClub(club);
     } },
     { key: 'password', icon: <KeyOutlined />, label: t('adminClubs.resetPassword'), onClick: () => setPasswordClub(club) },
@@ -622,6 +629,14 @@ const AdminClubsPage = () => {
       dataIndex: 'status',
       width: 130,
       render: (s: ClubStatus) => <StatusTag status={s} label={t(`club.${s}`)} />,
+    },
+    {
+      title: t('tiers.adminTier'),
+      dataIndex: 'tier',
+      width: 100,
+      responsive: ['md'],
+      render: (tier: TierCode | undefined) =>
+        tier ? <Tag color={TIER_TAG_COLOR[tier]}>{tierLabel(tier, i18n.language)}</Tag> : '—',
     },
     {
       title: t('adminClubs.endsAt'),
@@ -821,6 +836,13 @@ const AdminClubsPage = () => {
                     '—'
                   )}
                 </Descriptions.Item>
+                <Descriptions.Item label={t('tiers.clubTier')}>
+                  {detailClub.tier ? (
+                    <Tag color={TIER_TAG_COLOR[detailClub.tier]}>{tierLabel(detailClub.tier, i18n.language)}</Tag>
+                  ) : (
+                    '—'
+                  )}
+                </Descriptions.Item>
                 <Descriptions.Item label={t('adminClubs.status')}>
                   <StatusTag status={detailClub.status} label={t(`club.${detailClub.status}`)} />
                 </Descriptions.Item>
@@ -982,6 +1004,15 @@ const AdminClubsPage = () => {
                     />
                   </Form.Item>
                 )}
+                <Form.Item name="tier" label={t('tiers.clubTier')} extra={t('tiers.contractTierHint')}>
+                  <Select
+                    allowClear
+                    options={tierOptions(i18n.language)}
+                    placeholder={t('tiers.keepTier', {
+                      tier: detailClub.tier ? tierLabel(detailClub.tier, i18n.language) : '—',
+                    })}
+                  />
+                </Form.Item>
                 <Form.Item name="notes" label={t('common.notes')}>
                   <Input maxLength={500} />
                 </Form.Item>
@@ -1222,11 +1253,18 @@ const AdminClubsPage = () => {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="notes" label={t('adminClubs.notes')}>
-                <Input maxLength={500} />
+              <Form.Item name="tier" label={t('tiers.clubTier')}>
+                <Select
+                  allowClear
+                  options={tierOptions(i18n.language)}
+                  placeholder={t('tiers.defaultTier', { tier: tierLabel(defaultTrialTier, i18n.language) })}
+                />
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item name="notes" label={t('adminClubs.notes')}>
+            <Input maxLength={500} />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -1255,6 +1293,9 @@ const AdminClubsPage = () => {
           </Form.Item>
           <Form.Item name="address" label={t('adminClubs.address')}>
             <Input maxLength={300} />
+          </Form.Item>
+          <Form.Item name="tier" label={t('tiers.clubTier')} extra={t('tiers.clubTierHint')}>
+            <Select options={tierOptions(i18n.language)} />
           </Form.Item>
           <Form.Item name="notes" label={t('adminClubs.notes')}>
             <Input.TextArea rows={2} maxLength={500} />
