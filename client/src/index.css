@@ -1,67 +1,67 @@
 /*
- * Billiard Club — global uslublar (FAQAT qorong'i premium tema).
+ * Billiard Club — global uslublar (och va qorong'i rejim).
  *
- * MUHIM: quyidagi :root o'zgaruvchilari src/theme/tokens.ts dagi palitradan
- * KO'CHIRILGAN nusxa — kanonik manba tokens.ts. Rangni o'zgartirganda avval
- * tokens.ts ni yangilang, keyin bu yerdagi mos qiymatni sinxronlang.
+ * MUHIM: rang o'zgaruvchilarining kanonik manbasi — src/theme/tokens.ts
+ * (PALETTES). Ishga tushganda applyTheme() ularni :root ga yozadi; bu yerdagi
+ * qiymatlar faqat JavaScript yuklanguncha bo'lgan birinchi chizish uchun.
  */
 
 :root {
-  /* Fon qatlamlari — tungi billiard zali (yashil tusli deyarli qora) */
-  --bg0: #090c0b;
-  --bg1: #101513;
-  --bg2: #161d1a;
-  --bg3: #1d2622;
-
-  /* Ingichka chegaralar */
-  --border-subtle: #1a221e;
-  --border-base: #24302a;
-  --border-strong: #33413a;
-
-  /* Mato (felt) shkalasi */
-  --emerald-deepest: #08261a;
-  --emerald-deep: #0f3a27;
-  --emerald-felt: #135c3c;
-  --emerald-base: #18774c;
-  --emerald-bright: #23a066;
-  --emerald-glow: #3fd68e;
-
-  /* Yong'oq yog'och — stol bortlari */
+  /* OCH ("fil suyagi") — standart */
+  --bg0: #f3efe6;
+  --bg1: #fbf8f2;
+  --bg2: #efe9de;
+  --bg3: #e7e0d2;
+  --bg-elevated: #fffdf9;
+  --glass-bg: rgba(255, 253, 249, 0.8);
+  --border-subtle: #e8e1d4;
+  --border-base: #ddd4c3;
+  --border-strong: #c8bba3;
+  --emerald-deepest: #e8f1eb;
+  --emerald-deep: #d7e9de;
+  --emerald-felt: #145c3e;
+  --emerald-base: #1a6b48;
+  --emerald-bright: #1f7a52;
+  --emerald-glow: #1d7a50;
   --wood-light: #7a5030;
   --wood: #55351f;
   --wood-dark: #2f1d11;
-
-  /* Mis-oltin urg'u */
-  --gold: #dbb35c;
-  --gold-hover: #e8c677;
-  --gold-active: #bd954a;
-  --gold-subtle: rgba(219, 179, 92, 0.12);
-  --gold-line: rgba(219, 179, 92, 0.24);
-  --gold-glow: rgba(219, 179, 92, 0.32);
-
-  /* Aurora (faqat auth/blok ekranlari) — juda xira */
-  --aurora-emerald: rgba(24, 119, 76, 0.16);
-  --aurora-gold: rgba(219, 179, 92, 0.06);
-  --aurora-teal: rgba(40, 110, 100, 0.08);
-
-  /* Fil suyagi matn */
-  --text-primary: #f1ece1;
-  --text-secondary: #b5ae9f;
-  --text-tertiary: #8b8579;
-  --text-disabled: #55524b;
+  --gold: #8c6a33;
+  --gold-hover: #765828;
+  --gold-active: #5f461f;
+  --gold-dim: #a08a5f;
+  --gold-subtle: rgba(140, 106, 51, 0.1);
+  --gold-line: rgba(140, 106, 51, 0.26);
+  --gold-glow: rgba(140, 106, 51, 0.18);
+  --gold-contrast: #fbf8f2;
+  --primary: #0f4d3a;
+  --primary-hover: #0b3d2e;
+  --primary-active: #082e23;
+  --on-primary: #f7f3ea;
+  --aurora-emerald: rgba(20, 92, 62, 0.07);
+  --aurora-gold: rgba(140, 106, 51, 0.05);
+  --aurora-teal: rgba(40, 110, 100, 0.05);
+  --text-primary: #17140f;
+  --text-secondary: #4d473d;
+  --text-tertiary: #7c7466;
+  --text-disabled: #b3aa99;
   --ivory: #f3eee2;
+  --success: #2e8a5e;
+  --warning: #a86a12;
+  --error: #b9443a;
+  --info: #2f6fb0;
+  --neon-green: #1f8a5b;
+  --shadow-1: 0 1px 2px rgba(23, 20, 15, 0.06);
+  --shadow-2: 0 10px 28px rgba(23, 20, 15, 0.12);
+  --shadow-3: 0 20px 56px rgba(23, 20, 15, 0.18);
 
-  /* Semantik */
-  --success: #43b77b;
-  --warning: #f0a53a;
-  --error: #ec5a4f;
-  --info: #5b9bea;
+  /* Logotip so'z belgisi — har rejimda matn rangida (landing o'zinikini beradi) */
+  --brand-word: var(--text-primary);
+  --brand-accent: var(--gold);
 
-  /* Jonli holatlar */
-  --neon-green: #3fd68e;
-
-  /* Shriftlar */
-  --font-display: 'Unbounded Variable', 'Inter Variable', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Shriftlar: matn — Onest, sarlavha/raqam/tugma — logodagi Unbounded */
+  --font-text: 'Onest Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Unbounded Variable', 'Onest Variable', -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'Consolas', 'SF Mono', 'Menlo', monospace;
 
   /* Radius shkalasi */
@@ -70,6 +70,53 @@
   --radius-lg: 16px;
   --radius-xl: 22px;
 
+  color-scheme: light;
+}
+
+/* QORONG'I ("tungi zal") — neytral ko'mir, qatlamlar aniq ajraladi */
+:root[data-theme='dark'] {
+  --bg0: #0b0d0c;
+  --bg1: #161a18;
+  --bg2: #1f2421;
+  --bg3: #2a302d;
+  --bg-elevated: #1f2421;
+  --glass-bg: rgba(31, 36, 33, 0.64);
+  --border-subtle: #242a27;
+  --border-base: #323a36;
+  --border-strong: #45504a;
+  --emerald-deepest: #0a2419;
+  --emerald-deep: #11392a;
+  --emerald-felt: #145c3e;
+  --emerald-base: #1b7a50;
+  --emerald-bright: #2fa36c;
+  --emerald-glow: #4fd394;
+  --gold: #d4af62;
+  --gold-hover: #e2c27f;
+  --gold-active: #ba964c;
+  --gold-dim: #8d7745;
+  --gold-subtle: rgba(212, 175, 98, 0.12);
+  --gold-line: rgba(212, 175, 98, 0.26);
+  --gold-glow: rgba(212, 175, 98, 0.3);
+  --gold-contrast: #16120a;
+  --primary: #d4af62;
+  --primary-hover: #e2c27f;
+  --primary-active: #ba964c;
+  --on-primary: #16120a;
+  --aurora-emerald: rgba(24, 119, 76, 0.14);
+  --aurora-gold: rgba(212, 175, 98, 0.05);
+  --aurora-teal: rgba(40, 110, 100, 0.07);
+  --text-primary: #f2eee6;
+  --text-secondary: #bdb8ad;
+  --text-tertiary: #8f8a80;
+  --text-disabled: #57534c;
+  --success: #46bd80;
+  --warning: #eba640;
+  --error: #ea5f53;
+  --info: #62a2ec;
+  --neon-green: #4fd394;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 16px 48px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
 
@@ -88,14 +135,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg0);
   color: var(--text-primary);
-  font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-text);
 }
 
-/* Matn belgilash rangi — oltin tus */
+/* Matn belgilash rangi — urg'u tusida */
 ::selection {
-  background: rgba(219, 179, 92, 0.3);
-  color: #f5f0e0;
+  background: var(--gold-glow);
+  color: var(--text-primary);
 }
 
 /* Sarlavhalar va yirik raqamlar — keng geometrik shrift */
@@ -141,16 +187,34 @@ body {
   background: var(--text-tertiary);
 }
 
-/* Asosiy tugma — TEKIS mis-oltin (minimalizm: gradient yo'q) */
+/* Asosiy tugma — tekis: och rejimda mato yashili, qorong'ida jez */
 .ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):not(.ant-btn-background-ghost) {
-  background: var(--gold);
+  background: var(--primary);
+  color: var(--on-primary);
   box-shadow: none;
 }
 .ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):not(.ant-btn-background-ghost):hover {
-  background: var(--gold-hover);
+  background: var(--primary-hover);
+  color: var(--on-primary);
 }
 .ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):not(.ant-btn-background-ghost):active {
-  background: var(--gold-active);
+  background: var(--primary-active);
+}
+
+/* Sarlavhalar va raqamlar — logodagi brend shrifti */
+h1, h2, h3,
+.ant-typography h1, .ant-typography h2, .ant-typography h3,
+h1.ant-typography, h2.ant-typography, h3.ant-typography, h4.ant-typography,
+.ant-modal-title, .ant-drawer-title, .ant-card-head-title, .ant-statistic-content {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+/* Rejim almashinuvi — View Transitions bilan yumshoq yarim soniyalik o'tish */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.45s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* GlassCard — chegara hoverda oltin tusga yumshoq o'tadi */
@@ -341,8 +405,8 @@ body {
   justify-content: center;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 20% 12%, rgba(26, 74, 48, 0.4), transparent 55%),
-    radial-gradient(ellipse at 82% 88%, rgba(212, 175, 55, 0.07), transparent 50%),
+    radial-gradient(ellipse at 20% 12%, var(--aurora-emerald), transparent 55%),
+    radial-gradient(ellipse at 82% 88%, var(--aurora-gold), transparent 50%),
     linear-gradient(165deg, var(--bg1) 0%, var(--bg0) 45%, var(--emerald-deepest) 100%);
   padding: 16px;
 }
@@ -444,10 +508,10 @@ body {
   height: 18px;
   transform: translateY(-50%);
   border-radius: 0 3px 3px 0;
-  background: var(--gold);
+  background: var(--primary);
 }
 .app-sider .ant-menu-item-selected .anticon {
-  color: var(--gold);
+  color: var(--primary);
 }
 
 /* ------------------------------------------------------------------ Mobil

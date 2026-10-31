@@ -337,31 +337,85 @@ html { scroll-behavior: smooth; }
 @media (max-width: 480px) { .lp-devices-demo { height: 270px; } .lp-devices-demo__phone { width: 92px; height: 176px; } }
 
 /* -------------------------------------------------------------- Kalkulyator */
-.lp-roi { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: stretch; gap: 24px; }
-.lp-roi__inputs { display: flex; flex-direction: column; gap: 18px; padding: clamp(18px, 3vw, 30px); border: 1px solid var(--border-base); border-radius: 20px; background: var(--bg1); }
+.lp-roi { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); align-items: start; gap: 24px; }
+.lp-roi > *, .lp-contact-grid > * { min-width: 0; }
+/* Kiritish paneli natijani o'qiyotganda ham ko'z oldida turadi */
+.lp-roi__inputs { position: sticky; top: 96px; display: flex; flex-direction: column; gap: 18px; padding: clamp(18px, 3vw, 30px); border: 1px solid var(--border-base); border-radius: 22px; background: var(--bg1); }
+.lp-roi__title { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-primary); }
 .lp-roi-field__head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
 .lp-roi-field__head label { display: flex; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 600; color: var(--text-primary); }
 .lp-roi-field__hint { color: var(--text-tertiary); cursor: help; }
 .lp-roi-field__input { width: 200px; }
 .lp-roi-field__input .ant-input-number { flex: 1; min-width: 0; }
 .lp-roi-field .ant-slider { margin: 12px 6px 0; }
-.lp-roi-result { position: relative; display: flex; flex-direction: column; gap: 12px; padding: clamp(18px, 3vw, 30px); border: 1px solid var(--gold-line); border-radius: 20px; background: linear-gradient(165deg, rgba(212, 175, 55, 0.1), rgba(255, 255, 255, 0.02) 50%), var(--bg1); box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.08), 0 24px 60px rgba(0, 0, 0, 0.3); }
-.lp-roi-result__row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); font-size: 14px; color: var(--text-secondary); }
-.lp-roi-result__row strong { text-align: right; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.lp-roi-result__hero { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 14px; border: 1px solid rgba(217, 84, 77, 0.3); background: rgba(217, 84, 77, 0.08); }
-.lp-roi-result__hero > span { font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
-.lp-roi-result__hero strong { font-size: clamp(30px, 4vw, 42px); font-weight: 800; line-height: 1.1; color: #f08a84; font-variant-numeric: tabular-nums; }
-.lp-roi-result__hero strong small { font-size: 16px; font-weight: 600; color: var(--text-secondary); }
-.lp-roi-result__hero em { font-style: normal; font-size: 13.5px; color: var(--text-secondary); }
-.lp-roi-result__payback { padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(51, 171, 108, 0.3); background: rgba(51, 171, 108, 0.12); color: var(--emerald-glow); font-size: 14.5px; font-weight: 600; line-height: 1.5; }
+.lp-roi__formula { margin: 0; padding-top: 14px; border-top: 1px dashed var(--border-strong); font-size: 12.5px; line-height: 1.6; color: var(--text-tertiary); }
+
+/* Yo'qotish taxminlari — yig'iladigan panel */
+.lp-roi-tune { border: 1px solid var(--border-base); border-radius: 16px; background: var(--bg2); }
+.lp-roi-tune__toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 14px 16px; border: 0; border-radius: 16px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.lp-roi-tune__toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.lp-roi-tune__toggle > span { display: flex; flex-direction: column; gap: 2px; }
+.lp-roi-tune__toggle strong { font-size: 14.5px; font-weight: 600; color: var(--text-primary); }
+.lp-roi-tune__toggle small { font-size: 12.5px; line-height: 1.45; color: var(--text-tertiary); }
+.lp-roi-tune__toggle .anticon { flex-shrink: 0; color: var(--text-tertiary); transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.lp-roi-tune.is-open .lp-roi-tune__toggle .anticon { transform: rotate(180deg); }
+.lp-roi-tune__body { overflow: hidden; }
+.lp-roi-tune__inner { display: flex; flex-direction: column; gap: 16px; padding: 4px 16px 18px; }
+
+/* Natija */
+.lp-roi-result { display: flex; flex-direction: column; gap: 20px; padding: clamp(20px, 3vw, 32px); border: 1px solid var(--border-base); border-radius: 22px; background: var(--bg1); }
+.lp-roi-kicker { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); }
+.lp-roi-loss { display: flex; flex-direction: column; gap: 6px; }
+.lp-roi-loss__value { font-size: clamp(36px, 4.4vw, 56px); font-weight: 650; line-height: 1.02; letter-spacing: -0.035em; color: var(--error); }
+.lp-roi-loss__value small { font-size: 0.34em; font-weight: 500; letter-spacing: 0; color: var(--text-secondary); }
+.lp-roi-loss__year { font-size: 14px; color: var(--text-secondary); }
+
+/* Pul qayerdan oqib ketyapti — manbalar */
+.lp-roi-leaks { display: flex; flex-direction: column; gap: 16px; margin: 0; padding: 18px 0 0; list-style: none; border-top: 1px solid var(--border-subtle); }
+.lp-roi-leaks li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+.lp-roi-leaks__icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--error) 10%, transparent); color: var(--error); font-size: 15px; }
+.lp-roi-leaks__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 14.5px; font-weight: 500; color: var(--text-primary); }
+.lp-roi-leaks__head strong { font-weight: 600; white-space: nowrap; }
+.lp-roi-leaks__bar { height: 4px; margin: 8px 0 8px; border-radius: 4px; background: var(--border-subtle); overflow: hidden; }
+.lp-roi-leaks__bar i { display: block; height: 100%; border-radius: inherit; background: color-mix(in srgb, var(--error) 72%, transparent); transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.lp-roi-leaks small { display: flex; align-items: flex-start; gap: 7px; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
+.lp-roi-leaks small .anticon { margin-top: 3px; color: var(--success); }
+
+/* Billiard Club bilan — tejov, qaytim, o'zini oqlash */
+.lp-roi-win { display: flex; flex-direction: column; gap: 6px; padding: clamp(16px, 2.4vw, 22px); border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); border-radius: 18px; background: color-mix(in srgb, var(--success) 7%, transparent); }
+.lp-roi-win__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 8px; }
+.lp-roi-win__head .lp-roi-kicker { color: var(--success); }
+.lp-roi-win__scenario { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px; color: var(--text-secondary); }
+.lp-roi-win__value { font-size: clamp(32px, 3.8vw, 46px); font-weight: 650; line-height: 1.05; letter-spacing: -0.035em; color: var(--success); }
+.lp-roi-win__value.is-negative { color: var(--text-secondary); }
+.lp-roi-win__value small { font-size: 0.4em; font-weight: 500; letter-spacing: 0; color: var(--text-secondary); }
+.lp-roi-win__caption { font-size: 13.5px; color: var(--text-secondary); }
+.lp-roi-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin-top: 12px; }
+.lp-roi-stats > div { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--bg1); }
+.lp-roi-stats b { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; color: var(--text-primary); white-space: nowrap; }
+.lp-roi-stats span { font-size: 12px; line-height: 1.4; color: var(--text-tertiary); }
+
+/* Yo'qotish va tarif narxi bir o'lchovda */
+.lp-roi-compare { display: flex; flex-direction: column; gap: 10px; }
+.lp-roi-compare__row { display: grid; grid-template-columns: minmax(0, 160px) minmax(0, 1fr) auto; align-items: center; gap: 12px; font-size: 13px; color: var(--text-secondary); }
+.lp-roi-compare__row i { display: block; height: 10px; border-radius: 6px; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.lp-roi-compare__row.is-loss i { background: color-mix(in srgb, var(--error) 70%, transparent); }
+.lp-roi-compare__row.is-price i { background: var(--success); }
+.lp-roi-compare__row b { font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.lp-roi-tier { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.lp-roi-tier span { font-weight: 400; color: var(--text-secondary); }
+.lp-root .lp-roi-cta.ant-btn { height: 52px; }
 .lp-roi-result__note { margin: 0; text-align: center; font-size: 12px; line-height: 1.6; color: var(--text-tertiary); }
-.lp-roi > *, .lp-contact-grid > * { min-width: 0; }
-.lp-roi__formula { margin: auto 0 0; padding-top: 14px; border-top: 1px dashed var(--border-strong); font-size: 12.5px; line-height: 1.6; color: var(--text-tertiary); }
-@media (max-width: 900px) { .lp-roi { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 480px) {
+@media (max-width: 991px) {
+  .lp-roi { grid-template-columns: minmax(0, 1fr); }
+  .lp-roi__inputs { position: static; }
+}
+@media (max-width: 560px) {
   .lp-roi-field .ant-input-number-group-wrapper { width: 100%; }
-  .lp-roi-result__row { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .lp-roi-result__row strong { text-align: left; }
+  .lp-roi-field__input { width: 100%; }
+  .lp-roi-compare__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .lp-roi-compare__row i { grid-column: 1 / -1; grid-row: 2; }
+  .lp-root .lp-roi-cta.ant-btn { height: auto; min-height: 52px; padding-block: 10px; white-space: normal; }
 }
 
 /* --------------------------------------------------------- Taqqoslash */

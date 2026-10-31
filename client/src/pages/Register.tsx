@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { BrandLogo } from '../components/ui';
+import { BrandLogo, ThemeToggle } from '../components/ui';
 import { SUPPORT_TELEGRAM } from '../constants';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
@@ -129,6 +129,7 @@ const Register = () => {
     <main className="auth-shell">
       <header className="auth-topbar">
         <Link className="auth-home" to="/" aria-label={t('register.backHome')}><BrandLogo size={34} withWordmark /></Link>
+        <ThemeToggle className="auth-theme" />
         <Segmented className="auth-language" aria-label={t('register.language')} value={lang}
           onChange={(value) => setLang(value as 'uz' | 'ru')}
           options={[{ label: "O'z", value: 'uz' }, { label: 'Ру', value: 'ru' }]} />

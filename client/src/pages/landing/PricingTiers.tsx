@@ -4,7 +4,6 @@ import { CheckCircleOutlined, MinusOutlined, SafetyCertificateOutlined } from '@
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useTiersConfigState } from '../../hooks/useEntitlements';
-import { TOKENS } from '../../theme/tokens';
 import type { Plan, TierCode } from '../../types';
 import { formatNumber } from '../../utils/format';
 import {
@@ -22,9 +21,10 @@ import {
   tierTagline,
 } from '../../utils/tiers';
 import { fadeUp, SectionHeading, stagger } from './shared';
+import { V } from './theme';
 
-const { bg, border, emerald, gold, text } = TOKENS.color;
-const CARD_TINT = 'rgba(255, 255, 255, 0.03)';
+// Ranglar CSS o'zgaruvchilaridan: oddiy karta — och, tavsiya etilgani — to'q mato sahna
+const { bg, border, emerald, gold, text } = V;
 
 /** Hamma tariflarda bor asosiy imkoniyatlar (darajaga bog'liq emas) */
 const BASE_FEATURE_KEYS = ['planFeat1', 'planFeat2', 'planFeat3', 'planFeat4'] as const;
@@ -100,16 +100,16 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
       <Col xs={24} md={visibleTiers.length >= 3 ? 8 : 12} key={code}>
         <motion.div variants={fadeUp} style={{ height: '100%' }}>
           <div
-            className={recommended ? 'lp-plan-glow' : undefined}
+            className={recommended ? 'lp-tone-dark lp-plan--featured' : 'lp-plan'}
             style={{
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
               position: 'relative',
-              borderRadius: TOKENS.radius.xl,
-              border: recommended ? `1px solid ${gold.base}` : `1px solid ${border.base}`,
-              background: recommended ? `linear-gradient(170deg, ${gold.subtle}, ${CARD_TINT} 45%)` : bg.bg1,
-              boxShadow: recommended ? TOKENS.shadow.glowActive : TOKENS.shadow.level1,
+              borderRadius: 24,
+              border: `1px solid ${recommended ? 'transparent' : border.subtle}`,
+              background: bg.bg1,
+              boxShadow: 'var(--lp-shadow-md)',
               padding: '32px 28px 28px',
             }}
           >
@@ -121,9 +121,9 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
                   left: '50%',
                   transform: 'translateX(-50%)',
                   padding: '4px 14px',
-                  borderRadius: TOKENS.radius.pill,
-                  background: gold.gradient,
-                  color: gold.contrast,
+                  borderRadius: 999,
+                  background: gold.base,
+                  color: bg.bg0,
                   fontSize: 12.5,
                   fontWeight: 700,
                   letterSpacing: 0.4,
@@ -134,13 +134,15 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
               </span>
             )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <h3 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: text.primary }}>{tierName(def, lang)}</h3>
+              <h3 style={{ margin: 0, fontFamily: 'var(--lp-font-head)', fontSize: 28, fontWeight: 600, letterSpacing: '-0.03em', color: text.primary }}>
+                {tierName(def, lang)}
+              </h3>
               {savings > 0 && (
                 <span
                   className="tabular-nums"
                   style={{
                     padding: '3px 10px',
-                    borderRadius: TOKENS.radius.pill,
+                    borderRadius: 999,
                     background: emerald.deep,
                     color: emerald.glow,
                     fontSize: 12.5,
@@ -161,7 +163,7 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
                 <div style={{ marginTop: 16 }}>
                   <span
                     className="tabular-nums"
-                    style={{ fontSize: 34, fontWeight: 800, color: text.primary, lineHeight: 1 }}
+                    style={{ fontSize: 'clamp(34px, 3.2vw, 42px)', fontWeight: 650, letterSpacing: '-0.02em', color: text.primary, lineHeight: 1 }}
                   >
                     {formatNumber(price)}
                   </span>
@@ -316,7 +318,7 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
               onClick={() => setPicked(bestMonths)}
               style={{
                 padding: '4px 12px',
-                borderRadius: TOKENS.radius.pill,
+                borderRadius: 999,
                 border: `1px solid ${gold.line}`,
                 background: gold.subtle,
                 color: gold.hover,

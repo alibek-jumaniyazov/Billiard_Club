@@ -44,7 +44,7 @@ const UpgradeCard = ({ feature }: { feature: FeatureKey }) => {
           borderRadius: TOKENS.radius.lg,
           border: `1px solid ${gold.line}`,
           background:
-            'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(219, 179, 92, 0.10), transparent 70%), rgba(16, 21, 19, 0.92)',
+            `radial-gradient(ellipse 80% 60% at 50% 0%, ${gold.subtle}, transparent 70%), ${TOKENS.color.bg.bg1}`,
           boxShadow: TOKENS.shadow.level2,
         }}
       >

@@ -25,7 +25,12 @@ const PRECACHE_EXT = /\.(js|css|woff2|svg)$/i;
  * Precache'ga KIRMAYDIGAN fayllar — offline ishlash uchun kerak emas, lekin
  * o'lchami katta (ijtimoiy tarmoq muqovasi ~680KB).
  */
-const PRECACHE_SKIP = [/^og-cover\./];
+const PRECACHE_SKIP = [
+  /^og-cover\./,
+  // Sayt o'zbek/rus tilida: yunon, vyetnam va maxsus belgilar shrift bo'laklari
+  // kerak bo'lmaydi (brauzer ularni unicode-range bo'yicha umuman so'ramaydi)
+  /-(greek|greek-ext|vietnamese|math|symbols)-/,
+];
 
 /**
  * public/ dan qo'lda qo'shiladigan fayllar (ular bundle ga kirmaydi).

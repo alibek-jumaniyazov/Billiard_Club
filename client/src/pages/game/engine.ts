@@ -23,10 +23,11 @@
  *
  * Rang faqat theme/tokens.ts (mato/oltin) va rules.ts (shar ranglari) dan.
  */
-import { TOKENS } from '../../theme/tokens';
+import { BRAND } from '../../theme/tokens';
 import type { BallSpec, GameType, ShotResult } from './rules';
 
-const { emerald } = TOKENS.color;
+// Canvas — rejimga bog'liq emas, brend ranglarida
+const { emerald } = BRAND;
 
 const IVORY = '#f2ede1';
 
@@ -871,7 +872,7 @@ export class BilliardEngine {
         ctx.fill();
       }
       ctx.fillStyle = b.kind === 'cue' ? '#8a1e14' : 'rgba(30,26,18,0.92)';
-      ctx.font = `700 ${cr * 1.05}px 'Inter Variable', sans-serif`;
+      ctx.font = `700 ${cr * 1.05}px 'Onest Variable', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(b.number), nx, ny + cr * 0.06);

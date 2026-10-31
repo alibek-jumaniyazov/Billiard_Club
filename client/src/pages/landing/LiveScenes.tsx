@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useInView, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { TOKENS } from '../../theme/tokens';
+import { BRAND } from '../../theme/tokens';
 import { fadeUp, formatHms, hexToRgba, SectionHeading, stagger } from './shared';
 
-const { gold, emerald, text, wood, ivory, semantic, bg, border } = TOKENS.color;
+// Sahnalar har doim to'q sahnada — rangi rejimga bog'liq emas (hexToRgba haqiqiy hex talab qiladi)
+const { gold, emerald, text, wood, ivory, semantic } = BRAND;
+const bg = { bg0: '#090c0b', bg1: '#101513', bg2: '#161d1a', bg3: '#1d2622' } as const;
+const border = { subtle: '#1a221e', base: '#24302a', strong: '#33413a' } as const;
 
 /**
  * "KO'Z BILAN KO'RING" — mahsulotning to'rtta asosiy jarayoni rasmli

@@ -167,10 +167,13 @@ yuborilmagan amallar bo'lsa yopishdan oldin ogohlantirish.
 
 ### Yuklab olish — bitta joyda
 
-**`/download`** — yagona ommaviy sahifa: joriy versiya, hajmi, chiqarilgan sanasi,
-o'zgarishlar ro'yxati va SHA-512 nazorat summasi. Platforma avtomatik aniqlanadi
-(Windows/macOS/Linux/Android; `/download#windows` yoki `/download#android` bilan
-majburan tanlash mumkin). Desktop qobiq **ichida** ochilsa yuklab olish tugmasi o'rniga
+**`/download`** — yagona ommaviy sahifa. Yuqorida aniqlangan qurilma uchun bitta katta
+"Yuklab olish" tugmasi (versiya, hajm, sana), pastda barcha qurilmalar kartalari: Windows,
+Android (kompyuterdan ochilganda APK uchun QR-kod), iPhone (Safari orqali bosh ekranga, QR-kod
+bilan) va brauzer; tanlangan qurilmaning 3 qadamli o'rnatish yo'riqnomasi, o'zgarishlar
+ro'yxati va SHA-512 nazorat summasi. Platforma avtomatik aniqlanadi (`/download#windows`,
+`#android`, `#ios` bilan majburan tanlash mumkin). Tizimga kirgan xodimga pastda shu
+qurilmaning oflayn ishlashga tayyorligi ko'rsatiladi. Desktop qobiq **ichida** ochilsa yuklab olish tugmasi o'rniga
 joriy versiya va yangilanish holati ko'rsatiladi.
 
 Fayllar **o'z serveringizda** turadi — GitHub yoki boshqa tashqi xizmat ishlatilmaydi
@@ -313,8 +316,8 @@ Hisob baribir **haqiqiy vaqt bo'yicha soniyalik** — bu faqat kassir uchun ogoh
 Dizayn tizimi: `client/src/theme/tokens.ts` (yagona manba) va `client/src/index.css`
 dagi CSS o'zgaruvchilar. Ranglar — billiard movuti yashili, yong'oq yog'och,
 latun-oltin va fil suyagi (matn kontrasti WCAG AA: barcha matn ranglari kartalarda ≥ 4.5:1);
-shriftlar — Unbounded (sarlavhalar) va JetBrains Mono (raqamlar, taymerlar),
-ikkalasi ham o'z serverdan (`@fontsource`), tashqi CDN'siz.
+shriftlar — Unbounded (logo va ilova sarlavhalari), Onest (matn va landing sarlavhalari) va
+JetBrains Mono (taymerlar), hammasi o'z serverdan (`@fontsource`), tashqi CDN'siz.
 
 **Logo** — "B" monogrammasi: tik turgan kiy (harf o'zagi) va unga tegib turgan ikki fil
 suyagi shar (harf qorinlari), chiroq yoritgan mato ustida. Bitta geometriya uch joyda:
@@ -324,6 +327,53 @@ Ijtimoiy tarmoq va qidiruv bannerlari (`og-cover.png`, `og-cover-ru.png`), `favi
 kvadrat logotip `tools/brand-video/banners.cjs` bilan yasaladi (haqiqiy dastur ekrani bilan).
 
 Landingni tizimga kirgan holda ko'rish: `/?landing`.
+
+## Dizayn: och va qorong'i rejim
+
+Butun loyihada ikkita rejim bor. Ular landing header'idagi, ilova header'idagi va kirish
+sahifasidagi oy/quyosh tugmasi bilan almashadi. Tanlov `localStorage` dagi `bc.theme`
+kalitida saqlanadi va boshqa oynalar bilan sinxronlanadi. Standart rejim — och.
+
+- **Och ("fil suyagi")** — iliq qog'oz fon, siyoh rang matn, xira jez urg'u. Asosiy tugmalar mato
+  yashilida.
+- **Qorong'i ("tungi zal")** — neytral ko'mir rang. Qatlamlar (sahifa, karta, ko'tarilgan qatlam,
+  hover) va chegaralar aniq ajralib turadi, yashil mato kartalar fonga qorishib ketmaydi. Asosiy
+  tugmalar jez rangida.
+- **Shrift:** ilovada sarlavhalar, raqamlar va tugmalar — logodagi **Unbounded**; uzun matnlar — **Onest**.
+  Landingda sarlavha va tugmalar vazmin **Onest** (zich harf oralig'i bilan), Unbounded esa faqat
+  logotip va kichik ustki yozuvlarda; demo oynalar ilovaning o'z shriftini saqlaydi.
+
+**Qanday ishlaydi.** Ranglarning yagona manbasi — `client/src/theme/tokens.ts` (`PALETTES`).
+`TOKENS.color.*` qiymatlari CSS o'zgaruvchilari (`var(--bg1)` …), shuning uchun inline uslublar,
+CSS va SVG/grafiklar rejimga o'zi moslashadi. Rejimni `applyTheme()` qo'llaydi, antd mavzusini esa
+`buildAntdTheme(mode)` quradi. Sahifa noto'g'ri rangda chaqnab qolmasligi uchun `index.html`
+dagi erta skript rejimni CSS yuklanishidan oldin qo'llaydi.
+
+Canvas (billiard stoli, o'yin) va logotip har doim o'zgarmas `BRAND` ranglarida chiziladi: stol
+och rejimda ham stol bo'lib qoladi.
+
+### Landing
+
+- **Bo'limlar:** oddiy bo'limlar rejim fonida turadi, mahsulot ko'rsatiladigan qismlar (jonli
+  demo, jonli sahnalar, imkoniyatlar, yakuniy CTA, footer) esa to'q mato-yashil "sahna"da. Qorong'i rejimda
+  oddiy bo'limlar ko'mir rangda, sahnalar esa mato yashilida qoladi, ikkalasi bir-biridan aniq
+  ajraladi. Fayllar: `client/src/pages/landing/theme.tsx` va `tones.css`.
+- **Header:** tepada keng; pastga tushganda kapsulaga aylanadi (so'z belgisi yig'ilib, faqat "B"
+  belgisi qoladi) va to'q sahna ustida o'zi qorong'ilashadi. Faol bo'lim kichik shar bilan
+  belgilanadi. 1280px dan tor ekranda ikkinchi darajali havolalar yashiriladi, 1080px va undan
+  torda — to'liq ekranli menyu. Har bir o'zgarishdan keyin header 1024–1920px da ikkala tilda
+  tekshirilishi kerak (ruscha matn uzunroq).
+- **Scroll animatsiyalari** (`Hero.tsx`, `Statement.tsx`, `scrollMotion.tsx`):
+  - hero matni so'nadi va katta stol yaqinlashadi;
+  - bayonot matni so'zma-so'z yorishadi;
+  - demo oynasi "yotgan" holatdan tekislanadi.
+
+  Hammasi faqat transform/opacity bilan ishlaydi va "Harakatni kamaytirish" yoqilganda o'chadi.
+- **Kalkulyator** (`RoiCalculator.tsx`): yo'qotish to'rt manbaga bo'linadi (yozilmagan o'yin,
+  yaxlitlash, bar, qarz), har biri — tegishli tushumdan o'zgartiriladigan foiz. Stollar soniga
+  mos tarif (limitlar va narx — jonli tarif sozlamasidan) bilan solishtiriladi: sof foyda, o'zini
+  oqlash kuni, qaytim va zararsizlik nuqtasi. Tizim yo'qotishning qanchasini to'xtatishini
+  (30/50/80%) foydalanuvchi o'zi tanlaydi — natija "taxminiy" deb yoziladi, va'da emas.
 
 ## SEO
 

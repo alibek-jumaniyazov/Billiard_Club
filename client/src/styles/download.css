@@ -1,0 +1,431 @@
+/*
+ * Yuklab olish sahifasi (pages/Download.tsx).
+ * Ranglar — ilova o'zgaruvchilari (index.css / tokens.ts), shuning uchun och va
+ * qorong'i rejimga o'zi moslashadi. Qurilma rasmi (noutbuk, telefon) — jismoniy
+ * narsa: har ikki rejimda to'q korpus va mato-yashil stollar.
+ */
+
+.dl-page {
+  min-height: 100vh;
+  padding: 20px 16px 88px;
+  background:
+    radial-gradient(1100px 560px at 85% -12%, var(--aurora-emerald), transparent 62%),
+    radial-gradient(900px 480px at -5% 0%, var(--aurora-gold), transparent 60%),
+    var(--bg0);
+}
+.dl-wrap { max-width: 1120px; margin: 0 auto; }
+
+/* ------------------------------------------------------------------ Header */
+.dl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: clamp(28px, 6vw, 64px);
+}
+.dl-header__actions { display: flex; align-items: center; gap: 8px; }
+.dl-header__home {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.dl-header__home:hover { color: var(--text-primary); background: var(--bg2); }
+
+/* -------------------------------------------------------------------- Hero */
+.dl-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: clamp(28px, 5vw, 72px);
+}
+.dl-eyebrow {
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+/* Sayt sahifasi — landing kabi vazmin grotesk sarlavha */
+.dl-hero__title {
+  margin: 14px 0 0;
+  font-family: var(--font-text);
+  font-size: clamp(34px, 4.8vw, 60px);
+  font-weight: 650;
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+.dl-hero__lead {
+  max-width: 540px;
+  margin: 18px 0 0;
+  font-size: clamp(16px, 1.4vw, 18.5px);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.dl-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; margin-top: 30px; }
+.dl-cta .ant-btn-primary {
+  height: 56px;
+  padding: 0 30px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: var(--shadow-2);
+}
+.dl-cta__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--border-strong);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.dl-cta__more:hover { color: var(--text-primary); border-color: var(--text-primary); }
+.dl-cta__meta { max-width: 520px; margin: 12px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--text-tertiary); }
+.dl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 0; padding: 0; list-style: none; }
+.dl-chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-base);
+  border-radius: 999px;
+  background: var(--bg1);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.dl-chips .anticon { color: var(--emerald-glow); }
+
+/* Qurilmalar rasmi */
+.dl-devices { position: relative; width: 100%; max-width: 560px; margin-left: auto; aspect-ratio: 5 / 4; }
+.dl-laptop { position: absolute; left: 0; top: 4%; width: 86%; }
+.dl-laptop__screen {
+  aspect-ratio: 16 / 10;
+  padding: 3.2%;
+  border-radius: 16px 16px 4px 4px;
+  background: #1b201e;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 30px 70px rgba(10, 14, 12, 0.28);
+}
+.dl-laptop__base {
+  position: relative;
+  left: -6%;
+  width: 112%;
+  height: 16px;
+  border-radius: 0 0 14px 14px;
+  background: linear-gradient(180deg, #d9dbd9, #a6aaa8);
+  box-shadow: 0 16px 30px rgba(10, 14, 12, 0.18);
+}
+.dl-laptop__base::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 16%;
+  height: 5px;
+  border-radius: 0 0 6px 6px;
+  background: #8f9391;
+  transform: translateX(-50%);
+}
+.dl-ui {
+  display: grid;
+  grid-template-columns: 18% minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #0f1311;
+}
+.dl-ui__side { display: flex; flex-direction: column; gap: 9%; padding: 14% 14%; border-right: 1px solid rgba(255, 255, 255, 0.05); }
+.dl-ui__side b { width: 46%; aspect-ratio: 1; border-radius: 22%; background: linear-gradient(135deg, #1f7a52, #145c3e); }
+.dl-ui__side i { height: 5px; border-radius: 3px; background: rgba(242, 238, 230, 0.14); }
+.dl-ui__side i:nth-of-type(1) { background: rgba(212, 175, 98, 0.75); width: 80%; }
+.dl-ui__main { display: flex; flex-direction: column; gap: 6%; padding: 5% 5%; }
+.dl-ui__kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4%; }
+.dl-ui__kpis span {
+  height: 22px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(212, 175, 98, 0.55) 0 30%, transparent 30%) 8px 8px / 60% 4px no-repeat, #1a1f1d;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.dl-ui__tables { display: grid; flex: 1; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 5%; }
+.dl-ui__tables span {
+  position: relative;
+  border-radius: 6px;
+  border: 3px solid #5a3a22;
+  background: radial-gradient(ellipse at 50% 40%, #1d6a48, #0f3b29);
+  filter: saturate(0.35) brightness(0.6);
+}
+.dl-ui__tables span.is-on { filter: none; }
+.dl-ui__tables span::before {
+  content: '';
+  position: absolute;
+  left: 10%;
+  top: 14%;
+  width: 16%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6cf, #e9c457 40%, #a8801f);
+}
+.dl-ui__tables span.is-on::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  bottom: 18%;
+  width: 52%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(243, 238, 226, 0.85);
+}
+.dl-phone {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 31%;
+  aspect-ratio: 9 / 18.5;
+  padding: 3.6%;
+  border-radius: 28px;
+  background: #1b201e;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 28px 60px rgba(10, 14, 12, 0.32);
+}
+.dl-phone__screen {
+  display: flex;
+  flex-direction: column;
+  gap: 7%;
+  height: 100%;
+  padding: 16% 9% 9%;
+  overflow: hidden;
+  border-radius: 21px;
+  background: #0f1311;
+}
+.dl-phone__table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12% 10%;
+  border-radius: 10px;
+  border: 3px solid #5a3a22;
+  background: radial-gradient(ellipse at 50% 30%, #237a54, #10402c);
+  color: #f3eee2;
+  font-family: var(--font-mono);
+  line-height: 1.1;
+}
+.dl-phone__table em {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6cf, #e9c457 40%, #a8801f);
+  color: #1a1712;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+}
+.dl-phone__table strong { font-size: clamp(11px, 1.5vw, 16px); font-weight: 600; letter-spacing: 0.02em; }
+.dl-phone__table small { font-size: clamp(9px, 1vw, 11px); color: #e2c27f; }
+.dl-phone__btn { height: 13%; border-radius: 999px; background: #d4af62; }
+.dl-phone__row { height: 6%; border-radius: 6px; background: rgba(242, 238, 230, 0.1); }
+.dl-phone__row.is-short { width: 62%; }
+
+/* --------------------------------------------------------------- Bo'limlar */
+.dl-section { margin-top: clamp(56px, 8vw, 104px); scroll-margin-top: 24px; }
+.dl-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px 24px;
+  margin-bottom: 24px;
+}
+.dl-section__title {
+  margin: 0;
+  font-family: var(--font-text);
+  font-size: clamp(24px, 2.8vw, 34px);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+.dl-section__sub { margin: 8px 0 0; font-size: 15.5px; line-height: 1.55; color: var(--text-secondary); }
+.dl-alert { margin-bottom: 16px; }
+
+/* Qurilma kartalari */
+.dl-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(236px, 1fr)); gap: 16px; }
+.dl-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--border-base);
+  border-radius: 20px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-1);
+  scroll-margin-top: 120px;
+  transition: border-color 0.25s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+.dl-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-2); }
+.dl-card.is-mine { border-color: var(--gold); box-shadow: 0 0 0 4px var(--gold-subtle), var(--shadow-2); }
+.dl-card__badge {
+  position: absolute;
+  top: -11px;
+  left: 20px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--gold-contrast);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dl-card__head { display: flex; align-items: center; gap: 12px; }
+.dl-card__icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: var(--bg2);
+  color: var(--text-primary);
+  font-size: 22px;
+}
+.dl-card__icon.is-win { color: #2f6fb0; }
+.dl-card__icon.is-android { color: #2e8a5e; }
+[data-theme='dark'] .dl-card__icon.is-win { color: #62a2ec; }
+[data-theme='dark'] .dl-card__icon.is-android { color: #46bd80; }
+.dl-card__name { margin: 0; font-family: var(--font-text); font-size: 17px; font-weight: 650; letter-spacing: -0.01em; color: var(--text-primary); }
+.dl-card__req { margin: 2px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--text-tertiary); }
+.dl-card__meta { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.dl-card__actions { display: flex; flex-direction: column; gap: 8px; }
+.dl-card__actions .ant-btn { height: 42px; border-radius: 12px; font-weight: 600; }
+.dl-card__soon {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.dl-card__hint { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-tertiary); }
+.dl-card__how {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.dl-card__how:hover { color: var(--text-primary); }
+.dl-card__how .anticon { font-size: 11px; transition: transform 0.3s ease; }
+.dl-card__how:hover .anticon { transform: translateX(3px); }
+/* QR-kod — skanerlar uchun doim och fonda */
+.dl-qr { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 14px; background: var(--bg2); }
+.dl-qr .ant-qrcode { flex-shrink: 0; padding: 6px !important; border-radius: 10px; background: #fffdf9 !important; }
+.dl-qr span { font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
+
+/* 3 qadam */
+.dl-steps-switch { max-width: 100%; overflow-x: auto; }
+.dl-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; counter-reset: dl-step; }
+.dl-steps li {
+  position: relative;
+  min-height: 96px;
+  padding: 22px 22px 22px 68px;
+  border: 1px solid var(--border-base);
+  border-radius: 18px;
+  background: var(--bg-elevated);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.dl-steps li::before {
+  counter-increment: dl-step;
+  content: counter(dl-step);
+  position: absolute;
+  left: 22px;
+  top: 20px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+.dl-note { margin: 14px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--text-tertiary); }
+
+/* Afzalliklar */
+.dl-features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.dl-feature { padding: 22px; border: 1px solid var(--border-subtle); border-radius: 18px; background: var(--bg1); }
+.dl-feature__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--emerald-glow) 12%, transparent);
+  color: var(--emerald-glow);
+  font-size: 18px;
+}
+.dl-feature h3 { margin: 16px 0 6px; font-family: var(--font-text); font-size: 15.5px; font-weight: 650; letter-spacing: -0.01em; color: var(--text-primary); }
+.dl-feature p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-secondary); }
+
+/* Versiya va xavfsizlik */
+.dl-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.dl-panel { display: flex; flex-direction: column; gap: 10px; padding: 22px; border: 1px solid var(--border-base); border-radius: 18px; background: var(--bg-elevated); }
+.dl-panel h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-family: var(--font-text); font-size: 16px; font-weight: 650; color: var(--text-primary); }
+.dl-panel h3 .anticon { color: var(--emerald-glow); }
+.dl-panel p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+.dl-panel .dl-panel__meta { font-size: 12.5px; color: var(--text-tertiary); }
+.dl-panel__notes { white-space: pre-line; }
+.dl-checksum summary { cursor: pointer; font-size: 13px; color: var(--text-tertiary); }
+.dl-checksum > div { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.dl-checksum code {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  word-break: break-all;
+  color: var(--text-secondary);
+}
+
+/* --------------------------------------------------------------- Moslashuv */
+@media (max-width: 960px) {
+  .dl-hero { grid-template-columns: minmax(0, 1fr); }
+  .dl-devices { max-width: 480px; margin: 8px auto 0; }
+  .dl-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .dl-steps { grid-template-columns: minmax(0, 1fr); }
+  .dl-steps li { min-height: 0; }
+}
+@media (max-width: 520px) {
+  .dl-page { padding-top: 14px; }
+  .dl-header__home { display: none; }
+  .dl-cta .ant-btn-primary { width: 100%; }
+  .dl-cta > a:first-child { width: 100%; }
+  .dl-features { grid-template-columns: minmax(0, 1fr); }
+  .dl-devices { max-width: 340px; }
+}

@@ -5,8 +5,8 @@
   padding: 0 clamp(20px, 5vw, 80px);
   /* Zal yorug'i: forma ustida stol lampasidek yashil nur, pastda iliq oltin aks */
   background:
-    radial-gradient(ellipse 55% 45% at 78% 22%, rgba(24, 119, 76, .17), transparent 70%),
-    radial-gradient(ellipse 45% 35% at 12% 90%, rgba(219, 179, 92, .05), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 78% 22%, var(--aurora-emerald), transparent 70%),
+    radial-gradient(ellipse 45% 35% at 12% 90%, var(--aurora-gold), transparent 70%),
     var(--bg0);
   color: var(--text-primary);
 }
@@ -30,6 +30,8 @@
 
 .auth-home { display: inline-flex; min-width: 0; }
 .auth-language { flex-shrink: 0; }
+.auth-theme.ant-btn { flex-shrink: 0; margin-left: auto; }
+.auth-theme.ant-btn + .auth-language { margin-left: 0; }
 .auth-shell .auth-language .ant-segmented-item-label { min-height: 36px; line-height: 36px; padding-inline: 13px; }
 
 .auth-layout {
@@ -70,7 +72,7 @@
 .auth-story-footer { display: flex; align-items: flex-start; gap: 10px; padding-top: 25px; border-top: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 12px; line-height: 1.8; }
 .auth-story-footer > .anticon { margin-top: 4px; color: var(--gold); font-size: 16px; }
 
-.auth-panel { position: relative; min-width: 0; padding: 38px; border: 1px solid var(--border-base); border-radius: 24px; background: linear-gradient(180deg, #121a16 0%, var(--bg1) 40%); box-shadow: 0 30px 80px rgba(0, 0, 0, .45); }
+.auth-panel { position: relative; min-width: 0; padding: 38px; border: 1px solid var(--border-base); border-radius: 24px; background: linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 40%); box-shadow: var(--shadow-3); }
 .auth-panel::before { content: ""; position: absolute; top: -1px; left: 28px; right: 28px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-line), transparent); }
 .auth-panel-heading { margin-bottom: 26px; }
 .auth-panel-heading h2 { margin: 10px 0 12px; font-family: var(--font-display); font-size: 26px; font-weight: 650; line-height: 1.25; letter-spacing: -0.02em; text-wrap: balance; }
@@ -96,8 +98,8 @@
 .auth-shell .auth-form .ant-form-item-explain-error { padding-top: 5px; font-size: 12px; line-height: 1.6; }
 .auth-shell .ant-btn { border-radius: 10px; font-size: 13px; font-weight: 550; }
 .auth-shell .ant-btn-lg { min-height: 46px; height: auto; padding: 12px 16px; white-space: normal; line-height: 1.5; }
-.auth-shell .auth-primary.ant-btn-primary { background: var(--gold); border-color: var(--gold); color: var(--bg0); box-shadow: none; }
-.auth-shell .auth-primary.ant-btn-primary:hover:not(:disabled) { background: var(--gold-hover); border-color: var(--gold-hover); }
+.auth-shell .auth-primary.ant-btn-primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); box-shadow: none; }
+.auth-shell .auth-primary.ant-btn-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
 .auth-shell .auth-primary.ant-btn-primary:disabled { background: var(--bg2); border-color: var(--border-base); color: var(--text-disabled); }
 .auth-step-content[hidden] { display: none !important; }
 .auth-form-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; margin-top: 28px; }

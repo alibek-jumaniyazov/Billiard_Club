@@ -3,8 +3,8 @@
 .workspace-shell .page-container { padding: 28px 32px 40px; max-width: 1680px; }
 .workspace-shell .ant-layout { background: var(--bg0); }
 .workspace-shell .ant-card { box-shadow: none; }
-.workspace-shell .ant-btn-primary:not(:disabled):not(.ant-btn-dangerous) { background: var(--gold); box-shadow: none; font-weight: 650; }
-.workspace-shell .ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):hover { background: var(--gold-hover); }
+.workspace-shell .ant-btn-primary:not(:disabled):not(.ant-btn-dangerous) { background: var(--primary); color: var(--on-primary); box-shadow: none; font-weight: 650; }
+.workspace-shell .ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):hover { background: var(--primary-hover); color: var(--on-primary); }
 .workspace-shell .ant-btn-primary.ant-btn-background-ghost:not(:disabled) { background: transparent; }
 .workspace-shell .ant-card-head-title { font-weight: 650; }
 .workspace-shell .ant-menu-item { min-height: 44px; line-height: 44px; }
@@ -25,7 +25,7 @@
 .workspace-search-trigger kbd { margin-left: 12px; border: 1px solid var(--border-base); border-radius: 4px; padding: 2px 4px; font: 10px inherit; color: var(--text-tertiary); }
 .workspace-page-header h3.ant-typography { font-family: var(--font-display); font-size: clamp(19px, 1.7vw, 25px); font-weight: 650; letter-spacing: -.025em !important; }
 .workspace-page-header__actions .ant-btn { min-height: 40px; }
-.skip-link { position: fixed; z-index: 2000; top: 8px; left: 8px; padding: 12px 20px; background: var(--gold); color: var(--bg0); border-radius: 8px; transform: translateY(-160%); }
+.skip-link { position: fixed; z-index: 2000; top: 8px; left: 8px; padding: 12px 20px; background: var(--primary); color: var(--on-primary); border-radius: 8px; transform: translateY(-160%); }
 .skip-link:focus { transform: translateY(0); color: var(--bg0); }
 .mobile-navigation { position: fixed; z-index: 30; bottom: 0; left: 0; right: 0; display: flex; background: var(--bg1); border-top: 1px solid var(--border-base); padding: 6px 8px max(6px, env(safe-area-inset-bottom)); box-shadow: 0 -8px 24px #0002; }
 .mobile-navigation__item { min-width: 0; min-height: 56px; flex: 1; border: 0; background: transparent; color: var(--text-secondary); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: pointer; font-family: inherit; text-decoration: none; }
@@ -46,9 +46,9 @@
 .workday-action strong { font-size: 13px; font-weight: 650; }
 .workday-action small { font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
 .workday-action:hover { background: var(--bg3); color: var(--text-primary); border-color: var(--gold); }
-.workday-action--primary { background: var(--gold); border-color: var(--gold); color: #141210; }
-.workday-action--primary > .anticon, .workday-action--primary small { color: #302913; }
-.workday-action--primary:hover { background: var(--gold-hover); color: #141210; }
+.workday-action--primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.workday-action--primary > .anticon, .workday-action--primary small { color: var(--on-primary); opacity: 0.78; }
+.workday-action--primary:hover { background: var(--primary-hover); color: var(--on-primary); }
 .workspace-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 28px 0 16px; }
 .workspace-section-heading h2 { font-family: var(--font-display); font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
 .workspace-section-heading p { color: var(--text-tertiary); font-size: 12px; margin-top: 5px; }

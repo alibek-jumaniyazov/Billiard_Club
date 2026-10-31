@@ -337,8 +337,8 @@ const Subscription = () => {
                   gap: 8,
                   padding: '6px 12px',
                   borderRadius: TOKENS.radius.pill,
-                  background: bg.bg3,
-                  border: `1px solid ${ringColor}55`,
+                  background: `color-mix(in srgb, ${ringColor} 8%, transparent)`,
+                  border: `1px solid color-mix(in srgb, ${ringColor} 30%, transparent)`,
                 }}
               >
                 <ClockCircleOutlined style={{ color: ringColor }} />

@@ -27,7 +27,7 @@ const GlassCard = ({
   <div
     className={className ? `glass-card ${className}` : 'glass-card'}
     style={{
-      background: 'rgba(28, 38, 34, 0.6)' /* bg.bg2 @ 60% */,
+      background: TOKENS.color.glass,
       backdropFilter: 'blur(18px)',
       WebkitBackdropFilter: 'blur(18px)',
       borderRadius: radius,

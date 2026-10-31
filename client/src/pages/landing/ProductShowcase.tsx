@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNow } from '../../components/ui';
 import { formatNumber } from '../../utils/format';
+import { TiltIn } from './scrollMotion';
 import { fadeUp, formatHms, SectionHeading } from './shared';
 import DemoBoard from './DemoBoard';
 
@@ -316,6 +317,8 @@ const ProductShowcase = () => {
               </button>
             ))}
           </div>
+          {/* Ekran "yotgan" holatdan scroll bilan tekislanib, yaqinlashadi */}
+          <TiltIn>
           <div className="lp-window">
             <div className="lp-window__bar" aria-hidden>
               <span className="lp-window__dots">
@@ -338,6 +341,7 @@ const ProductShowcase = () => {
               {tab === 'mobile' && <DemoMobile mountedAt={mountedAt} />}
             </div>
           </div>
+          </TiltIn>
           <p className="lp-demo-note">{t('landing.demoNote')}</p>
         </motion.div>
       </div>

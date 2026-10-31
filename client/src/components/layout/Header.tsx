@@ -31,6 +31,7 @@ import { ROLE_TAG_COLORS } from '../../constants';
 import { isAppShell } from '../../utils/appShell';
 import { TOKENS } from '../../theme/tokens';
 import NotificationsBell from '../ui/NotificationsBell';
+import ThemeToggle from '../ui/ThemeToggle';
 
 const { Header: AntHeader } = Layout;
 const { Text } = Typography;
@@ -165,6 +166,7 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
             </Button>
           </Tooltip>
         )}
+        <ThemeToggle className="workspace-header__theme" />
         <Segmented
           className="workspace-header__language"
           size="small"

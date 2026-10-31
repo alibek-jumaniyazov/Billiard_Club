@@ -312,7 +312,7 @@ const TierSettings = ({ onSaved, plansVersion = 0 }: { onSaved?: () => void; pla
           padding: '12px 16px',
           borderRadius: TOKENS.radius.lg,
           border: `1px solid ${dirty ? gold.line : 'transparent'}`,
-          background: dirty ? 'rgba(16, 21, 19, 0.96)' : 'transparent',
+          background: dirty ? TOKENS.color.elevated : 'transparent',
           boxShadow: dirty ? TOKENS.shadow.level2 : 'none',
         }}
       >

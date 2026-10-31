@@ -1,26 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Col, Collapse, Drawer, Row, Segmented } from 'antd';
-import {
-  ArrowRightOutlined,
-  CheckCircleFilled,
-  AndroidFilled,
-  GlobalOutlined,
-  InstagramOutlined,
-  MailOutlined,
-  MenuOutlined,
-  PhoneOutlined,
-  SendOutlined,
-  StarFilled,
-  WindowsFilled,
-} from '@ant-design/icons';
+import { useEffect, useState } from 'react';
+import { Col, Collapse, Row, Segmented } from 'antd';
+import { InstagramOutlined, MailOutlined, PhoneOutlined, SendOutlined, StarFilled } from '@ant-design/icons';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  motion,
-  MotionConfig,
-  useMotionValueEvent,
-  useScroll,
-} from 'framer-motion';
+import { motion, MotionConfig } from 'framer-motion';
 import { useAppSettings } from '../context/AppSettingsContext';
 import {
   SUPPORT_EMAIL,
@@ -29,15 +12,16 @@ import {
   SUPPORT_TELEGRAM,
   VENDOR_NAME,
 } from '../constants';
-import { TOKENS } from '../theme/tokens';
 import { BrandLogo } from '../components/ui';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { LANDING_PATH, langFromPath } from '../seo/site';
-import { DEFAULT_TIER_PRICES, TIER_ORDER } from '../utils/tiers';
 import { publicApi } from '../api';
 import { setTrialDays } from '../i18n';
 import type { Plan } from '../types';
-import { fadeUp, hexToRgba, SectionHeading, stagger } from './landing/shared';
+import { fadeUp, SectionHeading, stagger } from './landing/shared';
+import SiteHeader, { type HeaderLink } from './landing/SiteHeader';
+import Hero from './landing/Hero';
+import Statement from './landing/Statement';
 import PainPoints from './landing/PainPoints';
 import ProductShowcase from './landing/ProductShowcase';
 import Highlights from './landing/Highlights';
@@ -47,48 +31,31 @@ import Comparison from './landing/Comparison';
 import LeadForm from './landing/LeadForm';
 import { FinalCta, StickyCta } from './landing/FinalCta';
 import FeatureBento from './landing/FeatureBento';
-import HeroStage from './landing/HeroStage';
 import CapabilityStrip from './landing/CapabilityStrip';
 import HowItWorks from './landing/HowItWorks';
-import PricingTiers, { pricesFrom } from './landing/PricingTiers';
+import PricingTiers from './landing/PricingTiers';
+import { DarkStage, LandingTheme } from './landing/theme';
 import './landing/landing.css';
-
-const { bg, border, emerald, gold, text, semantic } = TOKENS.color;
-
-/* Neytral shaffof qatlamlar (brend ranglari EMAS — alfa-overlay) */
-const NAV_BG = hexToRgba(bg.bg0, 0.82);
-/** 40px dan pastga aylantirilganda navbar foni biroz zichlashadi */
-const NAV_BG_SCROLLED = hexToRgba(bg.bg0, 0.94);
+import './landing/tones.css';
 
 /**
- * Navigatsiya havolalari. `secondary` — 1200px dan tor ekranda yuqori
- * menyudan yashiriladi (mobil menyu va footerda doim bor), `drawerOnly` —
- * faqat mobil menyu va footerda.
+ * Navigatsiya havolalari. `secondary` — tor kompyuter ekranida yuqori
+ * menyudan yashiriladi (telefon menyusi va footerda doim bor), `drawerOnly` —
+ * faqat telefon menyusi va footerda.
  */
-const NAV_LINKS: { id: string; key: string; secondary?: boolean; drawerOnly?: boolean }[] = [
-  { id: 'features', key: 'navFeatures' },
+const NAV_LINKS: HeaderLink[] = [
   { id: 'demo', key: 'navDemo' },
+  { id: 'features', key: 'navFeatures' },
   { id: 'calculator', key: 'navCalculator', secondary: true },
   { id: 'pricing', key: 'navPricing' },
   { id: 'faq', key: 'navFaq' },
   { id: 'contact', key: 'navContact', drawerOnly: true },
 ];
 
-const HERO_TRUST_KEYS = ['heroTrust1', 'heroTrust2', 'heroTrust3'] as const;
 /** MUHIM: index.html dagi FAQPage JSON-LD bilan sinxron (uz matnlar) */
 const FAQ_COUNT = 11;
 
-const TESTIMONIALS = [
-  { k: 't1', color: gold.base },
-  { k: 't2', color: emerald.bright },
-  { k: 't3', color: semantic.info },
-  { k: 't4', color: gold.dim },
-] as const;
-
-/* ------------------------------------------------- Bo'lim ajratuvchi qatlam */
-
-/** Bo'limlar orasidagi ingichka ajratuvchi chiziq (minimalizm) */
-const SectionDivider = () => <div aria-hidden className="lp-divider" />;
+const TESTIMONIALS = ['t1', 't2', 't3', 't4'] as const;
 
 /* ------------------------------------------------------------------ Sahifa */
 
@@ -97,7 +64,6 @@ const Landing = () => {
   const { lang, setLang } = useAppSettings();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
-  const [menuOpen, setMenuOpen] = useState(false);
 
   /* Til = manzil: `/` o'zbekcha, `/ru/` ruscha (qidiruv tizimlari ikkalasini
      alohida indekslaydi). Til almashtirilsa manzil ham almashadi. */
@@ -110,13 +76,6 @@ const Landing = () => {
     if (routeLang !== lang) setLang(routeLang);
     // Faqat manzil o'zgarganda (tilni tugma o'zi manzil bilan birga almashtiradi)
   }, [pathname]);
-  const [navScrolled, setNavScrolled] = useState(false);
-
-  /* Skroll qiymati — navbar zichligi uchun.
-     MotionValue to'g'ridan-to'g'ri transformga yoziladi: layout o'qilmaydi,
-     state faqat 40px chegara kesilganda almashadi (React o'zi bail out qiladi). */
-  const { scrollY, scrollYProgress } = useScroll();
-  useMotionValueEvent(scrollY, 'change', (y) => setNavScrolled(y > 40));
 
   useDocumentHead('landing.metaTitle', 'landing.metaDescription');
 
@@ -142,10 +101,7 @@ const Landing = () => {
    * BEPUL SINOV MUDDATI — superadmin sozlamasidan (GET /public/config).
    *
    * Sahifadagi barcha "N kun bepul" matnlari shu qiymatdan yig'iladi
-   * (i18n `{{days}}`). Ilgari ular qat'iy "7 kun" edi va superadmin
-   * muddatni o'zgartirsa sayt YOLG'ON va'da berib qolardi.
-   *
-   * `trialDays` holati ataylab saqlanadi: u to'g'ridan-to'g'ri render'da
+   * (i18n `{{days}}`). `trialDays` holati ataylab saqlanadi: u render'da
    * ishlatilmasa ham, o'zgarishi qayta render'ni keltiradi va shundagina
    * `t()` yangi qiymat bilan interpolatsiya qiladi.
    */
@@ -167,32 +123,11 @@ const Landing = () => {
     };
   }, []);
 
-  /** Kalkulyator uchun eng arzon darajaning 1 oylik narxi (jonli, bo'lmasa server standarti) */
-  const monthlyPrice = useMemo(() => {
-    const prices = pricesFrom(livePlans);
-    const monthly = TIER_ORDER.map((code) => prices[code][1]).filter((p): p is number => typeof p === 'number');
-    return monthly.length ? Math.min(...monthly) : DEFAULT_TIER_PRICES.standard[1];
-  }, [livePlans]);
-
   const goRegister = () => navigate('/register');
+  const goLogin = () => navigate('/login');
 
   const telegramHandle = SUPPORT_TELEGRAM.replace(/^https?:\/\/t\.me\//, '@');
-  const instagramHandle = SUPPORT_INSTAGRAM.replace(
-    /^https?:\/\/(www\.)?instagram\.com\//,
-    '@',
-  ).replace(/\/$/, '');
-
-  const langSwitcher = (size: 'small' | 'middle' = 'small') => (
-    <Segmented
-      size={size}
-      value={lang}
-      onChange={(value) => switchLang(value as 'uz' | 'ru')}
-      options={[
-        { label: 'UZ', value: 'uz' },
-        { label: 'RU', value: 'ru' },
-      ]}
-    />
-  );
+  const instagramHandle = SUPPORT_INSTAGRAM.replace(/^https?:\/\/(www\.)?instagram\.com\//, '@').replace(/\/$/, '');
 
   const contactCards = [
     {
@@ -261,573 +196,251 @@ const Landing = () => {
     key: String(i + 1),
     label: t(`landing.faq${i + 1}Q`),
     children: (
-      <p style={{ color: text.secondary, margin: 0, lineHeight: 1.7, fontSize: 14.5 }}>
-        {t(`landing.faq${i + 1}A`)}
-      </p>
+      <p style={{ color: 'var(--text-secondary)', margin: 0, lineHeight: 1.7 }}>{t(`landing.faq${i + 1}A`)}</p>
     ),
   }));
 
   return (
     <MotionConfig reducedMotion="user">
-      <div
-        className="lp-root"
-        style={{
-          minHeight: '100vh',
-          background: bg.bg0,
-          color: text.primary,
-          overflowX: 'hidden',
-        }}
-      >
-        {/* ------------------------------------------------ Yopishqoq navbar */}
-        <header
-          style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 40,
-            /* Skrollda shisha fon biroz zichlashadi — kontent ustida o'qilishi yaxshilanadi */
-            background: navScrolled ? NAV_BG_SCROLLED : NAV_BG,
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            borderBottom: `1px solid ${border.subtle}`,
-            boxShadow: navScrolled ? TOKENS.shadow.level1 : 'none',
-            transition: 'background 0.3s ease, box-shadow 0.3s ease',
-          }}
-        >
-          <motion.div aria-hidden className="lp-progress" style={{ scaleX: scrollYProgress }} />
-          <div
-            className="lp-container"
-            style={{
-              height: 68,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            {/* data-brand-target — brend intro'si belgini shu logotip o'rniga qo'ndiradi */}
-            <Link to="/" aria-label="Billiard Club" data-brand-target="">
-              <span className="lp-brand-full">
-                <BrandLogo size={34} withWordmark />
-              </span>
-              <span className="lp-brand-min">
-                <BrandLogo size={34} />
-              </span>
-            </Link>
+      <LandingTheme>
+        <div className="lp-root" style={{ minHeight: '100vh', overflowX: 'clip' }}>
+          <SiteHeader
+            links={NAV_LINKS}
+            lang={lang === 'ru' ? 'ru' : 'uz'}
+            onLang={switchLang}
+            onLogin={goLogin}
+            onStart={goRegister}
+          />
 
-            <nav className="lp-nav-desktop" aria-label={t('landing.navMenu')}>
-              {NAV_LINKS.filter((link) => !link.drawerOnly).map((link) => (
-                <a
-                  key={link.id}
-                  className={`lp-nav-link${link.secondary ? ' lp-nav-link--secondary' : ''}`}
-                  href={`#${link.id}`}
+          <main>
+            {/* ------------------------------------------------- Och: hero */}
+            <Hero onStart={goRegister} />
+
+            {/* --------------------------------- Platformalar va imkoniyatlar */}
+            <CapabilityStrip />
+
+            {/* ------------------------------- Bayonot (so'zma-so'z yorishadi) */}
+            <Statement />
+
+            {/* -------------------------------------------- Muammo -> yechim */}
+            <PainPoints />
+
+            {/* ------------- To'q sahna: avval jonli demo (tizim ichidan), keyin imkoniyatlar */}
+            <DarkStage>
+              <ProductShowcase />
+              <LiveScenes />
+              <FeatureBento />
+            </DarkStage>
+
+            {/* --------------------------- Chiroq, oflayn rejim, qurilmalar */}
+            <Highlights />
+
+            {/* -------------------------------------------------- Kalkulyator */}
+            <RoiCalculator plans={livePlans} onCta={goRegister} />
+
+            {/* ----------------------------------------------- Qanday ishlaydi */}
+            <HowItWorks />
+
+            {/* ---------------------------------------------------- Taqqoslash */}
+            <Comparison />
+
+            {/* -------------------------------------------------------- Tariflar */}
+            <PricingTiers plans={livePlans} onCta={goRegister} />
+
+            {/* -------------------------------------------------- Mijozlar fikri */}
+            <section id="testimonials" className="lp-section">
+              <div className="lp-container">
+                <SectionHeading overline={t('landing.testimonialsOverline')} title={t('landing.testimonialsTitle')} />
+                <motion.div
+                  variants={stagger}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true, amount: 0.05 }}
                 >
-                  {t(`landing.${link.key}`)}
-                </a>
-              ))}
-              <Link className="lp-nav-link lp-nav-link--secondary" to="/download">
-                {t('landing.navDownload')}
-              </Link>
-              {langSwitcher()}
-              <Button className="lp-outline-btn" onClick={() => navigate('/login')}>
-                {t('landing.navLogin')}
-              </Button>
-              <Button type="primary" className="lp-cta-btn" onClick={goRegister}>
-                {t('landing.navCta')}
-              </Button>
-            </nav>
-
-            <div className="lp-nav-mobile">
-              {langSwitcher()}
-              <Button
-                type="text"
-                icon={<MenuOutlined style={{ fontSize: 20 }} />}
-                aria-label={t('landing.navMenu')}
-                onClick={() => setMenuOpen(true)}
-              />
-            </div>
-          </div>
-        </header>
-
-        {/* Mobil menyu */}
-        <Drawer
-          open={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          placement="right"
-          width={300}
-          title={<BrandLogo size={28} withWordmark />}
-          styles={{ body: { padding: 20, display: 'flex', flexDirection: 'column' } }}
-        >
-          <nav aria-label={t('landing.navMenu')}>
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.id}
-                className="lp-drawer-link"
-                href={`#${link.id}`}
-                onClick={() => setMenuOpen(false)}
-              >
-                {t(`landing.${link.key}`)}
-              </a>
-            ))}
-            <Link className="lp-drawer-link" to="/download" onClick={() => setMenuOpen(false)}>
-              {t('landing.navDownload')}
-            </Link>
-          </nav>
-          <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Button
-              block
-              size="large"
-              onClick={() => {
-                setMenuOpen(false);
-                navigate('/login');
-              }}
-            >
-              {t('landing.navLogin')}
-            </Button>
-            <Button
-              block
-              size="large"
-              type="primary"
-              className="lp-cta-btn"
-              onClick={() => {
-                setMenuOpen(false);
-                goRegister();
-              }}
-            >
-              {t('landing.navCta')}
-            </Button>
-          </div>
-          <div style={{ marginTop: 'auto', paddingTop: 24, textAlign: 'center' }}>
-            {langSwitcher('middle')}
-          </div>
-        </Drawer>
-
-        <main>
-          {/* -------------------------------------------------------- Hero */}
-          <section className="lp-hero" style={{ position: 'relative', overflow: 'hidden', isolation: 'isolate' }}>
-            {/* Minimal fon: qorong'i zal va stol ustidagi chiroq nuri (aurora/soqqalar yo'q) */}
-            <div className="lp-hero-lamp" aria-hidden />
-
-            <div
-              className="lp-container"
-              style={{
-                position: 'relative',
-                zIndex: 1,
-                paddingTop: 'clamp(48px, 8vw, 104px)',
-                paddingBottom: 'clamp(56px, 8vw, 96px)',
-              }}
-            >
-              <Row gutter={[{ xs: 16, lg: 48 }, 40]} align="middle">
-                <Col xs={24} lg={13}>
-                  <motion.div initial="hidden" animate="visible" variants={stagger}>
-                    <motion.div variants={fadeUp}>
-                      {/* H1 — qidiruv so'zi bilan ("billiard klublari uchun boshqaruv tizimi");
-                          katta shior esa H2. Ko'rinish avvalgidek. */}
-                      <h1
-                        style={{
-                          margin: 0,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '6px 14px',
-                          borderRadius: TOKENS.radius.pill,
-                          border: `1px solid ${gold.line}`,
-                          background: gold.subtle,
-                          color: gold.base,
-                          fontSize: 13,
-                          fontWeight: 600,
-                          letterSpacing: 0.4,
-                        }}
-                      >
-                        {t('landing.heroBadge')}
-                      </h1>
-                    </motion.div>
-                    <motion.h2 variants={fadeUp} className="lp-hero-title">
-                      {t('landing.heroTitle')}
-                    </motion.h2>
-                    <motion.p
-                      variants={fadeUp}
-                      style={{
-                        fontSize: 'clamp(16px, 1.6vw, 18px)',
-                        color: text.secondary,
-                        maxWidth: 560,
-                        lineHeight: 1.65,
-                        margin: 0,
-                      }}
-                    >
-                      {t('landing.heroSubtitle')}
-                    </motion.p>
-                    <motion.div
-                      variants={fadeUp}
-                      className="lp-hero-actions"
-                      style={{ display: 'flex', gap: 14, marginTop: 34, flexWrap: 'wrap' }}
-                    >
-                      <Button
-                        type="primary"
-                        size="large"
-                        className="lp-cta-btn"
-                        style={{ height: 52, padding: '0 32px', fontSize: 16, fontWeight: 600 }}
-                        onClick={goRegister}
-                      >
-                        {t('landing.heroCta')} <ArrowRightOutlined />
-                      </Button>
-                      <Button
-                        size="large"
-                        className="lp-outline-btn"
-                        style={{ height: 52, padding: '0 28px', fontSize: 16 }}
-                        href="#demo"
-                      >
-                        {t('landing.heroSecondary')}
-                      </Button>
-                    </motion.div>
-                    <motion.ul variants={fadeUp} className="lp-hero-trust">
-                      {HERO_TRUST_KEYS.map((key) => (
-                        <li key={key}>
-                          <CheckCircleFilled aria-hidden /> {t(`landing.${key}`)}
-                        </li>
-                      ))}
-                    </motion.ul>
-                    {/* Platformalar — ClubTime kabi: dastur qayerda ishlashi birinchi ekranda */}
-                    <motion.div variants={fadeUp} className="lp-platforms">
-                      <Link to="/download#windows" className="lp-platform">
-                        <WindowsFilled aria-hidden /> Windows
-                      </Link>
-                      <Link to="/download#android" className="lp-platform">
-                        <AndroidFilled aria-hidden /> Android
-                      </Link>
-                      <Link to="/login" className="lp-platform">
-                        <GlobalOutlined aria-hidden /> {t('landing.platformWeb')}
-                      </Link>
-                    </motion.div>
-                  </motion.div>
-                </Col>
-                <Col xs={24} lg={11}>
-                  <HeroStage />
-                </Col>
-              </Row>
-            </div>
-          </section>
-
-          {/* ------------------------- Platformalar va imkoniyatlar lentasi */}
-          <CapabilityStrip />
-
-          {/* ------------------------------------------ Muammo -> yechim */}
-          <PainPoints />
-
-          <SectionDivider />
-
-          {/* ------------------------------------------------ Imkoniyatlar */}
-          <FeatureBento />
-
-          {/* ------------------------------------- Jonli sahnalar (rasmli) */}
-          <LiveScenes />
-
-          {/* ------------------------------------------------- Jonli demo */}
-          <ProductShowcase />
-
-          {/* ------------------------- Chiroq, oflayn rejim, qurilmalar */}
-          <Highlights />
-
-          {/* ------------------------------------------------ Kalkulyator */}
-          <RoiCalculator monthlyPrice={monthlyPrice} onCta={goRegister} />
-
-          {/* --------------------------------------------- Qanday ishlaydi */}
-          <HowItWorks />
-
-          {/* -------------------------------------------------- Taqqoslash */}
-          <Comparison />
-
-          <SectionDivider />
-
-          {/* ------------------------------------------------------ Tariflar */}
-          <PricingTiers plans={livePlans} onCta={goRegister} />
-
-          {/* ------------------------------------------------ Mijozlar fikri */}
-          <section id="testimonials" className="lp-section lp-section--panel">
-            <div className="lp-container">
-              <SectionHeading
-                overline={t('landing.testimonialsOverline')}
-                title={t('landing.testimonialsTitle')}
-              />
-              <motion.div
-                variants={stagger}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, amount: 0.05 }}
-              >
-                <Row gutter={[20, 20]}>
-                  {TESTIMONIALS.map(({ k, color }) => (
-                    <Col xs={24} sm={12} xl={6} key={k}>
-                      <motion.div variants={fadeUp} style={{ height: '100%' }}>
-                        <div
-                          style={{
-                            height: '100%',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            background: bg.bg1,
-                            border: `1px solid ${border.subtle}`,
-                            borderRadius: TOKENS.radius.lg,
-                            padding: 24,
-                            boxShadow: TOKENS.shadow.level1,
-                          }}
-                        >
-                          <div aria-hidden style={{ display: 'flex', gap: 3, marginBottom: 14 }}>
+                  <Row gutter={[20, 20]}>
+                    {TESTIMONIALS.map((k) => (
+                      <Col xs={24} sm={12} xl={6} key={k}>
+                        <motion.figure variants={fadeUp} className="lp-testimonial" style={{ margin: 0 }}>
+                          <div className="lp-testimonial__stars" aria-hidden>
                             {Array.from({ length: 5 }, (_, i) => (
-                              <StarFilled key={i} style={{ color: gold.base, fontSize: 14 }} />
+                              <StarFilled key={i} />
                             ))}
                           </div>
-                          <p
-                            style={{
-                              color: text.secondary,
-                              fontSize: 14.5,
-                              lineHeight: 1.7,
-                              margin: '0 0 20px',
-                              flex: 1,
-                            }}
-                          >
-                            {t(`landing.${k}Quote`)}
-                          </p>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <Avatar
-                              size={40}
-                              style={{
-                                background: color,
-                                color: gold.contrast,
-                                fontWeight: 700,
-                                flexShrink: 0,
-                              }}
-                            >
+                          <blockquote>{t(`landing.${k}Quote`)}</blockquote>
+                          <figcaption className="lp-testimonial__who">
+                            <span className="lp-testimonial__avatar" aria-hidden>
                               {t(`landing.${k}Name`).charAt(0)}
-                            </Avatar>
-                            <div style={{ minWidth: 0 }}>
-                              <div
-                                style={{ color: text.primary, fontWeight: 600, fontSize: 14.5 }}
-                              >
-                                {t(`landing.${k}Name`)}
-                              </div>
-                              <div style={{ color: text.tertiary, fontSize: 13, marginTop: 2 }}>
-                                {t(`landing.${k}Club`)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    </Col>
-                  ))}
-                </Row>
-              </motion.div>
-            </div>
-          </section>
-
-          {/* --------------------------------------------------- Savol-javob */}
-          <section id="faq" className="lp-section">
-            <div className="lp-container" style={{ maxWidth: 820 }}>
-              <SectionHeading
-                overline={t('landing.faqOverline')}
-                title={t('landing.faqTitle')}
-              />
-              <motion.div
-                variants={fadeUp}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, amount: 0.05 }}
-              >
-                <Collapse
-                  className="lp-faq"
-                  accordion
-                  ghost
-                  expandIconPosition="end"
-                  items={faqItems}
-                />
-              </motion.div>
-            </div>
-          </section>
-
-          {/* ------------------------------------------------ Aloqa + ariza */}
-          <section id="contact" className="lp-section lp-section--panel">
-            <div className="lp-container">
-              <SectionHeading
-                overline={t('landing.contactOverline')}
-                title={t('landing.contactTitle')}
-                subtitle={t('landing.contactSubtitle')}
-              />
-              <motion.div
-                className="lp-contact-grid"
-                variants={stagger}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, amount: 0.1 }}
-              >
-                <motion.div variants={fadeUp}>
-                  <LeadForm />
-                </motion.div>
-                <motion.div variants={fadeUp} className="lp-contact-aside">
-                  <h3>{t('landing.contactAsideTitle')}</h3>
-                  <p>{t('landing.contactAsideDesc')}</p>
-                  <div className="lp-contact-cards">
-                    {contactCards.map((card) => (
-                      <a
-                        key={card.key}
-                        className="lp-contact-card"
-                        href={card.href}
-                        {...(card.external
-                          ? { target: '_blank', rel: 'noreferrer noopener' }
-                          : {})}
-                      >
-                        <span className="lp-contact-card__icon" aria-hidden>
-                          {card.icon}
-                        </span>
-                        <strong>{t(`landing.${card.titleKey}`)}</strong>
-                        <span>{t(`landing.${card.descKey}`)}</span>
-                        <em>{card.value}</em>
-                      </a>
+                            </span>
+                            <span style={{ minWidth: 0 }}>
+                              <strong>{t(`landing.${k}Name`)}</strong>
+                              <span>{t(`landing.${k}Club`)}</span>
+                            </span>
+                          </figcaption>
+                        </motion.figure>
+                      </Col>
                     ))}
-                  </div>
+                  </Row>
                 </motion.div>
-              </motion.div>
-            </div>
-          </section>
+              </div>
+            </section>
 
-          {/* ------------------------------------------------ Yakuniy CTA */}
-          <FinalCta onStart={goRegister} />
-        </main>
+            {/* ----------------------------------------------------- Savol-javob */}
+            <section id="faq" className="lp-section">
+              <div className="lp-container" style={{ maxWidth: 880 }}>
+                <SectionHeading overline={t('landing.faqOverline')} title={t('landing.faqTitle')} />
+                <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.05 }}>
+                  <Collapse className="lp-faq" accordion ghost expandIconPosition="end" items={faqItems} />
+                </motion.div>
+              </div>
+            </section>
 
-        {/* ------------------------------------------------------------ Footer */}
-        <footer style={{ borderTop: `1px solid ${border.subtle}` }}>
-          <div className="lp-container" style={{ paddingTop: 48, paddingBottom: 32 }}>
-            <Row gutter={[32, 32]}>
-              <Col xs={24} md={10}>
-                <BrandLogo size={32} withWordmark />
-                <p
-                  style={{
-                    color: text.secondary,
-                    fontSize: 13.5,
-                    lineHeight: 1.6,
-                    margin: '14px 0 0',
-                    maxWidth: 320,
-                  }}
+            {/* -------------------------------------------------- Aloqa + ariza */}
+            <section id="contact" className="lp-section">
+              <div className="lp-container">
+                <SectionHeading
+                  overline={t('landing.contactOverline')}
+                  title={t('landing.contactTitle')}
+                  subtitle={t('landing.contactSubtitle')}
+                />
+                <motion.div
+                  className="lp-contact-grid"
+                  variants={stagger}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true, amount: 0.1 }}
                 >
-                  {t('landing.footerTagline')}
-                </p>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                    marginTop: 20,
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <a
-                    className="lp-nav-link lp-footer-contact"
-                    href={SUPPORT_TELEGRAM}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                  >
-                    <SendOutlined /> {telegramHandle}
-                  </a>
-                  <a
-                    className="lp-nav-link lp-footer-contact"
-                    href={SUPPORT_INSTAGRAM}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                  >
-                    <InstagramOutlined /> {instagramHandle}
-                  </a>
-                  <a
-                    className="lp-nav-link lp-footer-contact"
-                    href={`tel:${SUPPORT_PHONE.replace(/[^\d+]/g, '')}`}
-                  >
-                    <PhoneOutlined /> {SUPPORT_PHONE}
-                  </a>
-                  <a className="lp-nav-link lp-footer-contact" href={`mailto:${SUPPORT_EMAIL}`}>
-                    <MailOutlined /> {SUPPORT_EMAIL}
-                  </a>
-                </div>
-              </Col>
-              <Col xs={12} md={7}>
-                <div className="lp-footer-title">{t('landing.footerProduct')}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
-                  {NAV_LINKS.map((link) => (
-                    <a key={link.id} className="lp-nav-link" href={`#${link.id}`}>
-                      {t(`landing.${link.key}`)}
+                  <motion.div variants={fadeUp}>
+                    <LeadForm />
+                  </motion.div>
+                  <motion.div variants={fadeUp} className="lp-contact-aside">
+                    <h3>{t('landing.contactAsideTitle')}</h3>
+                    <p>{t('landing.contactAsideDesc')}</p>
+                    <div className="lp-contact-cards">
+                      {contactCards.map((card) => (
+                        <a
+                          key={card.key}
+                          className="lp-contact-card"
+                          href={card.href}
+                          {...(card.external ? { target: '_blank', rel: 'noreferrer noopener' } : {})}
+                        >
+                          <span className="lp-contact-card__icon" aria-hidden>
+                            {card.icon}
+                          </span>
+                          <strong>{t(`landing.${card.titleKey}`)}</strong>
+                          <span>{t(`landing.${card.descKey}`)}</span>
+                          <em>{card.value}</em>
+                        </a>
+                      ))}
+                    </div>
+                  </motion.div>
+                </motion.div>
+              </div>
+            </section>
+          </main>
+
+          {/* ----------------------------------- To'q sahna: yakuniy CTA va footer */}
+          <DarkStage>
+            <FinalCta onStart={goRegister} />
+
+            <footer className="lp-footer">
+              <div className="lp-container lp-footer__inner">
+                <Row gutter={[32, 32]}>
+                  <Col xs={24} md={10}>
+                    <BrandLogo size={32} withWordmark />
+                    <p className="lp-footer__tagline">{t('landing.footerTagline')}</p>
+                    <div className="lp-footer__contacts">
+                      <a className="lp-nav-link lp-footer-contact" href={SUPPORT_TELEGRAM} target="_blank" rel="noreferrer noopener">
+                        <SendOutlined /> {telegramHandle}
+                      </a>
+                      <a className="lp-nav-link lp-footer-contact" href={SUPPORT_INSTAGRAM} target="_blank" rel="noreferrer noopener">
+                        <InstagramOutlined /> {instagramHandle}
+                      </a>
+                      <a className="lp-nav-link lp-footer-contact" href={`tel:${SUPPORT_PHONE.replace(/[^\d+]/g, '')}`}>
+                        <PhoneOutlined /> {SUPPORT_PHONE}
+                      </a>
+                      <a className="lp-nav-link lp-footer-contact" href={`mailto:${SUPPORT_EMAIL}`}>
+                        <MailOutlined /> {SUPPORT_EMAIL}
+                      </a>
+                    </div>
+                  </Col>
+                  <Col xs={12} md={7}>
+                    <div className="lp-footer-title">{t('landing.footerProduct')}</div>
+                    <div className="lp-footer__links">
+                      {NAV_LINKS.map((link) => (
+                        <a key={link.id} className="lp-nav-link" href={`#${link.id}`}>
+                          {t(`landing.${link.key}`)}
+                        </a>
+                      ))}
+                      <Link className="lp-nav-link" to="/download">
+                        {t('landing.navDownload')}
+                      </Link>
+                    </div>
+                  </Col>
+                  <Col xs={12} md={7}>
+                    <div className="lp-footer-title">{t('landing.footerAccount')}</div>
+                    <div className="lp-footer__links">
+                      <Link className="lp-nav-link" to="/login">
+                        {t('landing.navLogin')}
+                      </Link>
+                      <Link className="lp-nav-link" to="/register">
+                        {t('landing.navCta')}
+                      </Link>
+                    </div>
+                  </Col>
+                </Row>
+                <div className="lp-footer__bottom">
+                  <span>
+                    {t('landing.footerLegal', { year: new Date().getFullYear() })}
+                    {' · '}
+                    {t('landing.footerBuiltBy')} —{' '}
+                    <a className="lp-nav-link" href={SUPPORT_TELEGRAM} target="_blank" rel="noreferrer noopener" style={{ fontWeight: 600 }}>
+                      {VENDOR_NAME}
                     </a>
-                  ))}
-                  <Link className="lp-nav-link" to="/download">
-                    {t('landing.navDownload')}
-                  </Link>
+                    {' · '}
+                    <a
+                      className="lp-nav-link"
+                      href={LANDING_PATH.uz}
+                      hrefLang="uz"
+                      lang="uz"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        switchLang('uz');
+                      }}
+                    >
+                      O'zbekcha
+                    </a>
+                    {' · '}
+                    <a
+                      className="lp-nav-link"
+                      href={LANDING_PATH.ru}
+                      hrefLang="ru"
+                      lang="ru"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        switchLang('ru');
+                      }}
+                    >
+                      Русский
+                    </a>
+                  </span>
+                  <Segmented
+                    size="small"
+                    value={lang}
+                    onChange={(value) => switchLang(value as 'uz' | 'ru')}
+                    options={[
+                      { label: 'UZ', value: 'uz' },
+                      { label: 'RU', value: 'ru' },
+                    ]}
+                  />
                 </div>
-              </Col>
-              <Col xs={12} md={7}>
-                <div className="lp-footer-title">{t('landing.footerAccount')}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
-                  <Link className="lp-nav-link" to="/login">
-                    {t('landing.navLogin')}
-                  </Link>
-                  <Link className="lp-nav-link" to="/register">
-                    {t('landing.navCta')}
-                  </Link>
-                </div>
-              </Col>
-            </Row>
-            <div
-              style={{
-                borderTop: `1px solid ${border.subtle}`,
-                marginTop: 36,
-                paddingTop: 20,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 14,
-              }}
-            >
-              <span style={{ color: text.tertiary, fontSize: 12.5 }}>
-                {t('landing.footerLegal', { year: new Date().getFullYear() })}
-                {' · '}
-                {t('landing.footerBuiltBy')} —{' '}
-                <a
-                  className="lp-nav-link"
-                  href={SUPPORT_TELEGRAM}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  style={{ fontWeight: 600 }}
-                >
-                  {VENDOR_NAME}
-                </a>
-                {' · '}
-                <a
-                  className="lp-nav-link"
-                  href={LANDING_PATH.uz}
-                  hrefLang="uz"
-                  lang="uz"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    switchLang('uz');
-                  }}
-                >
-                  O'zbekcha
-                </a>
-                {' · '}
-                <a
-                  className="lp-nav-link"
-                  href={LANDING_PATH.ru}
-                  hrefLang="ru"
-                  lang="ru"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    switchLang('ru');
-                  }}
-                >
-                  Русский
-                </a>
-              </span>
-              {langSwitcher()}
-            </div>
-          </div>
-        </footer>
+              </div>
+            </footer>
+          </DarkStage>
 
-        {/* Telefonda pastki CTA paneli / kompyuterda Telegram tugmasi */}
-        <StickyCta onStart={goRegister} />
-      </div>
+          {/* Telefonda pastki CTA paneli / kompyuterda Telegram tugmasi */}
+          <StickyCta onStart={goRegister} />
+        </div>
+      </LandingTheme>
     </MotionConfig>
   );
 };

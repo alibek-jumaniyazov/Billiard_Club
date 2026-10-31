@@ -9,14 +9,14 @@
  * Yorug'lik: stol markazi ustida bitta lampa. Soyalar undan uzoqqa cho'ziladi,
  * shardagi yaltiroq nuqta lampaga qarab siljiydi — haqiqiy zal kabi.
  */
-import { TOKENS } from '../../../theme/tokens';
+import { BRAND } from '../../../theme/tokens';
 import { cuePathAfterContact } from './controls';
 import { R, rotateByQuat, type AimInfo, type Ball, type Table, type World } from './physics';
 
 export const IVORY = '#f2ede1';
 export const CUE_RED = '#c8372b';
 const INK = '#2b2219';
-const BALL_FONT = "'Inter Variable', 'Segoe UI', Roboto, sans-serif";
+const BALL_FONT = "'Onest Variable', 'Segoe UI', Roboto, sans-serif";
 /** Lampa balandligi (R birligida) — soya uzunligi shundan */
 const LAMP_H = 36;
 
@@ -117,7 +117,7 @@ const rgba = (hex: string, alpha: number): string => {
 
 /** Kuch rangi: zumrad (yumshoq) → oltin → qizil (eng kuchli) */
 export const powerColor = (t: number): string => {
-  const { emerald, gold, semantic } = TOKENS.color;
+  const { emerald, gold, semantic } = BRAND;
   const k = Math.min(1, Math.max(0, t));
   return k < 0.55 ? mix(emerald.glow, gold.base, k / 0.55) : mix(gold.base, semantic.error, (k - 0.55) / 0.45);
 };
@@ -183,7 +183,7 @@ export const buildTableLayer = (table: Table, view: View): HTMLCanvasElement => 
   const ctx = canvas.getContext('2d');
   if (!ctx) return canvas;
 
-  const { emerald, wood, gold } = TOKENS.color;
+  const { emerald, wood, gold } = BRAND;
   const { L, B, cushion: c, rail: rw } = table;
   const k = view.dpr * view.s;
   const worldSpace = () => ctx.setTransform(k, 0, 0, k, view.dpr * view.ox, view.dpr * view.oy);
@@ -490,7 +490,7 @@ const drawShadows = (ctx: CanvasRenderingContext2D, world: World, view: View) =>
 
 const drawBall = (ctx: CanvasRenderingContext2D, b: Ball, world: World, view: View) => {
   const { L, B } = world.table;
-  const { emerald } = TOKENS.color;
+  const { emerald } = BRAND;
   const rr = R * view.s * ballScale(b);
   if (rr < 0.5) return;
   const cx = view.ox + b.x * view.s;
@@ -709,7 +709,7 @@ const drawPower = (ctx: CanvasRenderingContext2D, p: PowerDraw, view: View) => {
   // To'lgan qism — har bo'lak o'z kuch rangida (gradient barcha brauzerda ishlasin)
   const full = value >= 0.999;
   if (full) {
-    ctx.shadowColor = rgba(TOKENS.color.semantic.error, 0.85);
+    ctx.shadowColor = rgba(BRAND.semantic.error, 0.85);
     ctx.shadowBlur = (10 + 8 * p.pulse) * (view.dpr > 1 ? 1 : 0.8);
   }
   const pieces = Math.max(2, Math.ceil(56 * value));
@@ -736,7 +736,7 @@ const drawPower = (ctx: CanvasRenderingContext2D, p: PowerDraw, view: View) => {
   ctx.lineWidth = 3.5;
   ctx.strokeStyle = 'rgba(4, 8, 6, 0.85)';
   ctx.strokeText(label, cx, ty);
-  ctx.fillStyle = full ? mix(TOKENS.color.semantic.error, '#ffffff', 0.25 + 0.25 * p.pulse) : powerColor(value);
+  ctx.fillStyle = full ? mix(BRAND.semantic.error, '#ffffff', 0.25 + 0.25 * p.pulse) : powerColor(value);
   ctx.fillText(label, cx, ty);
   ctx.restore();
 };
@@ -772,14 +772,14 @@ const drawEffects = (ctx: CanvasRenderingContext2D, fx: EffectsDraw, view: View)
     ctx.lineWidth = 4;
     ctx.strokeStyle = 'rgba(8, 10, 9, 0.85)';
     ctx.strokeText(p.text, x, y);
-    ctx.fillStyle = TOKENS.color.gold.hover;
+    ctx.fillStyle = BRAND.gold.hover;
     ctx.fillText(p.text, x, y);
   }
   ctx.restore();
 };
 
 const drawCue = (ctx: CanvasRenderingContext2D, pose: CuePose, table: Table, view: View) => {
-  const { gold, wood } = TOKENS.color;
+  const { gold, wood } = BRAND;
   const s = view.s;
   const ux = pose.dirX;
   const uy = pose.dirY;

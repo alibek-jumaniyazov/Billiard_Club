@@ -4,6 +4,7 @@ export { default as BilliardTable } from './BilliardTable';
 export type { BilliardGameEvent } from './BilliardTable';
 export { default as BrandLogo } from './BrandLogo';
 export { default as ClampedBody } from './ClampedBody';
+export { default as ThemeToggle } from './ThemeToggle';
 export { default as ConnectionBanner } from './ConnectionBanner';
 export { default as EmptyState } from './EmptyState';
 export { default as OfflineQueueDrawer } from './OfflineQueueDrawer';

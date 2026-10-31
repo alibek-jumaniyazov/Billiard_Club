@@ -13,9 +13,10 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- theme-color = TOKENS.color.bg.bg0 = #090c0b (src/theme/tokens.ts bilan sinxron) -->
-    <meta name="theme-color" content="#090c0b" />
-    <meta name="color-scheme" content="dark" />
+    <!-- theme-color = PALETTES[rejim].themeColor (src/theme/tokens.ts): och — #f3efe6,
+         qorong'i — #0b0d0c. Quyidagi skript tanlangan rejimga darhol moslaydi. -->
+    <meta name="theme-color" content="#f3efe6" />
+    <meta name="color-scheme" content="light dark" />
 
     <!-- PWA / mobil ilova ko'rinishi -->
     <meta name="application-name" content="Billiard Club" />
@@ -28,7 +29,21 @@
 
     <!-- JavaScript ishlasa sahifani React chizadi: qidiruv botlari uchun
          statik matn (#seo-static) foydalanuvchiga bir lahza ham ko'rinmaydi -->
-    <script>document.documentElement.classList.add('js');</script>
+    <script>
+      // JS bor + tanlangan rejim (och/qorong'i) CSS yuklanishidan OLDIN — sahifa
+      // noto'g'ri rangda "chaqnab" qolmasin (kalit: AppSettingsContext THEME_KEY)
+      (function () {
+        var d = document.documentElement;
+        d.classList.add('js');
+        var mode = 'light';
+        try { if (localStorage.getItem('bc.theme') === 'dark') mode = 'dark'; } catch (e) {}
+        d.setAttribute('data-theme', mode);
+        d.style.colorScheme = mode;
+        d.style.background = mode === 'dark' ? '#0b0d0c' : '#f3efe6';
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', mode === 'dark' ? '#0b0d0c' : '#f3efe6');
+      })();
+    </script>
     <style>html.js #seo-static { display: none; }</style>
 
     <!-- SEO: sarlavha, tavsif, canonical, hreflang, Open Graph — build paytida har

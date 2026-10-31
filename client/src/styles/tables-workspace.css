@@ -51,10 +51,13 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 .tables-filter-hint { color: var(--text-secondary); font-size: 12px; margin: 9px 0 0; }
 .tables-board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr)); gap: 16px; align-items: stretch; }
 .tables-board-grid--compact { grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr)); gap: 8px; }
+/* Ko'pi bilan 4 ustun, lekin karta hech qachon 300px dan toraymaydi: ustunlar soni ekranga
+   emas, panelning o'z kengligiga qarab tanlanadi (landing demo oynasida ham to'g'ri) */
+.tables-board-grid--comfortable { grid-template-columns: repeat(auto-fill, minmax(min(100%, max(300px, (100% - 3 * 16px) / 4)), 1fr)); }
 /* ================= Haqiqiy billiard stoli kartasi (yuqoridan ko'rinish) =================
    Bort — yong'oq yog'och (tola chiziqlari bilan), olmos nishonlar, 6 luza, mato.
    Mato yorug'ligi chiroq holati: band — yoqilgan, bo'sh — o'chiq, pauza — xira. */
-.pool-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; border-radius: 18px; }
+.pool-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; border-radius: 18px; container-type: inline-size; }
 .pool-card__table { position: relative; padding: 11px; border-radius: 18px; flex: 1; display: flex;
   background:
     linear-gradient(90deg, rgba(0, 0, 0, .28), transparent 10%, transparent 90%, rgba(0, 0, 0, .28)),
@@ -132,6 +135,15 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 .pool-card__primary.is-start.ant-btn:hover { color: var(--gold-hover); border-color: var(--gold); background: var(--gold-subtle); }
 .pool-card__actions .ant-btn-icon-only { width: 44px; min-width: 44px; flex-shrink: 0; }
 .pool-card__primary.ant-btn { flex: 1; min-width: 0; }
+/* Tor karta — amal tugmalari ixchamlashadi, "Hisob-kitob" matni to'liq sig'adi */
+@container (max-width: 359px) {
+  .pool-card__actions { gap: 4px; }
+  .pool-card__actions .ant-btn-icon-only { width: 38px; min-width: 38px; }
+  .pool-card__primary.ant-btn { padding-inline: 10px; gap: 6px; }
+}
+@container (max-width: 299px) {
+  .pool-card__primary.ant-btn .ant-btn-icon { display: none; }
+}
 .pool-card .ant-btn.has-light-error { color: var(--error); }
 .pool-card .ant-btn.is-light-on { color: var(--gold); }
 .pool-card__warning { margin: -4px 0 0; display: flex; align-items: center; gap: 6px; color: var(--warning); font-size: 11px; }
@@ -213,7 +225,6 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 .table-checkout-drawer .ant-input:not(textarea), .table-checkout-drawer .ant-select { min-height: 44px; }
 .table-checkout-total { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border-base); }
 .table-checkout-total > span:first-child { color: var(--text-secondary); font-size: 13px; }
-@media (min-width: 1600px) { .tables-board-grid--comfortable { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .table-pos-products { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tables-result-count { display: none; } }
 @media (max-width: 600px) {
   .tables-money { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

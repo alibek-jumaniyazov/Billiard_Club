@@ -1,5 +1,5 @@
 import { useId, type CSSProperties } from 'react';
-import { FONT_FAMILY_DISPLAY, TOKENS } from '../../theme/tokens';
+import { BRAND, FONT_FAMILY_DISPLAY } from '../../theme/tokens';
 import '../brand/brand.css';
 
 interface BrandLogoProps {
@@ -13,7 +13,8 @@ interface BrandLogoProps {
   animated?: boolean;
 }
 
-const { gold, emerald, text, ivory } = TOKENS.color;
+// Belgi — brend ranglarida (och va qorong'i rejimda bir xil)
+const { gold, emerald, text, ivory } = BRAND;
 
 /**
  * Billiard Club brend belgisi — "B" monogrammasi: tik turgan kiy (harf o'zagi)
@@ -141,11 +142,12 @@ const BrandLogo = ({ size = 40, withWordmark = false, style, className, animated
             fontSize: Math.max(13, size * 0.38),
             fontWeight: 700,
             letterSpacing: '0.08em',
-            color: text.primary,
+            // Och fonli sahifa (landing) o'z rangini beradi; ilovada — fil suyagi
+            color: `var(--brand-word, ${text.primary})`,
             whiteSpace: 'nowrap',
           }}
         >
-          BILLIARD <span style={{ color: gold.base }}>CLUB</span>
+          BILLIARD <span style={{ color: `var(--brand-accent, ${gold.base})` }}>CLUB</span>
         </span>
       )}
     </span>

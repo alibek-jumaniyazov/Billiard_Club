@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { BrandLogo } from '../components/ui';
+import { BrandLogo, ThemeToggle } from '../components/ui';
 import { SUPPORT_TELEGRAM } from '../constants';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { useAuth, type AuthResult } from '../context/AuthContext';
@@ -63,6 +63,7 @@ const Login = () => {
             <BrandLogo size={34} withWordmark />
           </Link>
         )}
+        <ThemeToggle className="auth-theme" />
         <Segmented
           className="auth-language"
           aria-label={t('login.languageLabel')}

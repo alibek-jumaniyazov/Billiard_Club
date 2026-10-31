@@ -4,9 +4,11 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { App as AntApp, ConfigProvider } from 'antd';
 import uzUZ from 'antd/locale/uz_UZ';
 import ruRU from 'antd/locale/ru_RU';
@@ -17,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { settingsApi } from '../api';
 import { onAccessTokenChange, tokenStore } from '../api/client';
 import i18n, { getStoredLang, Lang } from '../i18n';
-import { buildAntdTheme } from '../theme/tokens';
+import { applyTheme, buildAntdTheme, type ThemeMode } from '../theme/tokens';
 import { setDefaultCurrencySymbol } from '../utils/format';
 
 interface AppSettingsValue {
@@ -27,6 +29,10 @@ interface AppSettingsValue {
   currencySymbol: string | null;
   /** Sozlamalar saqlangandan keyin belgini darhol yangilash uchun */
   setCurrencySymbol: (symbol: string | null) => void;
+  /** Och ("fil suyagi") yoki qorong'i ("tungi zal") rejim */
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+  toggleTheme: () => void;
 }
 
 const AppSettingsContext = createContext<AppSettingsValue | null>(null);
@@ -39,14 +45,71 @@ const AppSettingsContext = createContext<AppSettingsValue | null>(null);
  */
 const SEEDED_CURRENCY_SYMBOL = "so'm";
 
-/** Tema FAQAT qorong'i — yagona manba: src/theme/tokens.ts */
-const themeConfig = buildAntdTheme();
+/** Tanlangan rejim shu kalitda (index.html dagi erta skript ham shuni o'qiydi) */
+const THEME_KEY = 'bc.theme';
 
-// Eski yorug'/qorong'i almashtirgichdan qolgan kalitni tozalaymiz
+// Eski (ishlatilmaydigan) almashtirgich kaliti — tozalanadi
 localStorage.removeItem('theme');
+
+export const getStoredTheme = (): ThemeMode => {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    if (value === 'light' || value === 'dark') return value;
+  } catch {
+    // saqlash yopiq (maxfiy rejim) — standart
+  }
+  return 'light';
+};
+
+// Birinchi chizishdan OLDIN — sahifa noto'g'ri rangda "chaqnab" qolmasin
+applyTheme(getStoredTheme());
 
 export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
   const [lang, setLangState] = useState<Lang>(getStoredLang);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(getStoredTheme);
+
+  useLayoutEffect(() => {
+    applyTheme(themeMode);
+  }, [themeMode]);
+
+  /**
+   * Rejimni almashtirish. Brauzer qo'llasa — View Transitions bilan silliq
+   * o'tish (butun sahifa bir zumda emas, yumshoq almashadi).
+   */
+  const setThemeMode = useCallback((next: ThemeMode) => {
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // saqlanmasa ham joriy oynada ishlaydi
+    }
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (doc.startViewTransition && !reduce) {
+      doc.startViewTransition(() => {
+        flushSync(() => setThemeModeState(next));
+        applyTheme(next);
+      });
+    } else {
+      setThemeModeState(next);
+    }
+  }, []);
+  const toggleTheme = useCallback(
+    () => setThemeMode(themeMode === 'light' ? 'dark' : 'light'),
+    [themeMode, setThemeMode],
+  );
+
+  // Boshqa oynada almashtirilsa — bu oyna ham ergashadi
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === THEME_KEY && (event.newValue === 'light' || event.newValue === 'dark')) {
+        setThemeModeState(event.newValue);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const themeConfig = useMemo(() => buildAntdTheme(themeMode), [themeMode]);
 
   // /ru/ dan kirgan foydalanuvchi uchun til eslab qolinadi (kirish, ish joyi ham ruscha)
   useEffect(() => {
@@ -106,8 +169,8 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
   }, [lang, currencySymbol]);
 
   const value = useMemo(
-    () => ({ lang, setLang, currencySymbol, setCurrencySymbol }),
-    [lang, setLang, currencySymbol, setCurrencySymbol],
+    () => ({ lang, setLang, currencySymbol, setCurrencySymbol, themeMode, setThemeMode, toggleTheme }),
+    [lang, setLang, currencySymbol, setCurrencySymbol, themeMode, setThemeMode, toggleTheme],
   );
 
   return (
