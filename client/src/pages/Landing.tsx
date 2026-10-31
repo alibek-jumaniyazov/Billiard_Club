@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Col, Collapse, Row, Segmented } from 'antd';
-import { InstagramOutlined, MailOutlined, PhoneOutlined, SendOutlined, StarFilled } from '@ant-design/icons';
+import { Col, Collapse, Row } from 'antd';
+import { ArrowUpOutlined, InstagramOutlined, MailOutlined, PhoneOutlined, SendOutlined, StarFilled } from '@ant-design/icons';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, MotionConfig } from 'framer-motion';
@@ -18,7 +18,7 @@ import { LANDING_PATH, langFromPath } from '../seo/site';
 import { publicApi } from '../api';
 import { setTrialDays } from '../i18n';
 import type { Plan } from '../types';
-import { fadeUp, SectionHeading, stagger } from './landing/shared';
+import { fadeUp, riseCard, SectionHeading, stagger, staggerCards } from './landing/shared';
 import SiteHeader, { type HeaderLink } from './landing/SiteHeader';
 import Hero from './landing/Hero';
 import Statement from './landing/Statement';
@@ -51,6 +51,11 @@ const NAV_LINKS: HeaderLink[] = [
   { id: 'faq', key: 'navFaq' },
   { id: 'contact', key: 'navContact', drawerOnly: true },
 ];
+
+/** Footer ustunlari: mahsulot bo'limlari va yordam (savol-javob, aloqa) */
+const HELP_IDS = ['faq', 'contact'];
+const FOOTER_PRODUCT = NAV_LINKS.filter((link) => !HELP_IDS.includes(link.id));
+const FOOTER_HELP = NAV_LINKS.filter((link) => HELP_IDS.includes(link.id));
 
 /** MUHIM: index.html dagi FAQPage JSON-LD bilan sinxron (uz matnlar) */
 const FAQ_COUNT = 11;
@@ -252,7 +257,7 @@ const Landing = () => {
               <div className="lp-container">
                 <SectionHeading overline={t('landing.testimonialsOverline')} title={t('landing.testimonialsTitle')} />
                 <motion.div
-                  variants={stagger}
+                  variants={staggerCards}
                   initial="hidden"
                   whileInView="visible"
                   viewport={{ once: true, amount: 0.05 }}
@@ -260,7 +265,7 @@ const Landing = () => {
                   <Row gutter={[20, 20]}>
                     {TESTIMONIALS.map((k) => (
                       <Col xs={24} sm={12} xl={6} key={k}>
-                        <motion.figure variants={fadeUp} className="lp-testimonial" style={{ margin: 0 }}>
+                        <motion.figure variants={riseCard} className="lp-testimonial" style={{ margin: 0 }}>
                           <div className="lp-testimonial__stars" aria-hidden>
                             {Array.from({ length: 5 }, (_, i) => (
                               <StarFilled key={i} />
@@ -344,95 +349,120 @@ const Landing = () => {
 
             <footer className="lp-footer">
               <div className="lp-container lp-footer__inner">
-                <Row gutter={[32, 32]}>
-                  <Col xs={24} md={10}>
-                    <BrandLogo size={32} withWordmark />
+                <div className="lp-footer__grid">
+                  <div className="lp-footer__brand">
+                    <Link to="/" className="lp-footer__logo" aria-label="Billiard Club">
+                      <BrandLogo size={36} withWordmark />
+                    </Link>
                     <p className="lp-footer__tagline">{t('landing.footerTagline')}</p>
-                    <div className="lp-footer__contacts">
-                      <a className="lp-nav-link lp-footer-contact" href={SUPPORT_TELEGRAM} target="_blank" rel="noreferrer noopener">
-                        <SendOutlined /> {telegramHandle}
-                      </a>
-                      <a className="lp-nav-link lp-footer-contact" href={SUPPORT_INSTAGRAM} target="_blank" rel="noreferrer noopener">
-                        <InstagramOutlined /> {instagramHandle}
-                      </a>
-                      <a className="lp-nav-link lp-footer-contact" href={`tel:${SUPPORT_PHONE.replace(/[^\d+]/g, '')}`}>
-                        <PhoneOutlined /> {SUPPORT_PHONE}
-                      </a>
-                      <a className="lp-nav-link lp-footer-contact" href={`mailto:${SUPPORT_EMAIL}`}>
-                        <MailOutlined /> {SUPPORT_EMAIL}
-                      </a>
-                    </div>
-                  </Col>
-                  <Col xs={12} md={7}>
-                    <div className="lp-footer-title">{t('landing.footerProduct')}</div>
-                    <div className="lp-footer__links">
-                      {NAV_LINKS.map((link) => (
-                        <a key={link.id} className="lp-nav-link" href={`#${link.id}`}>
-                          {t(`landing.${link.key}`)}
+                    <ul className="lp-footer__contacts">
+                      <li>
+                        <a href={SUPPORT_TELEGRAM} target="_blank" rel="noreferrer noopener">
+                          <SendOutlined aria-hidden /> {telegramHandle}
                         </a>
+                      </li>
+                      <li>
+                        <a href={SUPPORT_INSTAGRAM} target="_blank" rel="noreferrer noopener">
+                          <InstagramOutlined aria-hidden /> {instagramHandle}
+                        </a>
+                      </li>
+                      <li>
+                        <a href={`tel:${SUPPORT_PHONE.replace(/[^\d+]/g, '')}`}>
+                          <PhoneOutlined aria-hidden /> {SUPPORT_PHONE}
+                        </a>
+                      </li>
+                      <li>
+                        <a href={`mailto:${SUPPORT_EMAIL}`}>
+                          <MailOutlined aria-hidden /> {SUPPORT_EMAIL}
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <nav className="lp-footer__col" aria-label={t('landing.footerProduct')}>
+                    <div className="lp-footer__title">{t('landing.footerProduct')}</div>
+                    <ul>
+                      {FOOTER_PRODUCT.map((link) => (
+                        <li key={link.id}>
+                          <a href={`#${link.id}`}>{t(`landing.${link.key}`)}</a>
+                        </li>
                       ))}
-                      <Link className="lp-nav-link" to="/download">
-                        {t('landing.navDownload')}
-                      </Link>
-                    </div>
-                  </Col>
-                  <Col xs={12} md={7}>
-                    <div className="lp-footer-title">{t('landing.footerAccount')}</div>
-                    <div className="lp-footer__links">
-                      <Link className="lp-nav-link" to="/login">
-                        {t('landing.navLogin')}
-                      </Link>
-                      <Link className="lp-nav-link" to="/register">
-                        {t('landing.navCta')}
-                      </Link>
-                    </div>
-                  </Col>
-                </Row>
+                    </ul>
+                  </nav>
+                  <nav className="lp-footer__col" aria-label={t('landing.footerHelp')}>
+                    <div className="lp-footer__title">{t('landing.footerHelp')}</div>
+                    <ul>
+                      {FOOTER_HELP.map((link) => (
+                        <li key={link.id}>
+                          <a href={`#${link.id}`}>{t(`landing.${link.key}`)}</a>
+                        </li>
+                      ))}
+                      <li>
+                        <Link to="/download">{t('landing.navDownload')}</Link>
+                      </li>
+                    </ul>
+                  </nav>
+                  <nav className="lp-footer__col" aria-label={t('landing.footerAccount')}>
+                    <div className="lp-footer__title">{t('landing.footerAccount')}</div>
+                    <ul>
+                      <li>
+                        <Link to="/login">{t('landing.navLogin')}</Link>
+                      </li>
+                      <li>
+                        <Link to="/register">{t('landing.navCta')}</Link>
+                      </li>
+                    </ul>
+                  </nav>
+                </div>
+
                 <div className="lp-footer__bottom">
-                  <span>
+                  <p className="lp-footer__legal">
                     {t('landing.footerLegal', { year: new Date().getFullYear() })}
-                    {' · '}
-                    {t('landing.footerBuiltBy')} —{' '}
-                    <a className="lp-nav-link" href={SUPPORT_TELEGRAM} target="_blank" rel="noreferrer noopener" style={{ fontWeight: 600 }}>
+                    <span className="lp-footer__dot" aria-hidden>
+                      ·
+                    </span>
+                    {t('landing.footerBuiltBy')}{' '}
+                    <a href={SUPPORT_TELEGRAM} target="_blank" rel="noreferrer noopener">
                       {VENDOR_NAME}
                     </a>
-                    {' · '}
-                    <a
-                      className="lp-nav-link"
-                      href={LANDING_PATH.uz}
-                      hrefLang="uz"
-                      lang="uz"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        switchLang('uz');
-                      }}
+                  </p>
+                  <div className="lp-footer__tools">
+                    {/* Oddiy havolalar (hreflang) — qidiruv botlari ikkinchi tildagi sahifani topadi */}
+                    <div className="lp-footer__lang" role="group" aria-label="Til / Язык">
+                      {(['uz', 'ru'] as const).map((code) => (
+                        <a
+                          key={code}
+                          href={LANDING_PATH[code]}
+                          hrefLang={code}
+                          lang={code}
+                          aria-current={lang === code ? 'true' : undefined}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            switchLang(code);
+                          }}
+                        >
+                          {code === 'uz' ? "O'zbekcha" : 'Русский'}
+                        </a>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="lp-footer__top"
+                      onClick={() =>
+                        window.scrollTo({
+                          top: 0,
+                          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+                        })
+                      }
                     >
-                      O'zbekcha
-                    </a>
-                    {' · '}
-                    <a
-                      className="lp-nav-link"
-                      href={LANDING_PATH.ru}
-                      hrefLang="ru"
-                      lang="ru"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        switchLang('ru');
-                      }}
-                    >
-                      Русский
-                    </a>
-                  </span>
-                  <Segmented
-                    size="small"
-                    value={lang}
-                    onChange={(value) => switchLang(value as 'uz' | 'ru')}
-                    options={[
-                      { label: 'UZ', value: 'uz' },
-                      { label: 'RU', value: 'ru' },
-                    ]}
-                  />
+                      {t('landing.footerTop')} <ArrowUpOutlined aria-hidden />
+                    </button>
+                  </div>
                 </div>
+              </div>
+              {/* Pastdagi yirik, xira brend yozuvi — sahifaga "imzo" */}
+              <div className="lp-footer__mark" aria-hidden>
+                Billiard Club
               </div>
             </footer>
           </DarkStage>

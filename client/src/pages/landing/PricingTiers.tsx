@@ -20,7 +20,7 @@ import {
   tierName,
   tierTagline,
 } from '../../utils/tiers';
-import { fadeUp, SectionHeading, stagger } from './shared';
+import { fadeUp, riseCard, SectionHeading, staggerCards } from './shared';
 import { V } from './theme';
 
 // Ranglar CSS o'zgaruvchilaridan: oddiy karta — och, tavsiya etilgani — to'q mato sahna
@@ -98,7 +98,7 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
 
     return (
       <Col xs={24} md={visibleTiers.length >= 3 ? 8 : 12} key={code}>
-        <motion.div variants={fadeUp} style={{ height: '100%' }}>
+        <motion.div variants={riseCard} style={{ height: '100%' }}>
           <div
             className={recommended ? 'lp-tone-dark lp-plan--featured' : 'lp-plan'}
             style={{
@@ -331,7 +331,7 @@ const PricingTiers = ({ plans, onCta }: { plans: Plan[] | null; onCta: () => voi
             </button>
           )}
         </div>
-        <motion.div variants={stagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }}>
+        <motion.div variants={staggerCards} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }}>
           <Row gutter={[24, 32]} align="stretch">
             {visibleTiers.map(renderCard)}
           </Row>

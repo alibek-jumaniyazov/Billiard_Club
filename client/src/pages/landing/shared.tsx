@@ -28,7 +28,78 @@ export const stagger: Variants = {
   visible: { transition: { staggerChildren: 0.1 } },
 };
 
-/** Bo'lim sarlavhasi: oltin overline + sarlavha + ixtiyoriy izoh */
+const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+
+/**
+ * Karta "chuqurlikdan" ko'tariladi: pastdan, oldinga egilgan holda — prujina
+ * bilan tekislanadi. Kartalar to'plami (muammolar, imkoniyatlar, tariflar…) uchun.
+ */
+export const riseCard: Variants = {
+  hidden: { opacity: 0, y: 64, rotateX: -18, scale: 0.95, transformPerspective: 1200 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    rotateX: 0,
+    scale: 1,
+    transformPerspective: 1200,
+    transition: { type: 'spring', stiffness: 80, damping: 17, mass: 0.9 },
+  },
+};
+
+export const staggerCards: Variants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.11, delayChildren: 0.05 } },
+};
+
+/** Yon tomondan kirish: ikki ustunli bo'limda matn bir tomondan, rasm ikkinchisidan */
+export const slideFrom = (side: 'left' | 'right'): Variants => ({
+  hidden: {
+    opacity: 0,
+    x: side === 'left' ? -72 : 72,
+    rotateY: side === 'left' ? 10 : -10,
+    transformPerspective: 1400,
+  },
+  visible: {
+    opacity: 1,
+    x: 0,
+    rotateY: 0,
+    transformPerspective: 1400,
+    transition: { duration: 1, ease: EASE_OUT },
+  },
+});
+
+/** So'z niqob ostidan ko'tariladi (sarlavhalar) */
+const wordUp: Variants = {
+  hidden: { y: '115%' },
+  visible: { y: '0%', transition: { duration: 0.9, ease: EASE_OUT } },
+};
+const headingFade: Variants = {
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: EASE_OUT } },
+};
+
+/**
+ * Sarlavha so'zlari niqob ostidan birin-ketin ko'tariladi (Apple uslubi).
+ * Ekran o'quvchi butun matnni aria-label dan o'qiydi; bo'laklar yashirin.
+ */
+export const RevealWords = ({ text, className, as: Tag = 'h2' }: { text: string; className?: string; as?: 'h2' | 'h3' }) => {
+  const MotionTag = Tag === 'h2' ? motion.h2 : motion.h3;
+  return (
+    <MotionTag className={className} aria-label={text} variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.055 } } }}>
+      {text.split(' ').map((word, i) => (
+        <span key={i} aria-hidden>
+          <span className="lp-word">
+            <motion.span className="lp-word__inner" variants={wordUp}>
+              {word}
+            </motion.span>
+          </span>{' '}
+        </span>
+      ))}
+    </MotionTag>
+  );
+};
+
+/** Bo'lim sarlavhasi: oltin overline + so'zma-so'z ko'tariladigan sarlavha + izoh */
 export const SectionHeading = ({
   overline,
   title,
@@ -40,14 +111,20 @@ export const SectionHeading = ({
 }) => (
   <motion.div
     className="lp-heading"
-    variants={fadeUp}
     initial="hidden"
     whileInView="visible"
-    viewport={{ once: true, amount: 0.3 }}
+    viewport={{ once: true, amount: 0.35 }}
+    variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12 } } }}
   >
-    <div className="lp-heading__overline">{overline}</div>
-    <h2 className="lp-heading__title">{title}</h2>
-    {subtitle ? <p className="lp-heading__subtitle">{subtitle}</p> : null}
+    <motion.div className="lp-heading__overline" variants={headingFade}>
+      {overline}
+    </motion.div>
+    <RevealWords text={title} className="lp-heading__title" />
+    {subtitle ? (
+      <motion.p className="lp-heading__subtitle" variants={headingFade}>
+        {subtitle}
+      </motion.p>
+    ) : null}
   </motion.div>
 );
 

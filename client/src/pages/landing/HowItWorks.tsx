@@ -2,7 +2,7 @@ import { useRef, type ReactNode } from 'react';
 import { PlayCircleOutlined, SettingOutlined, UserAddOutlined } from '@ant-design/icons';
 import { motion, useInView } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { fadeUp, SectionHeading, stagger } from './shared';
+import { fadeUp, riseCard, SectionHeading, staggerCards } from './shared';
 
 /**
  * "Qanday ishlaydi" — uch qadam: ikonka, raqam, qancha vaqt olishi. Qadamlarni
@@ -27,14 +27,14 @@ const HowItWorks = () => {
         <motion.ol
           ref={ref}
           className={`lp-steps${visible ? ' is-visible' : ''}`}
-          variants={stagger}
+          variants={staggerCards}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
         >
           <span className="lp-steps__rail" aria-hidden />
           {STEPS.map((step, index) => (
-            <motion.li key={step.key} variants={fadeUp} className="lp-step">
+            <motion.li key={step.key} variants={riseCard} className="lp-step">
               <span className="lp-step__badge" aria-hidden>
                 {step.icon}
                 <b>{index + 1}</b>

@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { motion, useMotionTemplate, useReducedMotion, useScroll, useTransform, type MotionValue } from 'framer-motion';
 import { ConfigProvider, theme as antTheme, type ThemeConfig } from 'antd';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { PALETTES } from '../../theme/tokens';
@@ -209,11 +210,28 @@ export const LandingTheme = ({ children }: { children: ReactNode }) => {
 /**
  * To'q "sahna" — ichidagi bo'lim(lar) mato-yashil fonda. `data-tone` bilan
  * header o'z rangini moslaydi (SiteHeader).
+ *
+ * Fon alohida qatlamda: sahna ekranga kirayotganda u yumaloq burchakli "karta"dan
+ * butun kenglikka KENGAYADI, chiqib ketayotganda yana torayadi (clip-path faqat
+ * fon qatlamida — kontent qayta chizilmaydi).
  */
-export const DarkStage = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
-  <ConfigProvider theme={darkTheme}>
-    <div className={`lp-tone-dark ${className}`.trim()} data-tone="dark">
-      {children}
-    </div>
-  </ConfigProvider>
-);
+export const DarkStage = ({ children, className = '' }: { children: ReactNode; className?: string }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
+  const { scrollYProgress: enter } = useScroll({ target: ref, offset: ['start end', 'start 0.15'] });
+  const { scrollYProgress: leave } = useScroll({ target: ref, offset: ['end 0.85', 'end start'] });
+  const inset = useTransform([enter, leave] as MotionValue<number>[], ([a, b]: number[]) =>
+    Math.max(4 * (1 - a), 4 * b),
+  );
+  const topRadius = useTransform(enter, [0, 1], [48, 0]);
+  const bottomRadius = useTransform(leave, [0, 1], [0, 48]);
+  const clipPath = useMotionTemplate`inset(0px ${inset}% 0px ${inset}% round ${topRadius}px ${topRadius}px ${bottomRadius}px ${bottomRadius}px)`;
+  return (
+    <ConfigProvider theme={darkTheme}>
+      <div ref={ref} className={`lp-tone-dark lp-stage ${className}`.trim()} data-tone="dark">
+        <motion.div className="lp-stage__bg" aria-hidden style={reduce ? undefined : { clipPath }} />
+        {children}
+      </div>
+    </ConfigProvider>
+  );
+};

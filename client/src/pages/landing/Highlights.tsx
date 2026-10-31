@@ -13,7 +13,7 @@ import {
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { fadeUp, stagger } from './shared';
+import { slideFrom, stagger } from './shared';
 
 /**
  * Raqobatchilardan ajratib turuvchi uch imkoniyat — har biri jonli
@@ -202,7 +202,7 @@ const Highlights = () => {
             whileInView="visible"
             viewport={{ once: true, amount: 0.25 }}
           >
-            <motion.div className="lp-highlight__text" variants={fadeUp}>
+            <motion.div className="lp-highlight__text" variants={slideFrom(index % 2 === 1 ? 'right' : 'left')}>
               <span className="lp-highlight__badge">
                 {row.icon} {t(`landing.${row.key}Overline`)}
               </span>
@@ -215,7 +215,7 @@ const Highlights = () => {
               </ul>
               {row.extra}
             </motion.div>
-            <motion.div className="lp-highlight__visual" variants={fadeUp}>
+            <motion.div className="lp-highlight__visual" variants={slideFrom(index % 2 === 1 ? 'left' : 'right')}>
               {row.visual}
             </motion.div>
           </motion.div>

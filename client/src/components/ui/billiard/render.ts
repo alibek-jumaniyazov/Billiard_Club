@@ -6,8 +6,10 @@
  *    O'lcham o'zgargandagina bir marta chiziladi va keshlanadi;
  *  · DINAMIK (drawScene) — har kadrda faqat soyalar, sharlar, mo'ljal va kiy.
  *
- * Yorug'lik: stol markazi ustida bitta lampa. Soyalar undan uzoqqa cho'ziladi,
- * shardagi yaltiroq nuqta lampaga qarab siljiydi — haqiqiy zal kabi.
+ * Yorug'lik: zaldagidek UCH QALPOQLI lampa stol uzunligi bo'ylab. Har lampa
+ * matoda yorug' "ko'l" hosil qiladi, har shar har lampadan alohida yumshoq soya
+ * tashlaydi (yaqin lampaniki to'qroq) va sirtida uchta yaltiroq aks ko'rinadi —
+ * haqiqiy stol suratidagidek.
  */
 import { BRAND } from '../../../theme/tokens';
 import { cuePathAfterContact } from './controls';
@@ -19,6 +21,50 @@ const INK = '#2b2219';
 const BALL_FONT = "'Onest Variable', 'Segoe UI', Roboto, sans-serif";
 /** Lampa balandligi (R birligida) — soya uzunligi shundan */
 const LAMP_H = 36;
+/** Uch qalpoqli lampa: stol uzunligi bo'ylab (L ulushida), eni bo'yicha o'rtada */
+const LAMPS = [0.2, 0.5, 0.8] as const;
+
+/** Har lampaning shu nuqtadagi ulushi (masofa kvadratiga teskari) — yig'indisi 1 */
+const lampWeights = (table: Table, x: number, y: number): number[] => {
+  const raw = LAMPS.map((f) => 1 / ((x - table.L * f) ** 2 + (y - table.B / 2) ** 2 + LAMP_H ** 2));
+  const total = raw.reduce((a, b) => a + b, 0);
+  return raw.map((v) => v / total);
+};
+
+/**
+ * Soya va yaltiroq nuqta — oldindan chizilgan yumshoq dog'lar (sprite).
+ * Har kadrda o'nlab radial gradient yaratish o'rniga bitta tayyor rasm
+ * drawImage bilan qo'yiladi — zaif telefonlarda ham 60 kadr.
+ */
+const spriteCache = new Map<string, HTMLCanvasElement>();
+const softSprite = (kind: 'shadow' | 'spec', px: number): HTMLCanvasElement => {
+  const size = Math.max(8, Math.ceil(px / 4) * 4);
+  const key = `${kind}:${size}`;
+  const hit = spriteCache.get(key);
+  if (hit) return hit;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const r = size / 2;
+    const g = ctx.createRadialGradient(r, r, 0, r, r, r);
+    if (kind === 'shadow') {
+      g.addColorStop(0, 'rgba(0, 0, 0, 1)');
+      g.addColorStop(0.45, 'rgba(0, 0, 0, 0.62)');
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    } else {
+      g.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      g.addColorStop(0.3, 'rgba(255, 255, 255, 0.55)');
+      g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+  }
+  if (spriteCache.size > 24) spriteCache.clear();
+  spriteCache.set(key, canvas);
+  return canvas;
+};
 
 export interface View {
   w: number;
@@ -115,6 +161,14 @@ const rgba = (hex: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+/** mix() ning shaffof varianti */
+const mixA = (a: string, b: string, t: number, alpha: number): string => {
+  const [ar, ag, ab] = parseHex(a);
+  const [br, bg, bb] = parseHex(b);
+  const c = (x: number, y: number) => Math.round(x + (y - x) * t);
+  return `rgba(${c(ar, br)}, ${c(ag, bg)}, ${c(ab, bb)}, ${alpha})`;
+};
+
 /** Kuch rangi: zumrad (yumshoq) → oltin → qizil (eng kuchli) */
 export const powerColor = (t: number): string => {
   const { emerald, gold, semantic } = BRAND;
@@ -171,6 +225,30 @@ const noiseTile = (size: number): HTMLCanvasElement => {
     img.data[i + 3] = Math.round(rnd() * (light ? 14 : 22));
   }
   tctx.putImageData(img, 0, 0);
+  return tile;
+};
+
+/** Mato tolasi (nap) — stol uzunligi bo'ylab yotgan nozik, kalta chiziqlar */
+const napTile = (size: number): HTMLCanvasElement => {
+  const tile = document.createElement('canvas');
+  tile.width = size;
+  tile.height = size;
+  const tctx = tile.getContext('2d');
+  if (!tctx) return tile;
+  const rnd = seeded(23);
+  tctx.lineCap = 'round';
+  for (let i = 0; i < size * 3; i++) {
+    const x = rnd() * size;
+    const y = rnd() * size;
+    const len = 5 + rnd() * 16;
+    const light = rnd() > 0.5;
+    tctx.strokeStyle = light ? `rgba(255, 255, 255, ${0.02 + rnd() * 0.03})` : `rgba(0, 0, 0, ${0.025 + rnd() * 0.045})`;
+    tctx.lineWidth = 0.6 + rnd() * 0.7;
+    tctx.beginPath();
+    tctx.moveTo(x, y);
+    tctx.lineTo(x + len, y + (rnd() - 0.5) * 0.9);
+    tctx.stroke();
+  }
   return tile;
 };
 
@@ -275,6 +353,29 @@ export const buildTableLayer = (table: Table, view: View): HTMLCanvasElement => 
   ctx.lineWidth = 0.08;
   ctx.stroke();
 
+  // 3b) Lak yaltirog'i — har lampaning bortdagi cho'zinchoq aksi (pastki bort xiraroq:
+  // nur unga qiyaroq tushadi). Matoga oshib o'tgan qismini keyin mato yopadi.
+  const gloss = (x: number, y: number, rx: number, ry: number, a: number) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(rx, ry);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, `rgba(255, 240, 214, ${a})`);
+    g.addColorStop(0.45, `rgba(255, 240, 214, ${a * 0.35})`);
+    g.addColorStop(1, 'rgba(255, 240, 214, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+  for (const f of LAMPS) {
+    gloss(L * f, -c - rw * 0.42, L * 0.1, rw * 0.2, 0.22);
+    gloss(L * f, B + c + rw * 0.55, L * 0.1, rw * 0.18, 0.11);
+  }
+  gloss(-c - rw * 0.45, B / 2, rw * 0.18, B * 0.22, 0.1);
+  gloss(L + c + rw * 0.45, B / 2, rw * 0.18, B * 0.22, 0.1);
+
   // 4) Nishonlar (diamonds) — sadaf, bort o'rtasida
   const diamond = (x: number, y: number, horizontal: boolean) => {
     const a = horizontal ? 0.42 : 0.26;
@@ -300,31 +401,62 @@ export const buildTableLayer = (table: Table, view: View): HTMLCanvasElement => 
     diamond(L + railMid, (B * ky) / 4, false);
   }
 
-  // 5) Teshik atrofidagi charm (bort ustida)
+  // 5) Teshik "yoqasi" — bort ustidagi jez qoplama va ichki charm (rus stollaridagidek).
+  // Mato keyin chiziladi va yoqaning maydon tomonidagi yarmini yopadi.
   for (const p of table.pockets) {
-    const rim = p.hole + 0.75;
-    const g = ctx.createRadialGradient(p.x - 0.4, p.y - 0.5, 0.2, p.x, p.y, rim);
-    g.addColorStop(0, '#3e2b1d');
-    g.addColorStop(0.7, '#24170f');
-    g.addColorStop(1, '#140c07');
+    const outer = p.hole + (p.corner ? 1.0 : 0.82);
+    const brass = ctx.createLinearGradient(p.x - outer, p.y - outer, p.x + outer, p.y + outer);
+    // Eskirgan jez: yorug' tomoni xira, qolgani qoramtir (yangi oltin emas)
+    brass.addColorStop(0, '#e3cb8e');
+    brass.addColorStop(0.32, '#b58e48');
+    brass.addColorStop(0.66, '#7f612a');
+    brass.addColorStop(1, '#4e3915');
     ctx.beginPath();
-    ctx.arc(p.x, p.y, rim, 0, Math.PI * 2);
-    ctx.fillStyle = g;
+    ctx.arc(p.x, p.y, outer, 0, Math.PI * 2);
+    ctx.fillStyle = brass;
     ctx.fill();
-    ctx.strokeStyle = rgba(gold.base, 0.25);
-    ctx.lineWidth = 0.05;
+    // Metall qirralari: tashqi — yorug' chiziq, undan tashqarisi — yog'ochga soya
+    ctx.strokeStyle = 'rgba(255, 246, 216, 0.6)';
+    ctx.lineWidth = 0.06;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, outer - 0.05, Math.PI * 0.9, Math.PI * 1.75);
     ctx.stroke();
+    ctx.strokeStyle = 'rgba(30, 16, 4, 0.55)';
+    ctx.lineWidth = 0.07;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, outer + 0.02, 0, Math.PI * 2);
+    ctx.stroke();
+    // Ichki charm qoplama
+    const leather = ctx.createRadialGradient(p.x, p.y, p.hole * 0.8, p.x, p.y, p.hole + 0.34);
+    leather.addColorStop(0, '#120b06');
+    leather.addColorStop(1, '#2a1b10');
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.hole + 0.34, 0, Math.PI * 2);
+    ctx.fillStyle = leather;
+    ctx.fill();
   }
 
-  // 6) Mato — lampa ostida iliq yorug', chetga qarab to'qlashadi
-  const lit = mix(emerald.base, '#fff1d2', 0.16);
-  const felt = ctx.createRadialGradient(L / 2, B / 2, 0, L / 2, B / 2, L * 0.62);
-  felt.addColorStop(0, lit);
-  felt.addColorStop(0.45, emerald.base);
-  felt.addColorStop(0.8, emerald.felt);
-  felt.addColorStop(1, emerald.deep);
-  ctx.fillStyle = felt;
+  // 6) Mato — asosiy rang, ustida har lampaning iliq yorug' "ko'li" (eni bo'yicha cho'zinchoq)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(-c, -c, L + 2 * c, B + 2 * c);
+  ctx.clip();
+  ctx.fillStyle = mix(emerald.felt, emerald.base, 0.35);
   ctx.fillRect(-c, -c, L + 2 * c, B + 2 * c);
+  const poolColor = (alpha: number) => mixA(emerald.bright, '#fff4d6', 0.32, alpha);
+  for (const f of LAMPS) {
+    ctx.save();
+    ctx.translate(L * f, B / 2);
+    ctx.scale(1, 0.84);
+    const pool = ctx.createRadialGradient(0, 0, 0, 0, 0, B * 0.82);
+    pool.addColorStop(0, poolColor(0.5));
+    pool.addColorStop(0.42, poolColor(0.2));
+    pool.addColorStop(1, poolColor(0));
+    ctx.fillStyle = pool;
+    ctx.fillRect(-L, -B * 1.5, L * 2, B * 3);
+    ctx.restore();
+  }
+  ctx.restore();
 
   // 7) Rezina bortlar — og'izlarda qiya kesilgan (facing)
   const cm = table.cornerMouth;
@@ -377,8 +509,8 @@ export const buildTableLayer = (table: Table, view: View): HTMLCanvasElement => 
   noseShadow(L, cm, L, B - cm, -0.9, 0);
 
   // 9) Mato donadorligi — qurilma piksellarida (masshtab tufayli "katak" bo'lmasin)
-  const tile = noiseTile(128);
-  const pattern = ctx.createPattern(tile, 'repeat');
+  const pattern = ctx.createPattern(noiseTile(128), 'repeat');
+  const nap = ctx.createPattern(napTile(192), 'repeat');
   if (pattern) {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -392,6 +524,10 @@ export const buildTableLayer = (table: Table, view: View): HTMLCanvasElement => 
     ctx.clip();
     ctx.fillStyle = pattern;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (nap) {
+      ctx.fillStyle = nap;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     ctx.restore();
     worldSpace();
   }
@@ -417,20 +553,54 @@ export const buildTableLayer = (table: Table, view: View): HTMLCanvasElement => 
     ctx.fill();
   }
 
-  // 12) Teshiklar — chuqur qora, chetida charm soyasi
+  // 12) Teshiklar — chuqur og'iz, tubida to'r savat, yuqori lab lampa nurini ushlaydi
   for (const p of table.pockets) {
-    const g = ctx.createRadialGradient(p.x, p.y, 0.1, p.x, p.y, p.hole);
+    // Tashqariga (stol markazidan teshik tomon) — to'r tubi shu tomonda ko'rinadi
+    const ol = Math.hypot(p.x - L / 2, p.y - B / 2) || 1;
+    const ox = ((p.x - L / 2) / ol) * p.hole * 0.28;
+    const oy = ((p.y - B / 2) / ol) * p.hole * 0.28;
+    // Markaz tomondagi devor nurga teskari — eng qorong'i shu yerda
+    const g = ctx.createRadialGradient(p.x - ox, p.y - oy, 0.1, p.x, p.y, p.hole);
     g.addColorStop(0, '#000');
-    g.addColorStop(0.72, '#060403');
-    g.addColorStop(1, '#1d140e');
+    g.addColorStop(0.68, '#050302');
+    g.addColorStop(1, '#22170e');
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.hole, 0, Math.PI * 2);
     ctx.fillStyle = g;
     ctx.fill();
+    // To'r: chuqurlikdagi ikki yo'nalishli nozik ip, chetga qarab yo'qoladi
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x + ox, p.y + oy, p.hole * 0.66, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(196, 176, 138, 0.13)';
+    ctx.lineWidth = 0.035;
+    ctx.beginPath();
+    for (let i = -8; i <= 8; i++) {
+      const d = i * 0.34;
+      ctx.moveTo(p.x + d - 3, p.y - 3);
+      ctx.lineTo(p.x + d + 3, p.y + 3);
+      ctx.moveTo(p.x + d + 3, p.y - 3);
+      ctx.lineTo(p.x + d - 3, p.y + 3);
+    }
+    ctx.stroke();
+    const fade = ctx.createRadialGradient(p.x + ox, p.y + oy, p.hole * 0.2, p.x + ox, p.y + oy, p.hole * 0.66);
+    fade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    fade.addColorStop(1, 'rgba(0, 0, 0, 0.85)');
+    ctx.fillStyle = fade;
+    ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
+    ctx.restore();
+    // Og'iz qirrasi: to'q chiziq + tashqi ichki devor lampa nurini ushlaydi (nozik yorug' o'roq)
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.hole - 0.08, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
     ctx.lineWidth = 0.16;
+    ctx.stroke();
+    const toCenter = Math.atan2(B / 2 - p.y, L / 2 - p.x);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.hole - 0.1, toCenter + Math.PI - 1.05, toCenter + Math.PI + 1.05);
+    ctx.strokeStyle = 'rgba(255, 232, 196, 0.16)';
+    ctx.lineWidth = 0.06;
     ctx.stroke();
   }
 
@@ -453,30 +623,30 @@ const DECALS: { n: [number, number, number]; up: [number, number, number] }[] = 
 const ballScale = (b: Ball) => (b.phase === 'sinking' ? 1 - 0.42 * b.sink : 1);
 
 const drawShadows = (ctx: CanvasRenderingContext2D, world: World, view: View) => {
-  const { L, B } = world.table;
+  const { table } = world;
+  const sprite = softSprite('shadow', R * view.s * 2.5 * view.dpr);
   for (const b of world.balls) {
     if (b.phase === 'gone') continue;
     const fade = b.phase === 'sinking' ? 1 - b.sink : 1;
     const rr = R * view.s * ballScale(b);
     const cx = view.ox + b.x * view.s;
     const cy = view.oy + b.y * view.s;
-    // Lampa markaz ustida: soya undan uzoqqa, masofaga mutanosib cho'ziladi
-    const offX = ((b.x - L / 2) * R) / (LAMP_H - R);
-    const offY = ((b.y - B / 2) * R) / (LAMP_H - R);
-    const off = Math.hypot(offX, offY);
-    ctx.save();
-    ctx.translate(cx + offX * view.s, cy + offY * view.s + rr * 0.1);
-    ctx.rotate(Math.atan2(offY, offX));
-    ctx.scale(1 + off * 0.55, 1);
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rr * 1.2);
-    g.addColorStop(0, `rgba(0, 0, 0, ${0.5 * fade})`);
-    g.addColorStop(0.55, `rgba(0, 0, 0, ${0.3 * fade})`);
-    g.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, rr * 1.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    // Har lampadan alohida soya — undan uzoqqa, masofaga mutanosib cho'ziladi.
+    // Yaqin lampa ko'proq nur beradi, shuning uchun uning soyasi to'qroq.
+    const weights = lampWeights(table, b.x, b.y);
+    LAMPS.forEach((f, i) => {
+      const offX = ((b.x - table.L * f) * R) / (LAMP_H - R);
+      const offY = ((b.y - table.B / 2) * R) / (LAMP_H - R);
+      const off = Math.hypot(offX, offY);
+      const d = rr * 2.5;
+      ctx.save();
+      ctx.globalAlpha = 0.9 * weights[i] * fade;
+      ctx.translate(cx + offX * view.s, cy + offY * view.s + rr * 0.08);
+      ctx.rotate(Math.atan2(offY, offX));
+      ctx.scale(1 + off * 0.5, 1);
+      ctx.drawImage(sprite, -d / 2, -d / 2, d, d);
+      ctx.restore();
+    });
     // Tegish joyidagi qorong'ilik (ambient occlusion)
     const ao = ctx.createRadialGradient(cx, cy, rr * 0.6, cx, cy, rr * 1.14);
     ao.addColorStop(0, `rgba(0, 0, 0, ${0.45 * fade})`);
@@ -497,16 +667,22 @@ const drawBall = (ctx: CanvasRenderingContext2D, b: Ball, world: World, view: Vi
   const cy = view.oy + b.y * view.s;
   const cue = b.id === 0;
 
-  // Yaltiroq nuqta: lampa va ko'z orasidagi yarim vektor + ozgina badiiy siljish
-  const lx = L / 2 - b.x;
-  const ly = B / 2 - b.y;
-  const len = Math.hypot(lx, ly, LAMP_H);
-  const hx0 = lx / len;
-  const hy0 = ly / len;
-  const hz0 = LAMP_H / len + 1;
-  const hl = Math.hypot(hx0, hy0, hz0);
-  const hx = cx + ((hx0 / hl) * 0.9 - 0.22) * rr;
-  const hy = cy + ((hy0 / hl) * 0.9 - 0.3) * rr;
+  // Yaltiroq nuqtalar — har lampaning aksi: lampa va ko'z (tepada) orasidagi yarim
+  // vektor + ozgina badiiy siljish. Uchtasi bir qatorda, yaqin lampaniki eng yorqin.
+  const weights = lampWeights(world.table, b.x, b.y);
+  const highlights = LAMPS.map((f, i) => {
+    const lx = L * f - b.x;
+    const ly = B / 2 - b.y;
+    const len = Math.hypot(lx, ly, LAMP_H);
+    const hx0 = lx / len;
+    const hy0 = ly / len;
+    const hz0 = LAMP_H / len + 1;
+    const hl = Math.hypot(hx0, hy0, hz0);
+    return { x: cx + ((hx0 / hl) * 0.9 - 0.12) * rr, y: cy + ((hy0 / hl) * 0.9 - 0.3) * rr, w: weights[i] };
+  });
+  // Asosiy yoritilgan tomon — lampalar ulushi bo'yicha o'rtacha
+  const hx = highlights.reduce((sum, h) => sum + h.x * h.w, 0);
+  const hy = highlights.reduce((sum, h) => sum + h.y * h.w, 0);
 
   ctx.save();
   ctx.beginPath();
@@ -586,13 +762,16 @@ const drawBall = (ctx: CanvasRenderingContext2D, b: Ball, world: World, view: Vi
   ctx.fillStyle = rim;
   ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
 
-  // Lampa aksi (specular)
-  const spec = ctx.createRadialGradient(hx, hy, 0, hx, hy, rr * 0.32);
-  spec.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-  spec.addColorStop(0.35, 'rgba(255, 255, 255, 0.35)');
-  spec.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = spec;
-  ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
+  // Lampa akslari (specular) — uch qalpoq, uch nuqta
+  const top = Math.max(...weights);
+  const spec = softSprite('spec', rr * 0.7 * view.dpr);
+  for (const h of highlights) {
+    const k = h.w / top;
+    const d = rr * (0.34 + 0.24 * k);
+    ctx.globalAlpha = 0.42 + 0.53 * k;
+    ctx.drawImage(spec, h.x - d / 2, h.y - d / 2, d, d);
+  }
+  ctx.globalAlpha = 1;
 
   if (b.phase === 'sinking') {
     ctx.fillStyle = `rgba(0, 0, 0, ${0.75 * b.sink})`;

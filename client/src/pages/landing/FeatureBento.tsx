@@ -17,7 +17,7 @@ import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNow } from '../../components/ui';
 import { formatNumber } from '../../utils/format';
-import { amountFor, fadeUp, formatHms, SectionHeading, spotlightMove, stagger } from './shared';
+import { amountFor, formatHms, riseCard, SectionHeading, spotlightMove, staggerCards } from './shared';
 import './bento.css';
 
 /**
@@ -363,14 +363,14 @@ const FeatureBento = () => {
         <motion.div
           ref={gridRef}
           className={`lp-bento${live ? ' is-live' : ''}`}
-          variants={stagger}
+          variants={staggerCards}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.05 }}
           onPointerMove={spotlightMove('.lp-bt-tile')}
         >
           {tiles.map((tile) => (
-            <motion.article key={tile.key} variants={fadeUp} className={`lp-bt-tile lp-bt-tile--${tile.size}`}>
+            <motion.article key={tile.key} variants={riseCard} className={`lp-bt-tile lp-bt-tile--${tile.size}`}>
               <div className="lp-bt-tile__visual">{tile.visual}</div>
               <div className="lp-bt-tile__text">
                 <h3>

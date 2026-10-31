@@ -2,10 +2,15 @@ import { useRef } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 
-/** Bitta so'z — o'z oralig'ida xiradan to'liq ravshanga */
+/** Bitta so'z — o'z oralig'ida xiradan to'liq ravshanga, pastdan ozgina ko'tarilib */
 const Word = ({ progress, range, children }: { progress: MotionValue<number>; range: [number, number]; children: string }) => {
   const opacity = useTransform(progress, range, [0.14, 1]);
-  return <motion.span style={{ opacity }}>{children} </motion.span>;
+  const y = useTransform(progress, range, [14, 0]);
+  return (
+    <>
+      <motion.span style={{ opacity, y, display: 'inline-block' }}>{children}</motion.span>{' '}
+    </>
+  );
 };
 
 /**

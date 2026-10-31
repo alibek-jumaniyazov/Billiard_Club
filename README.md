@@ -363,10 +363,18 @@ och rejimda ham stol bo'lib qoladi.
   belgilanadi. 1280px dan tor ekranda ikkinchi darajali havolalar yashiriladi, 1080px va undan
   torda — to'liq ekranli menyu. Har bir o'zgarishdan keyin header 1024–1920px da ikkala tilda
   tekshirilishi kerak (ruscha matn uzunroq).
-- **Scroll animatsiyalari** (`Hero.tsx`, `Statement.tsx`, `scrollMotion.tsx`):
-  - hero matni so'nadi va katta stol yaqinlashadi;
-  - bayonot matni so'zma-so'z yorishadi;
-  - demo oynasi "yotgan" holatdan tekislanadi.
+- **Scroll animatsiyalari** (`Hero.tsx`, `Statement.tsx`, `scrollMotion.tsx`, `shared.tsx`, `theme.tsx`):
+  - hero (kompyuter/planshet, 768px+ va 600px+ balandlik): sarlavha joyida qotadi, stol ekran
+    pastidan 3D egilgan holda ko'tarilib uning ustiga chiqadi, so'ng atrof xiralashib stol ustida
+    lampa yonadi; telefonda — oddiy oqim;
+  - bo'lim sarlavhalari so'zma-so'z niqob ostidan ko'tariladi (`RevealWords`);
+  - kartalar chuqurlikdan egilib chiqadi (`riseCard`), ikki ustunli bo'limlar yonlardan kiradi;
+  - to'q sahna kirishda yumaloq kartadan butun kenglikka kengayadi, chiqishda torayadi;
+  - bayonot matni so'zma-so'z yorishib ko'tariladi; demo oynasi "yotgan" holatdan tekislanadi.
+- **Billiard stoli** (`components/ui/billiard/render.ts`): uch qalpoqli lampa — matoda uchta
+  yorug' "ko'l", har shar uchta yumshoq soya va uchta yaltiroq aks; jez yoqali to'rli teshiklar,
+  bortlarda lak yaltirog'i, mato tolasi. Soya va akslar oldindan chizilgan sprite — telefonda ham
+  60 kadr.
 
   Hammasi faqat transform/opacity bilan ishlaydi va "Harakatni kamaytirish" yoqilganda o'chadi.
 - **Kalkulyator** (`RoiCalculator.tsx`): yo'qotish to'rt manbaga bo'linadi (yozilmagan o'yin,

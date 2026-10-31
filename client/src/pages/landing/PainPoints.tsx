@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { fadeUp, SectionHeading, spotlightMove, stagger } from './shared';
+import { riseCard, SectionHeading, spotlightMove, staggerCards } from './shared';
 
 /**
  * "Tanish holatmi?" — klub egasining kundalik og'riqlari va tizimdagi yechimi.
@@ -37,14 +37,14 @@ const PainPoints = () => {
         />
         <motion.div
           className="lp-pain-grid"
-          variants={stagger}
+          variants={staggerCards}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.1 }}
           onPointerMove={spotlightMove('.lp-pain-card')}
         >
           {PAINS.map(({ key, icon }) => (
-            <motion.article key={key} className="lp-pain-card" variants={fadeUp}>
+            <motion.article key={key} className="lp-pain-card" variants={riseCard}>
               <div className="lp-pain-card__problem">
                 <span className="lp-pain-card__icon" aria-hidden>
                   {icon}

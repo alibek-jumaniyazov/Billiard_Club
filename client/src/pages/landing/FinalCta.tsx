@@ -4,7 +4,7 @@ import { ArrowRightOutlined, CheckOutlined, SendOutlined } from '@ant-design/ico
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { SUPPORT_TELEGRAM } from '../../constants';
-import { fadeUp } from './shared';
+import { fadeUp, RevealWords, stagger } from './shared';
 
 /** Sahifa oxiridagi yakuniy chaqiriq — qaror qabul qilgan mehmon uchun */
 export const FinalCta = ({ onStart }: { onStart: () => void }) => {
@@ -14,22 +14,22 @@ export const FinalCta = ({ onStart }: { onStart: () => void }) => {
       <div className="lp-container">
         <motion.div
           className="lp-final__card"
-          variants={fadeUp}
+          variants={stagger}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
         >
           <div className="lp-final__glow" aria-hidden />
-          <h2>{t('landing.finalTitle')}</h2>
-          <p>{t('landing.finalSubtitle')}</p>
-          <ul className="lp-final__points">
+          <RevealWords text={t('landing.finalTitle')} />
+          <motion.p variants={fadeUp}>{t('landing.finalSubtitle')}</motion.p>
+          <motion.ul variants={fadeUp} className="lp-final__points">
             {['finalP1', 'finalP2', 'finalP3'].map((k) => (
               <li key={k}>
                 <CheckOutlined aria-hidden /> {t(`landing.${k}`)}
               </li>
             ))}
-          </ul>
-          <div className="lp-final__actions">
+          </motion.ul>
+          <motion.div variants={fadeUp} className="lp-final__actions">
             <Button type="primary" size="large" className="lp-cta-btn lp-final__cta" onClick={onStart}>
               {t('landing.heroCta')} <ArrowRightOutlined />
             </Button>
@@ -43,7 +43,7 @@ export const FinalCta = ({ onStart }: { onStart: () => void }) => {
             >
               {t('landing.finalTelegram')}
             </Button>
-          </div>
+          </motion.div>
         </motion.div>
       </div>
     </section>

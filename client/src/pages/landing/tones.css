@@ -104,6 +104,17 @@
     radial-gradient(1200px 600px at 50% 0%, rgba(255, 255, 255, 0.045), transparent 70%),
     var(--bg0);
 }
+/* DarkStage: fon alohida qatlamda — kirishda yumaloq kartadan butun kenglikka kengayadi */
+.lp-tone-dark.lp-stage { background: none; isolation: isolate; }
+.lp-stage__bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 600px at 50% 0%, rgba(255, 255, 255, 0.045), transparent 70%),
+    var(--bg0);
+}
 
 /* ------------------------------------------ Ilovaning haqiqiy palitrasi */
 /* Demo oynalar ilova qanday ko'rinsa, aynan shunday ko'rinsin */
@@ -301,6 +312,9 @@
   text-wrap: pretty;
 }
 .lp-root h3 { letter-spacing: -0.01em; }
+/* Sarlavha so'zlari niqob ostidan ko'tariladi (shared.tsx — RevealWords) */
+.lp-word { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.14em; margin-bottom: -0.14em; }
+.lp-word__inner { display: inline-block; }
 
 /* ---------------------------------------------------------------- Tugmalar */
 .lp-root .lp-cta-btn.ant-btn,
@@ -674,6 +688,49 @@
 .lp-hero2__stage-wrap { position: relative; z-index: 1; margin-top: clamp(44px, 6vw, 80px); }
 .lp-hero2__stage { max-width: 1200px; margin: 0 auto; transform-origin: 50% 0%; will-change: transform; }
 .lp-hero2 .lp-platforms { justify-content: center; margin-top: 26px; }
+
+/* Yopishqoq hero (kompyuter/planshet): sarlavha joyida qotadi, stol pastdan
+   ko'tarilib uning USTIGA chiqadi. Hero.tsx — PIN_QUERY va scroll qiymatlari. */
+.lp-hero2.is-pinned { height: 240vh; padding: 0; }
+.lp-hero2.is-pinned .lp-hero2__sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+.lp-hero2.is-pinned .lp-hero2__copy { padding-top: clamp(104px, 14vh, 156px); }
+.lp-hero2.is-pinned .lp-platforms { margin-top: 22px; }
+.lp-hero2.is-pinned .lp-hero2__stage-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-top: 0;
+  margin-bottom: 0;
+  /* header (≈70px) + stol ustidagi bildirishnoma kartasi uchun joy */
+  padding-top: 92px;
+  padding-bottom: 12px;
+  pointer-events: none;
+}
+/* Stol ekran balandligiga sig'sin: eni ko'pi bilan (100vh − sarlavha va tablo) × stol nisbati */
+.lp-hero2.is-pinned .lp-hero2__stage {
+  width: min(100%, 1200px, calc((100vh - 230px) * 1.68));
+  pointer-events: auto;
+  transform-origin: 50% 40%;
+}
+.lp-hero2__stage.is-settling { pointer-events: none; }
+/* Zal chiroqlari pasayadi, stol ustidagi lampa yonadi */
+.lp-hero2__dim { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: rgba(23, 20, 15, 0.07); }
+.lp-hero2__lamp {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(ellipse 46% 40% at 50% 54%, rgba(255, 226, 160, 0.32), transparent 72%);
+}
+[data-theme='dark'] .lp-hero2__dim { background: rgba(0, 0, 0, 0.42); }
+[data-theme='dark'] .lp-hero2__lamp {
+  background:
+    radial-gradient(ellipse 48% 44% at 50% 54%, rgba(255, 214, 140, 0.2), transparent 72%),
+    radial-gradient(ellipse 26% 60% at 50% -12%, rgba(255, 226, 170, 0.12), transparent 70%);
+}
 .lp-root .lp-platform { border-color: var(--border-base); color: var(--text-secondary); background: var(--bg1); }
 .lp-root .lp-platform:hover { border-color: var(--border-strong); color: var(--text-primary); }
 .lp-root .lp-platform .anticon { color: var(--text-primary); }
@@ -863,29 +920,128 @@
 .lp-tone-dark .lp-final__card > p { font-size: clamp(17px, 1.5vw, 20px); }
 .lp-root .lp-final__cta.ant-btn { height: 56px; }
 
-/* Footer */
+/* ------------------------------------------------------------------ Footer */
 .lp-footer {
   position: relative;
-  border-top: 1px solid var(--border-subtle);
-  background: #0a2019;
+  overflow: hidden;
+  border-top: 1px solid rgba(243, 239, 230, 0.08);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.24));
 }
-.lp-footer__inner { padding-top: clamp(56px, 7vw, 88px); padding-bottom: 36px; }
-.lp-footer__tagline { max-width: 340px; margin: 16px 0 0; font-size: 15px; line-height: 1.6; color: var(--text-secondary); }
-.lp-footer__contacts { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 22px; }
-.lp-footer__links { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
-.lp-footer .lp-nav-link { font-size: 15px; color: var(--text-secondary); }
-.lp-footer .lp-nav-link:hover { color: var(--text-primary); }
+.lp-root .lp-footer__inner { position: relative; z-index: 1; padding-top: clamp(56px, 7vw, 88px); padding-bottom: 28px; }
+.lp-footer__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+  gap: 40px clamp(24px, 4vw, 56px);
+}
+.lp-footer__logo { display: inline-flex; }
+.lp-footer__tagline { max-width: 340px; margin: 18px 0 0; font-size: 15px; line-height: 1.6; color: var(--text-secondary); }
+.lp-footer__contacts { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin: 26px 0 0; padding: 0; list-style: none; }
+.lp-footer__contacts a {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14.5px;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+.lp-footer__contacts a:hover { color: var(--text-primary); }
+.lp-footer__contacts .anticon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(243, 239, 230, 0.06);
+  color: var(--gold);
+  font-size: 14px;
+  transition: background 0.2s ease;
+}
+.lp-footer__contacts a:hover .anticon { background: rgba(243, 239, 230, 0.12); }
+.lp-footer__title {
+  margin: 8px 0 20px;
+  font-family: var(--lp-font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.lp-footer__col ul { display: flex; flex-direction: column; align-items: flex-start; gap: 13px; margin: 0; padding: 0; list-style: none; }
+.lp-footer__col a { font-size: 15px; line-height: 1.4; color: var(--text-secondary); transition: color 0.2s ease; }
+.lp-footer__col a:hover { color: var(--text-primary); }
 .lp-footer__bottom {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin-top: 44px;
-  padding-top: 22px;
-  border-top: 1px solid var(--border-subtle);
-  font-size: 13px;
+  gap: 16px 24px;
+  margin-top: clamp(48px, 6vw, 72px);
+  padding-top: 24px;
+  border-top: 1px solid rgba(243, 239, 230, 0.08);
+}
+.lp-footer__legal { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-tertiary); }
+.lp-footer__legal a { font-weight: 600; color: var(--text-secondary); }
+.lp-footer__legal a:hover { color: var(--text-primary); }
+.lp-footer__dot { margin: 0 8px; opacity: 0.6; }
+.lp-footer__tools { display: flex; align-items: center; gap: 10px; }
+.lp-footer__lang { display: inline-flex; padding: 3px; border: 1px solid rgba(243, 239, 230, 0.1); border-radius: 999px; }
+.lp-footer__lang a {
+  padding: 5px 13px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--text-tertiary);
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.lp-footer__lang a:hover { color: var(--text-primary); }
+.lp-footer__lang a[aria-current='true'] { background: rgba(243, 239, 230, 0.1); color: var(--text-primary); }
+.lp-footer__top {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 15px;
+  border: 1px solid rgba(243, 239, 230, 0.1);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.lp-footer__top:hover { color: var(--text-primary); border-color: rgba(243, 239, 230, 0.26); }
+.lp-footer__top .anticon { font-size: 12px; transition: transform 0.35s var(--lp-ease); }
+.lp-footer__top:hover .anticon { transform: translateY(-2px); }
+/* Yirik brend yozuvi — ostki qismi sahifa chetida "kesilib" turadi */
+.lp-footer__mark {
+  margin-top: clamp(8px, 2vw, 24px);
+  padding: 0 16px;
+  font-family: var(--lp-font-display);
+  font-size: clamp(30px, 9.2vw, 148px);
+  font-weight: 700;
+  line-height: 0.86;
+  letter-spacing: -0.03em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  background: linear-gradient(180deg, rgba(243, 239, 230, 0.11), rgba(243, 239, 230, 0) 88%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  transform: translateY(12%);
+  user-select: none;
+  pointer-events: none;
+}
+@media (max-width: 991px) {
+  .lp-footer__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lp-footer__brand { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .lp-footer__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 20px; }
+  .lp-footer__bottom { flex-direction: column; align-items: flex-start; }
+  .lp-footer__tools { width: 100%; justify-content: space-between; }
 }
 
 /* Telefondagi pastki panel — och shisha */
