@@ -52,6 +52,9 @@ const NAV_LINKS: HeaderLink[] = [
   { id: 'contact', key: 'navContact', drawerOnly: true },
 ];
 
+/** Havola ulashilganda (Telegram va b.) — qidiruv sarlavhasidan alohida, yangi shior bilan */
+const SOCIAL_KEYS = { title: 'landing.ogTitle', description: 'landing.ogDescription' } as const;
+
 /** Footer ustunlari: mahsulot bo'limlari va yordam (savol-javob, aloqa) */
 const HELP_IDS = ['faq', 'contact'];
 const FOOTER_PRODUCT = NAV_LINKS.filter((link) => !HELP_IDS.includes(link.id));
@@ -82,7 +85,7 @@ const Landing = () => {
     // Faqat manzil o'zgarganda (tilni tugma o'zi manzil bilan birga almashtiradi)
   }, [pathname]);
 
-  useDocumentHead('landing.metaTitle', 'landing.metaDescription');
+  useDocumentHead('landing.metaTitle', 'landing.metaDescription', SOCIAL_KEYS);
 
   /* Ommaviy tariflar — superadmin boshqaradigan faol tariflar (GET /public/plans).
      So'rov muvaffaqiyatsiz bo'lsa yoki bo'sh bo'lsa server standarti (utils/tiers.ts) ishlaydi. */

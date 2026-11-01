@@ -35,8 +35,13 @@ const setCanonical = (href: string) => {
  *
  * @param titleKey       i18n kaliti — document.title uchun
  * @param descriptionKey i18n kaliti — <meta name="description"> uchun (ixtiyoriy)
+ * @param socialKeys     havola ulashilganda (og:/twitter:) boshqa matn kerak bo'lsa
  */
-export const useDocumentHead = (titleKey: string, descriptionKey?: string): void => {
+export const useDocumentHead = (
+  titleKey: string,
+  descriptionKey?: string,
+  socialKeys?: { title: string; description: string },
+): void => {
   const { t, i18n } = useTranslation();
   const { pathname } = useLocation();
 
@@ -45,10 +50,11 @@ export const useDocumentHead = (titleKey: string, descriptionKey?: string): void
     const title = t(titleKey);
     const url = absoluteUrl(canonicalPath(pathname, lang));
     const image = absoluteUrl(OG_IMAGE[lang]);
+    const socialTitle = socialKeys ? t(socialKeys.title) : title;
     document.title = title;
     setCanonical(url);
-    setMeta('property', 'og:title', title);
-    setMeta('name', 'twitter:title', title);
+    setMeta('property', 'og:title', socialTitle);
+    setMeta('name', 'twitter:title', socialTitle);
     setMeta('property', 'og:url', url);
     setMeta('property', 'og:locale', lang === 'ru' ? 'ru_RU' : 'uz_UZ');
     setMeta('property', 'og:image', image);
@@ -56,11 +62,12 @@ export const useDocumentHead = (titleKey: string, descriptionKey?: string): void
 
     if (!descriptionKey) return;
     const description = t(descriptionKey);
+    const socialDescription = socialKeys ? t(socialKeys.description) : description;
     setMeta('name', 'description', description);
-    setMeta('property', 'og:description', description);
-    setMeta('name', 'twitter:description', description);
+    setMeta('property', 'og:description', socialDescription);
+    setMeta('name', 'twitter:description', socialDescription);
     // i18n.language — til almashganda qayta ishga tushishi uchun
-  }, [t, titleKey, descriptionKey, i18n.language, pathname]);
+  }, [t, titleKey, descriptionKey, socialKeys?.title, socialKeys?.description, i18n.language, pathname]);
 };
 
 /**

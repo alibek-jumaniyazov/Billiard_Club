@@ -17,8 +17,23 @@ export type SeoLang = 'uz' | 'ru';
 /** Landing har tilda alohida manzilda — Google ikkala tildagi qidiruvda ham topadi */
 export const LANDING_PATH: Record<SeoLang, string> = { uz: '/', ru: '/ru/' };
 
-/** Ijtimoiy tarmoq va qidiruv uchun muqova (1200×630) */
-export const OG_IMAGE: Record<SeoLang, string> = { uz: '/og-cover.png', ru: '/og-cover-ru.png' };
+/**
+ * Ijtimoiy tarmoq va qidiruv uchun muqova (1200×630; tools/brand-video/banners.cjs).
+ * Rasm yangilanganda OG_VERSION ni oshiring: Telegram va Facebook rasmni manzili
+ * bo'yicha keshlaydi — yangi manzil yangi rasmni darhol ko'rsatadi.
+ */
+export const OG_VERSION = '2';
+export const OG_IMAGE: Record<SeoLang, string> = {
+  uz: `/og-cover.png?v=${OG_VERSION}`,
+  ru: `/og-cover-ru.png?v=${OG_VERSION}`,
+};
+
+/**
+ * Brend nomining qidiruvda uchraydigan boshqa yozilishlari (Search Console:
+ * "bilyard club", "billiardclub") — JSON-LD alternateName. Google qidiruv
+ * natijasida sayt nomini aniqlashda shundan foydalanadi.
+ */
+export const SITE_ALT_NAMES = ['Bilyard Club', 'BilliardClub', 'billiardclub.uz'] as const;
 
 export const CONTACT = {
   email: 'avilab.com@gmail.com',

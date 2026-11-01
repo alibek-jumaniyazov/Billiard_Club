@@ -7,12 +7,18 @@ export default {
   uz: {
     // SEO meta (useDocumentHead + build paytida statik <head>: vite-plugin-seo.ts).
     // Sarlavha ~60, tavsif ~155 belgidan oshmasin — Google natijasida kesilmaydi
-    metaTitle: 'Billiard klub dasturi — stol taymeri, bar, kassa | Billiard Club',
+    // Qidiruv: brend oldinda + Search Console'dagi so'rovlar ("billiard club",
+    // "bilyard club", "bilyard boshqaruv tizimi")
+    metaTitle: 'Billiard Club — bilyard klub boshqaruv tizimi va dasturi',
     metaDescription:
-      'Billiard klub uchun dastur: stol vaqti avtomatik hisoblanadi, bar POS, qarzlar, hisobotlar, chiroq avtomatikasi. Windows, Android, brauzer. {{days}} kun bepul.',
+      'Billiard Club — bilyard klublari uchun dastur: stol vaqti avtomatik hisoblanadi, bar va kassa, qarzlar, hisobotlar, chiroq avtomatikasi. {{days}} kun bepul.',
     metaKeywords:
-      "billiard klub dasturi, bilyard klub dasturi, billiard dasturi, billiard klub boshqaruvi, billiard stol taymeri, bilyard stol vaqti, billiard kassa dasturi, billiard CRM, bar POS, billiard klub ochish, billiard Toshkent, bilyard O'zbekiston",
-    ogImageAlt: 'Billiard Club — billiard klublari uchun boshqaruv dasturi: stollar, bar va kassa',
+      "billiard club, bilyard club, bilyard klub, billiard klub, bilyard boshqaruv tizimi, billiard klub dasturi, bilyard klub dasturi, billiard dasturi, billiard klub boshqaruvi, billiard stol taymeri, bilyard stol vaqti, billiard kassa dasturi, billiard CRM, bar POS, billiard Toshkent, bilyard O'zbekiston",
+    // Havola ulashilganda (Telegram, Facebook) — yangi shior bilan
+    ogTitle: "Billiard Club — billiard klubingiz to'liq nazoratda",
+    ogDescription:
+      'Stol taymeri, bar va kassa, qarzlar, hisobotlar va chiroq avtomatikasi — bitta tizimda. Windows, Android va brauzer. {{days}} kun bepul.',
+    ogImageAlt: "Billiard Club — billiard klubingiz to'liq nazoratda: billiard stoli, o'yin taymeri va kassa",
     metaLoginTitle: 'Kirish — Billiard Club',
     metaLoginDescription:
       "Billiard Club hisobingizga kiring va klubingizni istalgan qurilmadan boshqaring.",
@@ -510,12 +516,15 @@ export default {
   },
   ru: {
     // SEO meta (useDocumentHead + статический <head> при сборке: vite-plugin-seo.ts)
-    metaTitle: 'Программа для бильярдного клуба — таймер, бар, касса | Billiard Club',
+    metaTitle: 'Billiard Club — программа для бильярдного клуба',
     metaDescription:
-      'Программа для бильярдного клуба: учёт времени столов, бар POS, долги, отчёты, автоматический свет. Windows, Android, браузер. {{days}} дней бесплатно.',
+      'Billiard Club — программа для бильярдного клуба: учёт времени столов, бар и касса, долги, отчёты, автоматический свет. {{days}} дней бесплатно.',
     metaKeywords:
-      'программа для бильярдного клуба, программа для бильярда, учет бильярдного клуба, таймер бильярдных столов, автоматизация бильярдной, бильярд CRM, касса для бильярдного клуба, управление бильярдным клубом, бильярд Ташкент, бильярд Узбекистан',
-    ogImageAlt: 'Billiard Club — программа для управления бильярдным клубом: столы, бар и касса',
+      'billiard club, бильярд клуб, бильярдный клуб, программа для бильярдного клуба, система управления бильярдным клубом, программа для бильярда, учет бильярдного клуба, таймер бильярдных столов, автоматизация бильярдной, бильярд CRM, касса для бильярдного клуба, бильярд Ташкент, бильярд Узбекистан',
+    ogTitle: 'Billiard Club — ваш бильярдный клуб под полным контролем',
+    ogDescription:
+      'Таймер столов, бар и касса, долги, отчёты и автосвет — в одной системе. Windows, Android и браузер. {{days}} дней бесплатно.',
+    ogImageAlt: 'Billiard Club — ваш бильярдный клуб под полным контролем: бильярдный стол, таймер игры и касса',
     metaLoginTitle: 'Вход — Billiard Club',
     metaLoginDescription:
       'Войдите в аккаунт Billiard Club и управляйте клубом с любого устройства.',

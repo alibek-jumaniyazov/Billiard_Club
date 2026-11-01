@@ -7,6 +7,7 @@ import {
   DEFAULT_TRIAL_DAYS,
   LANDING_PATH,
   OG_IMAGE,
+  SITE_ALT_NAMES,
   SEARCH_VERIFICATION,
   SITE_NAME,
   SITE_ORIGIN,
@@ -99,6 +100,9 @@ interface Page {
   imageAlt: string;
   /** Landing: uz/ru/x-default muqobil manzillari */
   alternates: boolean;
+  /** Havola ulashilganda (og:/twitter:) — yo'q bo'lsa title/description */
+  ogTitle?: string;
+  ogDescription?: string;
   jsonLd: Record<string, unknown>[];
   body: string;
 }
@@ -111,6 +115,7 @@ const organization = () => ({
   '@type': 'Organization',
   '@id': ORG_ID,
   name: SITE_NAME,
+  alternateName: [...SITE_ALT_NAMES],
   url: `${SITE_ORIGIN}/`,
   logo: { '@type': 'ImageObject', url: absoluteUrl('/icon-512.png'), width: 512, height: 512 },
   email: CONTACT.email,
@@ -132,6 +137,7 @@ const website = () => ({
   '@id': `${SITE_ORIGIN}/#website`,
   url: `${SITE_ORIGIN}/`,
   name: SITE_NAME,
+  alternateName: [...SITE_ALT_NAMES],
   inLanguage: ['uz', 'ru'],
   publisher: { '@id': ORG_ID },
 });
@@ -297,6 +303,8 @@ const landingPage = (lang: SeoLang): Page => {
     keywords: fill(t.metaKeywords),
     image: OG_IMAGE[lang],
     imageAlt: fill(t.ogImageAlt),
+    ogTitle: fill(t.ogTitle),
+    ogDescription: fill(t.ogDescription),
     alternates: true,
     jsonLd: [organization(), website(), software(lang, url, description), faqPage(lang)],
     body: landingBody(lang),
@@ -336,6 +344,8 @@ const headFor = (page: Page): string => {
   const image = absoluteUrl(page.image);
   const other: SeoLang = page.lang === 'uz' ? 'ru' : 'uz';
   const locale = (lang: SeoLang) => (lang === 'ru' ? 'ru_RU' : 'uz_UZ');
+  const ogTitle = page.ogTitle || page.title;
+  const ogDescription = page.ogDescription || page.description;
   const tags = [
     `<title>${esc(page.title)}</title>`,
     `<meta name="description" content="${esc(page.description)}" />`,
@@ -351,8 +361,8 @@ const headFor = (page: Page): string => {
       : []),
     '<meta property="og:type" content="website" />',
     `<meta property="og:site_name" content="${SITE_NAME}" />`,
-    `<meta property="og:title" content="${esc(page.title)}" />`,
-    `<meta property="og:description" content="${esc(page.description)}" />`,
+    `<meta property="og:title" content="${esc(ogTitle)}" />`,
+    `<meta property="og:description" content="${esc(ogDescription)}" />`,
     `<meta property="og:url" content="${url}" />`,
     `<meta property="og:image" content="${image}" />`,
     '<meta property="og:image:type" content="image/png" />',
@@ -362,8 +372,8 @@ const headFor = (page: Page): string => {
     `<meta property="og:locale" content="${locale(page.lang)}" />`,
     `<meta property="og:locale:alternate" content="${locale(other)}" />`,
     '<meta name="twitter:card" content="summary_large_image" />',
-    `<meta name="twitter:title" content="${esc(page.title)}" />`,
-    `<meta name="twitter:description" content="${esc(page.description)}" />`,
+    `<meta name="twitter:title" content="${esc(ogTitle)}" />`,
+    `<meta name="twitter:description" content="${esc(ogDescription)}" />`,
     `<meta name="twitter:image" content="${image}" />`,
     `<meta name="twitter:image:alt" content="${esc(page.imageAlt)}" />`,
   ];

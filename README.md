@@ -396,6 +396,16 @@ har ommaviy sahifa uchun alohida HTML yasaydi:
 Ish joyi va admin sahifalari `noindex`. Ma'lumotlar bitta joyda: `client/src/seo/site.ts`.
 Search Console, Yandex.Webmaster va keyingi qadamlar: **[docs/SEO.md](docs/SEO.md)**.
 
+- **Qidiruv va ulashish matnlari alohida:** qidiruv sarlavhasi (`metaTitle`) brend va so'rovlar
+  uchun ("Billiard Club — bilyard klub boshqaruv tizimi…"), Telegram/Facebook ko'rinishi
+  (`ogTitle`, `ogDescription`) — hero shiori bilan. Brendning boshqa yozilishlari
+  (`SITE_ALT_NAMES`: Bilyard Club, BilliardClub) JSON-LD `alternateName` da.
+- **Bannerlar** (`og-cover.png`, `og-cover-ru.png`, 1200×630) saytning o'zidan yasaladi: shior
+  tarjimalardan, stol — landingdagi haqiqiy canvas:
+  `desktop/node_modules/.bin/electron tools/brand-video/banners.cjs --url=http://localhost:5173`.
+  Rasm yangilanganda `OG_VERSION` ni oshiring — Telegram eski rasmni keshdan ko'rsatmaydi;
+  deploy'dan keyin @WebpageBot ga sayt manzilini yuborib, havola ko'rinishini yangilang.
+
 ## Landing arizalari (savdo voronkasi)
 
 Landing'dagi "Bepul konsultatsiya" formasi `POST /api/public/leads` ga yuboriladi:
