@@ -16,6 +16,21 @@ export enum ClubStatus {
   BLOCKED = 'blocked',
 }
 
+/**
+ * Klubni bloklash sababi — superadmin tayyor ro'yxatdan tanlaydi (ixtiyoriy).
+ * Matni klientda (uz/ru): bloklangan klub ekranida sarlavha, tushuntirish va
+ * tavsiya (masalan, obuna sotib olish) shu kod bo'yicha chiqadi.
+ */
+export enum ClubBlockReason {
+  /** Bepul sinovdan qayta-qayta foydalanish: bitta klub 2 va undan ortiq hisob ochgan */
+  FREE_PLAN_ABUSE = 'free_plan_abuse',
+  UNPAID = 'unpaid',
+  RULES_VIOLATION = 'rules_violation',
+  SUSPICIOUS_ACTIVITY = 'suspicious_activity',
+  OWNER_REQUEST = 'owner_request',
+  OTHER = 'other',
+}
+
 export enum TableStatus {
   FREE = 'free',
   BUSY = 'busy',

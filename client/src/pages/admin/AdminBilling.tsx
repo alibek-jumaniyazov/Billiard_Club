@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Col,
   DatePicker,
   Form,
@@ -37,6 +38,7 @@ import { adminBillingApi, errorMessage } from '../../api';
 import { EmptyState, PageHeader, PageTransition, StatusTag } from '../../components/ui';
 import { TOKENS } from '../../theme/tokens';
 import type { Coupon, CouponType, Invoice, InvoiceStatus, Plan } from '../../types';
+import { isPaymentResolvable } from '../../utils/blockReasons';
 import { formatMoney, formatNumber } from '../../utils/format';
 import ClubSelect from './ClubSelect';
 
@@ -103,6 +105,7 @@ const AdminBilling = () => {
 
   const [confirmInvoice, setConfirmInvoice] = useState<Invoice | null>(null);
   const [confirmMethod, setConfirmMethod] = useState('');
+  const [confirmUnblock, setConfirmUnblock] = useState(false);
   const [rejectInvoice, setRejectInvoice] = useState<Invoice | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [invoiceActing, setInvoiceActing] = useState(false);
@@ -153,6 +156,8 @@ const AdminBilling = () => {
 
   const openConfirm = (inv: Invoice) => {
     setConfirmMethod(inv.paymentMethod ?? '');
+    // To'lov bilan hal bo'ladigan sabab (masalan, bepul tarifdan noto'g'ri foydalanish) — oldindan belgilanadi
+    setConfirmUnblock(inv.club?.status === 'blocked' && isPaymentResolvable(inv.club.blockReason));
     setConfirmInvoice(inv);
   };
 
@@ -163,6 +168,7 @@ const AdminBilling = () => {
       const res = await adminBillingApi.confirmInvoice(
         confirmInvoice.id,
         confirmMethod.trim() || undefined,
+        confirmInvoice.club?.status === 'blocked' && confirmUnblock,
       );
       message.success(res.message);
       setConfirmInvoice(null);
@@ -763,7 +769,25 @@ const AdminBilling = () => {
             <Alert type="warning" showIcon message={t('admin.billing.confirmExpiredWarn')} />
           )}
           {confirmInvoice?.club?.status === 'blocked' && (
-            <Alert type="error" showIcon message={t('admin.billing.confirmBlockedWarn')} />
+            <Alert
+              type="error"
+              showIcon
+              message={t('admin.billing.confirmBlockedWarn')}
+              description={
+                <Space direction="vertical" size={6}>
+                  {confirmInvoice.club.blockReason && (
+                    <Text>
+                      {t('admin.billing.confirmBlockedReason', {
+                        reason: t(`locked.reason.${confirmInvoice.club.blockReason}`),
+                      })}
+                    </Text>
+                  )}
+                  <Checkbox checked={confirmUnblock} onChange={(e) => setConfirmUnblock(e.target.checked)}>
+                    {t('admin.billing.confirmUnblock')}
+                  </Checkbox>
+                </Space>
+              }
+            />
           )}
           {confirmInvoice && (
             <Text>

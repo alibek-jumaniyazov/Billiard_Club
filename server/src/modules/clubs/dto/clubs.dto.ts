@@ -16,7 +16,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { ClubStatus } from '../../../entities/enums';
+import { ClubBlockReason, ClubStatus } from '../../../entities/enums';
 import { TIER_CODES, TierCode } from '../../../common/plan-tiers/tiers';
 
 /** Klublar ro'yxati: qidiruv, holat filtri va sahifalash */
@@ -145,6 +145,21 @@ export class ExtendSubscriptionDto {
   @IsOptional()
   @IsBoolean()
   allowShorten?: boolean;
+}
+
+/**
+ * Bloklash: tayyor sabab va klubga ko'rinadigan izoh — ikkalasi ham ixtiyoriy.
+ * Allaqachon bloklangan klubga qayta yuborilsa — sabab yangilanadi.
+ */
+export class BlockClubDto {
+  @IsOptional()
+  @IsEnum(ClubBlockReason)
+  reason?: ClubBlockReason;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }
 
 export class ResetClubPasswordDto {

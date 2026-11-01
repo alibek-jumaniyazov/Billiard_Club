@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { TOKENS } from '../theme/tokens';
 import type { Plan, SubscriptionStatus } from '../types';
+import { isPaymentResolvable } from '../utils/blockReasons';
 
 const { Text, Title } = Typography;
 const { gold, emerald, semantic, bg, text } = TOKENS.color;
@@ -52,8 +53,13 @@ const Locked = () => {
   const isBlocked = club?.status === 'blocked' || offlineLicense?.reason === 'blocked';
   const isLocked = subscriptionLocked || (user?.role === 'superadmin' && offlineAccess);
   const needsVerification = isLocked && !isBlocked && club?.status !== 'expired' && !club?.isExpired && offlineLicense?.reason !== 'expired';
-  // Faqat admin va bloklanmagan klub uchun xarid oqimi ko'rsatiladi
-  const canPurchase = isAdmin && !isBlocked && !needsVerification;
+  // Superadmin tanlagan sabab va izoh (eski server javobida bo'lmaydi — umumiy matn chiqadi)
+  const blockReason = isBlocked ? (club?.blockReason ?? null) : null;
+  const blockNote = isBlocked ? club?.blockNote?.trim() || null : null;
+  // To'lov bilan hal bo'ladigan blok (masalan, bepul tarifdan noto'g'ri foydalanish) — egasiga tariflar ochiladi
+  const payToUnblock = isBlocked && isPaymentResolvable(blockReason);
+  // Xarid oqimi faqat admin uchun: muddati tugaganda yoki blokni to'lov bilan hal qilish mumkin bo'lsa
+  const canPurchase = isAdmin && !needsVerification && (!isBlocked || payToUnblock);
 
   useDocumentHead('locked.docTitle');
 
@@ -110,7 +116,9 @@ const Locked = () => {
       ? 'Офлайн-разрешение не подтверждено, истекло или изменилось время устройства. Подключитесь к интернету и нажмите «Проверить». Новые операции приостановлены, сохранённая очередь остаётся на устройстве.'
       : 'Oflayn ruxsat tasdiqlanmadi, eskirdi yoki qurilma vaqti o‘zgardi. Internetga ulaning va «Tekshirish»ni bosing. Yangi amallar to‘xtatilgan, saqlangan navbat qurilmada qoladi.')
     : isBlocked
-    ? t('locked.blockedDesc')
+    ? blockReason
+      ? t(`locked.reasonDesc.${blockReason}`)
+      : t('locked.blockedDesc')
     : wasTrial
       ? t('locked.trialEndedDesc')
       : t('locked.expiredDesc');
@@ -226,9 +234,50 @@ const Locked = () => {
                       {club.name}
                     </Text>
                   )}
+                  {blockReason && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        display: 'inline-flex',
+                        padding: '4px 12px',
+                        borderRadius: 999,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: semantic.error,
+                        background: `color-mix(in srgb, ${semantic.error} 12%, transparent)`,
+                        border: `1px solid color-mix(in srgb, ${semantic.error} 30%, transparent)`,
+                      }}
+                    >
+                      {t('locked.reasonLabel')}: {t(`locked.reason.${blockReason}`)}
+                    </div>
+                  )}
                   <Text type="secondary" style={{ display: 'block', marginTop: 10 }}>
                     {desc}
                   </Text>
+                  {blockNote && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: '10px 14px',
+                        borderRadius: TOKENS.radius.md,
+                        borderLeft: `3px solid ${semantic.error}`,
+                        background: `color-mix(in srgb, ${semantic.error} 6%, transparent)`,
+                      }}
+                    >
+                      <Text strong style={{ display: 'block', fontSize: 13 }}>
+                        {t('locked.adminNote')}
+                      </Text>
+                      <Text style={{ whiteSpace: 'pre-wrap' }}>{blockNote}</Text>
+                    </div>
+                  )}
+                  {isBlocked && club?.blockedAt && (
+                    <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+                      {t('locked.blockedAt')}:{' '}
+                      <span className="tabular-nums" style={{ color: text.primary }}>
+                        {dayjs(club.blockedAt).format('DD.MM.YYYY')}
+                      </span>
+                    </Text>
+                  )}
                   {club?.effectiveEndsAt && !isBlocked && !needsVerification && (
                     <Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
                       {t('locked.endedAt')}:{' '}
@@ -281,8 +330,8 @@ const Locked = () => {
               />
             )}
 
-            {/* Kassir/operator: obunani faqat admin uzaytiradi */}
-            {!isAdmin && !isBlocked && (
+            {/* Kassir/operator: obunani faqat admin uzaytiradi (to'lov bilan ochiladigan blokda ham) */}
+            {!isAdmin && (!isBlocked || payToUnblock) && (
               <GlassCard padding={TOKENS.spacing.md}>
                 <Text type="secondary">{t('locked.staffContactAdmin')}</Text>
               </GlassCard>

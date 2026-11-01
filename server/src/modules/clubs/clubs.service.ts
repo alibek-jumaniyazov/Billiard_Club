@@ -27,6 +27,7 @@ import { PlatformConfigService } from '../../common/platform-config/platform-con
 import type { TierCode } from '../../common/plan-tiers/tiers';
 import { TelegramService } from '../../telegram/telegram.service';
 import {
+  BlockClubDto,
   CreateClubDto,
   CreateContractDto,
   ExtendSubscriptionDto,
@@ -43,6 +44,13 @@ const CONTRACT_MONTHS: Record<string, number> = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Blokdan chiqarilganda sabab, izoh va sana tozalanadi */
+const CLEARED_BLOCK = { blockReason: null, blockNote: null, blockedAt: null };
+
+/** Blokdan chiqarilgan klubning holati muddatiga qarab tiklanadi */
+const statusAfterUnblock = (club: Club): ClubStatus =>
+  club.isExpired ? ClubStatus.EXPIRED : club.subscriptionEndsAt ? ClubStatus.ACTIVE : ClubStatus.TRIAL;
 
 /**
  * Sanaga oylar qo'shadi, MANZIL oyning oxirgi kunidan oshib ketmasin:
@@ -269,22 +277,50 @@ export class ClubsService {
     return this.withMeta(club);
   }
 
-  async setBlocked(id: number, blocked: boolean) {
+  /**
+   * Bloklash / blokdan chiqarish. Bloklashda sabab va klubga ko'rinadigan izoh
+   * ixtiyoriy; bloklangan klubni qayta bloklash sababni yangilaydi (sana
+   * birinchi blokniki qoladi). Ikkala amal ham audit jurnaliga yoziladi.
+   */
+  async setBlocked(id: number, blocked: boolean, details: BlockClubDto = {}, actor?: User) {
     const club = await this.clubRepo.findOne({ where: { id } });
     if (!club) throw new NotFoundException({ key: 'clubs.notFound' });
 
     if (blocked) {
+      club.blockedAt = club.status === ClubStatus.BLOCKED ? (club.blockedAt ?? new Date()) : new Date();
       club.status = ClubStatus.BLOCKED;
+      club.blockReason = details.reason ?? null;
+      club.blockNote = details.note?.trim() || null;
     } else {
-      // Blokdan chiqarilganda muddatiga qarab holat tiklanadi
-      club.status = club.isExpired
-        ? ClubStatus.EXPIRED
-        : club.subscriptionEndsAt
-          ? ClubStatus.ACTIVE
-          : ClubStatus.TRIAL;
+      club.status = statusAfterUnblock(club);
+      Object.assign(club, CLEARED_BLOCK);
     }
     await this.clubRepo.save(club);
+
+    this.auditService?.log({
+      action: blocked ? 'clubs.block' : 'clubs.unblock',
+      clubId: id,
+      userId: actor?.id,
+      actorRole: actor?.role,
+      entity: 'club',
+      entityId: id,
+      meta: blocked
+        ? { clubName: club.name, reason: club.blockReason, note: club.blockNote }
+        : { clubName: club.name },
+    });
+
     return this.withMeta(club);
+  }
+
+  /**
+   * To'lov tasdiqlanganda — superadmin tasdiqlash oynasida o'zi tanlasa —
+   * o'sha tranzaksiyada blokdan chiqarish. Klub qatori chaqiruvchida qulflangan
+   * va `subscriptionEndsAt` yangi muddatga o'rnatilgan bo'lishi kerak.
+   */
+  async unblockInTransaction(manager: EntityManager, club: Club) {
+    club.status = statusAfterUnblock(club);
+    Object.assign(club, CLEARED_BLOCK);
+    await manager.update(Club, club.id, { status: club.status, ...CLEARED_BLOCK });
   }
 
   /**

@@ -12,6 +12,7 @@ import type {
   Category,
   ChangePasswordPayload,
   Club,
+  ClubBlockReason,
   ClubInfo,
   ClubNotification,
   ClubDataOverview,
@@ -353,8 +354,12 @@ export const adminBillingApi = {
   invoices: (params?: { status?: InvoiceStatus; clubId?: number; page?: number; limit?: number }) =>
     get<Invoice[]>('/admin/invoices', params),
   /** To'lovni tasdiqlash: faktura PAID + shartnoma + obuna uzaytmasi */
-  confirmInvoice: (id: number, paymentMethod?: string) =>
-    post<Invoice>(`/admin/invoices/${id}/confirm`, paymentMethod ? { paymentMethod } : {}),
+  /** unblock — klub bloklangan bo'lsa, to'lov bilan birga blokdan ham chiqarish */
+  confirmInvoice: (id: number, paymentMethod?: string, unblock?: boolean) =>
+    post<Invoice>(`/admin/invoices/${id}/confirm`, {
+      ...(paymentMethod ? { paymentMethod } : {}),
+      ...(unblock ? { unblock: true } : {}),
+    }),
   rejectInvoice: (id: number, reason?: string) =>
     post<Invoice>(`/admin/invoices/${id}/reject`, reason ? { reason } : {}),
 };
@@ -529,7 +534,9 @@ export const adminApi = {
   /** months yoki until — aynan bittasi; allowShorten: muddatni qisqartirishga rozilik */
   extend: (id: number, body: { months?: number; until?: string; allowShorten?: boolean }) =>
     post<Club>(`/admin/clubs/${id}/extend`, body),
-  block: (id: number) => post<Club>(`/admin/clubs/${id}/block`),
+  /** Sabab va klubga ko'rinadigan izoh ixtiyoriy; bloklangan klubga qayta yuborilsa — sabab yangilanadi */
+  block: (id: number, body: { reason?: ClubBlockReason; note?: string } = {}) =>
+    post<Club>(`/admin/clubs/${id}/block`, body),
   unblock: (id: number) => post<Club>(`/admin/clubs/${id}/unblock`),
   resetPassword: (id: number, password: string) =>
     post<{ username: string }>(`/admin/clubs/${id}/reset-password`, { password }),

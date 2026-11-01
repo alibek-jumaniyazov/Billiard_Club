@@ -55,7 +55,9 @@ export default {
     'billing.confirmExpiredWarn':
       "Bu faktura muddati tugagan (kech kelgan to'lov). Tasdiqlash baribir ishlaydi — obuna hozirdan uzaytiriladi.",
     'billing.confirmBlockedWarn':
-      "Klub BLOKLANGAN. Tasdiqlash blokni ochmaydi — kerak bo'lsa klubni alohida blokdan chiqaring.",
+      "Klub BLOKLANGAN. Pastdagi belgi qo'yilmasa, to'lov tasdiqlanadi, lekin blok saqlanib qoladi.",
+    'billing.confirmBlockedReason': 'Blok sababi: {{reason}}',
+    'billing.confirmUnblock': 'Klubni blokdan ham chiqarish',
     'billing.paymentMethod': "To'lov usuli (ixtiyoriy)",
     'billing.methodPlaceholder': 'click / payme / naqd / bank',
     'billing.rejectTitle': "To'lovni rad etish",
@@ -373,7 +375,9 @@ export default {
     'billing.confirmExpiredWarn':
       'Срок этого счёта истёк (платёж пришёл с опозданием). Подтверждение всё равно сработает — подписка продлится с текущего момента.',
     'billing.confirmBlockedWarn':
-      'Клуб ЗАБЛОКИРОВАН. Подтверждение оплаты не снимает блокировку — при необходимости разблокируйте клуб отдельно.',
+      'Клуб ЗАБЛОКИРОВАН. Если не отметить пункт ниже, оплата будет подтверждена, но блокировка останется.',
+    'billing.confirmBlockedReason': 'Причина блокировки: {{reason}}',
+    'billing.confirmUnblock': 'Также разблокировать клуб',
     'billing.paymentMethod': 'Способ оплаты (необязательно)',
     'billing.methodPlaceholder': 'click / payme / наличные / банк',
     'billing.rejectTitle': 'Отклонение оплаты',

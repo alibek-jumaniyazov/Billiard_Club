@@ -83,6 +83,15 @@ export interface Entitlements {
   features: Record<FeatureKey, boolean>;
 }
 
+/** Klubni bloklash sababi (server: ClubBlockReason). Matnlari — i18n `locked.reason.*` */
+export type ClubBlockReason =
+  | 'free_plan_abuse'
+  | 'unpaid'
+  | 'rules_violation'
+  | 'suspicious_activity'
+  | 'owner_request'
+  | 'other';
+
 export interface ClubInfo {
   id: number;
   name: string;
@@ -94,6 +103,10 @@ export interface ClubInfo {
   /** Eski server javobida bo'lmasligi mumkin — unda hech narsa yopilmaydi */
   tier?: TierCode;
   entitlements?: Entitlements | null;
+  /** Bloklangan klub: tayyor sabab, superadmin izohi va sana (eski javobda bo'lmaydi) */
+  blockReason?: ClubBlockReason | null;
+  blockNote?: string | null;
+  blockedAt?: string | null;
 }
 
 export interface Club extends ClubInfo {

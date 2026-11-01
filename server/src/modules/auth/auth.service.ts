@@ -18,6 +18,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { LicenseService } from '../../common/license/license.service';
 import { PlanTiersService } from '../../common/plan-tiers/plan-tiers.service';
 import { Club } from '../../entities/club.entity';
+import { ClubStatus } from '../../entities/enums';
 import { RefreshSession } from '../../entities/refresh-session.entity';
 import { User } from '../../entities/user.entity';
 import { TelegramService } from '../../telegram/telegram.service';
@@ -736,6 +737,7 @@ export class AuthService {
    */
   private async clubInfo(club: Club | null) {
     if (!club) return null;
+    const blocked = club.status === ClubStatus.BLOCKED;
     return {
       id: club.id,
       name: club.name,
@@ -746,6 +748,10 @@ export class AuthService {
       isExpired: club.isExpired,
       tier: club.tier,
       entitlements: this.tiers ? await this.tiers.entitlements(club) : null,
+      // Blok ekrani: sabab, superadmin izohi va sana (faqat bloklangan klubda)
+      blockReason: blocked ? club.blockReason : null,
+      blockNote: blocked ? club.blockNote : null,
+      blockedAt: blocked ? club.blockedAt : null,
     };
   }
 

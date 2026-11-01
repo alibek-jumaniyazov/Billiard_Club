@@ -23,6 +23,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
@@ -54,6 +55,7 @@ import { EmptyState, PageHeader, PageTransition, StatCard, StatusTag } from '../
 import { TOKENS } from '../../theme/tokens';
 import type {
   Club,
+  ClubBlockReason,
   ClubStats,
   ClubStatus,
   Contract,
@@ -62,6 +64,7 @@ import type {
   InvoiceStatus,
   TierCode,
 } from '../../types';
+import { BLOCK_REASONS, isPaymentResolvable } from '../../utils/blockReasons';
 import { formatMoney, formatNumber } from '../../utils/format';
 import { isFormValidationError } from '../../utils/formErrors';
 import { TIER_TAG_COLOR, tierLabel, tierOptions } from '../../utils/tiers';
@@ -161,6 +164,13 @@ const AdminClubsPage = () => {
 
   const [passwordClub, setPasswordClub] = useState<Club | null>(null);
   const [passwordForm] = Form.useForm();
+
+  // Bloklash oynasi: sabab va klubga izoh ixtiyoriy; bloklangan klubda — sababni o'zgartirish
+  const [blockClub, setBlockClub] = useState<Club | null>(null);
+  const [blockForm] = Form.useForm<{ reason?: ClubBlockReason; note?: string }>();
+  const [blockSaving, setBlockSaving] = useState(false);
+  const blockReasonValue: ClubBlockReason | undefined = Form.useWatch('reason', blockForm);
+  const blockNoteValue: string | undefined = Form.useWatch('note', blockForm);
 
   const [extendClub, setExtendClub] = useState<Club | null>(null);
   const [extendDate, setExtendDate] = useState<Dayjs | null>(null);
@@ -391,12 +401,9 @@ const AdminClubsPage = () => {
   ];
 
   // ---------- Blok / parol / o'chirish ----------
-  const handleBlockToggle = async (club: Club) => {
+  const handleUnblock = async (club: Club) => {
     try {
-      const res =
-        club.status === 'blocked'
-          ? await adminApi.unblock(club.id)
-          : await adminApi.block(club.id);
+      const res = await adminApi.unblock(club.id);
       message.success(res.message);
       refreshList();
       if (detailClub?.id === club.id) setDetailClub(res.data);
@@ -405,18 +412,30 @@ const AdminClubsPage = () => {
     }
   };
 
-  const confirmBlockToggle = (club: Club) => {
-    if (club.status === 'blocked') {
-      void handleBlockToggle(club);
-      return;
+  const openBlock = (club: Club) => {
+    blockForm.setFieldsValue({ reason: club.blockReason ?? undefined, note: club.blockNote ?? '' });
+    setBlockClub(club);
+  };
+
+  const handleBlock = async () => {
+    if (!blockClub) return;
+    setBlockSaving(true);
+    try {
+      const values = await blockForm.validateFields();
+      const editing = blockClub.status === 'blocked';
+      const res = await adminApi.block(blockClub.id, {
+        reason: values.reason ?? undefined,
+        note: values.note?.trim() || undefined,
+      });
+      message.success(editing ? t('adminClubs.blockReasonSaved') : res.message);
+      setBlockClub(null);
+      refreshList();
+      if (detailClub?.id === blockClub.id) setDetailClub(res.data);
+    } catch (err) {
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+    } finally {
+      setBlockSaving(false);
     }
-    modal.confirm({
-      title: t('adminClubs.blockConfirm'),
-      okText: t('common.yes'),
-      cancelText: t('common.no'),
-      okButtonProps: { danger: true },
-      onOk: () => handleBlockToggle(club),
-    });
   };
 
   const handleResetPassword = async () => {
@@ -591,7 +610,12 @@ const AdminClubsPage = () => {
     } },
     { key: 'password', icon: <KeyOutlined />, label: t('adminClubs.resetPassword'), onClick: () => setPasswordClub(club) },
     { type: 'divider' as const },
-    { key: 'block', icon: club.status === 'blocked' ? <UnlockOutlined /> : <LockOutlined />, label: t(club.status === 'blocked' ? 'adminClubs.unblock' : 'adminClubs.block'), danger: club.status !== 'blocked', onClick: () => confirmBlockToggle(club) },
+    ...(club.status === 'blocked'
+      ? [
+          { key: 'unblock', icon: <UnlockOutlined />, label: t('adminClubs.unblock'), onClick: () => void handleUnblock(club) },
+          { key: 'block-reason', icon: <EditOutlined />, label: t('adminClubs.blockReasonEdit'), onClick: () => openBlock(club) },
+        ]
+      : [{ key: 'block', icon: <LockOutlined />, label: t('adminClubs.block'), danger: true, onClick: () => openBlock(club) }]),
     { key: 'delete', icon: <DeleteOutlined />, label: t('btn.delete'), danger: true, onClick: () => confirmDelete(club) },
   ];
 
@@ -628,7 +652,17 @@ const AdminClubsPage = () => {
       title: t('adminClubs.status'),
       dataIndex: 'status',
       width: 130,
-      render: (s: ClubStatus) => <StatusTag status={s} label={t(`club.${s}`)} />,
+      render: (s: ClubStatus, club) =>
+        s === 'blocked' && club.blockReason ? (
+          // Sabab sichqoncha ostida — ro'yxatdan chiqmasdan ko'rinadi
+          <Tooltip title={t(`locked.reason.${club.blockReason}`)}>
+            <span>
+              <StatusTag status={s} label={t(`club.${s}`)} />
+            </span>
+          </Tooltip>
+        ) : (
+          <StatusTag status={s} label={t(`club.${s}`)} />
+        ),
     },
     {
       title: t('tiers.adminTier'),
@@ -846,6 +880,22 @@ const AdminClubsPage = () => {
                 <Descriptions.Item label={t('adminClubs.status')}>
                   <StatusTag status={detailClub.status} label={t(`club.${detailClub.status}`)} />
                 </Descriptions.Item>
+                {detailClub.status === 'blocked' && (
+                  <Descriptions.Item label={t('adminClubs.blockReasonCol')}>
+                    <Space direction="vertical" size={2}>
+                      <span>{detailClub.blockReason ? t(`locked.reason.${detailClub.blockReason}`) : '—'}</span>
+                      {detailClub.blockNote && <Text type="secondary">{detailClub.blockNote}</Text>}
+                      {detailClub.blockedAt && (
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {t('adminClubs.blockedAtCol')}: {dayjs(detailClub.blockedAt).format('DD.MM.YYYY HH:mm')}
+                        </Text>
+                      )}
+                      <Button type="link" size="small" style={{ padding: 0 }} onClick={() => openBlock(detailClub)}>
+                        {t('adminClubs.blockReasonEdit')}
+                      </Button>
+                    </Space>
+                  </Descriptions.Item>
+                )}
                 <Descriptions.Item label={t('adminClubs.endsAt')}>
                   {detailClub.effectiveEndsAt
                     ? dayjs(detailClub.effectiveEndsAt).format('DD.MM.YYYY')
@@ -1335,6 +1385,64 @@ const AdminClubsPage = () => {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Bloklash: tayyor sabab va klubga ko'rinadigan izoh (ikkalasi ixtiyoriy) + klub ko'radigan matn */}
+      <Modal
+        title={`${t(blockClub?.status === 'blocked' ? 'adminClubs.blockReasonEdit' : 'adminClubs.block')} — ${blockClub?.name ?? ''}`}
+        open={!!blockClub}
+        onCancel={() => setBlockClub(null)}
+        onOk={() => void handleBlock()}
+        confirmLoading={blockSaving}
+        okText={blockClub?.status === 'blocked' ? t('btn.save') : t('adminClubs.block')}
+        okButtonProps={{ danger: blockClub?.status !== 'blocked' }}
+        cancelText={t('btn.cancel')}
+        // Tafsilotlar drawer'idan ham ochiladi — har doim uning ustida tursin
+        zIndex={1100}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          {blockClub?.status !== 'blocked' && <Alert type="warning" showIcon message={t('adminClubs.blockConfirm')} />}
+          <Form form={blockForm} layout="vertical" style={{ marginBottom: -8 }}>
+            <Form.Item name="reason" label={t('adminClubs.blockReasonLabel')}>
+              <Select
+                allowClear
+                placeholder={t('adminClubs.blockReasonPlaceholder')}
+                options={BLOCK_REASONS.map((reason) => ({ value: reason, label: t(`locked.reason.${reason}`) }))}
+              />
+            </Form.Item>
+            <Form.Item name="note" label={t('adminClubs.blockNoteLabel')}>
+              <Input.TextArea rows={3} maxLength={500} showCount placeholder={t('adminClubs.blockNotePlaceholder')} />
+            </Form.Item>
+          </Form>
+          {(blockReasonValue || blockNoteValue?.trim()) && (
+            <Alert
+              type="info"
+              message={
+                <>
+                  <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+                    {t('adminClubs.blockPreview')}
+                  </Text>
+                  {blockReasonValue ? t(`locked.reason.${blockReasonValue}`) : t('locked.blockedTitle')}
+                </>
+              }
+              description={
+                <Space direction="vertical" size={6}>
+                  <span>{blockReasonValue ? t(`locked.reasonDesc.${blockReasonValue}`) : t('locked.blockedDesc')}</span>
+                  {blockNoteValue?.trim() && (
+                    <span>
+                      <Text strong>{t('locked.adminNote')}:</Text> {blockNoteValue.trim()}
+                    </span>
+                  )}
+                  {isPaymentResolvable(blockReasonValue) && (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {t('adminClubs.blockPayHint')}
+                    </Text>
+                  )}
+                </Space>
+              }
+            />
+          )}
+        </Space>
       </Modal>
 
       {/* Aniq sanagacha uzaytirish */}

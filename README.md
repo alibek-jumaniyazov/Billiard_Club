@@ -30,6 +30,23 @@ stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun k
   eslatma chegaralari ham shu panelda sozlanadi (standart: 3 va 1 kun qolganda).
 - Muddati tugagan/bloklangan klub foydalanuvchilari tizimga kira oladi, lekin **blok ekranidan** o'ta olmaydi —
   ma'lumotlari saqlanadi, obuna uzaytirilishi bilan ish davom etadi.
+- **Blok sababi.** Superadmin bloklashda tayyor sababni tanlaydi va klubga ko'rinadigan izoh yozadi.
+  Ikkalasi ham ixtiyoriy. Tayyor sabablar:
+  - bepul tarifdan noto'g'ri foydalanish (2 yoki undan ortiq hisob ochilgan);
+  - to'lov qilinmagan;
+  - foydalanish shartlari buzilgan;
+  - shubhali faollik;
+  - klub egasining so'rovi;
+  - boshqa sabab.
+
+  Klub kirganda blok ekranida sabab, tushuntirish, izoh va bloklangan sana ko'rinadi. Sababni
+  keyin ham o'zgartirish mumkin (*⋯ → Blok sababini o'zgartirish*).
+- **To'lov bilan ochiladigan blok.** Ikki sabab obuna bilan hal bo'ladi: bepul tarifdan
+  noto'g'ri foydalanish va to'lov qilinmagani. Ularda klub egasiga blok ekranining o'zida
+  tariflar ochiladi va obuna sotib olish tavsiya qilinadi. To'lov tasdiqlanganda blok
+  **o'zicha ochilmaydi**: tasdiqlash oynasida *"Klubni blokdan ham chiqarish"* belgisi bor.
+  Shu ikki sababda u oldindan belgilangan bo'ladi. Qolgan sabablarda klubga administrator bilan
+  bog'lanish taklif qilinadi.
 
 ### Rollar
 `superadmin` (platforma egasi) · `admin` (klub egasi) · `kassir` (hisob-kitob, qarzlar, hisobotlar) · `operator` (o'yin boshlash, bar buyurtma)

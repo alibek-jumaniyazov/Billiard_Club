@@ -19,6 +19,7 @@ import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
 import { ClubsService } from './clubs.service';
 import {
+  BlockClubDto,
   CreateClubDto,
   CreateContractDto,
   ExtendSubscriptionDto,
@@ -93,17 +94,23 @@ export class ClubsController {
     return { success: true, message: t(lang, 'clubs.extended', { until }), data };
   }
 
+  /** Bloklash: ixtiyoriy sabab va klubga ko'rinadigan izoh bilan (bloklangan klubda — sabab yangilanadi) */
   @HttpCode(200)
   @Post(':id/block')
-  async block(@Param('id', ParseIntPipe) id: number, @Lang() lang: Language) {
-    const data = await this.clubsService.setBlocked(id, true);
+  async block(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: BlockClubDto,
+    @Lang() lang: Language,
+  ) {
+    const data = await this.clubsService.setBlocked(id, true, dto, user);
     return { success: true, message: t(lang, 'clubs.blocked'), data };
   }
 
   @HttpCode(200)
   @Post(':id/unblock')
-  async unblock(@Param('id', ParseIntPipe) id: number, @Lang() lang: Language) {
-    const data = await this.clubsService.setBlocked(id, false);
+  async unblock(@CurrentUser() user: User, @Param('id', ParseIntPipe) id: number, @Lang() lang: Language) {
+    const data = await this.clubsService.setBlocked(id, false, {}, user);
     return { success: true, message: t(lang, 'clubs.unblocked'), data };
   }
 

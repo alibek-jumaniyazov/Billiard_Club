@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, MoreThan, Not, Repository } from 'typeorm';
 import { Club } from '../../entities/club.entity';
 import { Coupon } from '../../entities/coupon.entity';
-import { CouponType, InvoiceStatus } from '../../entities/enums';
+import { ClubStatus, CouponType, InvoiceStatus } from '../../entities/enums';
 import { Invoice } from '../../entities/invoice.entity';
 import { Plan } from '../../entities/plan.entity';
 import { TelegramService } from '../../telegram/telegram.service';
@@ -292,6 +292,11 @@ export class AdminBillingService {
       await manager.save(Invoice, inv);
 
       lockedClub.subscriptionEndsAt = contract.endDate;
+      // Superadmin tasdiqlash oynasida "blokdan ham chiqarish"ni tanlagan bo'lsa
+      // (masalan, sabab — bepul tarifdan noto'g'ri foydalanish, endi obuna olindi)
+      if (dto.unblock && lockedClub.status === ClubStatus.BLOCKED) {
+        await this.clubsService.unblockInTransaction(manager, lockedClub);
+      }
       inv.contract = contract;
       return { invoice: inv, club: lockedClub };
     });

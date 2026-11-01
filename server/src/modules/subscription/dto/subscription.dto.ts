@@ -288,6 +288,14 @@ export class ConfirmInvoiceDto {
   @IsNotEmpty()
   @MaxLength(30)
   paymentMethod?: string;
+
+  /**
+   * Klub bloklangan bo'lsa — to'lov bilan birga blokdan ham chiqarish.
+   * Blok to'lov bilan JIMGINA ochilmaydi: buni superadmin o'zi tanlaydi.
+   */
+  @IsOptional()
+  @IsBoolean()
+  unblock?: boolean;
 }
 
 export class RejectInvoiceDto {

@@ -8,13 +8,17 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ClubStatus } from './enums';
+import { ClubBlockReason, ClubStatus } from './enums';
 import type { TierCode } from '../common/plan-tiers/tiers';
 import { User } from './user.entity';
 
 @Entity('clubs')
-// DB darajasidagi cheklov migratsiyada (TierPlans) — metadatada ham e'lon qilinadi
+// DB darajasidagi cheklovlar migratsiyada (TierPlans, ClubBlockReason) — metadatada ham e'lon qilinadi
 @Check('chk_clubs_tier', `"tier" IN ('standard', 'pro', 'vip')`)
+@Check(
+  'chk_clubs_block_reason',
+  `"blockReason" IN ('free_plan_abuse', 'unpaid', 'rules_violation', 'suspicious_activity', 'owner_request', 'other')`,
+)
 export class Club {
   @PrimaryGeneratedColumn()
   id: number;
@@ -52,6 +56,21 @@ export class Club {
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  /**
+   * Blok sababi (tayyor ro'yxatdan) va klubga ko'rinadigan izoh — ikkalasi
+   * ixtiyoriy, bloklangan klub kirganda ekranida chiqadi. `notes` dan farqi:
+   * u superadminning ichki eslatmasi, klubga ko'rsatilmaydi. Blokdan
+   * chiqarilganda uchala maydon tozalanadi.
+   */
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  blockReason: ClubBlockReason | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  blockNote: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  blockedAt: Date | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
