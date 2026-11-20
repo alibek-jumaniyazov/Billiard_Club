@@ -508,6 +508,8 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
   `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
 - Eski git tarixida oldingi dev sirlari bor — ular almashtirilgan, lekin repo ommaviy bo'lsa tarixni tozalash tavsiya etiladi.
 - Reverse proxy (nginx/Caddy) ortida TLS bilan ishga tushiring; `trust proxy` allaqachon sozlangan.
+- Sayt sahifalariga xavfsizlik sarlavhalari (CSP, HSTS, clickjacking himoyasi) nginx'da qo'yiladi:
+  [deploy/nginx/README.md](deploy/nginx/README.md). Oxirgi audit tahlili: [docs/SECURITY-AUDIT.md](docs/SECURITY-AUDIT.md).
 - `SEED_DEMO_CLUB=false` bo'lsin; superadmin parolini kuchli qiling.
 - PostgreSQL uchun muntazam backup (pg_dump) sozlang — bu klublarning moliyaviy ma'lumotlari.
 

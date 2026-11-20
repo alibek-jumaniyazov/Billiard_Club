@@ -28,22 +28,11 @@
     <meta name="author" content="Billiard Club" />
 
     <!-- JavaScript ishlasa sahifani React chizadi: qidiruv botlari uchun
-         statik matn (#seo-static) foydalanuvchiga bir lahza ham ko'rinmaydi -->
-    <script>
-      // JS bor + tanlangan rejim (och/qorong'i) CSS yuklanishidan OLDIN — sahifa
-      // noto'g'ri rangda "chaqnab" qolmasin (kalit: AppSettingsContext THEME_KEY)
-      (function () {
-        var d = document.documentElement;
-        d.classList.add('js');
-        var mode = 'light';
-        try { if (localStorage.getItem('bc.theme') === 'dark') mode = 'dark'; } catch (e) {}
-        d.setAttribute('data-theme', mode);
-        d.style.colorScheme = mode;
-        d.style.background = mode === 'dark' ? '#0b0d0c' : '#f3efe6';
-        var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute('content', mode === 'dark' ? '#0b0d0c' : '#f3efe6');
-      })();
-    </script>
+         statik matn (#seo-static) foydalanuvchiga bir lahza ham ko'rinmaydi.
+         JS bor + tanlangan rejim (och/qorong'i) CSS yuklanishidan OLDIN qo'llanadi —
+         sahifa noto'g'ri rangda "chaqnab" qolmaydi. Ichki (inline) skript EMAS:
+         production CSP `script-src 'self'` uni bloklardi (vite-plugin-seo.ts tekshiradi). -->
+    <script src="/theme-init.js"></script>
     <style>html.js #seo-static { display: none; }</style>
 
     <!-- SEO: sarlavha, tavsif, canonical, hreflang, Open Graph — build paytida har

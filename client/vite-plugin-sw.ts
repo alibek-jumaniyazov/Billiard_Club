@@ -38,6 +38,9 @@ const PRECACHE_SKIP = [
  * tizim ularni so'raydi va tarmoq bo'lmasa yorliq bo'sh chiqib qolardi.
  */
 const PUBLIC_ASSETS = [
+  // index.html <head> idagi erta mavzu skripti: oflayn ochilganda ham kerak, aks holda
+  // `html.js` klassi qo'yilmay statik SEO matni ilova ostida ko'rinib qolardi
+  '/theme-init.js',
   '/favicon.svg',
   '/site.webmanifest',
   '/icon-192.png',

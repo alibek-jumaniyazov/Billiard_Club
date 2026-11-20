@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite';
+import { cspViolations } from './src/seo/csp';
 import landingText from './src/i18n/pages/landing';
 import downloadText from './src/i18n/pages/download';
 import tiersText from './src/i18n/pages/tiers';
@@ -455,9 +456,21 @@ export const seoPlugin = (): Plugin => {
       const index = bundle['index.html'];
       if (!index || index.type !== 'asset') return;
       const html = String(index.source);
+      const guard = (file: string, source: string) => {
+        const bad = cspViolations(source);
+        if (bad.length) {
+          this.error(
+            `CSP: ${file} da production'da bloklanadigan kod bor (script-src 'self'):\n  - ${bad.join('\n  - ')}\n` +
+              `Skriptni public/ ga alohida fayl qilib chiqaring (namuna: public/theme-init.js).`,
+          );
+        }
+      };
+      guard('index.html', html);
       for (const page of SEO_PAGES()) {
         if (page.file === 'index.html') continue;
-        this.emitFile({ type: 'asset', fileName: page.file, source: renderPage(html, page, verify) });
+        const source = renderPage(html, page, verify);
+        guard(page.file, source);
+        this.emitFile({ type: 'asset', fileName: page.file, source });
       }
       this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: sitemap(new Date().toISOString().slice(0, 10)) });
     },
