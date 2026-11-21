@@ -205,6 +205,11 @@ interface LiveReceiptProps {
   offsetMs: number;
   /** Klub valyuta belgisi — memo bargida hook ikkinchi marta chaqirilmasin */
   currency: string;
+  /**
+   * Summa limiti (bo'lsa) — stol summasi yonida ko'rsatiladi: kassir mijoz
+   * kelishgan summani va undan qancha oshganini hisob-kitob paytida ko'rsin
+   */
+  limitAmount?: number | null;
 }
 
 const rowStyle: CSSProperties = {
@@ -230,6 +235,7 @@ const LiveReceipt = memo(
     flags,
     offsetMs,
     currency,
+    limitAmount,
   }: LiveReceiptProps) => {
     const { t } = useTranslation();
     const now = useNow();
@@ -305,6 +311,20 @@ const LiveReceipt = memo(
           <Text type="secondary">{t('tables.tableAmount')}</Text>
           <MoneyText amount={totals.tableAmount} currency={currency} size="md" />
         </div>
+        {/* Summa limiti — faqat ma'lumot: hisob haqiqiy vaqt bo'yicha qoladi */}
+        {limitAmount != null && (
+          <div style={{ ...rowStyle, fontSize: 12.5 }}>
+            <Text type="secondary">
+              {t('tables.limitEditTitle')}
+              {totals.tableAmount > limitAmount && (
+                <span style={{ color: TOKENS.color.semantic.warning, marginLeft: 8 }}>
+                  {t('tables.limitOver', { amount: formatNumber(totals.tableAmount - limitAmount) })}
+                </span>
+              )}
+            </Text>
+            <MoneyText amount={limitAmount} size="sm" color={TOKENS.color.text.secondary} />
+          </div>
+        )}
         <div style={rowStyle}>
           <Text type="secondary">{t('tables.barAmount')}</Text>
           <MoneyText amount={totals.barAmount} currency={currency} size="md" />
@@ -1192,6 +1212,7 @@ const CheckoutDrawer = ({
             flags={flags}
             offsetMs={offsetMs}
             currency={currency}
+            limitAmount={session?.limitAmount ?? null}
           />
 
           <Form form={form} layout="vertical" requiredMark={false}>

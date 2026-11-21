@@ -465,6 +465,12 @@ export interface Session {
   totalPausedMs: number;
   /** Belgilangan o'yin vaqti (daqiqa) — faqat ogohlantirish uchun; null — cheklanmagan */
   plannedMinutes?: number | null;
+  /**
+   * Summa limiti ("50 000 so'mga o'ynayman") — stol summasi shu qiymatga
+   * yetganda ogohlantirish chiqadi. plannedMinutes bilan birga qo'yilmaydi.
+   * Qolgan vaqt joriy narxdan hisoblanadi (utils/session.ts: sessionLimitLeftMs).
+   */
+  limitAmount?: number | null;
   /** Sessiya boshlanganida muhrlangan soatlik narx */
   pricePerHour: number | null;
   durationMinutes: number | null;
@@ -1229,7 +1235,17 @@ export interface StartSessionPayload {
   notes?: string;
   /** Belgilangan o'yin vaqti (daqiqa); yo'q — cheklanmagan */
   plannedMinutes?: number;
+  /** Summa limiti; plannedMinutes bilan BIRGA yuborilmaydi */
+  limitAmount?: number;
 }
+
+/**
+ * O'yin vaqti cheklovini o'zgartirish (PUT /sessions/:id/plan):
+ *  - { plannedMinutes: N }    — belgilangan vaqt (summa limiti bo'lsa olib tashlanadi);
+ *  - { limitAmount: X }       — summa limiti (belgilangan vaqt bo'lsa olib tashlanadi);
+ *  - { plannedMinutes: null } — cheklovni butunlay olib tashlash.
+ */
+export type SessionPlanPayload = { plannedMinutes: number | null } | { limitAmount: number };
 
 export interface EndSessionPayload {
   paymentMethod?: PaymentMethod;

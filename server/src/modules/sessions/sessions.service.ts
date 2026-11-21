@@ -39,8 +39,12 @@ import {
   TransferSessionDto,
   UpdatePlanDto,
 } from './dto/sessions.dto';
+import { checkLimitAmount, LIMIT_MAX_MINUTES, LIMIT_MIN_MINUTES } from './session-limit';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Xato matni uchun summa: butun so'mgacha, ming ajratkichli ("3 334") */
+const formatAmount = (n: number) => new Intl.NumberFormat('ru-RU').format(n);
 
 /**
  * Bo'lib to'lashda kassir summani KO'RGAN oni bilan server yakunni YOZGAN oni
@@ -343,6 +347,24 @@ export class SessionsService {
       });
       if (existing) throw new BadRequestException({ key: 'sessions.tableBusy' });
 
+      // O'YIN VAQTI CHEKLOVI: belgilangan vaqt YOKI summa limiti (ikkalasi emas).
+      // Oflayn navbatdan kelgan o'yin (offlineAt bor) shu tekshiruvlar tufayli
+      // HECH QACHON rad etilmaydi: mijoz allaqachon o'ynab bo'lgan, rad javobi
+      // butun o'yinni yo'qotardi. Yaroqsiz limit shunchaki qo'yilmaydi — u
+      // ogohlantirish chegarasi xolos, pul hisobiga ta'sir qilmaydi.
+      const queuedOffline = dto.offlineAt !== undefined;
+      let plannedMinutes = dto.plannedMinutes ?? null;
+      let limitAmount = dto.limitAmount != null ? round2(dto.limitAmount) : null;
+      if (plannedMinutes !== null && limitAmount !== null) {
+        if (!queuedOffline) throw new BadRequestException({ key: 'sessions.planOrLimit' });
+        limitAmount = null;
+      }
+      if (limitAmount !== null) {
+        const problem = this.limitProblem(limitAmount, table.pricePerHour);
+        if (problem && !queuedOffline) throw problem;
+        if (problem) limitAmount = null;
+      }
+
       // Telefon KANONIK ko'rinishda saqlanadi (customers bilan bir xil kalit) —
       // aks holda mijoz profili sessiyani/qarzni topa olmaydi
       const customerName = dto.customerName?.trim() || null;
@@ -378,7 +400,8 @@ export class SessionsService {
         // Narx muhrlanadi: keyin stol narxi o'zgarsa ham hisob shu narxda
         pricePerHour: table.pricePerHour,
         notes: dto.notes ?? null,
-        plannedMinutes: dto.plannedMinutes ?? null,
+        plannedMinutes,
+        limitAmount,
       });
 
       // Birinchi segment: hisob segmentlar bo'yicha yuritiladi (transfer tarixi)
@@ -439,7 +462,31 @@ export class SessionsService {
   }
 
   /**
-   * Belgilangan vaqtni o'zgartirish ("+30 daqiqa" yoki cheklovni olib tashlash).
+   * Summa limiti shu narxda yaroqlimi. Yaroqsiz bo'lsa — foydalanuvchiga
+   * tushunarli (chegara summasi ko'rsatilgan) xato qaytadi, yaroqli bo'lsa null.
+   */
+  private limitProblem(limitAmount: number, pricePerHour: number): BadRequestException | null {
+    const problem = checkLimitAmount(limitAmount, pricePerHour);
+    if (!problem) return null;
+    if (problem.key === 'sessions.limitTooSmall') {
+      return new BadRequestException({
+        key: problem.key,
+        // Butun so'mgacha YUQORIGA: ko'rsatilgan summani kiritgan kassir o'tadi
+        args: { min: formatAmount(Math.ceil(problem.min)), minutes: LIMIT_MIN_MINUTES },
+      });
+    }
+    if (problem.key === 'sessions.limitTooLarge') {
+      return new BadRequestException({
+        key: problem.key,
+        args: { max: formatAmount(Math.floor(problem.max)), hours: LIMIT_MAX_MINUTES / 60 },
+      });
+    }
+    return new BadRequestException({ key: problem.key });
+  }
+
+  /**
+   * O'yin vaqti cheklovini o'zgartirish: belgilangan vaqt ("+30 daqiqa"),
+   * summa limiti yoki cheklovni olib tashlash (UpdatePlanDto izohiga qarang).
    * Pulga ta'sir qilmaydi — faqat ogohlantirish chegarasi.
    */
   async updatePlan(clubId: number, id: number, dto: UpdatePlanDto) {
@@ -448,7 +495,32 @@ export class SessionsService {
       if (session.status !== SessionStatus.ACTIVE && session.status !== SessionStatus.PAUSED) {
         throw new BadRequestException({ key: 'sessions.alreadyEnded' });
       }
-      await manager.update(Session, id, { plannedMinutes: dto.plannedMinutes ?? null });
+      if (dto.plannedMinutes != null && dto.limitAmount != null) {
+        throw new BadRequestException({ key: 'sessions.planOrLimit' });
+      }
+
+      let limitAmount: number | null = null;
+      if (dto.limitAmount != null) {
+        limitAmount = round2(dto.limitAmount);
+        // JORIY narx: ochiq segment (transferdan keyin — yangi stol narxi);
+        // segmentlarsiz eski sessiyada muhrlangan narx, u ham bo'lmasa stol narxi
+        const openSegment = await manager.findOne(SessionSegment, {
+          where: { sessionId: id, endedAt: IsNull() },
+        });
+        let pricePerHour = openSegment?.pricePerHour ?? session.pricePerHour;
+        if (pricePerHour == null) {
+          const table = await manager.findOne(Table, { where: { id: session.tableId } });
+          pricePerHour = table?.pricePerHour ?? 0;
+        }
+        const problem = this.limitProblem(limitAmount, pricePerHour);
+        if (problem) throw problem;
+      }
+
+      // Ikkalasi bir-birini istisno qiladi: biri qo'yilsa ikkinchisi tozalanadi
+      await manager.update(Session, id, {
+        plannedMinutes: limitAmount !== null ? null : (dto.plannedMinutes ?? null),
+        limitAmount,
+      });
       const fresh = await manager.findOne(Session, { where: { id }, relations: { table: true } });
       return { ...fresh!, serverNow: new Date().toISOString() };
     });

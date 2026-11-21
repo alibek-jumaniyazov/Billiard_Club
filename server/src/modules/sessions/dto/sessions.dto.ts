@@ -67,15 +67,41 @@ export class StartSessionDto extends OfflineAtDto {
   @Min(5)
   @Max(1440)
   plannedMinutes?: number;
+
+  /**
+   * Summa limiti ("50 000 so'mga o'ynayman") — stol summasi shu qiymatga
+   * yetganda kassirga ogohlantirish chiqadi. plannedMinutes bilan BIRGA
+   * yuborilmaydi. Bu yerda faqat shakl tekshiriladi; stol narxiga bog'liq
+   * chegaralar (kamida 5 daqiqalik, ko'pi bilan 24 soatlik summa) servisda
+   * (session-limit.ts: checkLimitAmount).
+   */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(MAX_MONEY)
+  @Type(() => Number)
+  limitAmount?: number;
 }
 
-/** Belgilangan vaqtni o'zgartirish (uzaytirish); null — cheklovni olib tashlash */
+/**
+ * O'yin vaqti cheklovini o'zgartirish. Uch xil so'rov:
+ *  - { plannedMinutes: N }   — belgilangan vaqt (summa limiti bo'lsa olib tashlanadi);
+ *  - { limitAmount: X }      — summa limiti (belgilangan vaqt bo'lsa olib tashlanadi);
+ *  - { plannedMinutes: null } — cheklovni butunlay olib tashlash (ikkalasi ham).
+ * Ikkala qiymat birga yuborilsa rad etiladi.
+ */
 export class UpdatePlanDto {
   @IsOptional()
   @IsInt()
   @Min(5)
   @Max(1440)
-  plannedMinutes: number | null;
+  plannedMinutes?: number | null;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(MAX_MONEY)
+  limitAmount?: number | null;
 }
 
 /** Bo'lib to'lash elementi: usul + summa */

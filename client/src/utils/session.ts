@@ -90,6 +90,29 @@ export const segmentsMatchSession = (
 };
 
 /**
+ * Har segmentning pauzasi va FAOL vaqti (ms) — segment hisobining umumiy qismi
+ * (sessionSegmentBilling va sessionLimitLeftMs aynan bir xil qiymatdan chiqadi).
+ */
+const segmentActiveParts = (
+  session: SessionTiming,
+  segments: SegmentLike[],
+  now: number,
+): Array<{ pausedMs: number; activeMs: number }> => {
+  const closedPausedMs = segments.reduce(
+    (sum, seg) => (seg.endedAt ? sum + (seg.pausedMs || 0) : sum),
+    0,
+  );
+  const openPausedMs =
+    Math.max(0, (session.totalPausedMs || 0) - closedPausedMs) + currentPauseMs(session, now);
+
+  return segments.map((seg) => {
+    const endMs = seg.endedAt ? Math.min(new Date(seg.endedAt).getTime(), now) : now;
+    const pausedMs = seg.endedAt ? seg.pausedMs || 0 : openPausedMs;
+    return { pausedMs, activeMs: Math.max(0, endMs - new Date(seg.startedAt).getTime() - pausedMs) };
+  });
+};
+
+/**
  * Segmentlar bo'yicha sekundlik hisob — serverdagi billSegments nusxasi.
  *
  * Ochiq segmentning pausedMs qiymati sessiyaning YANGI totalPausedMsidan
@@ -107,19 +130,12 @@ export const sessionSegmentBilling = (
   segments: SegmentLike[],
   now: number = Date.now(),
 ): { items: SegmentBillingLine[]; tableAmount: number } => {
-  const closedPausedMs = segments.reduce(
-    (sum, seg) => (seg.endedAt ? sum + (seg.pausedMs || 0) : sum),
-    0,
-  );
-  const openPausedMs =
-    Math.max(0, (session.totalPausedMs || 0) - closedPausedMs) + currentPauseMs(session, now);
+  const parts = segmentActiveParts(session, segments, now);
 
   let cumulativeMs = 0;
   let previousSeconds = 0;
-  const items: SegmentBillingLine[] = segments.map((seg) => {
-    const endMs = seg.endedAt ? Math.min(new Date(seg.endedAt).getTime(), now) : now;
-    const pausedMs = seg.endedAt ? seg.pausedMs || 0 : openPausedMs;
-    const activeMs = Math.max(0, endMs - new Date(seg.startedAt).getTime() - pausedMs);
+  const items: SegmentBillingLine[] = segments.map((seg, index) => {
+    const { pausedMs, activeMs } = parts[index];
     cumulativeMs += activeMs;
     const cumulativeSeconds = Math.floor(cumulativeMs / 1000);
     const billedSeconds = Math.max(0, cumulativeSeconds - previousSeconds);
@@ -153,6 +169,61 @@ export const sessionTableAmount = (
   }
   const price = session.pricePerHour ?? fallbackPricePerHour;
   return secondsAmount(price, sessionDurationSeconds(session, now));
+};
+
+/** Limit hisobi uchun sessiya ko'rinishi: vaqt maydonlari + summa limiti */
+export interface LimitTiming extends SessionTiming {
+  limitAmount?: number | null;
+}
+
+/**
+ * SUMMA LIMITI — limitga yetguncha qolgan FAOL o'yin vaqti (ms).
+ *
+ *   > 0  — shuncha vaqt qoldi;
+ *   <= 0 — limit tugagan; mutlaq qiymati limitdan qancha vaqt o'tganini bildiradi;
+ *   null — limit yo'q yoki joriy narx 0 (bepul stolda limitga hech qachon yetilmaydi).
+ *
+ * Limit PUL bo'yicha: stol summasi (bar kirmaydi) limitga yetgan payt "tugadi".
+ * Avvalgi stollarda (yopiq segmentlar) yig'ilgan summa limitdan ayiriladi,
+ * qolgan pul esa JORIY narx bo'yicha vaqtga aylanadi — shu sababli boshqa
+ * stolga ko'chirilganda qolgan vaqt yangi narxda o'zi qayta hisoblanadi.
+ * Pauzada qiymat o'zgarmaydi (faol vaqt to'xtagan).
+ *
+ * Yopiq segmentlar summasi chekdagi bilan AYNAN bir xil (sessionSegmentBilling);
+ * ulardan qolgan to'liqmas soniya (carry) ochiq segmentga o'tadi — hisob ham
+ * shunday yuritiladi, shuning uchun "tugadi" payti chekdagi summa limitga
+ * yetgan soniyaga to'g'ri keladi.
+ */
+export const sessionLimitLeftMs = (
+  session: LimitTiming,
+  fallbackPricePerHour: number,
+  now: number = Date.now(),
+  segments?: SegmentLike[] | null,
+): number | null => {
+  const limit = session.limitAmount;
+  if (limit == null || !(limit > 0)) return null;
+
+  const openIndex = segments ? segments.findIndex((seg) => !seg.endedAt) : -1;
+  if (segments && openIndex >= 0) {
+    const price = segments[openIndex].pricePerHour;
+    if (!(price > 0)) return null;
+    const parts = segmentActiveParts(session, segments, now);
+    const { items } = sessionSegmentBilling(session, segments, now);
+    let closedAmount = 0;
+    let closedMs = 0;
+    segments.forEach((_, index) => {
+      if (index === openIndex) return;
+      closedAmount += items[index].amount;
+      closedMs += parts[index].activeMs;
+    });
+    const neededMs = ((limit - closedAmount) * 3_600_000) / price;
+    return neededMs - (closedMs % 1000) - parts[openIndex].activeMs;
+  }
+
+  // Segmentlar hali yuklanmagan yoki eski (segmentlarsiz) sessiya — bitta narx
+  const price = session.pricePerHour ?? fallbackPricePerHour;
+  if (!(price > 0)) return null;
+  return (limit * 3_600_000) / price - sessionElapsedMs(session, now);
 };
 
 /**

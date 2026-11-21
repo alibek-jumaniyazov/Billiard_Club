@@ -71,7 +71,14 @@ const nowIso = (offsetMs = 0): string => new Date(Date.now() + offsetMs).toISOSt
  */
 export const queueStartSession = async (
   table: BilliardTable,
-  values: { customerName?: string; customerPhone?: string; notes?: string; plannedMinutes?: number },
+  values: {
+    customerName?: string;
+    customerPhone?: string;
+    notes?: string;
+    plannedMinutes?: number;
+    /** Summa limiti — plannedMinutes bilan birga berilmaydi */
+    limitAmount?: number;
+  },
   idempotencyKey?: string,
   offsetMs = 0,
 ): Promise<string> => {
@@ -93,6 +100,8 @@ export const queueStartSession = async (
       customerPhone: values.customerPhone ?? null,
       notes: values.notes ?? null,
       plannedMinutes: values.plannedMinutes ?? null,
+      // Qolgan vaqt kartada shu qiymat va narxdan hisoblanadi — oflayn ham ishlaydi
+      limitAmount: values.limitAmount ?? null,
     },
   });
 };

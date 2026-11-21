@@ -275,7 +275,42 @@ button.tables-overview__metric:hover { background: var(--bg2); }
   .table-checkout-drawer .ant-drawer-footer .ant-row > .ant-col:last-child { flex: 0 0 100%; max-width: 100%; }
 }
 .table-plan-picker .ant-segmented-item-label { padding-inline: 4px; font-size: 13px; }
-@media (prefers-reduced-motion: reduce) { .tables-occupancy-track span, .pool-card__felt { transition: none; } .table-plan-badge.is-expired { animation: none; } }
+/*
+ * O'yin vaqti tanlovi — olti variant (Cheksiz · 30 daq · 1 soat · 2 soat · 3 soat · Limit).
+ * Tor ekranda ular bitta qatorga sig'maydi (yorliqlar kesilib qolardi), shuning
+ * uchun 3×2 to'rga o'tadi. Sirpanish animatsiyasi komponentning o'zida o'chirilgan
+ * (StartModal.tsx: PlanPicker) — to'rda u tanlovni bo'yamay qoldirardi.
+ */
+@media (max-width: 480px) {
+  /* justify-items: antd guruhga flex-start qo'yadi — to'rda yorliqlar katakni to'ldirmay qolardi */
+  .table-plan-picker .ant-segmented-group { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; justify-items: stretch; }
+  .table-plan-picker .ant-segmented-item-label { min-height: 38px; display: flex; align-items: center; justify-content: center; }
+}
+/* Summa limiti: pul maydoni, tez tanlash tugmalari va "shu pulga necha daqiqa" natijasi */
+.table-limit-box { border: 1px solid var(--border-base); border-radius: 10px; padding: 14px 14px 12px; margin-bottom: 20px; background: var(--bg1); }
+.table-limit-box .ant-form-item { margin-bottom: 10px; }
+.table-limit-box .ant-input-number-affix-wrapper, .table-limit-box .ant-input-number { width: 100%; }
+.table-limit-currency { color: var(--text-tertiary); font-size: 14px; font-weight: 500; }
+.table-limit-box .ant-input-number-input { height: 42px; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.table-limit-quick { display: grid; grid-template-columns: repeat(var(--quick-cols, 4), minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+@media (max-width: 480px) { .table-limit-quick.is-wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.table-limit-chip { min-width: 0; min-height: 40px; padding: 0 6px; border: 1px solid var(--border-base); border-radius: 8px; background: transparent; color: var(--text-primary); font: inherit; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, color .15s ease; }
+.table-limit-chip:hover { border-color: var(--gold); }
+.table-limit-chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.table-limit-chip.is-selected { border-color: var(--gold); background: var(--gold-subtle); color: var(--gold); }
+.table-limit-result { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 8px; padding: 10px 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; color: var(--info); background: rgba(95, 147, 184, .12); }
+.table-limit-result > .anticon { margin-top: 3px; }
+.table-limit-result > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.table-limit-result strong { font-weight: 600; color: var(--text-primary); }
+.table-limit-result small { font-size: 12px; color: var(--text-secondary); }
+.table-limit-result.is-empty { padding: 0; background: transparent; color: var(--text-tertiary); font-size: 12.5px; }
+.table-limit-result.is-warning { color: var(--warning); background: rgba(217, 161, 61, .14); }
+.table-limit-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-tertiary); }
+.table-limit-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 0 0 16px; }
+.table-limit-facts > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.table-limit-facts dt { font-size: 12px; color: var(--text-tertiary); }
+.table-limit-facts dd { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .tables-occupancy-track span, .pool-card__felt { transition: none; } .table-plan-badge.is-expired { animation: none; } .table-limit-chip { transition: none; } }
 
 /*
  * TELEFON: kassir ochishi bilan STOLLARNI ko'rsin. Statistika kartalari filtr

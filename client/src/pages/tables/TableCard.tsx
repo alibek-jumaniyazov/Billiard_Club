@@ -4,15 +4,17 @@ import {
   BellOutlined, BulbOutlined, CalendarOutlined, CaretRightOutlined, ClockCircleOutlined, CloseCircleOutlined,
   CloudSyncOutlined, CoffeeOutlined, DollarOutlined, EllipsisOutlined, FieldTimeOutlined,
   HistoryOutlined, HourglassOutlined, PauseCircleOutlined, PlayCircleOutlined, StopOutlined, SwapOutlined,
-  SyncOutlined, UserOutlined,
+  SyncOutlined, UserOutlined, WalletOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { ElapsedTime, MoneyText, StatusTag, useNow } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
 import { TOKENS } from '../../theme/tokens';
-import type { BilliardTable, Session } from '../../types';
+import type { BilliardTable, Session, SessionPlanPayload } from '../../types';
 import { formatClock, formatElapsed, formatNumber } from '../../utils/format';
-import { sessionElapsedMs, sessionTableAmount, type SegmentLike } from '../../utils/session';
+import {
+  round2, sessionElapsedMs, sessionLimitLeftMs, sessionTableAmount, type SegmentLike,
+} from '../../utils/session';
 
 // Only these leaf components tick; card order and page state stay stable.
 const LiveAmount = memo(({ session, fallbackPrice, segments, offsetMs, currency, size = 'lg' }: {
@@ -27,10 +29,14 @@ LiveAmount.displayName = 'LiveAmount';
 
 /**
  * "Vaqt tugadi" ovozli signali — WebAudio bilan (fayl yuklanmaydi). Har bir
- * sessiya uchun sahifa umrida BIR MARTA chalinadi; brauzer ovozni bloklasa
+ * CHEKLOV uchun sahifa umrida BIR MARTA chalinadi; brauzer ovozni bloklasa
  * jim qoladi — qizil belgi baribir ko'rinib turadi.
+ *
+ * Kalitda cheklovning o'zi ham bor (vaqt yoki summa): mijoz "yana 20 mingga"
+ * yoki "+30 daqiqa" deb uzaytirsa, YANGI chegara tugaganda signal qayta
+ * chalinadi. Faqat sessiya ID si bo'lganida ikkinchi marta jim qolardi.
  */
-const notifiedSessions = new Set<number>();
+const notifiedPlans = new Set<string>();
 const playTimeUpSound = () => {
   try {
     const Ctx = window.AudioContext
@@ -58,21 +64,39 @@ const playTimeUpSound = () => {
   }
 };
 
-/** Belgilangan vaqt: "Qoldi 00:12:30" yoki "Vaqt tugadi +00:02:15" (har soniyada faqat shu barg) */
-const PlannedBadge = memo(({ session, offsetMs }: { session: Session; offsetMs: number }) => {
+/**
+ * O'yin vaqti cheklovi nishoni: "Qoldi 00:12:30" yoki "Vaqt tugadi +00:02:15"
+ * (har soniyada faqat shu barg qayta chiziladi).
+ *
+ * Ikki xil cheklov bitta ko'rinishda:
+ *  - belgilangan vaqt (plannedMinutes) — o'tgan faol vaqt bilan solishtiriladi;
+ *  - summa limiti (limitAmount) — qolgan pul JORIY narx bo'yicha vaqtga
+ *    aylanadi (utils/session.ts: sessionLimitLeftMs), shuning uchun transferdan
+ *    keyin ham to'g'ri. Narx 0 bo'lsa limitga yetilmaydi — nishon ko'rinmaydi.
+ */
+const PlannedBadge = memo(({ session, segments, fallbackPrice, offsetMs }: {
+  session: Session; segments: SegmentLike[] | null; fallbackPrice: number; offsetMs: number;
+}) => {
   const { t } = useTranslation();
   const now = useNow();
-  const leftMs = (session.plannedMinutes ?? 0) * 60_000 - sessionElapsedMs(session, now + offsetMs);
-  const expired = leftMs <= 0;
+  const isLimit = session.limitAmount != null;
+  const leftMs = isLimit
+    ? sessionLimitLeftMs(session, fallbackPrice, now + offsetMs, segments)
+    : (session.plannedMinutes ?? 0) * 60_000 - sessionElapsedMs(session, now + offsetMs);
+  const expired = leftMs !== null && leftMs <= 0;
+  const planKey = `${session.id}|${session.plannedMinutes ?? ''}|${session.limitAmount ?? ''}`;
   useEffect(() => {
-    if (!expired || session.status !== 'active' || notifiedSessions.has(session.id)) return;
-    notifiedSessions.add(session.id);
+    if (!expired || session.status !== 'active' || notifiedPlans.has(planKey)) return;
+    notifiedPlans.add(planKey);
     playTimeUpSound();
-  }, [expired, session.id, session.status]);
+  }, [expired, planKey, session.status]);
+  if (leftMs === null) return null;
   return (
     <span className={`table-plan-badge${expired ? ' is-expired' : leftMs <= 5 * 60_000 ? ' is-soon' : ''}`} role="status">
       {expired ? <BellOutlined /> : <HourglassOutlined />}
-      {expired ? t('tables.planExpired', { time: formatElapsed(-leftMs) }) : t('tables.planLeft', { time: formatElapsed(leftMs) })}
+      {expired
+        ? t(isLimit ? 'tables.limitExpired' : 'tables.planExpired', { time: formatElapsed(-leftMs) })
+        : t('tables.planLeft', { time: formatElapsed(leftMs) })}
     </span>
   );
 });
@@ -106,13 +130,18 @@ export interface TableCardProps {
   onCancel: (session: Session) => void;
   onLightToggle?: (table: BilliardTable, on: boolean) => void;
   onLightAuto?: (table: BilliardTable) => void;
-  /** Belgilangan vaqtni o'zgartirish ("+30 daqiqa"); null — cheklovni olib tashlash */
-  onPlanChange?: (session: Session, minutes: number | null) => void;
+  /**
+   * O'yin vaqti cheklovini o'zgartirish: "+30 daqiqa", summa limitini oshirish
+   * yoki `{ plannedMinutes: null }` — cheklovni olib tashlash
+   */
+  onPlanChange?: (session: Session, plan: SessionPlanPayload) => void;
+  /** Summa limitini qo'yish/o'zgartirish oynasini ochish */
+  onLimitEdit?: (table: BilliardTable) => void;
 }
 
 const TableCard = memo(({
   variant = 'card', table, focused, session, segments, offsetMs, online, pending, lightPending, canCheckout, canManage, reservation,
-  onStart, onOrder, onTransfer, onCheckout, onPauseResume, onCancel, onLightToggle, onLightAuto, onPlanChange,
+  onStart, onOrder, onTransfer, onCheckout, onPauseResume, onCancel, onLightToggle, onLightAuto, onPlanChange, onLimitEdit,
 }: TableCardProps) => {
   const { t, i18n } = useTranslation();
   const ru = i18n.language.startsWith('ru');
@@ -121,6 +150,8 @@ const TableCard = memo(({
   const isBusy = table.status === 'busy';
   const isPaused = session?.status === 'paused';
   const isOfflineSession = !!session?.offlineLocalId;
+  // O'yin vaqti cheklovi bormi: belgilangan vaqt yoki summa limiti
+  const hasPlan = !!session && (!!session.plannedMinutes || session.limitAmount != null);
   // Preserve online/role restrictions, including local synthetic sessions.
   const offlineBlocked = !online || isOfflineSession;
   // Hisob-kitob oflayn ham ishlaydi (offline/pos.ts: queueEndSession) — tugma bloklanmaydi,
@@ -166,21 +197,37 @@ const TableCard = memo(({
       disabled: isPaused || offlineBlocked || pending, onClick: () => onTransfer(table) }] : []),
     ...(hasLight && lightOverride && onLightAuto ? [{ key: 'light-auto', icon: <SyncOutlined />,
       label: t('tables.lightsOverrideAuto'), disabled: !online || lightPending, onClick: () => onLightAuto(table) }] : []),
-    // Belgilangan vaqt: cheklangan o'yinga plan ustiga, cheklanmaganga hozirgi vaqtdan qo'shiladi
+    // O'yin vaqti cheklovi: belgilangan vaqt yoki summa limiti (bittasi)
     ...(isBusy && session && onPlanChange ? (() => {
+      const limit = session.limitAmount ?? null;
+      // JORIY narx: ochiq segment (transferdan keyin yangi stol), bo'lmasa muhrlangan narx
+      const price = segments?.find((seg) => !seg.endedAt)?.pricePerHour
+        ?? session.pricePerHour ?? table.pricePerHour;
       // Asos bosilgan PAYTDA hisoblanadi (karta har soniyada qayta chizilmaydi)
       const extend = (minutes: number) => {
+        // Limitli o'yin PULDA o'lchanadi: qo'shilgan daqiqalar joriy narxda pulga
+        // aylanib limitga qo'shiladi — limit vaqtga almashib qolmaydi
+        if (limit !== null) {
+          onPlanChange(session, { limitAmount: round2(limit + (price * minutes) / 60) });
+          return;
+        }
+        // Cheklangan o'yinga plan ustiga, cheklanmaganga hozirgi vaqtdan qo'shiladi
         const base = session.plannedMinutes
           ?? Math.ceil(sessionElapsedMs(session, Date.now() + offsetMs) / 60_000);
-        onPlanChange(session, Math.min(1440, base + minutes));
+        onPlanChange(session, { plannedMinutes: Math.min(1440, base + minutes) });
       };
+      // Bepul stolga ko'chirilgan limitli o'yin: daqiqani pulga aylantirib bo'lmaydi
+      const extendBlocked = offlineBlocked || pending || (limit !== null && !(price > 0));
       return [
         { key: 'plan-30', icon: <FieldTimeOutlined />, label: t('tables.planAdd30'),
-          disabled: offlineBlocked || pending, onClick: () => extend(30) },
+          disabled: extendBlocked, onClick: () => extend(30) },
         { key: 'plan-60', icon: <FieldTimeOutlined />, label: t('tables.planAdd60'),
-          disabled: offlineBlocked || pending, onClick: () => extend(60) },
-        ...(session.plannedMinutes ? [{ key: 'plan-off', icon: <StopOutlined />, label: t('tables.planRemove'),
-          disabled: offlineBlocked || pending, onClick: () => onPlanChange(session, null) }] : []),
+          disabled: extendBlocked, onClick: () => extend(60) },
+        ...(onLimitEdit ? [{ key: 'limit', icon: <WalletOutlined />, label: t('tables.limitEdit'),
+          disabled: offlineBlocked || pending || !(price > 0), onClick: () => onLimitEdit(table) }] : []),
+        ...(session.plannedMinutes || limit !== null ? [{ key: 'plan-off', icon: <StopOutlined />,
+          label: t(limit !== null ? 'tables.limitRemove' : 'tables.planRemove'),
+          disabled: offlineBlocked || pending, onClick: () => onPlanChange(session, { plannedMinutes: null }) }] : []),
       ];
     })() : []),
     ...(isBusy && session && canCheckout ? [{ key: 'cancel', icon: <CloseCircleOutlined />, danger: true,
@@ -207,7 +254,8 @@ const TableCard = memo(({
             <em><ClockCircleOutlined />{formatClock(session.startTime)}</em>
             {session.barAmount > 0 && <em><CoffeeOutlined />{formatNumber(session.barAmount)}</em>}
             {isOfflineSession && <em className="is-warning"><CloudSyncOutlined />{t('offline.queuePending')}</em>}
-            {session.plannedMinutes ? <PlannedBadge session={session} offsetMs={offsetMs} /> : null}
+            {session.limitAmount != null && <em className="is-limit"><WalletOutlined />{t('tables.limitBadge', { amount: formatNumber(session.limitAmount) })}</em>}
+            {hasPlan ? <PlannedBadge session={session} segments={segments} fallbackPrice={table.pricePerHour} offsetMs={offsetMs} /> : null}
             {reservation && <em className="is-reservation"><CalendarOutlined />{reservation}</em>}
           </span> : <span>
             {formatNumber(table.pricePerHour)} {currency} / {t('tables.perHour')}
@@ -289,7 +337,8 @@ const TableCard = memo(({
               <span><ClockCircleOutlined />{formatClock(session.startTime)}</span>
               {session.barAmount > 0 && <span><CoffeeOutlined />{formatNumber(session.barAmount)}</span>}
               {isOfflineSession && <span className="is-warning"><CloudSyncOutlined />{t('offline.queuePending')}</span>}
-              {session.plannedMinutes ? <PlannedBadge session={session} offsetMs={offsetMs} /> : null}
+              {session.limitAmount != null && <span className="is-limit"><WalletOutlined />{t('tables.limitBadge', { amount: formatNumber(session.limitAmount) })}</span>}
+              {hasPlan ? <PlannedBadge session={session} segments={segments} fallbackPrice={table.pricePerHour} offsetMs={offsetMs} /> : null}
               {reservation && <span className="pool-reservation"><CalendarOutlined />{reservation}</span>}
             </div>
           </> : isBusy ? <p className="pool-card__idle"><span>{t('tables.sessionUnavailable')}</span></p> : (

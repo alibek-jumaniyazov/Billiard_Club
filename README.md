@@ -318,6 +318,30 @@ vaqt ko'rinadi, 5 daqiqa qolganda sariq, tugaganda qizil belgi va **ovozli signa
 "⋯" menyusidan "+30 daqiqa", "+1 soat" yoki cheklovni olib tashlash mumkin.
 Hisob baribir **haqiqiy vaqt bo'yicha soniyalik** — bu faqat kassir uchun ogohlantirish.
 
+### Summa limiti ("50 000 so'mga o'ynayman")
+
+"O'yin vaqti" qatoridagi **Limit** tanlansa, vaqt o'rniga **pul** kiritiladi (yoki stol
+narxiga moslangan tez tugmalar: 40 000/soatlik stolda 20 000 · 30 000 · 50 000 · 100 000).
+Shu pulga to'g'ri keladigan vaqt darhol ko'rinadi: *"50 000 so'm = 1 soat 15 daqiqa o'yin ·
+taxminan 21:45 gacha"*. Stol summasi limitga yetganda xuddi belgilangan vaqtdagidek qizil
+"Limit tugadi" belgisi va ovozli signal chiqadi.
+
+- **Qolgan vaqt joriy narxdan** hisoblanadi: o'yin boshqa stolga ko'chirilsa, avvalgi
+  stolda o'ynalgan summa limitdan ayiriladi, qolgani yangi stol narxida vaqtga aylanadi.
+  Pauzada qolgan vaqt to'xtaydi.
+- **O'yin davomida**: "⋯ → Summa limiti…" — "yana 20 mingga" kabi summa qo'shish
+  (+10 000 / +20 000 / +30 000) yoki limitni almashtirish; "+30 daqiqa" limitli o'yinda
+  joriy narxdagi pul bo'lib limitga qo'shiladi; "Limitni olib tashlash".
+- **Chegaralar** (server va klientda bir xil — `session-limit.ts` / `utils/limit.ts`):
+  kamida 5 daqiqalik, ko'pi bilan 24 soatlik summa. "50 000" o'rniga "50" terilsa forma
+  aniq sabab bilan to'xtatadi. Narxi 0 bo'lgan stolda limit tanlab bo'lmaydi.
+- Belgilangan vaqt va summa limiti **bir vaqtda qo'yilmaydi** (DB `CHECK` cheklovi):
+  biri qo'yilsa ikkinchisi olib tashlanadi.
+- Internetsiz boshlangan o'yinda ham ishlaydi; navbatdagi o'yin yaroqsiz limit tufayli
+  hech qachon rad etilmaydi (limitsiz boshlanadi).
+- Hisob-kitob oynasida limit va undan qancha oshgani ko'rinadi. Hisob baribir
+  haqiqiy vaqt bo'yicha — limit pulni cheklamaydi.
+
 ## Stollar paneli
 
 - **Haqiqiy stol ko'rinishi** — har bir karta yog'och bortli, cho'ntakli billiard stoli:
@@ -468,6 +492,11 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
   transfer (segmentlar), kumulyativ yaxlitlash, muhrlangan narx. Bu fayl
   serverdagi `billSegments` formulasining nusxasi bo'lgani uchun har bir
   invariant testda muhrlangan.
+- `server/test/session-limit.test.ts`, `08-session-limit.postgres.test.cjs` va
+  `client/src/utils/limit.test.ts` — summa limiti: narx bo'yicha vaqtga aylantirish,
+  chegaralar (server va klient bir xil), boshlash/o'zgartirish/ko'chirish/yakunlash,
+  oflayn navbatdagi o'yin rad etilmasligi, DB cheklovlari; `session.test.ts` da
+  ko'chirilgan o'yinning qolgan vaqti va "tugadi" payti chekdagi summa bilan mosligi.
 - `client/src/offline/overlay.test.ts` — oflayn amallarning ekranda
   ko'rsatilishi: dublikat bo'lmasligi, pauza vaqti, bar summasi, xato
   yozuvning qoplanmasligi, oflayn hisob-kitobdan keyin stolning bo'shashi.
@@ -490,10 +519,10 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
 2. **`npm run migrate`** — MAJBURIY. Kutilayotgan migratsiyalar:
    `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`, `TrialClaims`,
    `TrialTelegramVerification`, `Leads`, `CashShifts`, `SessionPlannedMinutes`,
-   `TableZones`, `AndroidReleases` va `TierPlans`.
+   `TableZones`, `AndroidReleases`, `TierPlans`, `ClubBlockReason` va `SessionLimitAmount`.
    Ularsiz qarzni hisobdan chiqarish, yangi foydalanuvchini ro‘yxatdan o‘tkazish,
    landing arizalari, kassa smenalari, belgilangan vaqtli o‘yin, stol zonalari,
-   Android relizlari va tarif darajalari ishlamaydi. `TierPlans` dan keyin hamma
+   Android relizlari, tarif darajalari, blok sababi va summa limiti ishlamaydi. `TierPlans` dan keyin hamma
    mavjud klublar **VIP** bo'ladi — hech kimning bo'limi to'satdan yopilmaydi
    ([docs/TARIFFS.md](docs/TARIFFS.md)).
 3. Chiroqning `DIRECT` rejimidan foydalanadigan klub bo'lsa —

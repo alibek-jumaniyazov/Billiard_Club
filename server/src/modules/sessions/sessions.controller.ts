@@ -118,7 +118,10 @@ export class SessionsController {
     return { success: true, message: t(lang, 'sessions.resumed'), data };
   }
 
-  /** Belgilangan o'yin vaqtini o'zgartirish ("+30 daqiqa") — pulga ta'sir qilmaydi */
+  /**
+   * O'yin vaqti cheklovini o'zgartirish: belgilangan vaqt ("+30 daqiqa"),
+   * summa limiti yoki cheklovni olib tashlash — pulga ta'sir qilmaydi
+   */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
   @HttpCode(200)
   @Put(':id/plan')
@@ -129,7 +132,8 @@ export class SessionsController {
     @Lang() lang: Language,
   ) {
     const data = await this.sessionsService.updatePlan(clubId, id, dto);
-    return { success: true, message: t(lang, 'sessions.planUpdated'), data };
+    const key = data.limitAmount != null ? 'sessions.limitUpdated' : 'sessions.planUpdated';
+    return { success: true, message: t(lang, key), data };
   }
 
   /** Sessiyani boshqa stolga ko'chirish — faqat faol sessiya */

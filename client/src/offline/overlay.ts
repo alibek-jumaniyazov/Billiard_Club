@@ -38,6 +38,8 @@ interface OpMeta {
   customerPhone?: string | null;
   notes?: string | null;
   plannedMinutes?: number | null;
+  /** session.start uchun — summa limiti (plannedMinutes bilan birga bo'lmaydi) */
+  limitAmount?: number | null;
   /** order.create uchun — buyurtma summasi */
   amount?: number;
   at?: string;
@@ -90,6 +92,7 @@ const makeSession = (
   pausedAt: null,
   totalPausedMs: 0,
   plannedMinutes: meta.plannedMinutes ?? null,
+  limitAmount: meta.limitAmount ?? null,
   pricePerHour: meta.pricePerHour ?? table.pricePerHour,
   durationMinutes: null,
   durationSeconds: null,

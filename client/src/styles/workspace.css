@@ -5,7 +5,9 @@
 .workspace-shell .ant-card { box-shadow: none; }
 .workspace-shell .ant-btn-primary:not(:disabled):not(.ant-btn-dangerous) { background: var(--primary); color: var(--on-primary); box-shadow: none; font-weight: 650; }
 .workspace-shell .ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):hover { background: var(--primary-hover); color: var(--on-primary); }
-.workspace-shell .ant-btn-primary.ant-btn-background-ghost:not(:disabled) { background: transparent; }
+/* Ghost tugma: fon shaffof, shuning uchun matn ham asosiy rangda bo'lishi shart —
+   yuqoridagi --on-primary shaffof fonda ko'rinmay qolardi (ixcham ro'yxatdagi "Boshlash") */
+.workspace-shell .ant-btn-primary.ant-btn-background-ghost:not(:disabled) { background: transparent; color: var(--primary); }
 .workspace-shell .ant-card-head-title { font-weight: 650; }
 .workspace-shell .ant-menu-item { min-height: 44px; line-height: 44px; }
 .workspace-shell .ant-menu-item-group-title { padding-top: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }

@@ -21,7 +21,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useConnection } from '../../context/ConnectionContext';
 import { applyQueueToTables } from '../../offline/overlay';
 import { newActionKey, queuePauseResume } from '../../offline/pos';
-import type { BilliardTable, Reservation, Session, TableLightConfig } from '../../types';
+import type {
+  BilliardTable, Reservation, Session, SessionPlanPayload, TableLightConfig,
+} from '../../types';
 import { formatClock } from '../../utils/format';
 import {
   clockOffsetMs,
@@ -32,6 +34,7 @@ import {
 import BoardMoneyStrip from './BoardMoneyStrip';
 import CheckoutDrawer from './CheckoutDrawer';
 import LightSettingsDrawer from './LightSettingsDrawer';
+import LimitModal from './LimitModal';
 import ManageTablesDrawer from './ManageTablesDrawer';
 import OrderModal from './OrderModal';
 import StartModal from './StartModal';
@@ -152,6 +155,12 @@ const TablesPage = () => {
   const [orderTable, setOrderTable] = useState<BilliardTable | null>(null);
   const [transferTable, setTransferTable] = useState<BilliardTable | null>(null);
   const [checkoutTable, setCheckoutTable] = useState<BilliardTable | null>(null);
+  // Summa limiti oynasi SESSIYAGA bog'lanadi (stolga emas): stol va sessiya har
+  // renderda yangi ro'yxatdan olinadi — oyna ochiq turganda holat eskirmaydi,
+  // boshqa terminal o'yinni ko'chirsa oyna sessiya ortidan boradi, yakunlasa
+  // yopiladi. Stol ID si saqlansa, o'sha stolda keyin boshlangan YANGI o'yin
+  // uchun oyna o'z-o'zidan qayta ochilib ketardi.
+  const [limitSessionId, setLimitSessionId] = useState<number | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [manageStartCreate, setManageStartCreate] = useState(false);
   const lightsOpen = searchParams.get('panel') === 'lights';
@@ -380,25 +389,36 @@ const TablesPage = () => {
     [fetchTables, markPending, message, offsetMs, online, t],
   );
 
-  /** Belgilangan o'yin vaqtini uzaytirish yoki olib tashlash — faqat onlayn */
+  /**
+   * O'yin vaqti cheklovini o'zgartirish: belgilangan vaqtni uzaytirish, summa
+   * limitini qo'yish/oshirish yoki cheklovni olib tashlash — faqat onlayn.
+   * @returns muvaffaqiyatli saqlandimi (limit oynasi shunga qarab yopiladi)
+   */
   const handlePlanChange = useCallback(
-    async (session: Session, minutes: number | null) => {
+    async (session: Session, plan: SessionPlanPayload): Promise<boolean> => {
       if (!online || session.offlineLocalId) {
         message.warning(t('offline.offlineBlocked'));
-        return;
+        return false;
       }
       markPending(session.id, true);
       try {
-        const res = await sessionsApi.updatePlan(session.id, minutes);
+        const res = await sessionsApi.updatePlan(session.id, plan);
         message.success(res.message);
         await fetchTables(true);
+        return true;
       } catch (err) {
         message.error(errorMessage(err, t('common.error')));
+        return false;
       } finally {
         markPending(session.id, false);
       }
     },
     [fetchTables, markPending, message, online, t],
+  );
+
+  const handleLimitSubmit = useCallback(
+    (session: Session, limitAmount: number) => handlePlanChange(session, { limitAmount }),
+    [handlePlanChange],
   );
 
   const handleCancel = useCallback(
@@ -454,6 +474,11 @@ const TablesPage = () => {
   const openOrder = useCallback((table: BilliardTable) => setOrderTable(table), []);
   const openTransfer = useCallback((table: BilliardTable) => setTransferTable(table), []);
   const openCheckout = useCallback((table: BilliardTable) => setCheckoutTable(table), []);
+  const openLimit = useCallback(
+    (table: BilliardTable) => setLimitSessionId(table.sessions?.[0]?.id ?? null),
+    [],
+  );
+  const closeLimit = useCallback(() => setLimitSessionId(null), []);
 
   const openManage = useCallback((startCreate: boolean) => {
     setManageStartCreate(startCreate);
@@ -562,6 +587,13 @@ const TablesPage = () => {
     [viewTables, selectedView, search, sort],
   );
   const focusedTableVisible = displayedTables.some((table) => table.id === focusedTableId);
+  // Limit oynasidagi stol — sessiya hozir turgan stol (yakunlangan bo'lsa null: oyna yopiladi)
+  const limitTable = useMemo(
+    () => (limitSessionId === null
+      ? null
+      : viewTables.find((table) => table.sessions?.[0]?.id === limitSessionId) ?? null),
+    [limitSessionId, viewTables],
+  );
   useEffect(() => {
     if (!focusedTableId || !focusedTableVisible) return;
     const frame = requestAnimationFrame(() => {
@@ -653,6 +685,7 @@ const TablesPage = () => {
         onLightToggle={canLights ? handleLightToggle : undefined}
         onLightAuto={canLights ? handleLightAuto : undefined}
         onPlanChange={handlePlanChange}
+        onLimitEdit={openLimit}
       />
     );
   };
@@ -817,6 +850,15 @@ const TablesPage = () => {
         // bu yerda faqat serverdan yangilashga urinib ko'ramiz
         onQueuedOffline={silentRefresh}
         offsetMs={offsetMs}
+      />
+
+      {/* Summa limiti — o'yin davomida qo'yish yoki oshirish ("yana 20 mingga") */}
+      <LimitModal
+        table={limitTable}
+        segments={limitTable?.sessions?.[0] ? (segmentsMap[limitTable.sessions[0].id] ?? null) : null}
+        offsetMs={offsetMs}
+        onSubmit={handleLimitSubmit}
+        onClose={closeLimit}
       />
 
       {/* Bar buyurtmasi */}

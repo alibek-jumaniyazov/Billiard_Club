@@ -71,6 +71,7 @@ import type {
   ReservationPayload,
   SendNotificationPayload,
   Session,
+  SessionPlanPayload,
   SignedLicense,
   SessionReceipt,
   Settings,
@@ -190,9 +191,12 @@ export const sessionsApi = {
     put<EndSessionResult>(`/sessions/${id}/end`, body, key),
   pause: (id: number, key?: string) => put<Session>(`/sessions/${id}/pause`, undefined, key),
   resume: (id: number, key?: string) => put<Session>(`/sessions/${id}/resume`, undefined, key),
-  /** Belgilangan o'yin vaqtini o'zgartirish; null — cheklovni olib tashlash */
-  updatePlan: (id: number, plannedMinutes: number | null) =>
-    put<Session>(`/sessions/${id}/plan`, { plannedMinutes }),
+  /**
+   * O'yin vaqti cheklovini o'zgartirish: belgilangan vaqt, summa limiti yoki
+   * `{ plannedMinutes: null }` — cheklovni olib tashlash (SessionPlanPayload)
+   */
+  updatePlan: (id: number, plan: SessionPlanPayload) =>
+    put<Session>(`/sessions/${id}/plan`, plan),
   /** Faol sessiyani boshqa stolga ko'chirish */
   transfer: (id: number, tableId: number) =>
     post<Session>(`/sessions/${id}/transfer`, { tableId }),

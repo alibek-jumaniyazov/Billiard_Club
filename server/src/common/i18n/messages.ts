@@ -54,6 +54,13 @@ const messages: Record<Language, Record<string, string>> = {
     'sessions.paused': "O'yin pauzaga olindi",
     'sessions.resumed': "O'yin davom ettirildi",
     'sessions.planUpdated': "O'yin vaqti yangilandi",
+    'sessions.limitUpdated': 'Summa limiti yangilandi',
+    'sessions.planOrLimit': "Belgilangan vaqt yoki summa limitidan faqat bittasini tanlang",
+    'sessions.limitNeedsPrice': "Bu stolning soatlik narxi 0 — summa limitini qo'yib bo'lmaydi",
+    'sessions.limitTooSmall':
+      "Limit juda kichik: kamida {min} kiriting ({minutes} daqiqalik o'yin)",
+    'sessions.limitTooLarge':
+      "Limit juda katta: ko'pi bilan {max} kiriting ({hours} soatlik o'yin)",
     'sessions.cancelled': 'Sessiya bekor qilindi',
     'sessions.onlyActiveCancellable': 'Faqat faol yoki pauzadagi sessiyani bekor qilish mumkin',
     'sessions.debtNeedsCustomer': 'Qarzga yozish uchun mijoz ismi kiritilishi shart',
@@ -381,6 +388,13 @@ const messages: Record<Language, Record<string, string>> = {
     'sessions.paused': 'Игра приостановлена',
     'sessions.resumed': 'Игра продолжена',
     'sessions.planUpdated': 'Время игры обновлено',
+    'sessions.limitUpdated': 'Лимит по сумме обновлён',
+    'sessions.planOrLimit': 'Выберите что-то одно: время игры или лимит по сумме',
+    'sessions.limitNeedsPrice': 'Цена этого стола — 0, лимит по сумме задать нельзя',
+    'sessions.limitTooSmall':
+      'Лимит слишком мал: укажите не меньше {min} (это {minutes} минут игры)',
+    'sessions.limitTooLarge':
+      'Лимит слишком велик: укажите не больше {max} (это {hours} ч игры)',
     'sessions.cancelled': 'Сессия отменена',
     'sessions.onlyActiveCancellable': 'Отменить можно только активную или приостановленную сессию',
     'sessions.debtNeedsCustomer': 'Для записи в долг укажите имя клиента',

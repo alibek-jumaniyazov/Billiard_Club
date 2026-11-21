@@ -164,6 +164,25 @@ describe('applyQueueToTables', () => {
     expect(result[0].status).toBe('free');
   });
 
+  it('oflayn boshlangan o‘yinning summa limiti kartada ko‘rinadi', () => {
+    const result = applyQueueToTables(
+      [makeTable(1, 1), makeTable(2, 2)],
+      [
+        makeEntry(1, 'session.start', {
+          tableId: 1, startTime: '2026-08-04T09:00:00Z', pricePerHour: 60000, limitAmount: 50000,
+        }),
+        makeEntry(2, 'session.start', { tableId: 2, startTime: '2026-08-04T09:00:00Z', plannedMinutes: 60 }),
+      ],
+      NOW,
+    );
+
+    // Limit va belgilangan vaqt bir-biriga aralashmaydi
+    expect(result[0].sessions?.[0].limitAmount).toBe(50000);
+    expect(result[0].sessions?.[0].plannedMinutes).toBeNull();
+    expect(result[1].sessions?.[0].limitAmount).toBeNull();
+    expect(result[1].sessions?.[0].plannedMinutes).toBe(60);
+  });
+
   it('kirish massivini O‘ZGARTIRMAYDI', () => {
     const source = [makeTable(1, 1)];
     applyQueueToTables(source, [makeEntry(1, 'session.start', { tableId: 1 })], NOW);

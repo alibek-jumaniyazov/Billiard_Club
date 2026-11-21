@@ -6,8 +6,10 @@ import {
   segmentsMatchSession,
   sessionDurationSeconds,
   sessionElapsedMs,
+  sessionLimitLeftMs,
   sessionSegmentBilling,
   sessionTableAmount,
+  type LimitTiming,
   type SegmentLike,
   type SessionTiming,
 } from './session';
@@ -164,6 +166,97 @@ describe('segmentsMatchSession', () => {
 
   it('boshqa terminal ko‘chirgan bo‘lsa kesh yaroqsiz', () => {
     expect(segmentsMatchSession({ tableId: 3 }, [open(2)])).toBe(false);
+  });
+});
+
+describe('sessionLimitLeftMs (summa limiti)', () => {
+  const START = '2026-08-04T09:00:00Z';
+  // 40 000 so'm/soat stolda 50 000 so'm = 1 soat 15 daqiqa
+  const limited = (over: Partial<LimitTiming> = {}): LimitTiming =>
+    ({ ...timing({ startTime: START, pricePerHour: 40000 }), limitAmount: 50000, ...over });
+  const MIN = 60_000;
+
+  it('limit yo‘q bo‘lsa null', () => {
+    expect(sessionLimitLeftMs(timing(), 40000, T('2026-08-04T10:00:00Z'))).toBeNull();
+    expect(sessionLimitLeftMs(limited({ limitAmount: null }), 40000, T('2026-08-04T10:00:00Z'))).toBeNull();
+  });
+
+  it('qolgan vaqt = (limit − o‘ynalgan summa) / narx', () => {
+    // 09:00 dan 10:00 gacha 40 000 o'ynaldi -> 10 000 qoldi = 15 daqiqa
+    expect(sessionLimitLeftMs(limited(), 40000, T('2026-08-04T10:00:00Z'))).toBe(15 * MIN);
+    // Boshida — to'liq 75 daqiqa
+    expect(sessionLimitLeftMs(limited(), 40000, T(START))).toBe(75 * MIN);
+  });
+
+  it('limit tugagach qiymat manfiy — qancha vaqt oshib ketgani', () => {
+    expect(sessionLimitLeftMs(limited(), 40000, T('2026-08-04T10:15:00Z'))).toBe(0);
+    expect(sessionLimitLeftMs(limited(), 40000, T('2026-08-04T10:20:00Z'))).toBe(-5 * MIN);
+  });
+
+  it('"tugadi" payti chekdagi summa limitga yetgan soniyaga to‘g‘ri keladi', () => {
+    // 35 000/soat: 50 000 so'mga 5142,86 soniya kerak
+    const s = limited({ pricePerHour: 35000 });
+    const at = (seconds: number) => T(START) + seconds * 1000;
+    expect(sessionLimitLeftMs(s, 35000, at(5142))!).toBeGreaterThan(0);
+    expect(sessionTableAmount(s, 35000, at(5142))).toBeLessThan(50000);
+    expect(sessionLimitLeftMs(s, 35000, at(5143))!).toBeLessThanOrEqual(0);
+    expect(sessionTableAmount(s, 35000, at(5143))).toBeGreaterThanOrEqual(50000);
+  });
+
+  it('pauzada qolgan vaqt o‘zgarmaydi (faol vaqt to‘xtagan)', () => {
+    const paused = limited({ status: 'paused', pausedAt: '2026-08-04T09:30:00Z' });
+    expect(sessionLimitLeftMs(paused, 40000, T('2026-08-04T09:45:00Z'))).toBe(45 * MIN);
+    expect(sessionLimitLeftMs(paused, 40000, T('2026-08-04T11:00:00Z'))).toBe(45 * MIN);
+    // Yakunlangan pauzalar ham hisobga kirmaydi
+    const resumed = limited({ totalPausedMs: 30 * MIN });
+    expect(sessionLimitLeftMs(resumed, 40000, T('2026-08-04T10:00:00Z'))).toBe(45 * MIN);
+  });
+
+  it('muhrlangan narx bo‘lmasa stol narxi (fallback) ishlatiladi', () => {
+    const legacy = limited({ pricePerHour: null });
+    expect(sessionLimitLeftMs(legacy, 50000, T(START))).toBe(60 * MIN);
+  });
+
+  it('bepul stolda (narx 0) limitga yetilmaydi — null', () => {
+    expect(sessionLimitLeftMs(limited({ pricePerHour: 0 }), 0, T(START))).toBeNull();
+    expect(sessionLimitLeftMs(limited({ pricePerHour: null }), 0, T(START))).toBeNull();
+  });
+
+  describe('ko‘chirilgan o‘yin (segmentlar)', () => {
+    // 09:00–09:30 arzon stolda (40 000), keyin qimmat stolda (60 000)
+    const segments: SegmentLike[] = [
+      { tableId: 1, pricePerHour: 40000, startedAt: START, endedAt: '2026-08-04T09:30:00Z', pausedMs: 0 },
+      { tableId: 2, pricePerHour: 60000, startedAt: '2026-08-04T09:30:00Z', endedAt: null, pausedMs: 0 },
+    ];
+    const moved = limited({ pricePerHour: 60000 });
+
+    it('qolgan pul YANGI stol narxida vaqtga aylanadi', () => {
+      // Birinchi stolda 20 000 o'ynaldi -> 30 000 qoldi; 60 000/soat da bu 30 daqiqa
+      expect(sessionLimitLeftMs(moved, 60000, T('2026-08-04T09:30:00Z'), segments)).toBe(30 * MIN);
+      expect(sessionLimitLeftMs(moved, 60000, T('2026-08-04T09:45:00Z'), segments)).toBe(15 * MIN);
+      expect(sessionLimitLeftMs(moved, 60000, T('2026-08-04T10:00:00Z'), segments)).toBe(0);
+      // Aynan shu payt chekdagi summa limitga teng
+      expect(sessionTableAmount(moved, 60000, T('2026-08-04T10:00:00Z'), segments)).toBe(50000);
+    });
+
+    it('bitta ochiq segment — segmentsiz hisob bilan bir xil natija', () => {
+      const single: SegmentLike[] = [
+        { tableId: 1, pricePerHour: 40000, startedAt: START, endedAt: null, pausedMs: 0 },
+      ];
+      const now = T('2026-08-04T09:50:20Z');
+      expect(sessionLimitLeftMs(limited(), 40000, now, single)).toBe(sessionLimitLeftMs(limited(), 40000, now));
+    });
+
+    it('bepul stolga ko‘chirilsa limit vaqtga aylanmaydi — null', () => {
+      const free: SegmentLike[] = [segments[0], { ...segments[1], pricePerHour: 0 }];
+      expect(sessionLimitLeftMs(moved, 0, T('2026-08-04T09:45:00Z'), free)).toBeNull();
+    });
+
+    it('ochiq segmentdagi pauza qolgan vaqtni kamaytirmaydi', () => {
+      const withPause = limited({ pricePerHour: 60000, totalPausedMs: 10 * MIN });
+      // 09:30 dan 09:55 gacha: 25 daqiqa, shundan 10 daqiqa pauza -> 15 daqiqa o'ynaldi
+      expect(sessionLimitLeftMs(withPause, 60000, T('2026-08-04T09:55:00Z'), segments)).toBe(15 * MIN);
+    });
   });
 });
 

@@ -34,6 +34,11 @@ import { SessionPayment } from './session-payment.entity';
   'chk_sessions_planned_minutes',
   '"plannedMinutes" IS NULL OR ("plannedMinutes" > 0 AND "plannedMinutes" <= 1440)',
 )
+// Summa limiti musbat va belgilangan vaqt bilan BIRGA qo'yilmaydi (1784249300000)
+@Check(
+  'chk_sessions_limit_amount',
+  '"limitAmount" IS NULL OR ("limitAmount" > 0 AND "plannedMinutes" IS NULL)',
+)
 // Bitta stolda bir vaqtda faqat bitta faol/pauzadagi sessiya (poyga himoyasi)
 @Index('uq_sessions_one_active_per_table', ['tableId'], {
   unique: true,
@@ -123,6 +128,24 @@ export class Session {
    */
   @Column({ type: 'int', nullable: true })
   plannedMinutes: number | null;
+
+  /**
+   * Summa limiti ("50 000 so'mga o'ynayman") — stol summasi shu qiymatga
+   * yetganda kassirga "limit tugadi" ogohlantirishi chiqadi. plannedMinutes
+   * kabi faqat ogohlantirish: hisob baribir haqiqiy vaqt bo'yicha.
+   *
+   * Qolgan vaqt klientda JORIY narxdan hisoblanadi, shuning uchun transferdan
+   * keyin yangi stol narxi bo'yicha o'zi qayta hisoblanadi (pul limiti o'zgarmaydi).
+   * plannedMinutes bilan birga qo'yilmaydi (DB cheklovi). null — limit yo'q.
+   */
+  @Column({
+    type: 'decimal',
+    precision: 14,
+    scale: 2,
+    nullable: true,
+    transformer: new NumericTransformer(),
+  })
+  limitAmount: number | null;
 
   @Column({ type: 'bigint', default: 0, transformer: new BigIntTransformer() })
   totalPausedMs: number;
