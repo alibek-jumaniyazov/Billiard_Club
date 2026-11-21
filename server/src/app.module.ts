@@ -43,6 +43,7 @@ import { LightsModule } from './modules/lights/lights.module';
 import { ReleasesModule } from './modules/releases/releases.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
+import { DbResilienceService } from './common/db/db-resilience.service';
 
 @Module({
   imports: [
@@ -92,6 +93,8 @@ import { ShiftsModule } from './modules/shifts/shifts.module';
   ],
   controllers: [AppController],
   providers: [
+    // Bazaga ulanish bir lahza bo'lmasa — server o'zi qayta urinadi (pool-retry.ts)
+    DbResilienceService,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     // Guard tartibi muhim: throttle -> auth -> rol -> obuna
     { provide: APP_GUARD, useClass: ThrottlerGuard },

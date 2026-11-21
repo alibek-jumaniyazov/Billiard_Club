@@ -13,9 +13,18 @@ import { TelegramService } from '../../telegram/telegram.service';
 import { getRequestLang } from '../decorators/lang.decorator';
 import { currentRequestId } from '../logging/request-context';
 import { t } from '../i18n/messages';
+import { isTransientDbConnectError } from '../db/transient-db-error';
 
 /** Bir xil xato uchun Telegram ogohlantirishi shu oraliqda faqat bir marta */
 const ALERT_COOLDOWN_MS = 10 * 60 * 1000;
+
+/**
+ * Bazaga ulanish muammosi: shu oynada kamida shuncha so'rov ulana olmasa —
+ * bitta jamlangan ogohlantirish. Bitta lahzalik uzilish (server o'zi qayta
+ * urinib, baribir bo'lmagan yakka so'rov) "Kritik xatolik" bo'lib ketmaydi.
+ */
+const DB_OUTAGE_WINDOW_MS = 2 * 60 * 1000;
+const DB_OUTAGE_THRESHOLD = 3;
 
 /** Ogohlantirish xotirasi cheksiz o'smasin (crash-loop turli imzolar chiqarishi mumkin) */
 const ALERT_CACHE_MAX = 200;
@@ -49,6 +58,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   /** Oxirgi yuborilgan ogohlantirish vaqti (umumiy pol uchun) */
   private lastAlertAt = 0;
+
+  /** Bazaga ulana olmagan so'rovlar vaqtlari (DB_OUTAGE_WINDOW_MS oynasi) */
+  private dbOutageHits: number[] = [];
+
+  /** Oxirgi "baza bilan muammo" ogohlantirishi vaqti */
+  private dbOutageAlertAt = 0;
 
   constructor(
     // Telegram moduli global, lekin filtr undan MUSTAQIL ishlashi kerak:
@@ -98,6 +113,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (status === HttpStatus.TOO_MANY_REQUESTS) {
         message = t(lang, 'common.tooManyRequests');
       }
+    } else if (isTransientDbConnectError(exception)) {
+      // Baza bir lahza javob bermadi (server qayta urinib ham ko'rdi) — bu kod
+      // xatosi emas: 503 + Retry-After, klient bir ozdan keyin qayta so'raydi
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      message = t(lang, 'common.serviceBusy');
+      code = 'SERVICE_BUSY';
+      response.setHeader('Retry-After', '5');
+      this.logger.warn(`${this.rid(requestId)}Bazaga ulanib bo'lmadi: ${(exception as Error)?.message ?? String(exception)}`);
     } else if (exception instanceof QueryFailedError) {
       const driverError = (exception as QueryFailedError & { driverError?: { code?: string } })
         .driverError;
@@ -123,8 +146,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error(`${this.rid(requestId)}${err?.message ?? String(exception)}`, err?.stack);
     }
 
-    // FAQAT kutilmagan 5xx — 4xx (validatsiya, ruxsat, topilmadi) xabar qilinmaydi
-    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    // FAQAT kutilmagan 5xx — 4xx (validatsiya, ruxsat, topilmadi) xabar qilinmaydi.
+    // Bazaga ulanish muammosi — alohida, jamlangan ogohlantirish (davom etsagina)
+    if (code === 'SERVICE_BUSY') {
+      this.noteDbOutage(exception, request, requestId);
+    } else if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.alertCriticalError(exception, request, requestId);
     }
 
@@ -150,6 +176,39 @@ export class AllExceptionsFilter implements ExceptionFilter {
   /** Log prefiksi: "[<requestId>] " yoki bo'sh */
   private rid(requestId: string | null): string {
     return requestId ? `[${requestId}] ` : '';
+  }
+
+  /**
+   * Bazaga ulanish muammosini hisobga oladi: DB_OUTAGE_WINDOW_MS ichida
+   * DB_OUTAGE_THRESHOLD tadan ko'p so'rov ulana olmasa — bitta jamlangan
+   * ogohlantirish (ALERT_COOLDOWN_MS da bir marta). Fire-and-forget.
+   */
+  private noteDbOutage(
+    exception: unknown,
+    request: { method?: string; url?: string },
+    requestId: string | null,
+  ): void {
+    if (!this.telegram) return;
+    try {
+      const now = Date.now();
+      this.dbOutageHits = this.dbOutageHits.filter((at) => now - at < DB_OUTAGE_WINDOW_MS);
+      this.dbOutageHits.push(now);
+      if (this.dbOutageHits.length < DB_OUTAGE_THRESHOLD) return;
+      if (now - this.dbOutageAlertAt < ALERT_COOLDOWN_MS) return;
+      this.dbOutageAlertAt = now;
+
+      const err = exception instanceof Error ? exception : new Error(String(exception));
+      const method = request?.method ?? '-';
+      const path = String(request?.url ?? '-').split('?')[0];
+      const location = requestId ? `${method} ${path} [${requestId}]` : `${method} ${path}`;
+      void this.telegram
+        .notifyDbOutage(this.dbOutageHits.length, DB_OUTAGE_WINDOW_MS / 60_000, location, err)
+        .catch((alertErr: Error) =>
+          this.logger.error(`Baza ogohlantirishi yuborilmadi: ${alertErr.message}`),
+        );
+    } catch {
+      // Ogohlantirish yo'li HECH QACHON asl xato javobini buzmasligi kerak
+    }
   }
 
   private alertCriticalError(

@@ -269,6 +269,20 @@ client.interceptors.response.use(
       }
     }
 
+    /**
+     * Server vaqtincha band (bazaga bir lahza ulana olmadi — 503 SERVICE_BUSY).
+     * O'qish so'rovi xavfsiz: 1,5 s dan keyin BIR MARTA o'zi qayta so'raladi,
+     * kassir xato xabarini ko'rmaydi. Yozish so'rovlari qayta yuborilmaydi —
+     * ularni oflayn navbat (5xx — vaqtinchalik) yoki foydalanuvchi qaytaradi.
+     */
+    const busy = status === 503 && (error.response?.data as { code?: string } | undefined)?.code === 'SERVICE_BUSY';
+    const retryState = original as (AxiosRequestConfig & { _busyRetry?: boolean }) | undefined;
+    if (busy && retryState && retryState.method?.toLowerCase() === 'get' && !retryState._busyRetry) {
+      retryState._busyRetry = true;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return client.request(retryState);
+    }
+
     // responseType:'blob' so'rovlarida (Excel eksport, biriktirilgan fayllar)
     // axios xato tanasini JSON qilib ochmaydi — `data` Blob bo'lib qoladi va
     // `code` topilmaydi. Shuning uchun avval tanani normallashtiramiz: JSON

@@ -307,6 +307,7 @@ const messages: Record<Language, Record<string, string>> = {
     // Umumiy
     'common.validationError': 'Validatsiya xatosi',
     'common.serverError': 'Server xatosi',
+    'common.serviceBusy': 'Server vaqtincha band. Bir necha soniyadan keyin qayta urinib ko‘ring.',
     'common.notFound': 'Topilmadi',
     'common.conflict': "Ma'lumotlar ziddiyati — sahifani yangilab qayta urinib ko'ring",
     // Aynan shu amal AYNI DAMDA bajarilmoqda (idempotentlik kaliti band) —
@@ -656,6 +657,7 @@ const messages: Record<Language, Record<string, string>> = {
     // Общее
     'common.validationError': 'Ошибка валидации',
     'common.serverError': 'Ошибка сервера',
+    'common.serviceBusy': 'Сервер временно занят. Повторите попытку через несколько секунд.',
     'common.notFound': 'Не найдено',
     'common.conflict': 'Конфликт данных — обновите страницу и попробуйте снова',
     'common.tryAgain': 'Операция выполняется — повторите через несколько секунд',

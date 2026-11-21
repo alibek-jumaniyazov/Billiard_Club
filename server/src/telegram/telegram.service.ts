@@ -245,6 +245,27 @@ export class TelegramService {
     );
   }
 
+  /**
+   * Ma'lumotlar bazasiga ulanish bir necha marta bo'lmadi (har biri server
+   * tomonidan qayta urinilgan). Bitta lahzalik uzilish uchun yuborilmaydi —
+   * all-exceptions.filter.ts faqat muammo davom etganda chaqiradi.
+   */
+  async notifyDbOutage(count: number, windowMinutes: number, lastContext: string, err: unknown): Promise<void> {
+    const message = err instanceof Error ? err.message : String(err);
+    await this.notify(
+      'critical_error',
+      [
+        '⚠️ <b>Ma’lumotlar bazasiga ulanishda muammo</b>',
+        '',
+        `So‘nggi ${windowMinutes} daqiqada <b>${count}</b> ta so‘rov bazaga ulana olmadi (server qayta urinib ko‘rdi).`,
+        `📍 Oxirgisi: ${this.escapeHtml(lastContext)}`,
+        `❌ Xato: <code>${this.escapeHtml(this.truncate(message, 300))}</code>`,
+        '',
+        'Tekshiring: Postgres ishlayaptimi, serverning CPU/xotira yuklamasi, disk, max_connections.',
+      ].join('\n'),
+    );
+  }
+
   /** Obuna muddati tugashiga oz qoldi (cron eslatmasi) */
   async notifySubscriptionExpiringSoon(club: Club, daysLeft: number): Promise<void> {
     await this.notify(
