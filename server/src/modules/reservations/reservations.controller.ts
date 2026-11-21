@@ -13,6 +13,7 @@ import { ClubId } from '../../common/decorators/club-id.decorator';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { t } from '../../common/i18n/messages';
+import { OfflineStampDto } from '../../common/offline/offline-at';
 import { UserRole } from '../../entities/enums';
 import {
   CreateReservationDto,
@@ -85,15 +86,17 @@ export class ReservationsController {
     };
   }
 
+  /** `offlineAt` — bekor qilish oflayn bosilgan bo'lsa (navbatdan) */
   @Roles(...STAFF_ROLES)
   @HttpCode(200)
   @Post(':id/cancel')
   async cancel(
     @ClubId() clubId: number,
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: OfflineStampDto,
     @Lang() lang: Language,
   ) {
-    const data = await this.reservationsService.cancel(clubId, id);
+    const data = await this.reservationsService.cancel(clubId, id, dto);
     return { success: true, message: t(lang, 'reservations.cancelled'), data };
   }
 }

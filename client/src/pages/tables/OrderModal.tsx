@@ -14,6 +14,7 @@ import { MoneyText } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useConnection } from '../../context/ConnectionContext';
+import { hasPendingOps } from '../../offline/overlay';
 import { newActionKey, queueOrder } from '../../offline/pos';
 import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable, Order, Product } from '../../types';
@@ -56,10 +57,15 @@ interface OrderModalProps {
   onClose: () => void;
   /** Buyurtma qo'shilgach (stollar qayta yuklanadi) */
   onOrdered: () => void;
+  /**
+   * Server soati bilan farq (ms) — oflayn buyurtma vaqti shu soatdan olinadi
+   * va serverga yuboriladi (pozitsiya haqiqiy vaqti bilan yoziladi)
+   */
+  offsetMs?: number;
 }
 
 /** Bar buyurtmasi — mahsulotlar modal ochilganda yangilanadi (ombor aktual) */
-const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
+const OrderModal = ({ table, onClose, onOrdered, offsetMs = 0 }: OrderModalProps) => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const [form] = Form.useForm<OrderValues>();
@@ -72,7 +78,7 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
   const session = table?.sessions?.[0] ?? null;
   const items = Form.useWatch('items', form);
   const currency = useCurrency();
-  const { online } = useConnection();
+  const { online, entries } = useConnection();
   const { hasRole } = useAuth();
   // Bekor qilish huquqi server bilan bir xil: kassir va admin (operator — yo'q)
   const canCancel = hasRole('superadmin', 'admin', 'kassir');
@@ -200,16 +206,20 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
       }
 
       /**
-       * NAVBATGA ikki holatda tushadi:
+       * NAVBATGA uch holatda tushadi:
        *  1. internet yo'q — buyurtma mavjud summani O'ZGARTIRMAYDI, faqat
        *     qo'shadi, shuning uchun eskirgan ma'lumot ustida xavfsiz;
        *  2. sessiya hali serverda YO'Q (oflayn boshlangan) — uning `id` si
        *     manfiy sintetik qiymat, uni yuborish xato berardi. Navbat buyurtmani
-       *     sessiya yaratilgandan KEYIN yuboradi ($local havolasi).
+       *     sessiya yaratilgandan KEYIN yuboradi ($local havolasi);
+       *  3. shu o'yin/stol bo'yicha navbatda yuborilmagan amal bor — buyurtma
+       *     ulardan keyin borishi kerak (overlay.ts: hasPendingOps).
+       * Buyurtma vaqti (`offlineAt`) serverga boradi — pozitsiya haqiqiy vaqti bilan yoziladi.
        */
-      if (!online || session.offlineLocalId) {
-        await queueOrder(table, session, rows, orderTotal, key);
-        message.success(t('offline.savedOffline'));
+      const pendingOps = hasPendingOps(entries, session, [table.id]);
+      if (!online || session.offlineLocalId || pendingOps) {
+        await queueOrder(table, session, rows, orderTotal, key, offsetMs);
+        message.success(t(online && pendingOps ? 'offline.savedQueued' : 'offline.savedOffline'));
         onOrdered();
         onClose();
         return;
@@ -232,7 +242,7 @@ const OrderModal = ({ table, onClose, onOrdered }: OrderModalProps) => {
             .map((row) => ({ productId: row.productId, quantity: Math.trunc(row.quantity) }))
             .filter((row) => row.quantity >= 1);
           if (items.length > 0) {
-            await queueOrder(table, session, items, orderTotal, key);
+            await queueOrder(table, session, items, orderTotal, key, offsetMs);
             message.success(t('offline.savedOffline'));
             onOrdered();
             onClose();

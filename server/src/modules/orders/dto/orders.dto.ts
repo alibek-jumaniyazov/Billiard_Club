@@ -14,6 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { OrderStatus } from '../../../entities/enums';
+import { OfflineAtDto } from '../../sessions/dto/sessions.dto';
 
 export class OrderItemDto {
   @IsInt()
@@ -28,7 +29,13 @@ export class OrderItemDto {
   quantity: number;
 }
 
-export class CreateOrderDto {
+/**
+ * `offlineAt` (OfflineAtDto) — buyurtma internetsiz paytda kiritilgan payt.
+ * Oflayn navbat yuboradi: pozitsiya HAQIQIY vaqti bilan yoziladi (aks holda
+ * kechikib kelgan buyurtma "bugungi bar savdosi"da boshqa kunga/smenaga
+ * tushib ketardi). Vaqt serverda chegaralanadi (offline-at.ts).
+ */
+export class CreateOrderDto extends OfflineAtDto {
   @IsInt()
   @Type(() => Number)
   sessionId: number;

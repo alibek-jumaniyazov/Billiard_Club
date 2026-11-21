@@ -24,6 +24,7 @@ export default {
     discardedWithLinked: '{{count}} ta bog‘liq amal navbatdan olib tashlandi',
     attempts: '{{count}} urinish',
     savedOffline: 'Oflayn saqlandi — aloqa tiklanganda yuboriladi',
+    savedQueued: 'Navbatga qo‘shildi — shu stoldagi oldingi amallar yuborilgach serverga ketadi',
     offlineBlocked: 'Bu amal internetsiz bajarilmaydi',
     errorGoHome: 'Bosh sahifaga',
     errorDetails: 'Texnik tafsilot',
@@ -40,14 +41,43 @@ export default {
     actPause: '{{table}} — pauza',
     actResume: '{{table}} — davom ettirildi',
     actEnd: '{{table}} — hisob-kitob',
+    actEndDebt: '{{table}} — hisob-kitob, qarz: {{customer}}',
     actOrder: '{{table}} — bar buyurtmasi',
+    actCancel: '{{table}} — o‘yin bekor qilindi',
+    actTransfer: '{{table}} → {{target}} — o‘yin ko‘chirildi',
+    actPlan: '{{table}} — o‘yin vaqti / summa limiti o‘zgardi',
     actGeneric: 'Amal',
+    // Oflayn ko'chirish va bekor qilish
+    transferOfflineDesc:
+      'Internetsiz ko‘chirish: vaqt va narx hozir bo‘linadi. Aloqa tiklanganda server aynan shu payt bo‘yicha qayta hisoblaydi.',
+    cancelOfflineNote:
+      'Internet yo‘q: o‘yin shu daqiqada to‘xtaydi, server aloqa tiklanganda tekshiradi.',
     // Oflayn hisob-kitob
     checkoutOfflineTitle: 'Internetsiz hisob-kitob',
     checkoutOfflineDesc:
       'Summa shu kassadagi ma’lumot bo‘yicha hisoblandi. Pulni oling — aloqa tiklanishi bilan hisob serverga yuboriladi.',
-    checkoutOfflineDebt: 'Qarzga yozish va qo‘lda tuzatish uchun internet kerak',
+    checkoutQueuedTitle: 'Hisob-kitob navbat orqali',
+    checkoutQueuedDesc:
+      'Bu stol bo‘yicha oldingi amallar hali serverga yuborilmoqda. Summa shu kassadagi ma’lumot bo‘yicha hisoblandi — hisob ulardan keyin yuboriladi.',
+    checkoutOfflineAdjust:
+      'Qo‘lda tuzatish uchun internet kerak: huquq va sabab serverda tekshiriladi.',
     checkoutOfflineSaved: 'Hisob-kitob oflayn saqlandi — aloqa tiklanganda yuboriladi',
+    // Internetsiz qarz
+    debtOfflineHint:
+      'Internetsiz qarz faqat ro‘yxatdagi mijozga yoziladi. Aloqa tiklanganda server mijozni qayta tekshiradi.',
+    debtCustomer: 'Qarzdor mijoz (ro‘yxatdan)',
+    debtCustomerPlaceholder: 'Ism yoki telefon bo‘yicha qidiring',
+    debtPickCustomer: 'Qarz yoziladigan mijozni ro‘yxatdan tanlang',
+    debtCustomerNotListed:
+      'Bunday mijoz saqlangan ro‘yxatda yo‘q. Yangi yoki internetsiz qo‘shilgan mijozga qarz yozish uchun internet kerak — hozir to‘liq to‘lov oling.',
+    debtNoCustomerCache:
+      'Mijozlar ro‘yxati bu kompyuterda saqlanmagan — internetsiz qarzga yozib bo‘lmaydi. To‘liq to‘lov oling yoki aloqa tiklanishini kuting.',
+    debtNeedsCustomersFeature:
+      'Internetsiz qarz «Mijozlar» ro‘yxatidagi mijozga yoziladi — bu bo‘lim tarifingizda yo‘q. To‘liq to‘lov oling yoki aloqa tiklanishini kuting.',
+    debtConnectionLost:
+      'Aloqa uzildi — qarz yozilmadi. Internetsiz qarz uchun mijozni saqlangan ro‘yxatdan tanlang yoki to‘liq to‘lov oling.',
+    debtListAsOf: 'Ro‘yxat {{time}} holatida',
+    debtListPartial: 'Ro‘yxat to‘liq saqlanmagan — kerakli mijoz bo‘lmasa, internet kerak.',
     checkoutOfflineReceipt: 'OFLAYN — serverga yuborilishi kutilmoqda',
     mismatchTitle: '{{table}}: oflayn hisob-kitobda farq',
     mismatchDesc:
@@ -80,6 +110,7 @@ export default {
     discardedWithLinked: 'Из очереди удалено {{count}} связанных действий',
     attempts: 'попыток: {{count}}',
     savedOffline: 'Сохранено офлайн — отправится при связи',
+    savedQueued: 'Добавлено в очередь — уйдёт на сервер после предыдущих действий по этому столу',
     offlineBlocked: 'Это действие требует интернета',
     errorGoHome: 'На главную',
     errorDetails: 'Технические детали',
@@ -96,14 +127,43 @@ export default {
     actPause: '{{table}} — пауза',
     actResume: '{{table}} — продолжено',
     actEnd: '{{table}} — расчёт',
+    actEndDebt: '{{table}} — расчёт, долг: {{customer}}',
     actOrder: '{{table}} — заказ бара',
+    actCancel: '{{table}} — игра отменена',
+    actTransfer: '{{table}} → {{target}} — игра перенесена',
+    actPlan: '{{table}} — изменены время игры / лимит',
     actGeneric: 'Действие',
+    // Офлайн-перенос и отмена
+    transferOfflineDesc:
+      'Перенос без интернета: время и цена делятся в эту минуту. При восстановлении связи сервер пересчитает именно на этот момент.',
+    cancelOfflineNote:
+      'Нет интернета: игра остановится в эту минуту, сервер проверит при восстановлении связи.',
     // Офлайн-расчёт
     checkoutOfflineTitle: 'Расчёт без интернета',
     checkoutOfflineDesc:
       'Сумма посчитана по данным этой кассы. Принимайте оплату — расчёт отправится на сервер, как только появится связь.',
-    checkoutOfflineDebt: 'Для записи в долг и ручной корректировки нужен интернет',
+    checkoutQueuedTitle: 'Расчёт через очередь',
+    checkoutQueuedDesc:
+      'Предыдущие действия по этому столу ещё отправляются. Сумма посчитана по данным этой кассы — расчёт уйдёт после них.',
+    checkoutOfflineAdjust:
+      'Для ручной корректировки нужен интернет: права и причина проверяются на сервере.',
     checkoutOfflineSaved: 'Расчёт сохранён офлайн — отправится при восстановлении связи',
+    // Долг без интернета
+    debtOfflineHint:
+      'Без интернета долг записывается только на клиента из списка. При восстановлении связи сервер проверит клиента ещё раз.',
+    debtCustomer: 'Клиент-должник (из списка)',
+    debtCustomerPlaceholder: 'Поиск по имени или телефону',
+    debtPickCustomer: 'Выберите из списка клиента, на которого записать долг',
+    debtCustomerNotListed:
+      'Такого клиента нет в сохранённом списке. Чтобы записать долг на нового клиента или добавленного без интернета, нужен интернет — сейчас примите полную оплату.',
+    debtNoCustomerCache:
+      'Список клиентов не сохранён на этом компьютере — записать в долг без интернета нельзя. Примите полную оплату или дождитесь связи.',
+    debtNeedsCustomersFeature:
+      'Без интернета долг записывается на клиента из раздела «Клиенты» — этого раздела нет в вашем тарифе. Примите полную оплату или дождитесь связи.',
+    debtConnectionLost:
+      'Связь прервалась — долг не записан. Для долга без интернета выберите клиента из сохранённого списка или примите полную оплату.',
+    debtListAsOf: 'Список на {{time}}',
+    debtListPartial: 'Список сохранён не полностью — если нужного клиента нет, нужен интернет.',
     checkoutOfflineReceipt: 'ОФЛАЙН — ожидает отправки на сервер',
     mismatchTitle: '{{table}}: расхождение в офлайн-расчёте',
     mismatchDesc:

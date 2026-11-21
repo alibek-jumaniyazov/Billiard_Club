@@ -40,6 +40,21 @@ export default {
     // Bo'sh holat
     emptyTitle: "Qarzlar yo'q",
     emptyHint: "Bu filtr bo'yicha qarz yozuvlari topilmadi",
+    // Oflayn (internetsiz) to'lov
+    offlinePay: '{{name}} — qarz to‘lovi {{amount}}',
+    offlineSaved: 'To‘lov saqlandi — aloqa tiklanganda serverga yuboriladi',
+    queuedBehind: 'To‘lov navbatga qo‘shildi — shu mijozning oldingi to‘lovlari yuborilgach serverga ketadi',
+    offlinePending: 'Yuborilmagan',
+    offlinePendingHint:
+      'Internetsiz qabul qilingan to‘lov ({{amount}}) qoldiqdan ayirildi. Aloqa tiklanganda u qabul qilingan vaqti bilan serverga yuboriladi.',
+    offlineFailed: 'Qabul qilinmadi',
+    offlineFailedHint:
+      'Internetsiz qabul qilingan to‘lovni server qabul qilmadi — «Yuborilmagan amallar» oynasida sababini ko‘rib, hal qiling. Bu summa qoldiqdan ayirilmagan.',
+    offlineTotalsHint: 'Yuborilmagan to‘lovlar ({{amount}}) ayirib ko‘rsatildi',
+    offlineHistoryTitle: 'Yuborilmagan to‘lovlar',
+    offlineHistoryUnavailable: 'To‘lovlar tarixi internetsiz yuklanmaydi — quyida faqat shu kassadagi yuborilmagan to‘lovlar.',
+    writeOffOffline: 'Qarzni hisobdan chiqarish uchun internet kerak',
+    writeOffPending: 'Bu qarz bo‘yicha yuborilmagan to‘lov bor — avval u serverga yetib borsin',
   },
   ru: {
     title: 'Книга долгов',
@@ -82,5 +97,20 @@ export default {
     // Пустое состояние
     emptyTitle: 'Долгов нет',
     emptyHint: 'По этому фильтру долговых записей не найдено',
+    // Офлайн-оплата (без интернета)
+    offlinePay: '{{name}} — оплата долга {{amount}}',
+    offlineSaved: 'Оплата сохранена — будет отправлена на сервер при восстановлении связи',
+    queuedBehind: 'Оплата добавлена в очередь — уйдёт на сервер после предыдущих оплат этого клиента',
+    offlinePending: 'Не отправлено',
+    offlinePendingHint:
+      'Оплата, принятая без интернета ({{amount}}), вычтена из остатка. При восстановлении связи она будет отправлена на сервер со временем приёма.',
+    offlineFailed: 'Не принято',
+    offlineFailedHint:
+      'Сервер не принял оплату, проведённую без интернета, — посмотрите причину в окне «Неотправленные действия». Эта сумма не вычтена из остатка.',
+    offlineTotalsHint: 'Неотправленные оплаты ({{amount}}) уже вычтены',
+    offlineHistoryTitle: 'Неотправленные оплаты',
+    offlineHistoryUnavailable: 'История платежей без интернета не загружается — ниже только неотправленные оплаты этой кассы.',
+    writeOffOffline: 'Для списания долга нужен интернет',
+    writeOffPending: 'По этому долгу есть неотправленная оплата — дождитесь её отправки на сервер',
   },
 };

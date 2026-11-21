@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
-import { Alert, Button, Card, Col, Row, Typography } from 'antd';
+import { Alert, Button, Card, Col, Row, Space, Typography } from 'antd';
 import {
   CalendarOutlined,
   ArrowRightOutlined,
   CoffeeOutlined,
   CreditCardOutlined,
   DashboardOutlined,
+  DisconnectOutlined,
   DollarOutlined,
   PieChartOutlined,
   PlayCircleOutlined,
@@ -16,10 +17,11 @@ import {
 } from '@ant-design/icons';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { EmptyState, PageHeader, PageTransition, StatCard } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useConnection } from '../../context/ConnectionContext';
 import { useEntitlements } from '../../hooks/useEntitlements';
 import { TOKENS } from '../../theme/tokens';
 import { formatClock, formatMoney } from '../../utils/format';
@@ -59,6 +61,8 @@ const DashboardPage = () => {
   const { t } = useTranslation();
   const { club } = useAuth();
   const { can } = useEntitlements();
+  const { online } = useConnection();
+  const navigate = useNavigate();
   const {
     stats,
     loading,
@@ -120,22 +124,41 @@ const DashboardPage = () => {
     />
   );
 
-  // Birinchi yuklash muvaffaqiyatsiz — aniq xato paneli (bo'sh holat EMAS)
+  // Birinchi yuklash muvaffaqiyatsiz — aniq xato paneli (bo'sh holat EMAS).
+  // Internet yo'q bo'lsa sababi ochiq aytiladi: ko'rsatkichlar serverda
+  // hisoblanadi va ataylab keshlanmaydi, kassa ishi esa (stollar) davom etadi —
+  // admin/kassir ilovani oflayn ochganda AYNAN shu sahifaga tushadi
   if (error && !stats) {
     return (
       <PageTransition>
         {header}
         <Card>
-          <EmptyState
-            icon={<WarningOutlined />}
-            title={t('dashboard.errorTitle')}
-            hint={t('dashboard.errorHint')}
-            action={
-              <Button type="primary" onClick={retry}>
-                {t('dashboard.retry')}
-              </Button>
-            }
-          />
+          {online ? (
+            <EmptyState
+              icon={<WarningOutlined />}
+              title={t('dashboard.errorTitle')}
+              hint={t('dashboard.errorHint')}
+              action={
+                <Button type="primary" onClick={retry}>
+                  {t('dashboard.retry')}
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={<DisconnectOutlined />}
+              title={t('dashboard.offlineTitle')}
+              hint={t('dashboard.offlineHint')}
+              action={
+                <Space wrap>
+                  <Button type="primary" onClick={() => navigate('/tables')}>
+                    {t('workspace.openTables')}
+                  </Button>
+                  <Button onClick={retry}>{t('dashboard.retry')}</Button>
+                </Space>
+              }
+            />
+          )}
         </Card>
       </PageTransition>
     );

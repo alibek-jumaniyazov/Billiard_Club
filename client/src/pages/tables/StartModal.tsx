@@ -7,6 +7,7 @@ import { errorMessage, isNetworkError, reservationsApi, sessionsApi } from '../.
 import { useNow } from '../../components/ui';
 import { useConnection } from '../../context/ConnectionContext';
 import { useCurrency } from '../../context/AppSettingsContext';
+import { hasPendingOps } from '../../offline/overlay';
 import { newActionKey, queueStartSession } from '../../offline/pos';
 import { isFormValidationError } from '../../utils/formErrors';
 import type { BilliardTable, Reservation, Session } from '../../types';
@@ -129,7 +130,7 @@ LimitPreview.displayName = 'LimitPreview';
 const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: StartModalProps) => {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const { online } = useConnection();
+  const { online, entries } = useConnection();
   const currency = useCurrency();
   const [form] = Form.useForm<StartValues>();
   const [submitting, setSubmitting] = useState(false);
@@ -185,9 +186,13 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
       // OFLAYN: o'yin navbatga yoziladi va ekranda darhol ko'rinadi.
       // Taymer `startTime` dan yuradi, ya'ni aloqa tiklanganda vaqt ham,
       // summa ham yo'qolmaydi (offline/pos.ts izohiga qarang).
-      if (!online) {
+      // Stolda yuborilmagan amal bo'lsa (masalan oldingi o'yinning oflayn
+      // hisob-kitobi yoki bekor qilinishi) — internet bo'lsa ham navbat orqali:
+      // aks holda server stolni hali band deb rad etardi
+      const pendingOps = hasPendingOps(entries, null, [table.id]);
+      if (!online || pendingOps) {
         await queueStartSession(table, values, key, offsetMs);
-        message.success(t('offline.savedOffline'));
+        message.success(t(online ? 'offline.savedQueued' : 'offline.savedOffline'));
         onQueuedOffline();
         onClose();
         return;

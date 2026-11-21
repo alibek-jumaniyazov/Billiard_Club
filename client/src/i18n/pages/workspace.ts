@@ -24,6 +24,14 @@ export default {
     previousDay: 'Oldingi kun',
     nextDay: 'Keyingi kun',
     reservationDay: 'Bron sanasi',
+    // Tizimdan chiqish — yuborilmagan amallar va internetsiz holat
+    logoutUnsentTitle: '{{count}} ta amal hali serverga yuborilmagan',
+    logoutUnsentDesc:
+      'Ular shu qurilmada saqlanib qoladi va faqat siz shu klubga qayta kirganingizda yuboriladi. Bu qurilmada boshqa xodim kirsa, ular yuborilmaydi.',
+    logoutOfflineTitle: 'Internet yo‘q. Tizimdan chiqasizmi?',
+    logoutOfflineDesc:
+      'Qayta kirish uchun internet kerak: aloqa tiklanmaguncha bu qurilmada ishlab bo‘lmaydi.',
+    logoutAnyway: 'Baribir chiqish',
   },
   ru: {
     navigation: 'Главное меню',
@@ -50,5 +58,13 @@ export default {
     previousDay: 'Предыдущий день',
     nextDay: 'Следующий день',
     reservationDay: 'Дата бронирования',
+    // Выход — неотправленные действия и работа без интернета
+    logoutUnsentTitle: 'Не отправлено на сервер действий: {{count}}',
+    logoutUnsentDesc:
+      'Они сохранятся на этом устройстве и будут отправлены, только когда вы снова войдёте в этот клуб. Если на этом устройстве войдёт другой сотрудник, они не отправятся.',
+    logoutOfflineTitle: 'Нет интернета. Выйти из системы?',
+    logoutOfflineDesc:
+      'Для повторного входа нужен интернет: пока связь не восстановится, работать на этом устройстве будет нельзя.',
+    logoutAnyway: 'Всё равно выйти',
   },
 };

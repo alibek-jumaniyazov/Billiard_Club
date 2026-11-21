@@ -153,6 +153,9 @@ export class BridgeController {
         // Majburiy qayta qo'llash oralig'i va holatni tekshirish — klub sozlamasidan
         forceSyncMs: state.settings.forceSyncSec * 1000,
         verify: state.settings.verify,
+        // Chiroq markazi (v3+) internetsiz ham shu qoidalar bilan o'zi hisoblaydi;
+        // eski agentlar bu maydonni va qurilmalardagi `model` ni e'tiborsiz qoldiradi
+        rules: state.rules,
         devices: state.devices.map(({ reportVersion: _internal, ...device }) => device),
         // Vazifa BERILADI, lekin navbatdan O'CHIRILMAYDI: natija kelmaguncha
         // (yoki muddati o'tmaguncha) saqlanadi — javob yo'qolsa qayta beriladi
@@ -211,18 +214,12 @@ export class BridgeController {
     const bridge = await this.requireBridge(token);
     await this.lightsService.touchBridge(bridge, null, ip);
 
+    // Maydonlar servisda tozalanadi (cleanDiscovered): manzili yo'q yozuv tashlanadi
     const accepted = await this.lightsService.saveDiscovered(
       bridge.clubId,
       dto.taskId,
       dto.subnet?.trim() || null,
-      (dto.devices ?? []).map((device) => ({
-        host: device.host,
-        ...(device.mac ? { mac: device.mac } : {}),
-        ...(device.model ? { model: device.model } : {}),
-        ...(device.name ? { name: device.name } : {}),
-        ...(device.driver ? { driver: device.driver } : {}),
-        ...(device.channels ? { channels: device.channels } : {}),
-      })),
+      dto.devices ?? [],
     );
     return { success: true, data: { accepted } };
   }

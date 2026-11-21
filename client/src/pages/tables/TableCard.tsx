@@ -115,6 +115,11 @@ export interface TableCardProps {
   segments: SegmentLike[] | null;
   offsetMs: number;
   online: boolean;
+  /**
+   * Chiroq shu kompyuterdagi markaz orqali boshqariladi (desktop dastur) —
+   * internetsiz ham chiroq tugmasi ishlaydi
+   */
+  lightLocal?: boolean;
   pending: boolean;
   lightPending?: boolean;
   canCheckout: boolean;
@@ -127,7 +132,7 @@ export interface TableCardProps {
   onTransfer: (table: BilliardTable) => void;
   onCheckout: (table: BilliardTable) => void;
   onPauseResume: (session: Session, table: BilliardTable) => void;
-  onCancel: (session: Session) => void;
+  onCancel: (session: Session, table: BilliardTable) => void;
   onLightToggle?: (table: BilliardTable, on: boolean) => void;
   onLightAuto?: (table: BilliardTable) => void;
   /**
@@ -140,7 +145,7 @@ export interface TableCardProps {
 }
 
 const TableCard = memo(({
-  variant = 'card', table, focused, session, segments, offsetMs, online, pending, lightPending, canCheckout, canManage, reservation,
+  variant = 'card', table, focused, session, segments, offsetMs, online, lightLocal, pending, lightPending, canCheckout, canManage, reservation,
   onStart, onOrder, onTransfer, onCheckout, onPauseResume, onCancel, onLightToggle, onLightAuto, onPlanChange, onLimitEdit,
 }: TableCardProps) => {
   const { t, i18n } = useTranslation();
@@ -150,17 +155,22 @@ const TableCard = memo(({
   const isBusy = table.status === 'busy';
   const isPaused = session?.status === 'paused';
   const isOfflineSession = !!session?.offlineLocalId;
+  // Serverga hali yetmagan o'zgarish bor: oflayn boshlangan yoki oflayn ko'chirilgan o'yin
+  const isQueuedSession = isOfflineSession || !!session?.offlineTransfers?.length;
   // O'yin vaqti cheklovi bormi: belgilangan vaqt yoki summa limiti
   const hasPlan = !!session && (!!session.plannedMinutes || session.limitAmount != null);
-  // Preserve online/role restrictions, including local synthetic sessions.
+  // Internet yo'q yoki sessiya hali serverda yo'q — hisob-kitob oynasida eslatma uchun
   const offlineBlocked = !online || isOfflineSession;
-  // Hisob-kitob oflayn ham ishlaydi (offline/pos.ts: queueEndSession) — tugma bloklanmaydi,
-  // faqat oflayn rejim haqida eslatma ko'rsatiladi; o'tkazish va bekor qilish bloklangan qoladi.
-  const canCancel = !offlineBlocked && (canManage || (!!session &&
-    (session.barAmount ?? 0) <= 0 && sessionElapsedMs(session, Date.now() + offsetMs) <= 600_000));
+  // Hisob-kitob, ko'chirish, bekor qilish va vaqt/limit oflayn ham ishlaydi
+  // (offline/pos.ts) — tugmalar bloklanmaydi. Kassir chegarasi (barsiz va
+  // 10 daqiqagacha) bosilgan payt bo'yicha; server o'sha payt bo'yicha qayta tekshiradi.
+  const canCancel = canManage || (!!session &&
+    (session.barAmount ?? 0) <= 0 && sessionElapsedMs(session, Date.now() + offsetMs) <= 600_000);
   const hasLight = !!onLightToggle && table.lightControl === true;
   const lightFresh = table.lightFreshUntil && Date.parse(table.lightFreshUntil) > Date.now() + offsetMs;
-  const lightState = online && lightFresh && !table.lightError ? table.lightState ?? null : null;
+  // Chiroqni boshqarish mumkinmi: internet bor yoki markaz shu kompyuterda
+  const lightOnline = online || lightLocal === true;
+  const lightState = lightOnline && lightFresh && !table.lightError ? table.lightState ?? null : null;
   const lightError = table.lightError ?? null;
   const lightOverride = !!table.lightOverrideUntil && new Date(table.lightOverrideUntil).getTime() > Date.now() + offsetMs;
   const lightTarget = (lightOverride ? (table.lightOverrideOn ?? null) : null) ?? lightState ?? false;
@@ -174,13 +184,14 @@ const TableCard = memo(({
   const confirmCancel = () => {
     if (!session || !canCheckout || !canCancel || pending) return;
     modal.confirm({
-      title: t('tables.cancelConfirmTitle'), content: t('tables.cancelConfirmDesc'),
+      title: t('tables.cancelConfirmTitle'),
+      content: online ? t('tables.cancelConfirmDesc') : `${t('tables.cancelConfirmDesc')} ${t('offline.cancelOfflineNote')}`,
       okText: t('common.yes'), cancelText: t('common.no'), okButtonProps: { danger: true },
-      onOk: () => onCancel(session),
+      onOk: () => onCancel(session, table),
     });
   };
   const toggleLight = () => {
-    if (!online || lightPending) return;
+    if (!lightOnline || lightPending) return;
     if (isBusy && lightTarget) {
       modal.confirm({
         title: ru ? 'Выключить свет на занятом столе?' : 'O‘yin ketayotgan stolda chiroq o‘chirilsinmi?',
@@ -193,10 +204,10 @@ const TableCard = memo(({
   };
   const moreItems = [
     ...(isBusy && session ? [{ key: 'transfer', icon: <SwapOutlined />,
-      label: <Tooltip title={offlineBlocked ? t('offline.offlineBlocked') : isPaused ? t('tables.transferPausedHint') : undefined}><span>{t('tables.transfer')}</span></Tooltip>,
-      disabled: isPaused || offlineBlocked || pending, onClick: () => onTransfer(table) }] : []),
+      label: <Tooltip title={isPaused ? t('tables.transferPausedHint') : undefined}><span>{t('tables.transfer')}</span></Tooltip>,
+      disabled: isPaused || pending, onClick: () => onTransfer(table) }] : []),
     ...(hasLight && lightOverride && onLightAuto ? [{ key: 'light-auto', icon: <SyncOutlined />,
-      label: t('tables.lightsOverrideAuto'), disabled: !online || lightPending, onClick: () => onLightAuto(table) }] : []),
+      label: t('tables.lightsOverrideAuto'), disabled: !lightOnline || lightPending, onClick: () => onLightAuto(table) }] : []),
     // O'yin vaqti cheklovi: belgilangan vaqt yoki summa limiti (bittasi)
     ...(isBusy && session && onPlanChange ? (() => {
       const limit = session.limitAmount ?? null;
@@ -217,28 +228,28 @@ const TableCard = memo(({
         onPlanChange(session, { plannedMinutes: Math.min(1440, base + minutes) });
       };
       // Bepul stolga ko'chirilgan limitli o'yin: daqiqani pulga aylantirib bo'lmaydi
-      const extendBlocked = offlineBlocked || pending || (limit !== null && !(price > 0));
+      const extendBlocked = pending || (limit !== null && !(price > 0));
       return [
         { key: 'plan-30', icon: <FieldTimeOutlined />, label: t('tables.planAdd30'),
           disabled: extendBlocked, onClick: () => extend(30) },
         { key: 'plan-60', icon: <FieldTimeOutlined />, label: t('tables.planAdd60'),
           disabled: extendBlocked, onClick: () => extend(60) },
         ...(onLimitEdit ? [{ key: 'limit', icon: <WalletOutlined />, label: t('tables.limitEdit'),
-          disabled: offlineBlocked || pending || !(price > 0), onClick: () => onLimitEdit(table) }] : []),
+          disabled: pending || !(price > 0), onClick: () => onLimitEdit(table) }] : []),
         ...(session.plannedMinutes || limit !== null ? [{ key: 'plan-off', icon: <StopOutlined />,
           label: t(limit !== null ? 'tables.limitRemove' : 'tables.planRemove'),
-          disabled: offlineBlocked || pending, onClick: () => onPlanChange(session, { plannedMinutes: null }) }] : []),
+          disabled: pending, onClick: () => onPlanChange(session, { plannedMinutes: null }) }] : []),
       ];
     })() : []),
     ...(isBusy && session && canCheckout ? [{ key: 'cancel', icon: <CloseCircleOutlined />, danger: true,
-      label: <Tooltip title={!canCancel ? t(offlineBlocked ? 'offline.offlineBlocked' : 'tables.cancelNeedsAdmin') : undefined}><span>{t('tables.cancelTooltip')}</span></Tooltip>,
+      label: <Tooltip title={!canCancel ? t('tables.cancelNeedsAdmin') : undefined}><span>{t('tables.cancelTooltip')}</span></Tooltip>,
       disabled: !canCancel || pending, onClick: confirmCancel }] : []),
   ];
 
   const stateClass = isBusy ? isPaused ? 'is-paused' : 'is-busy' : 'is-free';
   const displayName = table.name || `${t('common.table')} ${table.number}`;
   const lightButton = hasLight && <Tooltip title={`${lightLabel} · ${lightHint}`}><Button type="text" icon={<BulbOutlined />}
-    loading={lightPending} disabled={!online}
+    loading={lightPending} disabled={!lightOnline}
     className={lightError ? 'has-light-error' : lightState ? 'is-light-on' : ''}
     aria-label={`${lightLabel} · ${lightHint}`} onClick={toggleLight} /></Tooltip>;
 
@@ -253,7 +264,7 @@ const TableCard = memo(({
             <UserOutlined />{session.customerName || t('tables.guest')}
             <em><ClockCircleOutlined />{formatClock(session.startTime)}</em>
             {session.barAmount > 0 && <em><CoffeeOutlined />{formatNumber(session.barAmount)}</em>}
-            {isOfflineSession && <em className="is-warning"><CloudSyncOutlined />{t('offline.queuePending')}</em>}
+            {isQueuedSession && <em className="is-warning"><CloudSyncOutlined />{t('offline.queuePending')}</em>}
             {session.limitAmount != null && <em className="is-limit"><WalletOutlined />{t('tables.limitBadge', { amount: formatNumber(session.limitAmount) })}</em>}
             {hasPlan ? <PlannedBadge session={session} segments={segments} fallbackPrice={table.pricePerHour} offsetMs={offsetMs} /> : null}
             {reservation && <em className="is-reservation"><CalendarOutlined />{reservation}</em>}
@@ -336,7 +347,7 @@ const TableCard = memo(({
               <span title={session.customerName || t('tables.guest')}><UserOutlined />{session.customerName || t('tables.guest')}</span>
               <span><ClockCircleOutlined />{formatClock(session.startTime)}</span>
               {session.barAmount > 0 && <span><CoffeeOutlined />{formatNumber(session.barAmount)}</span>}
-              {isOfflineSession && <span className="is-warning"><CloudSyncOutlined />{t('offline.queuePending')}</span>}
+              {isQueuedSession && <span className="is-warning"><CloudSyncOutlined />{t('offline.queuePending')}</span>}
               {session.limitAmount != null && <span className="is-limit"><WalletOutlined />{t('tables.limitBadge', { amount: formatNumber(session.limitAmount) })}</span>}
               {hasPlan ? <PlannedBadge session={session} segments={segments} fallbackPrice={table.pricePerHour} offsetMs={offsetMs} /> : null}
               {reservation && <span className="pool-reservation"><CalendarOutlined />{reservation}</span>}

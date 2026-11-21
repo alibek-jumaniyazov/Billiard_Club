@@ -23,6 +23,7 @@ import {
   driverFields,
   isBridgeOnly,
   numberStyle,
+  WIZARD_DRIVERS,
   panelStyle,
   type TableDraft,
 } from './shared';
@@ -77,6 +78,8 @@ export interface TableLightCardProps {
   onTest: (on: boolean) => void;
   /** on=null — avtomatikaga qaytaradi */
   onOverride: (on: boolean | null) => void;
+  /** Stol "Qurilmalar" ustasida sozlangan bo'lsa — o'sha qurilmani ochish */
+  onOpenDevice?: () => void;
 }
 
 /**
@@ -103,6 +106,7 @@ const TableLightCard = ({
   onReset,
   onTest,
   onOverride,
+  onOpenDevice,
 }: TableLightCardProps) => {
   const { t, i18n } = useTranslation();
   const copy = lightCopy(i18n.language.startsWith('ru'));
@@ -140,7 +144,16 @@ const TableLightCard = ({
     row.error ??
     (row.syncedAt ? `${t('tables.lightsSyncedAt')}: ${formatDateTime(row.syncedAt)}` : undefined);
 
-  const driverOptions = DRIVER_OPTIONS.map((opt) => ({
+  /**
+   * Tuya, Sonoff, Modbus RTU, USB platalar "Qurilmalar" ustasida sozlanadi:
+   * ularning maydonlari (kalit, kanal jadvali) bu kartada yo'q, shuning uchun
+   * bu yerda faqat eslatma ko'rsatiladi va ro'yxatda ular tanlanmaydi.
+   */
+  const wizardOwned = WIZARD_DRIVERS.includes(row.driver) || (row.driver === 'serial' && row.config?.preset === 'lcus');
+  const showWizardNote = wizardOwned && draft.driver === row.driver;
+  const driverOptions = DRIVER_OPTIONS.filter(
+    (opt) => !WIZARD_DRIVERS.includes(opt.value) || opt.value === row.driver,
+  ).map((opt) => ({
     value: opt.value,
     label: opt.brand ?? t(opt.i18nKey ?? ''),
   }));
@@ -166,14 +179,16 @@ const TableLightCard = ({
   if (fields.channel) {
     mainFields.push(
       <Field key="channel" label={t('tables.lightsChannel')} width={92}>
-        <InputNumber
-          value={draft.channel}
-          min={0}
-          max={32}
-          disabled={!canEdit || busy}
-          onChange={(value) => onPatch({ channel: value ?? 0 })}
-          style={{ width: '100%' }}
-        />
+        <Tooltip title={copy.channelZero}>
+          <InputNumber
+            value={draft.channel}
+            min={0}
+            max={32}
+            disabled={!canEdit || busy}
+            onChange={(value) => onPatch({ channel: value ?? 0 })}
+            style={{ width: '100%' }}
+          />
+        </Tooltip>
       </Field>,
     );
   }
@@ -527,8 +542,24 @@ const TableLightCard = ({
             style={{ width: '100%' }}
           />
         </Field>
-        {mainFields}
+        {!showWizardNote && mainFields}
       </div>
+
+      {showWizardNote && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginTop: 10 }}
+          message={t('lights.advancedWizardNote')}
+          action={
+            onOpenDevice ? (
+              <Button size="small" onClick={onOpenDevice}>
+                {t('lights.openDevice')}
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
 
       {configured && fields.urls && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
@@ -560,7 +591,7 @@ const TableLightCard = ({
         />
       )}
 
-      {configured && (
+      {configured && !showWizardNote && (
         <Collapse
           ghost
           size="small"

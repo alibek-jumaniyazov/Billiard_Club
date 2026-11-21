@@ -221,6 +221,7 @@ export default {
     deactivateBusy: "Band stolni faolsizlantirib bo'lmaydi",
     // Chiroq boshqaruvi (ixtiyoriy imkoniyat — standart holatda o'chiq)
     lightsTitle: 'Chiroq boshqaruvi',
+    lightsLocalApplied: 'Chiroq shu kompyuterdan boshqarildi (internetsiz)',
     lightsMode: 'Rejim',
     lightsModeOff: "O'chiq",
     lightsModeBridge: 'Lokal agent',
@@ -595,6 +596,7 @@ export default {
     deactivateBusy: 'Нельзя деактивировать занятый стол',
     // Управление освещением (опциональная возможность — по умолчанию выключено)
     lightsTitle: 'Управление светом',
+    lightsLocalApplied: 'Свет переключён с этого компьютера (без интернета)',
     lightsMode: 'Режим',
     lightsModeOff: 'Выключено',
     lightsModeBridge: 'Локальный агент',

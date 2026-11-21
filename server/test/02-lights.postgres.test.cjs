@@ -62,7 +62,8 @@ test('concurrent same-club assignments cannot allocate one output twice; another
     assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
     const rejected = results.find((result) => result.status === 'rejected');
     assert.equal(rejected.reason.getStatus(), 400);
-    assert.match(rejected.reason.message, /rele chiqishi/);
+    // Xato i18n kaliti bilan qaytadi (o'zbek/rus tilida tarjima qilinadi)
+    assert.equal(rejected.reason.getResponse().key, 'lights.outputInUse');
     const rows = await database.query('SELECT "lightDriver" FROM tables WHERE "clubId"=$1', [first.club.id]);
     assert.equal(rows.filter((row) => row.lightDriver === LightDriver.SHELLY_GEN2).length, 1);
     const loser = results.findIndex((result) => result.status === 'rejected');

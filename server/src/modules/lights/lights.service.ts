@@ -48,6 +48,20 @@ export interface LightDeviceState extends LightTarget {
   commandRevision?: string;
   /** Internal optimistic write guard, stripped from the bridge response. */
   reportVersion?: string;
+  /**
+   * Chiroq markazi uchun XOM holat (faqat bridge javobida): bulut bilan aloqa
+   * uzilganda ham kerakli holatni serverdagi qoida bilan o'zi hisoblaydi.
+   */
+  model?: LightDeviceModel;
+}
+
+/** Stolning chiroq qoidasiga kiradigan xom qiymatlari (bridge/lib/rules.js bilan bir xil) */
+export interface LightDeviceModel {
+  session: 'active' | 'paused' | null;
+  lastEndAt: string | null;
+  overrideOn: boolean | null;
+  overrideUntil: string | null;
+  reservations: string[];
 }
 
 /** Agent (yoki server) hisobotining bitta qatori */
@@ -149,14 +163,56 @@ export interface LightEventView {
   userName: string | null;
 }
 
-/** LAN skanerida topilgan qurilma (xotirada, DB ga yozilmaydi) */
+/** Qidiruvda topilgan qurilma: tarmoqdagi rele yoki kompyuterga ulangan USB/COM plata */
 export interface DiscoveredDevice {
-  host: string;
+  host?: string;
+  serialPort?: string;
+  serialNumber?: string;
+  id?: string;
+  version?: string;
+  encrypt?: boolean;
   mac?: string;
   model?: string;
   name?: string;
   driver?: LightDriver;
   channels?: number;
+}
+
+/**
+ * Agent yuborgan qidiruv natijasini saqlashga tayyorlaydi: faqat ma'lum
+ * maydonlar qoladi, manzili yo'q yozuv (IP ham, COM port ham, USB plata ham
+ * emas) tashlab yuboriladi.
+ */
+export function cleanDiscovered(devices: DiscoveredDevice[]): DiscoveredDevice[] {
+  const text = (value: unknown, max: number) =>
+    typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : undefined;
+  const out: DiscoveredDevice[] = [];
+  for (const device of devices) {
+    if (!device || typeof device !== 'object') continue;
+    const host = text(device.host, 60);
+    const serialPort = text(device.serialPort, 60);
+    const serialNumber = text(device.serialNumber, 40);
+    // Bitta HID plata ID siz ham boshqariladi — manzili yo'q bo'lsa ham qoladi
+    if (!host && !serialPort && !serialNumber && device.driver !== LightDriver.USB_HID) continue;
+    const id = text(device.id, 64);
+    const entry: DiscoveredDevice = {
+      ...(host ? { host } : {}),
+      ...(serialPort ? { serialPort } : {}),
+      ...(serialNumber ? { serialNumber } : {}),
+      ...(id && /^[A-Za-z0-9]+$/.test(id) ? { id } : {}),
+      ...(text(device.version, 10) ? { version: text(device.version, 10) } : {}),
+      ...(typeof device.encrypt === 'boolean' ? { encrypt: device.encrypt } : {}),
+      ...(text(device.mac, 40) ? { mac: text(device.mac, 40) } : {}),
+      ...(text(device.model, 60) ? { model: text(device.model, 60) } : {}),
+      ...(text(device.name, 60) ? { name: text(device.name, 60) } : {}),
+      ...(device.driver && Object.values(LightDriver).includes(device.driver) ? { driver: device.driver } : {}),
+      ...(Number.isInteger(device.channels) && (device.channels as number) >= 1 && (device.channels as number) <= 32
+        ? { channels: device.channels }
+        : {}),
+    };
+    out.push(entry);
+  }
+  return out;
 }
 
 /** Agentga beriladigan vazifa (hozircha faqat qurilma qidirish) */
@@ -180,6 +236,8 @@ export interface LightBridgeState {
   settings: ClubLightSettings;
   devices: LightDeviceState[];
   version: string;
+  /** Chiroq markazi lokal hisob uchun klub qoidalari (bridge/lib/rules.js) */
+  rules: { offOnPause: boolean; offDelaySec: number; preOnMinutes: number };
   /**
    * Klubda hozir VAQTGA bog'liq o'tish kutilyaptimi (grace/bron oldidan oynasi).
    * Kutilmasa uzun-polling qadamini uzaytirish mumkin — DB yuki kamayadi.
@@ -337,6 +395,10 @@ interface DesiredRow {
   offDelaySec: number;
   preOnMinutes: number;
   reportVersion?: string;
+  /** Oxirgi yakunlangan o'yin vaqti (faqat grace yoqilgan bo'lsa olinadi) */
+  lastEndAt?: Date | null;
+  /** Keyingi 24 soatdagi bronlar boshlanishi (faqat bron oldidan yoqish yoqilgan bo'lsa) */
+  reservationStarts?: Date[] | null;
 }
 
 /**
@@ -501,7 +563,11 @@ export class LightsService {
               (res.id IS NOT NULL AND COALESCE(st."lightPreOnMinutes", 0) > 0)
                                                      AS "preOnActive",
               COALESCE(st."lightOffDelaySec", 0)     AS "offDelaySec",
-              COALESCE(st."lightPreOnMinutes", 0)    AS "preOnMinutes"
+              COALESCE(st."lightPreOnMinutes", 0)    AS "preOnMinutes",
+              -- Chiroq markazi internetsiz ham grace va bron oldidan yoqishni
+              -- o'zi hisoblashi uchun XOM qiymatlar (bridge/lib/rules.js)
+              fin."endTime"                          AS "lastEndAt",
+              upcoming.starts                        AS "reservationStarts"
        FROM tables t
        LEFT JOIN settings st ON st."clubId" = t."clubId"
        LEFT JOIN LATERAL (
@@ -534,12 +600,30 @@ export class LightsService {
            AND r."startsAt" <= now() + make_interval(mins => COALESCE(st."lightPreOnMinutes", 0))
          LIMIT 1
        ) res ON true
+       LEFT JOIN LATERAL (
+         -- Keyingi 24 soatdagi bronlar (internetsiz ishlash chegarasi bilan bir xil):
+         -- aloqa uzilsa ham chiroq markazi bron oldidan o'z vaqtida yoqadi
+         SELECT array_agg(u."startsAt" ORDER BY u."startsAt") AS starts
+         FROM (
+           SELECT r2."startsAt"
+           FROM reservations r2
+           WHERE r2."tableId" = t.id
+             AND COALESCE(st."lightPreOnMinutes", 0) > 0
+             AND r2.status IN ('pending', 'confirmed')
+             AND r2."startsAt" > now()
+             AND r2."startsAt" <= now() + interval '24 hours'
+           ORDER BY r2."startsAt"
+           LIMIT 20
+         ) u
+       ) upcoming ON true
        WHERE t."clubId" = $1
          AND t."isActive" = true
          AND t."lightDriver" <> 'none'
          AND (t."lightHost" IS NOT NULL
               OR t."lightOnUrl" IS NOT NULL
-              OR t."lightConfig" IS NOT NULL)
+              OR t."lightConfig" IS NOT NULL
+              -- USB HID platada manzil ham, majburiy sozlama ham yo'q (bitta plata)
+              OR t."lightDriver" = 'usb_hid')
        ORDER BY t.id`,
       [clubId],
     );
@@ -567,6 +651,29 @@ export class LightsService {
   }
 
   /**
+   * Chiroq markazi uchun XOM holat: o'yin, oxirgi tugash vaqti, qo'lda boshqaruv
+   * va bronlar. Markaz bulut bilan aloqa uzilganda ham shu qiymatlardan kerakli
+   * holatni serverdagi qoida bilan o'zi hisoblaydi (bridge/lib/rules.js).
+   */
+  private toDeviceModel(row: DesiredRow): LightDeviceModel {
+    const iso = (value: Date | string | null | undefined): string | null => {
+      if (!value) return null;
+      const date = value instanceof Date ? value : new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    };
+    const session = row.sessionStatus === 'active' || row.sessionStatus === 'paused' ? row.sessionStatus : null;
+    return {
+      session,
+      lastEndAt: iso(row.lastEndAt),
+      overrideOn: typeof row.overrideOn === 'boolean' ? row.overrideOn : null,
+      overrideUntil: iso(row.overrideUntil),
+      reservations: (Array.isArray(row.reservationStarts) ? row.reservationStarts : [])
+        .map((value) => iso(value))
+        .filter((value): value is string => value !== null),
+    };
+  }
+
+  /**
    * Uzun-polling uchun BITTA suratga olish: sozlamalar + qurilmalar + version +
    * `timeSensitive`.
    *
@@ -580,23 +687,32 @@ export class LightsService {
     const settings = await this.clubLightSettings(clubId);
     const tag = this.settingsTag(settings);
 
+    const rules = {
+      offOnPause: settings.offOnPause,
+      offDelaySec: settings.offDelaySec,
+      preOnMinutes: settings.preOnMinutes,
+    };
+    const rulesTag = `${tag}:${rules.offOnPause ? 1 : 0}:${rules.offDelaySec}:${rules.preOnMinutes}`;
+
     // Rejim 'bridge' bo'lmasa agentga bo'sh ro'yxat beriladi (relega tegilmaydi)
     if (settings.mode !== LightMode.BRIDGE) {
-      return { settings, devices: [], version: this.stateVersion([], tag), timeSensitive: false };
+      return { settings, rules, devices: [], version: this.stateVersion([], rulesTag), timeSensitive: false };
     }
 
     const rows = await this.desiredRows(clubId);
     const devices = rows.map((row) => {
       const device = this.toDeviceState(row);
+      device.model = this.toDeviceModel(row);
       device.commandRevision = createHash('sha256')
-        .update(`${this.stateVersion([device], tag)}:${row.overrideUntil ? new Date(row.overrideUntil).toISOString() : ''}`)
+        .update(`${this.stateVersion([device], rulesTag)}:${row.overrideUntil ? new Date(row.overrideUntil).toISOString() : ''}`)
         .digest('hex');
       return device;
     });
     return {
       settings,
+      rules,
       devices,
-      version: this.stateVersion(devices, tag),
+      version: this.stateVersion(devices, rulesTag),
       // Override MUDDATI tugashi ham vaqtga bog'liq o'tish: u tugagach DB da hech
       // narsa o'zgarmaydi va `pokeClub` chaqirilmaydi, shuning uchun bunday klubda
       // qadam qisqartirilmasa chiroq avtomatik holatga kech qaytardi
@@ -634,6 +750,8 @@ export class LightsService {
           device.onUrl ?? '',
           device.offUrl ?? '',
           device.config ? JSON.stringify(device.config) : '',
+          // Xom holat o'zgarsa (o'yin tugadi, bron qo'shildi) markaz yangi javob oladi
+          device.model ? JSON.stringify(device.model) : '',
         ].join('|'),
       )
       .join(';');
@@ -929,16 +1047,29 @@ export class LightsService {
     tableId: number,
     dto: UpdateTableLightDto,
   ): Promise<LightTableConfig> {
-    // Ulanish maydonlari (auth/host/URL/config) entityda `select: false` — bu yerda
-    // ataylab qo'shib o'qiymiz: yuborilmagan maydon eski qiymatida qolsin va
-    // javobdagi `hasAuth` to'g'ri hisoblansin
-    const table = await this.findTableWithAuth(clubId, tableId);
-    if (!table) throw new NotFoundException({ key: 'tables.notFound' });
+    const [saved] = await this.saveTableDevices(clubId, [{ ...dto, tableId }]);
+    return saved;
+  }
 
+  /**
+   * Bir nechta stolni BIR MARTADA sozlash — masalan 8 kanalli plata 8 ta stolga.
+   * Hammasi bitta tranzaksiyada: bittasi xato bo'lsa hech biri saqlanmaydi, va
+   * rele chiqishlari ro'yxat ICHIDA ham, boshqa stollar bilan ham takrorlanmasligi
+   * tekshiriladi.
+   */
+  async updateTableDevices(
+    clubId: number,
+    items: Array<UpdateTableLightDto & { tableId: number }>,
+  ): Promise<LightTableConfig[]> {
+    return this.saveTableDevices(clubId, items);
+  }
+
+  /** Stol yozuvi + so'rov -> yangi rele sozlamasi (yuborilmagan maydon eskicha qoladi) */
+  private nextDeviceSettings(table: Table, dto: UpdateTableLightDto) {
     // `channel`/`inverted` — NOT NULL ustunlar: `!= null` (undefined ham, null
     // ham eski qiymatni qoldiradi). Qolganlari nullable — ular `!== undefined`
     // bo'yicha tozalanishi mumkin (normalizeText null ni ham qabul qiladi).
-    const next = {
+    return {
       driver: dto.driver ?? table.lightDriver,
       host: dto.host !== undefined ? normalizeText(dto.host) : table.lightHost,
       channel: dto.channel != null ? dto.channel : table.lightChannel,
@@ -951,62 +1082,98 @@ export class LightsService {
           ? this.sanitizeConfig(dto.config)
           : this.sanitizeConfig(table.lightConfig),
     };
+  }
 
-    if (next.host && !isValidHost(next.host)) {
-      throw new BadRequestException({ key: 'lights.invalidHost' });
+  private async saveTableDevices(
+    clubId: number,
+    items: Array<UpdateTableLightDto & { tableId: number }>,
+  ): Promise<LightTableConfig[]> {
+    if (!items.length) return [];
+    const ids = items.map((item) => item.tableId);
+    if (new Set(ids).size !== ids.length) {
+      throw new BadRequestException({ key: 'lights.duplicateTable' });
     }
-
-    // Klub 'direct' rejimida bo'lsa MQTT/TCP/Modbus/serial drayverlarini
-    // saqlashga ruxsat berilmaydi — bulut server ularni bajara olmaydi
-    if (
-      next.driver !== LightDriver.NONE &&
-      BRIDGE_ONLY_DRIVERS.includes(next.driver) &&
-      (await this.clubLightMode(clubId)) === LightMode.DIRECT
-    ) {
-      throw new BadRequestException({ key: 'lights.driverBridgeOnly' });
-    }
-
-    this.assertDeviceConfig(next.driver, next.host, next.onUrl, next.offUrl, next.config);
-
-    table.lightDriver = next.driver;
-    table.lightHost = next.host;
-    table.lightChannel = next.channel;
-    table.lightInverted = next.inverted;
-    table.lightAuth = next.auth;
-    table.lightOnUrl = next.onUrl;
-    table.lightOffUrl = next.offUrl;
-    table.lightConfig = next.config;
-    // Sozlama o'zgardi — oldingi holat/xato endi ishonchsiz, qayta sinxronlanadi
-    table.lightState = null;
-    table.lightSyncedAt = null;
-    table.lightError = null;
+    const mode = await this.clubLightMode(clubId);
 
     const saved = await this.dataSource.transaction(async (manager) => {
       // Concurrent setup requests for one club must not assign one relay output
       // twice. Independent clubs remain isolated and do not block one another.
       await manager.query('SELECT pg_advisory_xact_lock($1, $2)', [23918, clubId]);
-      const requested = new Set(lightOutputKeys(this.toDevice(table, false)));
-      if (requested.size > 0) {
+      // Ulanish maydonlari (auth/host/URL/config) entityda `select: false` — bu yerda
+      // ataylab qo'shib o'qiymiz: yuborilmagan maydon eski qiymatida qolsin va
+      // javobdagi `hasAuth` to'g'ri hisoblansin
+      const tables = await manager.getRepository(Table).createQueryBuilder('t')
+        .addSelect(['t.lightHost', 't.lightAuth', 't.lightOnUrl', 't.lightOffUrl', 't.lightConfig'])
+        .where('t."clubId" = :clubId AND t.id IN (:...ids)', { clubId, ids })
+        .getMany();
+      if (tables.length !== ids.length) throw new NotFoundException({ key: 'tables.notFound' });
+      const byId = new Map(tables.map((table) => [table.id, table]));
+
+      for (const item of items) {
+        const table = byId.get(item.tableId)!;
+        const next = this.nextDeviceSettings(table, item);
+        if (next.host && !isValidHost(next.host)) {
+          throw new BadRequestException({ key: 'lights.invalidHost' });
+        }
+        // Klub 'direct' rejimida bo'lsa MQTT/TCP/Modbus/serial va boshqa lokal
+        // drayverlarni saqlashga ruxsat berilmaydi — bulut server ularni bajara olmaydi
+        if (next.driver !== LightDriver.NONE && BRIDGE_ONLY_DRIVERS.includes(next.driver)
+          && mode === LightMode.DIRECT) {
+          throw new BadRequestException({ key: 'lights.driverBridgeOnly' });
+        }
+        this.assertDeviceConfig(next.driver, next.host, next.onUrl, next.offUrl, next.config, Boolean(next.auth));
+
+        table.lightDriver = next.driver;
+        table.lightHost = next.host;
+        table.lightChannel = next.channel;
+        table.lightInverted = next.inverted;
+        table.lightAuth = next.auth;
+        table.lightOnUrl = next.onUrl;
+        table.lightOffUrl = next.offUrl;
+        table.lightConfig = next.config;
+        // Sozlama o'zgardi — oldingi holat/xato endi ishonchsiz, qayta sinxronlanadi
+        table.lightState = null;
+        table.lightSyncedAt = null;
+        table.lightError = null;
+      }
+
+      // Rele chiqishlari: avval ro'yxatning o'zi ichida, keyin qolgan stollar bilan
+      const taken = new Map<string, number>();
+      const ordered = [...tables].sort((a, b) => a.number - b.number);
+      for (const table of ordered) {
+        for (const key of lightOutputKeys(this.toDevice(table, false))) {
+          const owner = taken.get(key);
+          if (owner !== undefined) {
+            throw new BadRequestException({ key: 'lights.outputInUse', args: { table: owner } });
+          }
+          taken.set(key, table.number);
+        }
+      }
+      if (taken.size > 0) {
         const others = await manager.getRepository(Table).createQueryBuilder('t')
           .addSelect(['t.lightHost', 't.lightConfig'])
-          .where('t."clubId" = :clubId AND t.id <> :tableId AND t."lightDriver" <> :none',
-            { clubId, tableId, none: LightDriver.NONE })
+          .where('t."clubId" = :clubId AND t.id NOT IN (:...ids) AND t."lightDriver" <> :none',
+            { clubId, ids, none: LightDriver.NONE })
           .getMany();
         for (const other of others) {
-          if (lightOutputKeys(this.toDevice(other, false)).some((key) => requested.has(key))) {
-            throw new BadRequestException(`Bu rele chiqishi ${other.number}-stolga ulangan. Boshqa kanalni tanlang yoki avval eski ulanishni olib tashlang.`);
+          if (lightOutputKeys(this.toDevice(other, false)).some((key) => taken.has(key))) {
+            throw new BadRequestException({ key: 'lights.outputInUse', args: { table: other.number } });
           }
         }
       }
-      return manager.getRepository(Table).save(table);
+      return manager.getRepository(Table).save(tables);
     });
-    // Sozlama o'zgardi (masalan `inverted` to'g'rilandi) — drift "tinch qo'yish"
-    // belgisi ham bekor qilinadi, aks holda tuzatish keyingi oynagacha kutardi
-    this.driftGuard.delete(this.driftKey(clubId, tableId));
+
+    for (const table of saved) {
+      // Sozlama o'zgardi (masalan `inverted` to'g'rilandi) — drift "tinch qo'yish"
+      // belgisi ham bekor qilinadi, aks holda tuzatish keyingi oynagacha kutardi
+      this.driftGuard.delete(this.driftKey(clubId, table.id));
+    }
     // Javob kutilmaydi — chiroq hech qachon so'rovni sekinlashtirmasligi kerak
     this.pokeClub(clubId);
-    void this.syncTable(clubId, tableId, 'settings');
-    return this.toConfig(saved);
+    for (const table of saved) void this.syncTable(clubId, table.id, 'settings');
+    const byId = new Map(saved.map((table) => [table.id, table]));
+    return items.map((item) => this.toConfig(byId.get(item.tableId)!));
   }
 
   // ---------------------------------------------------------------------------
@@ -1530,7 +1697,7 @@ export class LightsService {
     subnet: string | null,
     devices: DiscoveredDevice[],
   ): Promise<number> {
-    const limited = devices.slice(0, DISCOVER_MAX_DEVICES);
+    const limited = cleanDiscovered(devices).slice(0, DISCOVER_MAX_DEVICES);
     try {
       await this.dataSource.query(
         `UPDATE club_bridges
@@ -1887,6 +2054,37 @@ export class LightsService {
 
     if (typeof raw.verify === 'boolean') config.verify = raw.verify;
 
+    // --- yangi rele turlari (chiroq markazi) ---
+    if (raw.preset === 'lcus') config.preset = 'lcus';
+    const deviceId = text(raw.deviceId, 40);
+    if (deviceId && /^[A-Za-z0-9]{6,40}$/.test(deviceId)) config.deviceId = deviceId;
+    if (raw.version === '3.1' || raw.version === '3.3' || raw.version === '3.4' || raw.version === '3.5') {
+      config.version = raw.version;
+    }
+    if (Array.isArray(raw.dps)) {
+      const dps: number[] = [];
+      for (const item of raw.dps) {
+        const value = Number(item);
+        if (!Number.isInteger(value) || value < 1 || value > 255 || dps.includes(value)) continue;
+        dps.push(value);
+        if (dps.length >= 9) break;
+      }
+      if (dps.length > 0) config.dps = dps;
+    }
+    if (typeof raw.encrypt === 'boolean') config.encrypt = raw.encrypt;
+    if (typeof raw.outlets === 'boolean') config.outlets = raw.outlets;
+    if (raw.framing === 'tcp' || raw.framing === 'rtu') config.framing = raw.framing;
+    if (raw.mode === 'coil' || raw.mode === 'register') config.mode = raw.mode;
+    for (const field of ['register', 'registerOn', 'registerOff'] as const) {
+      const value = int(raw[field]);
+      if (value !== undefined && value >= 0 && value <= 65535) config[field] = value;
+    }
+    if (typeof raw.registerReadback === 'boolean') config.registerReadback = raw.registerReadback;
+    if (raw.parity === 'none' || raw.parity === 'even' || raw.parity === 'odd') config.parity = raw.parity;
+    if (raw.stopBits === 1 || raw.stopBits === 2) config.stopBits = raw.stopBits;
+    const serialNumber = text(raw.serialNumber, 16);
+    if (serialNumber && /^[A-Za-z0-9]{1,16}$/.test(serialNumber)) config.serialNumber = serialNumber;
+
     return Object.keys(config).length > 0 ? config : null;
   }
 
@@ -1901,6 +2099,8 @@ export class LightsService {
     onUrl: string | null,
     offUrl: string | null,
     config: LightDeviceConfig | null,
+    /** Parol/kalit saqlanganmi (yoki shu so'rovda kelganmi) — Tuya/Sonoff uchun */
+    hasAuth = false,
   ): void {
     if (driver === LightDriver.NONE) return;
 
@@ -1962,12 +2162,33 @@ export class LightsService {
 
       case LightDriver.SERIAL:
         if (!config?.serialPort) invalidConfig();
+        // LCUS shablonida baytlar kanal bo'yicha agentning o'zida hisoblanadi
         if (
-          !hasBytes(config?.onHex, config?.onAscii) ||
-          !hasBytes(config?.offHex, config?.offAscii)
+          config?.preset !== 'lcus' &&
+          (!hasBytes(config?.onHex, config?.onAscii) || !hasBytes(config?.offHex, config?.offAscii))
         ) {
           invalidConfig();
         }
+        break;
+
+      case LightDriver.TUYA:
+        // Manzil (IP), qurilma ID si va lokal kalit — uchalasi ham kerak
+        if (!host) invalidHost();
+        if (!config?.deviceId || !hasAuth) invalidConfig();
+        break;
+
+      case LightDriver.SONOFF:
+        if (!host) invalidHost();
+        // Shifrlangan (eWeLink LAN) rejimda deviceid va devicekey majburiy
+        if (config?.encrypt === true && (!config.deviceId || !hasAuth)) invalidConfig();
+        break;
+
+      case LightDriver.MODBUS_RTU:
+        if (!config?.serialPort) invalidConfig();
+        break;
+
+      case LightDriver.USB_HID:
+        // Manzil kerak emas — plata shu kompyuterga USB orqali ulangan
         break;
 
       default:

@@ -14,6 +14,7 @@ import {
   Skeleton,
   Space,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
@@ -21,6 +22,8 @@ import {
   CheckOutlined,
   ClockCircleOutlined,
   CloseOutlined,
+  CloudUploadOutlined,
+  ExclamationCircleOutlined,
   LeftOutlined,
   RightOutlined,
   PlayCircleOutlined,
@@ -34,9 +37,27 @@ import dayjs, { Dayjs } from 'dayjs';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { customersApi, errorMessage, reservationsApi, tablesApi } from '../api';
+import { customersApi, errorMessage, isNetworkError, reservationsApi, tablesApi } from '../api';
 import { EmptyState, PageHeader, PageTransition, StatusTag } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { useConnection } from '../context/ConnectionContext';
+import { customerMatches, loadCustomerDirectory } from '../offline/customer-directory';
+import {
+  applyReservationOps,
+  countOps,
+  depKeys,
+  findReservationOverlaps,
+  hasQueuedDeps,
+  isLocalRef,
+  newOpKey,
+  offlineCustomerOptions,
+  opNow,
+  queueReservationCreate,
+  queueReservationStatus,
+  reservationRefOf,
+  type ReservationNextStatus,
+  type ReservationView,
+} from '../offline/ops';
 import { TOKENS } from '../theme/tokens';
 import type { BilliardTable, Reservation, ReservationStatus } from '../types';
 import { isFormValidationError } from '../utils/formErrors';
@@ -80,7 +101,8 @@ interface FetchParams {
 
 interface ReservationFormValues {
   tableId: number;
-  customerId?: number;
+  /** Son — ro'yxatdagi mijoz; `$local:` — internetsiz qo'shilgan, hali yuborilmagan mijoz */
+  customerId?: number | string;
   customerName?: string;
   customerPhone?: string;
   startsAt: Dayjs;
@@ -97,6 +119,7 @@ const Reservations = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { hasRole } = useAuth();
+  const { online, entries } = useConnection();
   const reduceMotion = useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
   const dateParam = searchParams.get('date');
@@ -108,6 +131,8 @@ const Reservations = () => {
   const [dayTotal, setDayTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  /** Yuklash internet yo'qligi sababli bo'lmadi (kun ma'lumoti oflayn keshda yo'q) */
+  const [loadOffline, setLoadOffline] = useState(false);
   const [day, setDay] = useState<Dayjs>(() => dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
     && dayjs(dateParam).format('YYYY-MM-DD') === dateParam ? dayjs(dateParam) : inClubTime(undefined, timezone));
   const [status, setStatus] = useState<ReservationStatus | null>(null);
@@ -121,8 +146,10 @@ const Reservations = () => {
 
   const [tables, setTables] = useState<BilliardTable[]>([]);
   const [tablesLoading, setTablesLoading] = useState(false);
-  const [customerOptions, setCustomerOptions] = useState<Array<{ value: number; label: string }>>([]);
+  const [customerOptions, setCustomerOptions] = useState<Array<{ value: number; label: string; name: string; phone: string | null }>>([]);
   const [customerSearching, setCustomerSearching] = useState(false);
+  /** Mijoz qidiruv matni — oflayn qo'shilgan mijozlarni ham shu bo'yicha saralaymiz */
+  const [customerSearch, setCustomerSearch] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canManage = hasRole('superadmin', 'admin', 'kassir', 'operator');
@@ -145,6 +172,7 @@ const Reservations = () => {
       const isStale = () => requestIdRef.current !== requestId;
       setLoading(true);
       setLoadError(false);
+      setLoadOffline(false);
       try {
         const dayStr = params.day.format('YYYY-MM-DD');
         const query = { from: dayStr, to: dayStr, status: params.status ?? undefined };
@@ -168,7 +196,11 @@ const Reservations = () => {
       } catch (err) {
         if (isStale()) return;
         setLoadError(true);
-        message.error(errorMessage(err, tRef.current('common.error')));
+        // Internet yo'q va bu kun oldin ochilmagan — sahifadagi ogohlantirish
+        // sababini aytadi, alohida qizil xabar shart emas
+        const offline = isNetworkError(err);
+        setLoadOffline(offline);
+        if (!offline) message.error(errorMessage(err, tRef.current('common.error')));
       } finally {
         // Eskirgan oqim yangi so'rovning yuklanish holatini o'chirmasin
         if (!isStale()) setLoading(false);
@@ -211,10 +243,40 @@ const Reservations = () => {
     void fetchReservations({ day, status: next });
   };
 
+  /**
+   * OFLAYN QOPLAMA — navbatdagi bronlar va holat o'zgarishlari kun ro'yxati
+   * ustiga qo'yiladi ("Yuborilmagan" belgisi bilan). Server rad etgan bron
+   * ham ko'rinadi — qizil belgi va sabab bilan, jimgina yo'qolmaydi.
+   */
+  const dayKey = day.format('YYYY-MM-DD');
+  const rows = useMemo(
+    () => applyReservationOps(reservations, entries, {
+      day: dayKey,
+      status,
+      dayOf: (iso) => inClubTime(iso, timezone).format('YYYY-MM-DD'),
+    }),
+    [reservations, entries, dayKey, status, timezone],
+  );
+  /** Kun jami: server soni + shu kunning yuborilmagan bronlari */
+  const shownTotal = dayTotal + rows.filter((r) => r.offlineLocalId).length;
+
+  // Navbatdagi bron amali serverga yetdi (yoki voz kechildi) — kun qayta olinadi
+  const reservationOps = useMemo(
+    () => countOps(entries, ['reservation.create', 'reservation.status']),
+    [entries],
+  );
+  const prevReservationOps = useRef(reservationOps);
+  const viewRef = useRef({ day, status });
+  viewRef.current = { day, status };
+  useEffect(() => {
+    if (reservationOps < prevReservationOps.current && online) void fetchReservations(viewRef.current);
+    prevReservationOps.current = reservationOps;
+  }, [reservationOps, online, fetchReservations]);
+
   // ---------- Stol bo'yicha guruhlash ----------
   const groups = useMemo(() => {
-    const map = new Map<number, { table: Reservation['table']; items: Reservation[] }>();
-    for (const reservation of reservations) {
+    const map = new Map<number, { table: Reservation['table']; items: ReservationView[] }>();
+    for (const reservation of rows) {
       const entry = map.get(reservation.tableId) ?? { table: reservation.table, items: [] };
       entry.items.push(reservation);
       map.set(reservation.tableId, entry);
@@ -222,19 +284,59 @@ const Reservations = () => {
     return [...map.values()].sort(
       (a, b) => (a.table?.number ?? 0) - (b.table?.number ?? 0),
     );
-  }, [reservations]);
+  }, [rows]);
+
+  const displayName = (reservation: ReservationView) =>
+    reservation.customerName ?? reservation.customer?.name ?? t('reservations.noCustomer');
 
   // ---------- Holat o'tishlari ----------
-  const transition = async (reservation: Reservation, next: ReservationStatus) => {
+  /**
+   * Internet yo'q (yoki aynan shu so'rovda uzildi) — holat o'zgarishi AYNAN
+   * SHU kalit bilan navbatga tushadi va ekranda darhol ko'rinadi. Oflayn
+   * yaratilgan (serverda hali yo'q) bron uchun amal har doim navbatga
+   * qo'yiladi — u yaratish amalidan keyin, `$local:` havola bilan yuboriladi.
+   */
+  const transition = async (reservation: ReservationView, next: ReservationNextStatus) => {
     setTransitioningId(reservation.id);
+    const key = newOpKey();
+    const at = opNow();
+    const ref = reservationRefOf(reservation);
+    // Shu bron bo'yicha oldingi amal (yoki uning o'zini yaratish) navbatda —
+    // yangi holat ham uning ORTIDAN yuboriladi
+    const behindQueue = !!reservation.offlineLocalId || hasQueuedDeps(entries, [depKeys.reservation(ref)]);
+    const saveOffline = async () => {
+      await queueReservationStatus(
+        {
+          ref,
+          name: displayName(reservation),
+          timeLabel: inClubTime(reservation.startsAt, timezone).format('DD.MM HH:mm'),
+        },
+        next,
+        key,
+        at,
+      );
+      message.success(online && behindQueue ? t('reservations.queuedBehind') : t('offline.savedOffline'));
+    };
     try {
+      if (!online || behindQueue) {
+        await saveOffline();
+        return;
+      }
       const res =
         next === 'cancelled'
-          ? await reservationsApi.cancel(reservation.id)
-          : await reservationsApi.update(reservation.id, { status: next });
+          ? await reservationsApi.cancel(reservation.id, key)
+          : await reservationsApi.update(reservation.id, { status: next }, key);
       message.success(res.message);
       refresh();
     } catch (err) {
+      if (isNetworkError(err)) {
+        try {
+          await saveOffline();
+        } catch (queueErr) {
+          message.error(errorMessage(queueErr, t('common.error')));
+        }
+        return;
+      }
       message.error(errorMessage(err, t('common.error')));
     } finally {
       setTransitioningId(null);
@@ -262,23 +364,38 @@ const Reservations = () => {
 
   const searchCustomers = (value: string) => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
+    setCustomerSearch(value);
     if (!value.trim()) {
       setCustomerOptions([]);
       return;
     }
     searchTimer.current = setTimeout(() => {
       setCustomerSearching(true);
+      const toOption = (customer: { id: number; name: string; phone: string | null }) => ({
+        value: customer.id,
+        label: customer.phone ? `${customer.name} · ${customer.phone}` : customer.name,
+        name: customer.name,
+        phone: customer.phone,
+      });
       customersApi
         .list({ search: value.trim(), limit: 10 })
-        .then((res) =>
-          setCustomerOptions(
-            res.data.map((customer) => ({
-              value: customer.id,
-              label: customer.phone ? `${customer.name} · ${customer.phone}` : customer.name,
-            })),
-          ),
-        )
-        .catch(() => setCustomerOptions([]))
+        .then((res) => setCustomerOptions(res.data.map(toOption)))
+        .catch(async (err) => {
+          // Internetsiz: shu kassada saqlangan mijozlar katalogidan qidiramiz
+          // (customer-directory.ts — Stollar sahifasi uni onlayn paytda yangilaydi)
+          if (isNetworkError(err)) {
+            try {
+              const directory = await loadCustomerDirectory();
+              setCustomerOptions(
+                directory.customers.filter((c) => customerMatches(c, value)).slice(0, 10).map(toOption),
+              );
+              return;
+            } catch {
+              // katalog ham saqlanmagan — tanlov bo'sh, ism/telefonni qo'lda yozish mumkin
+            }
+          }
+          setCustomerOptions([]);
+        })
         .finally(() => setCustomerSearching(false));
     }, 350);
   };
@@ -290,20 +407,116 @@ const Reservations = () => {
     [],
   );
 
+  /**
+   * Internetsiz qo'shilgan (hali yuborilmagan) mijozlar ham tanlovda — qiymati
+   * `$local:` havola: bron ham navbatga tushadi va yuborishda mijozning
+   * haqiqiy ID siga bog'lanadi.
+   */
+  const localCustomerOptions = useMemo(
+    () => offlineCustomerOptions(entries, customerSearch).map((c) => ({
+      value: c.value,
+      label: `${c.phone ? `${c.name} · ${c.phone}` : c.name} (${t('reservations.offlinePending')})`,
+      name: c.name,
+      phone: c.phone,
+    })),
+    [entries, customerSearch, t],
+  );
+
+  /**
+   * Oflayn bron: oldindan to'qnashuv tekshiruvi + navbatga yozish.
+   *  · `behindCustomer` — internet bor, lekin mijoz hali navbatda (oflayn qo'shilgan);
+   *  · `precheck: false` — onlayn so'rov javobsiz qolgan: server uni BAJARGAN
+   *    bo'lishi mumkin, shuning uchun lokal to'qnashuv tekshiruvi bilan
+   *    to'xtatilmaydi — AYNAN SHU kalit bilan navbatga yoziladi. Server
+   *    bajargan bo'lsa takror uning javobini qaytaradi, bajarmagan bo'lsa
+   *    to'qnashuvni o'zi aniqlab, aniq sabab bilan rad etadi.
+   */
+  const saveCreateOffline = async (
+    values: ReservationFormValues,
+    startsAtIso: string,
+    key: string,
+    at: number,
+    { behindCustomer = false, precheck = true }: { behindCustomer?: boolean; precheck?: boolean } = {},
+  ): Promise<boolean> => {
+    const createdDay = inClubTime(startsAtIso, timezone);
+    // Shu kun ekranda bo'lsa — server ro'yxati + navbatdagi bronlar bilan
+    // solishtiramiz. Server baribir qayta tekshiradi va rad etadi; bu yerda
+    // to'xtatish kassirga mijoz oldida darhol aniq javob beradi.
+    const sameDay = !precheck ? [] : createdDay.format('YYYY-MM-DD') === dayKey
+      ? rows
+      : applyReservationOps([], entries, {
+        day: createdDay.format('YYYY-MM-DD'),
+        status: null,
+        dayOf: (iso) => inClubTime(iso, timezone).format('YYYY-MM-DD'),
+      });
+    const [conflict] = findReservationOverlaps(sameDay, {
+      tableId: values.tableId,
+      startsAt: startsAtIso,
+      durationMinutes: values.durationMinutes ?? null,
+    });
+    if (conflict) {
+      message.warning(t('reservations.offlineConflictLocal', {
+        time: inClubTime(conflict.startsAt, timezone).format('HH:mm'),
+        name: displayName(conflict),
+      }));
+      return false;
+    }
+    const table = tables.find((item) => item.id === values.tableId);
+    const picked = [...customerOptions, ...localCustomerOptions].find((o) => o.value === values.customerId);
+    await queueReservationCreate(
+      {
+        tableId: values.tableId,
+        tableName: table?.name ?? `#${values.tableId}`,
+        tableNumber: table?.number ?? null,
+        customerId: values.customerId ?? null,
+        // Ism/telefon bo'sh bo'lsa tanlangan mijozniki — ro'yxatda va navbatda ko'rinsin
+        customerName: values.customerName || picked?.name || undefined,
+        customerPhone: values.customerPhone || picked?.phone || undefined,
+        startsAt: startsAtIso,
+        durationMinutes: values.durationMinutes ?? null,
+        notes: values.notes || undefined,
+      },
+      createdDay.format('DD.MM HH:mm'),
+      key,
+      at,
+    );
+    message.success(behindCustomer ? t('reservations.queuedBehindCustomer') : t('offline.savedOffline'));
+    setCreateOpen(false);
+    form.resetFields();
+    if (createdDay.format('YYYY-MM-DD') !== dayKey) applyDay(createdDay);
+    return true;
+  };
+
   const handleCreate = async () => {
+    let values: ReservationFormValues;
     try {
       // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
-      const values = await form.validateFields();
-      setSaving(true);
+      values = await form.validateFields();
+    } catch (err) {
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      return;
+    }
+    const startsAtIso = clubWallTimeToIso(values.startsAt, timezone);
+    const key = newOpKey();
+    const at = opNow();
+    setSaving(true);
+    try {
+      // Oflayn qo'shilgan mijozga bron — mijoz serverda hali yo'q, shuning
+      // uchun bron ham navbatga (mijozdan KEYIN) yoziladi
+      if (!online || isLocalRef(values.customerId)) {
+        await saveCreateOffline(values, startsAtIso, key, at, { behindCustomer: online });
+        return;
+      }
       const res = await reservationsApi.create({
         tableId: values.tableId,
-        customerId: values.customerId,
+        customerId: typeof values.customerId === 'number' ? values.customerId : undefined,
         customerName: values.customerName || undefined,
         customerPhone: values.customerPhone || undefined,
-        startsAt: clubWallTimeToIso(values.startsAt, timezone),
+        startsAt: startsAtIso,
         durationMinutes: values.durationMinutes ?? undefined,
         notes: values.notes || undefined,
-      });
+      }, key);
       message.success(res.message);
       // To'qnashuv — qat'iy blok emas: ogohlantirish alohida Alert da qoladi
       if (res.warning) {
@@ -321,8 +534,16 @@ const Reservations = () => {
         refresh();
       }
     } catch (err) {
-      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
-      if (!isFormValidationError(err)) message.error(errorMessage(err, t('common.error')));
+      // Aloqa aynan shu so'rovda uzildi — bron yo'qolmasin, AYNAN SHU kalit bilan navbatga
+      if (isNetworkError(err)) {
+        try {
+          await saveCreateOffline(values, startsAtIso, key, at, { precheck: false });
+        } catch (queueErr) {
+          message.error(errorMessage(queueErr, t('common.error')));
+        }
+        return;
+      }
+      message.error(errorMessage(err, t('common.error')));
     } finally {
       setSaving(false);
     }
@@ -348,8 +569,30 @@ const Reservations = () => {
     );
   };
 
-  const rowActions = (reservation: Reservation) => {
+  /** Oflayn belgilar: yuborilmagan bron/holat — ko'k, server rad etgani — qizil */
+  const offlineTag = (reservation: ReservationView) => {
+    if (reservation.offlineMark === 'failed') {
+      return (
+        <Tooltip title={t('reservations.offlineFailedHint', { reason: reservation.offlineError ?? t('common.error') })}>
+          <Tag color="error" icon={<ExclamationCircleOutlined />}>{t('reservations.offlineFailed')}</Tag>
+        </Tooltip>
+      );
+    }
+    if (reservation.offlineLocalId || reservation.offlineStatusPending) {
+      return (
+        <Tooltip title={reservation.offlineLocalId ? t('reservations.offlinePendingHint') : t('reservations.offlineStatusHint')}>
+          <Tag color="processing" icon={<CloudUploadOutlined />}>{t('reservations.offlinePending')}</Tag>
+        </Tooltip>
+      );
+    }
+    return null;
+  };
+
+  const rowActions = (reservation: ReservationView) => {
     if (!canManage) return null;
+    // Server rad etgan oflayn bron serverda yo'q — unga amal yuborib bo'lmaydi,
+    // kassir uni "Yuborilmagan amallar" oynasida hal qiladi
+    if (reservation.offlineLocalId && reservation.offlineMark === 'failed') return null;
     const isBusy = transitioningId === reservation.id;
     const actions: ReactNode[] = [];
 
@@ -460,10 +703,10 @@ const Reservations = () => {
 
       {loadError && !loading && (
         <Alert
-          type="error"
+          type={loadOffline ? 'warning' : 'error'}
           showIcon
           style={{ marginBottom: TOKENS.spacing.md }}
-          message={t('common.error')}
+          message={loadOffline ? t('reservations.offlineDayUnavailable') : t('common.error')}
           action={
             <Button size="small" onClick={refresh}>
               {t('btn.refresh')}
@@ -509,7 +752,7 @@ const Reservations = () => {
           <Text type="secondary" style={{ fontSize: 13, marginInlineStart: 'auto' }}>
             <span style={{ marginInlineEnd: 12 }}>{timezone}</span>
             {t('reservations.totalForDay')}:{' '}
-            <span className="tabular-nums">{dayTotal}</span>
+            <span className="tabular-nums">{shownTotal}</span>
           </Text>
         </div>
       </Card>
@@ -607,6 +850,7 @@ const Reservations = () => {
                       label={t(`reservations.status.${reservation.status}`)}
                       dot={reservation.status === 'seated'}
                     />
+                    {offlineTag(reservation)}
                     {rowActions(reservation)}
                   </div>
                 ))}
@@ -643,14 +887,14 @@ const Reservations = () => {
             />
           </Form.Item>
           <Form.Item name="customerId" label={t('reservations.customerLabel')}>
-            <Select
+            <Select<number | string>
               allowClear
               showSearch
               filterOption={false}
               loading={customerSearching}
               placeholder={t('reservations.customerPlaceholder')}
               onSearch={searchCustomers}
-              options={customerOptions}
+              options={[...localCustomerOptions, ...customerOptions]}
               notFoundContent={null}
             />
           </Form.Item>

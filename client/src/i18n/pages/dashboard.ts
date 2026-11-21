@@ -65,6 +65,10 @@ export default {
     retry: 'Qayta urinish',
     refreshFailed: "Ma'lumot yangilanmadi",
     lastUpdated: 'Ekranda oxirgi muvaffaqiyatli holat: {{time}}',
+    // Internetsiz holat — ko'rsatkichlar ataylab keshlanmaydi
+    offlineTitle: "Ko'rsatkichlar va hisobotlar uchun internet kerak",
+    offlineHint:
+      "Tushum va hisobotlar serverda hisoblanadi, internetsiz ko'rsatilmaydi. Stollar va bar bilan ishlashda davom eting — amallar saqlanadi va aloqa tiklanganda yuboriladi.",
     // Ishni boshlash (onboarding) — faqat birinchi o'yin boshlanmaguncha, admin uchun
     onbTitle: 'Ishni boshlash',
     onbSubtitle: 'Uch qadamda birinchi tushumga',
@@ -148,6 +152,10 @@ export default {
     retry: 'Повторить',
     refreshFailed: 'Данные не обновились',
     lastUpdated: 'На экране последнее успешное состояние: {{time}}',
+    // Без интернета — показатели намеренно не кэшируются
+    offlineTitle: 'Для показателей и отчётов нужен интернет',
+    offlineHint:
+      'Выручка и отчёты рассчитываются на сервере и без интернета не показываются. Продолжайте работать со столами и баром — действия сохраняются и отправятся при восстановлении связи.',
     // Начало работы (onboarding) — до первой игры, только для админа
     onbTitle: 'Начало работы',
     onbSubtitle: 'Три шага до первой выручки',

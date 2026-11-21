@@ -1,6 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Optional,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import { AuditService } from '../../common/audit/audit.service';
+import { OfflineMoment, OfflineStampDto, resolveOfflineAt } from '../../common/offline/offline-at';
 import { clubTimezone, parseDateParts, zonedMidnight } from '../../common/time/club-day';
 import { Customer } from '../../entities/customer.entity';
 import { ReservationStatus } from '../../entities/enums';
@@ -59,11 +67,27 @@ const parseDateParam = (value: string, tz: string, endExclusive = false): Date =
   return date;
 };
 
+/** Bron vaqti klub mintaqasida 'DD.MM HH:mm' — xato xabari uchun */
+const formatClubMoment = (tz: string, at: Date): string => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: tz,
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(at));
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('day')}.${part('month')} ${part('hour')}:${part('minute')}`;
+};
+
 @Injectable()
 export class ReservationsService {
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(Reservation) private readonly reservationRepo: Repository<Reservation>,
+    // Global AuditModule — testlarda servis usiz ham ishga tushaveradi
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   async findAll(clubId: number, query: ListReservationsQueryDto) {
@@ -118,42 +142,65 @@ export class ReservationsService {
    * Bron yaratish. Xuddi shu stolda vaqti kesishadigan boshqa faol bron bo'lsa —
    * OGOHLANTIRISH qaytariladi (qat'iy blok EMAS: klub o'zi hal qiladi).
    * Sessiya avtomatik yaratilmaydi.
+   *
+   * OFLAYN BRON (`offlineAt` bor — navbatdan, aloqa tiklangach): kassir uni
+   * kiritgan paytda boshqa kassalar nima qilganini KO'RMAGAN. Shuning uchun
+   * to'qnashuv bu yerda ogohlantirish emas, RAD ETISH (422): ogohlantirish
+   * navbat javobida hech kimga ko'rinmasdan yo'qolardi va bitta stolga ikki
+   * mijoz jimgina yozilib qolardi. 422 navbatda "doimiy xato" — kassir
+   * "Yuborilmagan amallar" oynasida aniq sababni ko'radi va hal qiladi.
+   * 409 ATAYLAB ishlatilmaydi: klient navbati 409 ni "idempotentlik kaliti
+   * band" deb tushunib, 20 marta behuda qayta urinardi.
+   *
+   * Stol qatori QULF ostida tekshiriladi — oflayn navbat va boshqa kassa bir
+   * vaqtda shu stolga bron yozsa ham tekshiruv navbat bilan o'tadi.
    */
   async create(clubId: number, dto: CreateReservationDto) {
-    const table = await this.dataSource
-      .getRepository(Table)
-      .findOne({ where: { id: dto.tableId, clubId, isActive: true } });
-    if (!table) throw new NotFoundException({ key: 'tables.notFound' });
-
-    let customer: Customer | null = null;
-    if (dto.customerId) {
-      customer = await this.dataSource
-        .getRepository(Customer)
-        .findOne({ where: { id: dto.customerId, clubId } });
-      if (!customer) throw new NotFoundException({ key: 'customers.notFound' });
-    }
-
+    const moment = resolveOfflineAt(dto.offlineAt);
     const startsAt = new Date(dto.startsAt);
-    const overlaps = await this.findOverlaps(
-      clubId,
-      dto.tableId,
-      startsAt,
-      dto.durationMinutes ?? null,
-    );
 
-    const saved = await this.reservationRepo.save({
-      clubId,
-      tableId: dto.tableId,
-      customerId: customer?.id ?? null,
-      customerName: dto.customerName?.trim() || customer?.name || null,
-      customerPhone: dto.customerPhone?.trim() || customer?.phone || null,
-      startsAt,
-      durationMinutes: dto.durationMinutes ?? null,
-      status: ReservationStatus.PENDING,
-      notes: dto.notes?.trim() || null,
+    const { savedId, overlaps } = await this.dataSource.transaction(async (manager) => {
+      const table = await manager.findOne(Table, {
+        where: { id: dto.tableId, clubId, isActive: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!table) throw new NotFoundException({ key: 'tables.notFound' });
+
+      let customer: Customer | null = null;
+      if (dto.customerId) {
+        customer = await manager.findOne(Customer, { where: { id: dto.customerId, clubId } });
+        if (!customer) throw new NotFoundException({ key: 'customers.notFound' });
+      }
+
+      const found = await this.findOverlaps(
+        manager,
+        clubId,
+        dto.tableId,
+        startsAt,
+        dto.durationMinutes ?? null,
+      );
+      if (moment.offline && found.length > 0) {
+        throw await this.offlineConflict(clubId, found[0]);
+      }
+
+      const saved = await manager.save(Reservation, {
+        clubId,
+        tableId: dto.tableId,
+        customerId: customer?.id ?? null,
+        customerName: dto.customerName?.trim() || customer?.name || null,
+        customerPhone: dto.customerPhone?.trim() || customer?.phone || null,
+        startsAt,
+        durationMinutes: dto.durationMinutes ?? null,
+        status: ReservationStatus.PENDING,
+        notes: dto.notes?.trim() || null,
+        // Oflayn kiritilgan bron — yaratilgan vaqti HAQIQIY kiritilgan payt
+        ...(moment.offline ? { createdAt: moment.at } : {}),
+      });
+      return { savedId: saved.id, overlaps: found };
     });
 
-    const reservation = await this.findOne(clubId, saved.id);
+    this.auditClamp(clubId, 'reservation.create', savedId, dto, moment);
+    const reservation = await this.findOne(clubId, savedId);
     return { reservation, overlaps };
   }
 
@@ -164,6 +211,10 @@ export class ReservationsService {
    * - vaqt/stol o'zgarsa to'qnashuv qayta tekshiriladi (ogohlantirish bilan)
    */
   async update(clubId: number, id: number, dto: UpdateReservationDto) {
+    // Oflayn holat o'tishi (navbatdan): muhr oralig'i tekshiriladi, o'tish
+    // qoidalari ONLAYN bilan bir xil — boshqa kassa bronni allaqachon bekor
+    // qilgan bo'lsa "o'tirdi" 400 bilan rad etiladi va navbatda ko'rinadi
+    const moment = resolveOfflineAt(dto.offlineAt);
     const reservation = await this.reservationRepo.findOne({ where: { id, clubId } });
     if (!reservation) throw new NotFoundException({ key: 'reservations.notFound' });
 
@@ -219,10 +270,25 @@ export class ReservationsService {
     if (dto.notes !== undefined) reservation.notes = dto.notes?.trim() || null;
     if (dto.status != null) reservation.status = dto.status;
 
+    // Oflayn vaqt/stol o'zgarishi — yaratishdagi kabi to'qnashuv SAQLASHDAN
+    // OLDIN tekshiriladi va rad etiladi (ogohlantirish navbatda yo'qolardi)
+    if (moment.offline && timingChanged) {
+      const conflicts = await this.findOverlaps(
+        this.dataSource.manager,
+        clubId,
+        reservation.tableId,
+        reservation.startsAt,
+        reservation.durationMinutes,
+        id,
+      );
+      if (conflicts.length > 0) throw await this.offlineConflict(clubId, conflicts[0]);
+    }
+
     await this.reservationRepo.save(reservation);
 
     const overlaps = timingChanged
       ? await this.findOverlaps(
+          this.dataSource.manager,
           clubId,
           reservation.tableId,
           reservation.startsAt,
@@ -231,13 +297,25 @@ export class ReservationsService {
         )
       : [];
 
+    this.auditClamp(clubId, 'reservation.update', id, dto, moment);
     return { reservation: await this.findOne(clubId, id), overlaps };
   }
 
-  /** Bekor qilish — faqat kutilayotgan/tasdiqlangan bronlar uchun */
-  async cancel(clubId: number, id: number) {
+  /**
+   * Bekor qilish — faqat kutilayotgan/tasdiqlangan bronlar uchun.
+   *
+   * OFLAYN bekor qilish (navbatdan) allaqachon bekor qilingan bronga kelsa —
+   * xato emas: kassirning niyati (bron bekor) allaqachon bajarilgan, uni
+   * navbatda "xato" qilib qoldirish faqat chalkashlik tug'dirardi. Onlayn
+   * oqimda avvalgidek 400.
+   */
+  async cancel(clubId: number, id: number, dto: OfflineStampDto = {}) {
+    const moment = resolveOfflineAt(dto.offlineAt);
     const reservation = await this.reservationRepo.findOne({ where: { id, clubId } });
     if (!reservation) throw new NotFoundException({ key: 'reservations.notFound' });
+    if (moment.offline && reservation.status === ReservationStatus.CANCELLED) {
+      return this.findOne(clubId, id);
+    }
     if (
       reservation.status !== ReservationStatus.PENDING &&
       reservation.status !== ReservationStatus.CONFIRMED
@@ -246,7 +324,41 @@ export class ReservationsService {
     }
     reservation.status = ReservationStatus.CANCELLED;
     await this.reservationRepo.save(reservation);
+    this.auditClamp(clubId, 'reservation.cancel', id, dto, moment);
     return this.findOne(clubId, id);
+  }
+
+  /**
+   * Oflayn bron to'qnashuvi — aniq sabab bilan (qaysi vaqt, kimning broni),
+   * kassir navbat oynasida nima bo'lganini darhol tushunsin.
+   */
+  private async offlineConflict(clubId: number, overlap: Reservation) {
+    const tz = await clubTimezone(this.dataSource, clubId);
+    return new UnprocessableEntityException({
+      key: 'reservations.offlineConflict',
+      args: {
+        time: formatClubMoment(tz, overlap.startsAt),
+        name: overlap.customerName?.trim() || '—',
+      },
+    });
+  }
+
+  /** Kesilgan oflayn muhr (kichik kelajak farqi) — kutilmagan holat, iz qoladi */
+  private auditClamp(
+    clubId: number,
+    action: string,
+    entityId: number,
+    dto: OfflineStampDto,
+    moment: OfflineMoment,
+  ) {
+    if (!moment.clamped) return;
+    this.auditService?.log({
+      action: `${action}.offline_time_clamped`,
+      clubId,
+      entity: 'reservation',
+      entityId,
+      meta: { requested: dto.offlineAt ?? null, applied: moment.at.toISOString() },
+    });
   }
 
   /**
@@ -255,6 +367,7 @@ export class ReservationsService {
    * bronlar uchun 60 daqiqa deb olinadi.
    */
   private async findOverlaps(
+    manager: EntityManager,
     clubId: number,
     tableId: number,
     startsAt: Date,
@@ -264,7 +377,9 @@ export class ReservationsService {
     const durMin = durationMinutes ?? DEFAULT_DURATION_MIN;
     const endAt = new Date(startsAt.getTime() + durMin * 60_000);
 
-    const qb = this.reservationRepo
+    // `manager` — yaratishda stol qulfi bilan BIR tranzaksiyada o'qish uchun
+    const qb = manager
+      .getRepository(Reservation)
       .createQueryBuilder('r')
       .where('r.clubId = :clubId', { clubId })
       .andWhere('r.tableId = :tableId', { tableId })

@@ -3,9 +3,12 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, EntityManager, Not, Repository } from 'typeorm';
+import { AuditService } from '../../common/audit/audit.service';
+import { OfflineMoment, resolveOfflineAt } from '../../common/offline/offline-at';
 import { Customer } from '../../entities/customer.entity';
 import { Debt } from '../../entities/debt.entity';
 import { SessionStatus } from '../../entities/enums';
@@ -43,6 +46,8 @@ export class CustomersService {
     private readonly dataSource: DataSource,
     @InjectRepository(Customer) private readonly customerRepo: Repository<Customer>,
     @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
+    // Global AuditModule — testlarda servis usiz ham ishga tushaveradi
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   async findAll(clubId: number, query: ListCustomersQueryDto) {
@@ -131,24 +136,81 @@ export class CustomersService {
     };
   }
 
+  /**
+   * Mijoz qo'shish.
+   *
+   * OFLAYN QO'SHILGAN MIJOZ (`offlineAt` bor — navbatdan): telefon raqami
+   * klubda allaqachon band bo'lsa 409 EMAS — o'sha MAVJUD mijoz qaytariladi.
+   * Sabab: telefon — mijozning klubdagi yagona kaliti (uq_customers_club_phone,
+   * sessiyalar ham mijozga telefon bo'yicha bog'lanadi). Internetsiz paytda
+   * kassir ro'yxatni to'liq ko'rmagan; shu mijoz uchun navbatga qo'yilgan bron
+   * `$local:` havola orqali AYNAN shu javobdagi ID ga bog'lanadi. Rad etish
+   * bronni ham bloklab, "voz kechish"da uni o'chirib yuborardi. Mavjud
+   * mijozning ma'lumoti O'ZGARTIRILMAYDI, birlashtirish audit jurnaliga yoziladi.
+   * Onlayn oqimda avvalgidek 409 (kassir ro'yxatdan tanlaydi).
+   */
   async create(clubId: number, dto: CreateCustomerDto) {
+    const moment = resolveOfflineAt(dto.offlineAt);
     const phone = normalizePhone(dto.phone);
     if (phone) {
       const duplicate = await this.customerRepo.findOne({ where: { clubId, phone } });
-      if (duplicate) throw new ConflictException({ key: 'customers.phoneTaken' });
+      if (duplicate) {
+        if (moment.offline) return this.mergeOffline(clubId, duplicate, dto, moment);
+        throw new ConflictException({ key: 'customers.phoneTaken' });
+      }
     }
     try {
-      return await this.customerRepo.save({
+      const saved = await this.customerRepo.save({
         clubId,
         name: dto.name.trim(),
         phone,
         notes: dto.notes?.trim() || null,
+        // Oflayn qo'shilgan mijoz — "qo'shilgan sana" HAQIQIY kiritilgan payt
+        ...(moment.offline ? { createdAt: moment.at } : {}),
       });
+      if (moment.clamped) {
+        this.auditService?.log({
+          action: 'customer.offline_time_clamped',
+          clubId,
+          entity: 'customer',
+          entityId: saved.id,
+          meta: { requested: dto.offlineAt ?? null, applied: moment.at.toISOString() },
+        });
+      }
+      return saved;
     } catch (err) {
       // Parallel so'rov bilan poyga — DB indeksi ushlagan bo'lsa do'stona 409
-      if (isUniqueViolation(err)) throw new ConflictException({ key: 'customers.phoneTaken' });
+      // (oflayn navbatdan bo'lsa — poygada yutgan mavjud mijoz qaytariladi)
+      if (isUniqueViolation(err)) {
+        if (moment.offline && phone) {
+          const winner = await this.customerRepo.findOne({ where: { clubId, phone } });
+          if (winner) return this.mergeOffline(clubId, winner, dto, moment);
+        }
+        throw new ConflictException({ key: 'customers.phoneTaken' });
+      }
       throw err;
     }
+  }
+
+  /** Oflayn mijoz mavjud mijoz bilan birlashtirildi — iz qoldirib qaytaramiz */
+  private mergeOffline(
+    clubId: number,
+    existing: Customer,
+    dto: CreateCustomerDto,
+    moment: OfflineMoment,
+  ): Customer {
+    this.auditService?.log({
+      action: 'customer.offline_merged',
+      clubId,
+      entity: 'customer',
+      entityId: existing.id,
+      meta: {
+        offlineName: dto.name.trim(),
+        existingName: existing.name,
+        offlineAt: moment.at.toISOString(),
+      },
+    });
+    return existing;
   }
 
   async update(clubId: number, id: number, dto: UpdateCustomerDto) {

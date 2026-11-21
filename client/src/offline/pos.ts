@@ -1,36 +1,59 @@
 /**
  * OFLAYN KASSA AMALLARI — qaysi amal internetsiz bajariladi, qaysi biri yo'q.
  *
- * TANLOV ATAYLAB CHEKLANGAN. Kassa dasturida "hamma narsa oflayn ishlasin"
- * degan yondashuv xavfli: hisob-kitob (checkout) summasi boshqa terminalda
- * qo'shilgan bar buyurtmalariga, chegirmalarga va qarz holatiga bog'liq —
- * eskirgan ma'lumot ustida hisoblangan chek MIJOZDAN NOTO'G'RI PUL olishga
- * olib keladi va uni keyin tuzatib bo'lmaydi (pul allaqachon olingan).
- *
- * Shuning uchun:
+ * TAMOYIL: internet 24 soatgacha uzilsa ham kassa to'xtamasligi kerak, lekin
+ * eskirgan ma'lumot ustida MIJOZDAN NOTO'G'RI PUL olinmasligi ham shart.
+ * Shuning uchun har bir oflayn amal:
+ *  - navbatga AMAL VAQTI (`offlineAt`, server soati bo'yicha) bilan yoziladi —
+ *    server natijani AYNAN o'sha paytga hisoblaydi, navbat qancha kechiksa ham;
+ *  - bir martalik Idempotency-Key bilan yuboriladi — takror yuborish amalni
+ *    ikki marta yozmaydi;
+ *  - `meta.deps` bog'liqlik kalitlarini oladi (`table:<id>`, `session:<ref>`,
+ *    `customer:<id>`, `debt:<customerId>`): server rad etgan amal faqat o'ziga
+ *    bog'liq amallarni to'xtatadi, boshqa stollar navbati yuraveradi;
+ *  - serverda QAYTA tekshiriladi. Rad etilsa navbatda "xato" bo'lib qoladi va
+ *    kassirga ko'rinadi — hech biri jimgina yo'qolmaydi.
  *
  *   OFLAYN BAJARILADI (navbatga tushadi, aloqa tiklanganda yuboriladi):
- *     · o'yin boshlash        — stolni band qilish, taymer boshlanishi
- *     · pauza / davom ettirish — vaqt hisobiga ta'sir qiladi, lekin pul yo'q
- *     · bar buyurtmasi        — qo'shimcha yozuv, mavjud summani o'zgartirmaydi
- *     · hisob-kitob (TO'LIQ to'lov) — mijoz internet uzilgani uchun kutib
- *       qolmasin. Summa shu kassadagi ma'lumotdan hisoblanadi, serverga
- *       "Yakunlash" bosilgan VAQT va OLINGAN pul yuboriladi. Server summani
- *       o'sha paytga qayta hisoblaydi; boshqa terminaldagi o'zgarish tufayli
- *       farq chiqsa rad etmaydi — olingan pulni yozadi va farqni belgilaydi
- *       (sessions.service.ts: end), kassirga esa ogohlantirish chiqadi.
+ *     · o'yin boshlash (belgilangan vaqt yoki summa limiti bilan)
+ *     · pauza / davom ettirish
+ *     · bar buyurtmasi — pozitsiya HAQIQIY vaqti bilan yoziladi
+ *     · o'yin vaqti / summa limitini o'zgartirish (+30, +60, limit, olib tashlash)
+ *     · boshqa stolga ko'chirish — vaqt va narx BOSILGAN PAYTDA bo'linadi
+ *       (o'sha paytdagi onlayn ko'chirish bilan bir xil). O'yin oraliqda boshqa
+ *       kassada ko'chirilgan yoki maqsad stol band bo'lsa server rad etadi
+ *     · bekor qilish — o'yin bosilgan paytda to'xtaydi; kassir chegarasi
+ *       (barsiz va 10 daqiqagacha) serverda o'sha payt bo'yicha qayta tekshiriladi
+ *     · hisob-kitob: to'liq to'lov, bo'lib to'lash, nol to'lov (to'liq chegirma,
+ *       bepul stol). Server summani o'sha paytga qayta hisoblaydi; boshqa
+ *       kassadagi o'zgarish tufayli farq chiqsa rad etmaydi — OLINGAN pulni
+ *       yozadi (bo'sh to'lov ro'yxati = hech narsa olinmagan) va farqni
+ *       belgilaydi, kassirga ogohlantirish chiqadi (sessions.service.ts: end)
+ *     · hisobning bir qismi yoki hammasi QARZGA — faqat shu kassada saqlangan
+ *       «Mijozlar» ro'yxatidan tanlangan MAVJUD mijozga (customer-directory.ts).
+ *       Server mijozni va qarz qoidalarini qayta tekshiradi; mijoz topilmasa
+ *       amal "xato" bo'ladi
  *
- *   INTERNET TALAB QILADI (aniq xabar bilan bloklanadi):
- *     · qarzga yozish va qo'lda tuzatish (mijoz/huquq tekshiruvi serverda),
- *       qarz to'lovi, sessiyani bekor qilish, boshqa stolga ko'chirish,
- *       sozlamalar/hisobotlar/xodimlar
+ *   INTERNET TALAB QILADI (aniq sababi bilan bloklanadi):
+ *     · ro'yxatda YO'Q mijozni qarzga yozish (yangi yoki internetsiz qo'shilgan
+ *       mijoz, erkin yozilgan ism); tarifda «Mijozlar» bo'limi bo'lmasa yoki
+ *       ro'yxat bu kompyuterda saqlanmagan bo'lsa — oflayn qarz umuman
+ *     · qo'lda tuzatish (admin; huquq va sabab serverda tekshiriladi)
+ *     · stoldagi bar buyurtmasini bekor qilish (ochiq buyurtma serverda)
+ *     · qarz to'lovi va qarzni tuzatish/hisobdan chiqarish (Qarzlar sahifasi —
+ *       bu fayl ularni navbatga qo'ymaydi), sozlamalar, hisobotlar, xodimlar,
+ *       stollarni boshqarish
  *
  * Taymer OFLAYN HAM to'g'ri yuradi (u `startTime` dan qayta hisoblanadi),
- * shuning uchun aloqa tiklangach yakuniy summa BIR TIYINGA ham yo'qolmaydi:
- * mijoz o'ynayveradi, hisob-kitob esa server bilan qilinadi.
+ * shuning uchun aloqa tiklangach yakuniy summa BIR TIYINGA ham yo'qolmaydi.
+ *
+ * TARTIB: sessiya yoki stol bo'yicha navbatda hali yuborilmagan amal bo'lsa,
+ * internet bor bo'lsa ham YANGI amal navbat orqali yuboriladi
+ * (overlay.ts: hasPendingOps) — aks holda u eski amaldan oldin serverga yetib,
+ * tartibni buzardi (masalan oflayn ko'chirish yuborilmay turib hisob yopilardi).
  */
 
-import type { BilliardTable, Session } from '../types';
+import type { BilliardTable, Session, SessionPlanPayload } from '../types';
 import { sessionRefOf } from './overlay';
 import { enqueue, newId } from './queue';
 import { fullScope } from './cache';
@@ -62,12 +85,35 @@ export const newActionKey = (): string => newId();
  */
 const nowIso = (offsetMs = 0): string => new Date(Date.now() + offsetMs).toISOString();
 
+/** Navbatdagi amal tavsifi uchun stol nomi */
+const tableLabel = (table: BilliardTable): string => `${table.name} (№${table.number})`;
+
+/**
+ * NAVBAT BOG'LIQLIK KALITLARI (queue.ts: `meta.deps`). Server rad etgan amal
+ * faqat shu kalitlardan birortasi mos keladigan keyingi amallarni to'xtatadi:
+ * bir stoldagi xato boshqa stollarning pul amallarini ushlab turmaydi.
+ */
+const dep = {
+  table: (id: number) => `table:${id}`,
+  /** `ref` — server ID si (son) yoki oflayn sessiya uchun `$local:<id>` */
+  session: (ref: string) => `session:${ref}`,
+  customer: (id: number) => `customer:${id}`,
+  debt: (customerId: number) => `debt:${customerId}`,
+};
+
+/** Sessiya amali uchun standart kalitlar: shu sessiya + u turgan stol */
+const sessionDeps = (ref: string, tableId: number): string[] => [dep.session(ref), dep.table(tableId)];
+
 /**
  * O'yinni oflayn boshlash — natijada sessiyaning lokal identifikatori qaytadi.
  *
  * `offlineAt` SERVERGA YUBORILADI: aloqa tiklanganda server o'yin qachon
  * boshlanganini biladi. Busiz sessiya "hozir boshlangan" bo'lib yozilardi va
  * klub oflayn o'tgan BUTUN vaqt uchun pul olmasdi.
+ *
+ * Lokal ID OLDINDAN yaratiladi: bog'liqlik kalitiga `session:$local:<id>`
+ * qo'shiladi — boshlash rad etilsa, shu sessiyaning keyingi amallari (pauza,
+ * buyurtma, ko'chirish, hisob) ham to'g'ridan-to'g'ri kutib turadi.
  */
 export const queueStartSession = async (
   table: BilliardTable,
@@ -83,14 +129,16 @@ export const queueStartSession = async (
   offsetMs = 0,
 ): Promise<string> => {
   const startTime = nowIso(offsetMs);
+  const localId = newId();
   return enqueue({
     scope: requireScope(),
+    localId,
     idempotencyKey,
     method: 'post',
     url: '/sessions/start',
     body: { tableId: table.id, ...values, offlineAt: startTime },
     labelKey: 'offline.actStart',
-    labelParams: { table: `${table.name} (№${table.number})` },
+    labelParams: { table: tableLabel(table) },
     meta: {
       kind: 'session.start',
       tableId: table.id,
@@ -102,6 +150,7 @@ export const queueStartSession = async (
       plannedMinutes: values.plannedMinutes ?? null,
       // Qolgan vaqt kartada shu qiymat va narxdan hisoblanadi — oflayn ham ishlaydi
       limitAmount: values.limitAmount ?? null,
+      deps: [dep.table(table.id), dep.session(`$local:${localId}`)],
     },
   });
 };
@@ -130,25 +179,34 @@ export const queuePauseResume = async (
     url: `/sessions/${ref}/${resume ? 'resume' : 'pause'}`,
     body: { offlineAt: at },
     labelKey: resume ? 'offline.actResume' : 'offline.actPause',
-    labelParams: { table: `${table.name} (№${table.number})` },
+    labelParams: { table: tableLabel(table) },
     meta: {
       kind: resume ? 'session.resume' : 'session.pause',
       sessionRef: ref,
       tableId: table.id,
       at,
+      deps: sessionDeps(ref, table.id),
     },
   });
 };
 
-/** Bar buyurtmasi — ekrandagi bar summasiga darhol qo'shiladi */
+/**
+ * Bar buyurtmasi — ekrandagi bar summasiga darhol qo'shiladi.
+ *
+ * `offlineAt` SERVERGA YUBORILADI: pozitsiya HAQIQIY vaqti bilan yoziladi.
+ * Busiz kechikib kelgan buyurtma yuborilgan paytga yozilib, "bugungi bar
+ * savdosi" va kun/smena hisobotida boshqa kunga tushib ketardi.
+ */
 export const queueOrder = async (
   table: BilliardTable,
   session: Session,
   items: Array<{ productId: number; quantity: number }>,
   amount: number,
   idempotencyKey?: string,
+  offsetMs = 0,
 ): Promise<string> => {
   const ref = sessionRefOf(session);
+  const at = nowIso(offsetMs);
   // Tanaga SON yuboriladi. Oflayn boshlangan sessiyada haqiqiy ID hali yo'q,
   // shuning uchun `$local:` o'rin egallovchisi qo'yiladi — navbat uni
   // yuborish paytida songa almashtiradi (queue.ts: resolveRefs).
@@ -160,48 +218,197 @@ export const queueOrder = async (
     idempotencyKey,
     method: 'post',
     url: '/orders',
-    body: { sessionId: sessionIdBody, items },
+    body: { sessionId: sessionIdBody, items, offlineAt: at },
     labelKey: 'offline.actOrder',
-    labelParams: { table: `${table.name} (№${table.number})` },
-    meta: { kind: 'order.create', sessionRef: ref, tableId: table.id, amount },
+    labelParams: { table: tableLabel(table) },
+    meta: {
+      kind: 'order.create',
+      sessionRef: ref,
+      tableId: table.id,
+      at,
+      amount,
+      deps: sessionDeps(ref, table.id),
+    },
   });
 };
 
 /**
+ * O'yin vaqti / summa limitini oflayn o'zgartirish ("+30 daqiqa", "yana 20
+ * mingga", cheklovni olib tashlash). Pulga ta'sir qilmaydi — faqat
+ * ogohlantirish chegarasi. Qiymat kassir ekranidagi narx bo'yicha tekshirilgan;
+ * server oflayn qiymatni narx sababli qayta rad etmaydi (sessions.service.ts:
+ * updatePlan), shuning uchun u shu o'yinning keyingi pulli amallarini to'smaydi.
+ */
+export const queuePlanChange = async (
+  table: BilliardTable,
+  session: Session,
+  plan: SessionPlanPayload,
+  idempotencyKey?: string,
+  offsetMs = 0,
+): Promise<string> => {
+  const ref = sessionRefOf(session);
+  const at = nowIso(offsetMs);
+  const limitAmount = 'limitAmount' in plan ? plan.limitAmount : null;
+  const plannedMinutes = 'plannedMinutes' in plan ? plan.plannedMinutes : null;
+  return enqueue({
+    scope: requireScope(),
+    idempotencyKey,
+    method: 'put',
+    url: `/sessions/${ref}/plan`,
+    body: { ...plan, offlineAt: at },
+    labelKey: 'offline.actPlan',
+    labelParams: { table: tableLabel(table) },
+    meta: {
+      kind: 'session.plan',
+      sessionRef: ref,
+      tableId: table.id,
+      at,
+      plannedMinutes,
+      limitAmount,
+      deps: sessionDeps(ref, table.id),
+    },
+  });
+};
+
+/**
+ * O'yinni oflayn bekor qilish. O'yin AYNAN bosilgan paytda to'xtagan
+ * hisoblanadi (`offlineAt`): server o'chirilgan summani, audit yozuvini va
+ * kassir chegarasini (barsiz va 10 daqiqagacha) o'sha payt bo'yicha qayta
+ * hisoblaydi. Chegara buzilsa (masalan boshqa kassada bar qo'shilgan) amal
+ * "xato" bo'ladi — o'yin serverda ochiq qoladi va stol yana band ko'rinadi.
+ */
+export const queueCancelSession = async (
+  table: BilliardTable,
+  session: Session,
+  idempotencyKey?: string,
+  offsetMs = 0,
+): Promise<string> => {
+  const ref = sessionRefOf(session);
+  const at = nowIso(offsetMs);
+  return enqueue({
+    scope: requireScope(),
+    idempotencyKey,
+    method: 'put',
+    url: `/sessions/${ref}/cancel`,
+    body: { offlineAt: at },
+    labelKey: 'offline.actCancel',
+    labelParams: { table: tableLabel(table) },
+    meta: {
+      kind: 'session.cancel',
+      sessionRef: ref,
+      tableId: table.id,
+      at,
+      deps: sessionDeps(ref, table.id),
+    },
+  });
+};
+
+/**
+ * O'yinni oflayn boshqa stolga ko'chirish. Vaqt va narx AYNAN bosilgan
+ * paytda bo'linadi (`offlineAt`) — natija o'sha paytdagi onlayn ko'chirish
+ * bilan bir xil. `fromTableId` — o'yin hozir turgan stol: server tekshiradi,
+ * oraliqda boshqa kassada ko'chirilgan bo'lsa eskirgan ko'chirish qo'llanmaydi.
+ * Ikkala stol ham bog'liqlik kaliti: maqsad stolda yuborilmagan amal (masalan
+ * oldingi o'yinning hisob-kitobi) bo'lsa, ko'chirish undan keyin boradi.
+ */
+export const queueTransferSession = async (
+  table: BilliardTable,
+  session: Session,
+  target: BilliardTable,
+  idempotencyKey?: string,
+  offsetMs = 0,
+): Promise<string> => {
+  const ref = sessionRefOf(session);
+  const at = nowIso(offsetMs);
+  return enqueue({
+    scope: requireScope(),
+    idempotencyKey,
+    method: 'post',
+    url: `/sessions/${ref}/transfer`,
+    body: { tableId: target.id, fromTableId: table.id, offlineAt: at },
+    labelKey: 'offline.actTransfer',
+    labelParams: { table: tableLabel(table), target: tableLabel(target) },
+    meta: {
+      kind: 'session.transfer',
+      sessionRef: ref,
+      // Chiroq markazi ikkala stolni ham kuzatadi (light-hub.ts: tableId, toTableId)
+      tableId: table.id,
+      toTableId: target.id,
+      at,
+      deps: [dep.session(ref), dep.table(table.id), dep.table(target.id)],
+    },
+  });
+};
+
+/** Oflayn hisob-kitob tanasi */
+export interface OfflineEndBody {
+  /** Kassada HAQIQATDA olingan pul — bo'sh ro'yxat = hech narsa olinmadi */
+  payments: Array<{ method: string; amount: number }>;
+  discount?: number;
+  expectedBarAmount: number;
+  notes?: string;
+  customerName?: string;
+  customerPhone?: string;
+  /** Qarz — faqat ro'yxatdagi mijozga (`customerId` majburiy) */
+  isDebt?: boolean;
+  isTableDebt?: boolean;
+  isBarDebt?: boolean;
+  customerId?: number;
+}
+
+/**
  * Hisob-kitobni oflayn yakunlash.
  *
- * `payments` HAR DOIM aniq yuboriladi (bitta usul bo'lsa ham): server
- * kassada haqiqatda olingan summani bilishi shart — u o'z hisobini shu bilan
- * solishtiradi. `endedAtMs` — "Yakunlash" bosilgan payt (server soatiga
- * moslangan). Summa AYNAN shu payt bo'yicha hisoblangan bo'lishi kerak —
- * server ham o'sha paytga hisoblaydi, ya'ni soniya chegarasidan o'tib ketgan
- * "1 soniyalik" farq ham chiqmaydi.
+ * `payments` HAR DOIM aniq yuboriladi (bitta usul bo'lsa ham, BO'SH bo'lsa
+ * ham): server kassada haqiqatda olingan summani bilishi shart — u o'z
+ * hisobini shu bilan solishtiradi. `endedAtMs` — "Yakunlash" bosilgan payt
+ * (server soatiga moslangan). Summa AYNAN shu payt bo'yicha hisoblangan
+ * bo'lishi kerak — server ham o'sha paytga hisoblaydi, ya'ni soniya
+ * chegarasidan o'tib ketgan "1 soniyalik" farq ham chiqmaydi.
+ *
+ * QARZ: faqat ro'yxatdagi mijozga (`customerId`). Mijoz va qarz kalitlari
+ * bog'liqlikka qo'shiladi — shu mijozning keyingi qarz amallari bu yozuv
+ * serverda qabul qilinmaguncha kutadi.
+ *
+ * @param debtAmount kassa hisoblagan qarz ulushi (faqat ko'rsatish uchun)
  */
 export const queueEndSession = async (
   table: BilliardTable,
   session: Session,
-  body: {
-    payments: Array<{ method: string; amount: number }>;
-    discount?: number;
-    expectedBarAmount: number;
-    notes?: string;
-    customerName?: string;
-    customerPhone?: string;
-  },
+  body: OfflineEndBody,
   total: number,
   idempotencyKey: string | undefined,
   endedAtMs: number,
+  debtAmount = 0,
 ): Promise<string> => {
+  // Himoya: interfeys buni o'tkazmaydi, server ham rad etadi — lekin rad
+  // etilishini navbatda kutgandan ko'ra yozishdan oldin to'xtatgan ma'qul
+  if (body.isDebt && !body.customerId) throw new Error('OFFLINE_DEBT_NEEDS_CUSTOMER');
   const ref = sessionRefOf(session);
   const at = new Date(endedAtMs).toISOString();
+  const deps = sessionDeps(ref, table.id);
+  if (body.isDebt && body.customerId) {
+    deps.push(dep.customer(body.customerId), dep.debt(body.customerId));
+  }
   return enqueue({
     scope: requireScope(),
     idempotencyKey,
     method: 'put',
     url: `/sessions/${ref}/end`,
     body: { ...body, offlineAt: at },
-    labelKey: 'offline.actEnd',
-    labelParams: { table: `${table.name} (№${table.number})` },
-    meta: { kind: 'session.end', sessionRef: ref, tableId: table.id, at, amount: total },
+    labelKey: body.isDebt ? 'offline.actEndDebt' : 'offline.actEnd',
+    labelParams: {
+      table: tableLabel(table),
+      ...(body.isDebt ? { customer: body.customerName ?? `#${body.customerId}` } : {}),
+    },
+    meta: {
+      kind: 'session.end',
+      sessionRef: ref,
+      tableId: table.id,
+      at,
+      amount: total,
+      ...(body.isDebt ? { debt: debtAmount, customerId: body.customerId } : {}),
+      deps,
+    },
   });
 };

@@ -96,8 +96,30 @@ const keyFor = (url: string, params?: object): string | null => {
  * Ataylab tor ro'yxat: eskirgan ma'lumot chalg'itmasligi kerak. Bu yerda
  * faqat "hozirgi holat" ekranlari bor — moliyaviy HISOBOTLAR ataylab YO'Q
  * (eskirgan tushum raqami klub egasini noto'g'ri qarorga olib boradi).
+ * Shu sababli `/reports/*`, `/dashboard/stats`, `/orders/stats/today` va
+ * smenalar tarixi (`/shifts`, `/shifts/:id` — Z-hisobotlar) keshlanmaydi;
+ * ular internetsiz "hisobot uchun internet kerak" deb ko'rsatiladi.
  */
-const CACHEABLE = ['/tables', '/products', '/categories', '/sessions', '/customers', '/settings'];
+const CACHEABLE = [
+  '/tables',
+  '/products',
+  '/categories',
+  '/sessions',
+  '/customers',
+  '/settings',
+  // Kassirning internetsiz ham kerak bo'ladigan joriy ekranlari
+  '/reservations', // kun bo'yicha bronlar
+  '/debts', // qarzlar ro'yxati
+  '/shifts/current', // ochiq smena: boshlang'ich va kutilgan naqd pul
+  '/orders', // bar buyurtmalari ro'yxati
+  '/expenses', // xarajatlar ro'yxati
+];
+
+/** Bitta yozuv tafsiloti — faqat sahifalar haqiqatan ochadiganlari */
+const CACHEABLE_DETAIL = [
+  /^\/customers\/\d+$/, // mijoz profili (Mijozlar sahifasi)
+  /^\/debts\/\d+\/payments$/, // qarz to'lovlari tarixi (Qarzlar sahifasi)
+];
 
 /**
  * `/auth/me` ATAYLAB ro'yxatda YO'Q.
@@ -112,8 +134,74 @@ const CACHEABLE = ['/tables', '/products', '/categories', '/sessions', '/custome
  * Oflayn kirish uchun yagona yo'l — o'sha surat mexanizmi.
  */
 
-export const isCacheable = (url: string): boolean =>
-  CACHEABLE.some((prefix) => url === prefix || url.startsWith(`${prefix}?`));
+/**
+ * Parametrida ANIQ VAQT (ISO sana-vaqt) bo'lgan so'rov keshlanmaydi.
+ *
+ * Masalan bosh sahifa va stollar ekrani bronlarni "hozirdan keyingi 6 soat"
+ * oralig'ida so'raydi: `from/to` har so'rovda millisekundigacha o'zgaradi,
+ * ya'ni bunday kalit HECH QACHON takrorlanmaydi. Uni keshlash oflaynda hech
+ * narsa bermasdi, aksincha har daqiqada yangi yozuv qo'shib IndexedDB ni
+ * to'ldirardi. Kunlik (YYYY-MM-DD) so'rovlar bunga kirmaydi.
+ */
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+const hasInstantParam = (params?: object): boolean =>
+  !!params &&
+  Object.values(params as Record<string, unknown>).some(
+    (value) => typeof value === 'string' && ISO_INSTANT.test(value),
+  );
+
+export const isCacheable = (url: string, params?: object): boolean => {
+  const path = url.split('?')[0];
+  const listed = CACHEABLE.includes(path) || CACHEABLE_DETAIL.some((pattern) => pattern.test(path));
+  return listed && !hasInstantParam(params);
+};
+
+/* ----------------------------------------------- Ekrandagi ma'lumot yoshi */
+
+/**
+ * EKRANDAGI MA'LUMOT QACHONGI — oflayn chizig'idagi "ma'lumot HH:MM holatida".
+ *
+ * Avval bu vaqt faqat "oxirgi muvaffaqiyatli so'rov" (`lastSyncAt`) dan
+ * olinardi. Stollar ekrani uchun bu to'g'ri — u har 15 soniyada yangilanadi.
+ * Lekin bronlar yoki qarzlar sahifasi ertalab ochilgan bo'lsa, chiziq
+ * "14:05 holatida" deb turar, ekranda esa 09:00 dagi ro'yxat bo'lardi —
+ * kassir ma'lumotni yangi deb o'ylardi.
+ *
+ * Shuning uchun joriy sahifa olgan har bir keshlanadigan javobning vaqti
+ * yoziladi: tarmoqdan kelgani — olingan payt, keshdan berilgani — keshga
+ * yozilgan payt. Chiziq ulardan ENG ESKISINI ko'rsatadi. Sahifa almashganda
+ * ro'yxat tozalanadi (ConnectionBanner).
+ */
+const screenData = new Map<string, number>();
+const screenListeners = new Set<() => void>();
+
+const noteScreenData = (key: string, at: number): void => {
+  screenData.set(key, at);
+  screenListeners.forEach((fn) => fn());
+};
+
+/** Javob keshdan ko'rsatildi — uning asl vaqti yoziladi (api/client.ts) */
+export const noteServedFromCache = (url: string, params: object | undefined, at: number): void => {
+  const key = keyFor(url, params);
+  if (key) noteScreenData(key, at);
+};
+
+/** Joriy sahifadagi eng eski ma'lumot vaqti (ms); hech narsa yozilmagan bo'lsa null */
+export const screenDataAsOf = (): number | null =>
+  screenData.size > 0 ? Math.min(...screenData.values()) : null;
+
+/** Sahifa almashdi — oldingi sahifaning ma'lumoti endi ekranda emas */
+export const resetScreenData = (): void => {
+  if (screenData.size === 0) return;
+  screenData.clear();
+  screenListeners.forEach((fn) => fn());
+};
+
+export const onScreenDataChange = (fn: () => void): (() => void) => {
+  screenListeners.add(fn);
+  return () => screenListeners.delete(fn);
+};
 
 /** Muvaffaqiyatli javobni keshga yozish (xatolar jimgina yutiladi) */
 export const cachePut = async (
@@ -122,7 +210,9 @@ export const cachePut = async (
   payload: unknown,
 ): Promise<void> => {
   const key = keyFor(url, params);
-  if (!key || !isCacheable(url)) return;
+  if (!key || !isCacheable(url, params)) return;
+  // Tarmoqdan yangi ma'lumot keldi — ekrandagi shu ro'yxat endi hozirgi holatda
+  noteScreenData(key, Date.now());
 
   const serverNow = (payload as { serverNow?: string } | null)?.serverNow;
   const parsed = serverNow ? Date.parse(serverNow) : NaN;
@@ -164,5 +254,6 @@ export const lastSyncAt = (): Promise<number | null> => metaGet<number>(LAST_SYN
  * MAJBURIY chaqiriladi (tenant izolyatsiyasi).
  */
 export const clearCache = async (): Promise<void> => {
+  resetScreenData();
   await idbClear(STORE_CACHE);
 };

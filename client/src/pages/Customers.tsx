@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   App,
@@ -14,9 +14,12 @@ import {
   Skeleton,
   Space,
   Table,
+  Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
+  CloudUploadOutlined,
   DeleteOutlined,
   DollarOutlined,
   EditOutlined,
@@ -30,10 +33,19 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { apiErrorMessage, customersApi, errorMessage } from '../api';
+import { apiErrorMessage, customersApi, errorMessage, isNetworkError } from '../api';
 import { EmptyState, MoneyText, PageHeader, PageTransition, StatCard, StatusTag } from '../components/ui';
 import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
+import { useConnection } from '../context/ConnectionContext';
+import {
+  applyCustomerCreates,
+  countOps,
+  newOpKey,
+  opNow,
+  queueCustomerCreate,
+  type CustomerView,
+} from '../offline/ops';
 import { TOKENS } from '../theme/tokens';
 import type { Customer, CustomerProfile, Session } from '../types';
 import { formatDuration } from '../utils/format';
@@ -57,6 +69,7 @@ const Customers = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { hasRole } = useAuth();
+  const { online, entries } = useConnection();
   const currency = useCurrency();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -106,7 +119,7 @@ const Customers = () => {
         setTotal(res.pagination?.total ?? 0);
       } catch (err) {
         setLoadError(true);
-        message.error(errorMessage(err, tRef.current('common.error')));
+        message.error(apiErrorMessage(err, tRef.current));
       } finally {
         setLoading(false);
       }
@@ -119,6 +132,27 @@ const Customers = () => {
   }, [fetchCustomers]);
 
   const refresh = () => void fetchCustomers({ page, limit: pageSize, search });
+
+  /**
+   * OFLAYN QO'SHILGAN MIJOZLAR — navbatdagi (serverda hali yo'q) mijozlar
+   * birinchi sahifa boshida "Yuborilmagan" belgisi bilan ko'rinadi. Server
+   * rad etgani ham sababi bilan ko'rinadi — jimgina yo'qolmaydi.
+   */
+  const rows = useMemo(
+    () => (page === 1 ? applyCustomerCreates(customers, entries, search) : customers),
+    [customers, entries, search, page],
+  );
+  const localCount = rows.length - customers.length;
+
+  // Navbatdagi mijoz serverga yetdi (yoki voz kechildi) — ro'yxat qayta olinadi
+  const listRef = useRef<FetchParams>({ page, limit: pageSize, search });
+  listRef.current = { page, limit: pageSize, search };
+  const customerOps = useMemo(() => countOps(entries, ['customer.create']), [entries]);
+  const prevCustomerOps = useRef(customerOps);
+  useEffect(() => {
+    if (customerOps < prevCustomerOps.current && online) void fetchCustomers(listRef.current);
+    prevCustomerOps.current = customerOps;
+  }, [customerOps, online, fetchCustomers]);
 
   const applySearch = (value: string) => {
     setSearch(value);
@@ -149,25 +183,61 @@ const Customers = () => {
     form.resetFields();
   };
 
+  /**
+   * Saqlash. YANGI mijoz internetsiz ham qo'shiladi (navbatga, `$local:`
+   * havola bilan — shu mijozga bron ham oflayn yozish mumkin). TAHRIRLASH
+   * internet talab qiladi: u mavjud yozuvni o'zgartiradi va telefon
+   * takrorlanishini faqat server tekshira oladi.
+   */
   const handleSave = async () => {
+    let values: CustomerFormValues;
     try {
       // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
-      const values = await form.validateFields();
-      setSaving(true);
-      const body = {
-        name: values.name,
-        phone: values.phone || undefined,
-        notes: values.notes || undefined,
-      };
+      values = await form.validateFields();
+    } catch (err) {
+      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
+      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
+      return;
+    }
+    if (editing && !online) {
+      message.warning(t('customers.offlineEditBlocked'));
+      return;
+    }
+    const body = {
+      name: values.name,
+      phone: values.phone || undefined,
+      notes: values.notes || undefined,
+    };
+    const key = newOpKey();
+    const at = opNow();
+    const saveOffline = async () => {
+      await queueCustomerCreate(body, key, at);
+      message.success(t('offline.savedOffline'));
+      closeForm();
+    };
+    setSaving(true);
+    try {
+      if (!editing && !online) {
+        await saveOffline();
+        return;
+      }
       const res = editing
         ? await customersApi.update(editing.id, body)
-        : await customersApi.create(body);
+        : await customersApi.create(body, key);
       message.success(res.message);
       closeForm();
       refresh();
     } catch (err) {
-      // Forma xatolari maydon ostida ko'rinadi — toast shart emas
-      if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
+      // Aloqa aynan shu so'rovda uzildi — yangi mijoz yo'qolmasin (AYNAN SHU kalit bilan)
+      if (!editing && isNetworkError(err)) {
+        try {
+          await saveOffline();
+        } catch (queueErr) {
+          message.error(errorMessage(queueErr, t('common.error')));
+        }
+        return;
+      }
+      message.error(apiErrorMessage(err, t));
     } finally {
       setSaving(false);
     }
@@ -205,13 +275,30 @@ const Customers = () => {
     [message, t],
   );
 
-  const columns: ColumnsType<Customer> = [
+  /** Oflayn belgi: yuborilmagan — ko'k, server rad etgan — qizil (sababi bilan) */
+  const offlineTag = (customer: CustomerView) => {
+    if (!customer.offlineLocalId) return null;
+    return customer.offlineMark === 'failed' ? (
+      <Tooltip title={t('customers.offlineFailedHint', { reason: customer.offlineError ?? t('common.error') })}>
+        <Tag color="error" icon={<ExclamationCircleOutlined />}>{t('customers.offlineFailed')}</Tag>
+      </Tooltip>
+    ) : (
+      <Tooltip title={t('customers.offlinePendingHint')}>
+        <Tag color="processing" icon={<CloudUploadOutlined />}>{t('customers.offlinePending')}</Tag>
+      </Tooltip>
+    );
+  };
+
+  const columns: ColumnsType<CustomerView> = [
     {
       title: t('customers.nameLabel'),
       key: 'name',
       render: (_, customer) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{customer.name}</Text>
+          <Space size={6} wrap>
+            <Text strong>{customer.name}</Text>
+            {offlineTag(customer)}
+          </Space>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {customer.phone ?? t('customers.noPhone')}
           </Text>
@@ -239,33 +326,59 @@ const Customers = () => {
       title: t('common.actions'),
       key: 'actions',
       width: 200,
-      render: (_, customer) => (
-        <Space wrap size={4}>
-          <Button size="small" icon={<UserOutlined />} onClick={() => void openProfile(customer.id)}>
-            {t('customers.view')}
-          </Button>
-          {canEdit && (
-            <Button
-              size="small"
-              type="text"
-              icon={<EditOutlined />}
-              aria-label={t('btn.edit')}
-              onClick={() => openEdit(customer)}
-            />
-          )}
-          {canDelete && (
-            <Popconfirm
-              title={t('common.confirmDelete')}
-              description={t('customers.deleteGuardHint')}
-              okText={t('common.yes')}
-              cancelText={t('common.no')}
-              onConfirm={() => void handleDelete(customer)}
-            >
-              <Button size="small" danger type="text" icon={<DeleteOutlined />} />
-            </Popconfirm>
-          )}
-        </Space>
-      ),
+      render: (_, customer) => {
+        // Serverda hali yo'q (oflayn) mijozning profili ham, tahriri ham yo'q
+        if (customer.offlineLocalId) {
+          return (
+            <Tooltip title={t('customers.offlineLocalBlocked')}>
+              <span>
+                <Button size="small" icon={<UserOutlined />} disabled>
+                  {t('customers.view')}
+                </Button>
+              </span>
+            </Tooltip>
+          );
+        }
+        // Tahrirlash va o'chirish INTERNET TALAB QILADI (server tekshiruvi kerak)
+        const editBlocked = !online ? t('customers.offlineEditBlocked') : null;
+        return (
+          <Space wrap size={4}>
+            <Button size="small" icon={<UserOutlined />} onClick={() => void openProfile(customer.id)}>
+              {t('customers.view')}
+            </Button>
+            {canEdit && (
+              <Tooltip title={editBlocked}>
+                <span>
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<EditOutlined />}
+                    aria-label={t('btn.edit')}
+                    disabled={!!editBlocked}
+                    onClick={() => openEdit(customer)}
+                  />
+                </span>
+              </Tooltip>
+            )}
+            {canDelete && (
+              <Popconfirm
+                title={t('common.confirmDelete')}
+                description={t('customers.deleteGuardHint')}
+                okText={t('common.yes')}
+                cancelText={t('common.no')}
+                disabled={!!editBlocked}
+                onConfirm={() => void handleDelete(customer)}
+              >
+                <Tooltip title={editBlocked}>
+                  <span>
+                    <Button size="small" danger type="text" icon={<DeleteOutlined />} disabled={!!editBlocked} />
+                  </span>
+                </Tooltip>
+              </Popconfirm>
+            )}
+          </Space>
+        );
+      },
     },
   ];
 
@@ -356,13 +469,13 @@ const Customers = () => {
             style={{ maxWidth: 380, flex: '1 1 240px' }}
           />
           <Text type="secondary" style={{ fontSize: 13 }}>
-            {t('customers.totalCount')}: <span className="tabular-nums">{total}</span>
+            {t('customers.totalCount')}: <span className="tabular-nums">{total + localCount}</span>
           </Text>
         </div>
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={customers}
+          dataSource={rows}
           loading={loading}
           scroll={{ x: 640 }}
           locale={{

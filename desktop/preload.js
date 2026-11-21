@@ -76,4 +76,51 @@ contextBridge.exposeInMainWorld('billiardclubDesktop', {
 
     return () => ipcRenderer.removeListener('billiardclub:update-status', handler);
   },
+
+  /**
+   * CHIROQ MARKAZI — shu kompyuterning o'zi relelarni boshqaradi (internetsiz ham).
+   * Token faqat BIR yo'nalishda o'tadi (sahifa -> asosiy jarayon) va hech qachon
+   * qaytarilmaydi. Sinov faqat serverda saqlangan stol sozlamasi bilan ishlaydi.
+   */
+  lights: {
+    status: () => ipcRenderer.invoke('billiardclub:lights:status'),
+    enable: (token) => ipcRenderer.invoke('billiardclub:lights:enable', { token: String(token ?? '') }),
+    disable: () => ipcRenderer.invoke('billiardclub:lights:disable'),
+    /** Kassa ekranidagi stollar holati (har o'zgarishda) */
+    pushView: (view) => {
+      if (!view || typeof view !== 'object') return;
+      ipcRenderer.send('billiardclub:lights:view', {
+        fetchedAt: view.fetchedAt ?? null,
+        serverNow: view.serverNow ?? null,
+        tables: Array.isArray(view.tables) ? view.tables.slice(0, 500).map((item) => ({
+          tableId: Number(item?.tableId),
+          session: item?.session ?? null,
+          since: item?.since ?? null,
+          pending: item?.pending === true,
+          endedAt: item?.endedAt ?? null,
+        })) : [],
+      });
+    },
+    /** Qo'lda boshqaruv: tableIds null — hammasi; on null — avtomatikaga qaytarish */
+    override: ({ tableIds = null, on = null, minutes = 30 } = {}) => ipcRenderer.invoke('billiardclub:lights:override', {
+      tableIds: Array.isArray(tableIds) ? tableIds.map(Number) : null,
+      on: typeof on === 'boolean' ? on : null,
+      minutes: Number(minutes) || 30,
+    }),
+    test: (tableId, on) => ipcRenderer.invoke('billiardclub:lights:test', { tableId: Number(tableId), on: on === true }),
+    discover: (subnet) => ipcRenderer.invoke('billiardclub:lights:discover', { subnet: typeof subnet === 'string' ? subnet : '' }),
+    tuyaCloud: ({ accessId, accessSecret, region, userId } = {}) => ipcRenderer.invoke('billiardclub:lights:tuya-cloud', {
+      accessId: String(accessId ?? ''),
+      accessSecret: String(accessSecret ?? ''),
+      region: String(region ?? ''),
+      userId: String(userId ?? ''),
+    }),
+    /** Holat o'zgarishlariga obuna — obunani bekor qiluvchi funksiya qaytadi */
+    onStatus: (callback) => {
+      if (typeof callback !== 'function') return () => {};
+      const handler = (_event, status) => callback(status);
+      ipcRenderer.on('billiardclub:lights:status', handler);
+      return () => ipcRenderer.removeListener('billiardclub:lights:status', handler);
+    },
+  },
 });

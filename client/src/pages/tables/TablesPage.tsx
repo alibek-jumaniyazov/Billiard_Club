@@ -19,8 +19,13 @@ import { EmptyState, PageHeader, PageTransition } from '../../components/ui';
 import { useCurrency } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useConnection } from '../../context/ConnectionContext';
-import { applyQueueToTables } from '../../offline/overlay';
-import { newActionKey, queuePauseResume } from '../../offline/pos';
+import { applyQueueToTables, hasPendingOps, withOfflineTransfers } from '../../offline/overlay';
+import { loadCustomerDirectory } from '../../offline/customer-directory';
+import { desktopLights, type LightHubStatus } from '../../offline/desktop';
+import { buildLightHubView, hubControlling, withHubLightState } from '../../offline/light-hub';
+import {
+  newActionKey, queueCancelSession, queuePauseResume, queuePlanChange,
+} from '../../offline/pos';
 import type {
   BilliardTable, Reservation, Session, SessionPlanPayload, TableLightConfig,
 } from '../../types';
@@ -119,11 +124,29 @@ const TablesPage = () => {
   const canLights = can('lights');
   const canReservations = can('reservations');
   const canShifts = can('shifts');
+  // Internetsiz qarz «Mijozlar» ro'yxatidagi mijozga yoziladi — ikkala imkoniyat kerak
+  const canOfflineDebt = canCheckout && can('debts') && can('customers');
+
+  /**
+   * Navbat va ekrandagi stollar — callbacklar ichida ref orqali o'qiladi:
+   * ular har poll/navbat o'zgarishida qayta yaratilmasin (TableCard memo).
+   */
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
+  const viewTablesRef = useRef<BilliardTable[]>([]);
 
   const [tables, setTables] = useState<BilliardTable[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [offsetMs, setOffsetMs] = useState(0);
+  /**
+   * Stollar serverdan OXIRGI MARTA haqiqatan olingan vaqt (server soati, ms).
+   * Keshdan ko'rsatilganda — keshning asl vaqti (hozirgi vaqt EMAS): chiroq
+   * markazi eski ma'lumotni yangi deb qabul qilib, chiroqni o'chirib qo'ymasin.
+   */
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  /** Kompyuterdagi chiroq markazi holati (faqat desktop dasturda) */
+  const [hubStatus, setHubStatus] = useState<LightHubStatus | null>(null);
   // Amal bajarilayotgan sessiyalar (pause/resume/cancel) — parallel amallar
   // bir-birining loading holatini o'chirib yubormasligi uchun Set
   const [pendingIds, setPendingIds] = useState<ReadonlySet<number>>(new Set());
@@ -248,6 +271,9 @@ const TablesPage = () => {
         // Soat siljishi FAQAT yangiroq server vaqti bilan yangilanadi:
         // eskirgan `serverNow` taymerni orqaga qaytarmasin
         const serverMs = res.serverNow ? Date.parse(res.serverNow) : NaN;
+        setFetchedAt(res.fromCache
+          ? (typeof res.cachedAt === 'number' ? res.cachedAt : null)
+          : (Number.isNaN(serverMs) ? Date.now() : serverMs));
         if (!Number.isNaN(serverMs) && serverMs >= lastServerNowRef.current) {
           lastServerNowRef.current = serverMs;
           setOffsetMs(clockOffsetMs(res.serverNow));
@@ -304,6 +330,17 @@ const TablesPage = () => {
   }, [pending, fetchTables]);
 
   /**
+   * MIJOZLAR KATALOGINI OLDINDAN KESHLASH — internet uzilganda qarzni ro'yxatdagi
+   * mijozga yozish uchun (offline/customer-directory.ts). Sahifa onlayn
+   * ochilganda va har gal aloqa tiklanganda yangilanadi; xato jim — bu faqat
+   * oflayn zaxira, asosiy ishga to'sqinlik qilmaydi.
+   */
+  useEffect(() => {
+    if (!online || !canOfflineDebt) return;
+    void loadCustomerDirectory().catch(() => undefined);
+  }, [online, canOfflineDebt]);
+
+  /**
    * Chiroq holati amaldan keyin bir necha yuz millisekundda o'zgaradi (bridge
    * rejimida agent buyruqni olib qo'llaguncha), poll esa 15 s da bir keladi —
    * shuning uchun amaldan ~2 soniya keyin BITTA qo'shimcha yangilash
@@ -344,20 +381,23 @@ const TablesPage = () => {
       const key = newActionKey();
 
       /**
-       * NAVBATGA ikki holatda tushadi:
+       * NAVBATGA uch holatda tushadi:
        *  1. internet yo'q;
        *  2. sessiyaning O'ZI hali serverda YO'Q (oflayn boshlangan) — uning
        *     `id` si manfiy sintetik qiymat, uni serverga yuborish 404 berardi.
        *     Aloqa tiklangan bo'lsa ham bu amal sessiya yaratilgandan KEYIN
        *     yuborilishi kerak, shuning uchun navbatdagi tartibga qo'shiladi
-       *     ($local havolasi orqali — offline/queue.ts).
+       *     ($local havolasi orqali — offline/queue.ts);
+       *  3. shu o'yin/stol bo'yicha navbatda yuborilmagan amal bor — tartib
+       *     buzilmasin (offline/overlay.ts: hasPendingOps).
        */
-      if (!online || session.offlineLocalId) {
+      const pendingOps = hasPendingOps(entriesRef.current, session, [table.id]);
+      if (!online || session.offlineLocalId || pendingOps) {
         try {
           await queuePauseResume(table, session, resume, key, offsetMs);
-          message.success(t('offline.savedOffline'));
-        } catch {
-          message.error(t('common.error'));
+          message.success(t(online && pendingOps ? 'offline.savedQueued' : 'offline.savedOffline'));
+        } catch (err) {
+          message.error(errorMessage(err, t('common.error')));
         }
         return;
       }
@@ -391,29 +431,48 @@ const TablesPage = () => {
 
   /**
    * O'yin vaqti cheklovini o'zgartirish: belgilangan vaqtni uzaytirish, summa
-   * limitini qo'yish/oshirish yoki cheklovni olib tashlash — faqat onlayn.
+   * limitini qo'yish/oshirish yoki cheklovni olib tashlash. Internetsiz ham
+   * ishlaydi — navbatga yoziladi va kartada darhol ko'rinadi (overlay).
    * @returns muvaffaqiyatli saqlandimi (limit oynasi shunga qarab yopiladi)
    */
   const handlePlanChange = useCallback(
     async (session: Session, plan: SessionPlanPayload): Promise<boolean> => {
-      if (!online || session.offlineLocalId) {
-        message.warning(t('offline.offlineBlocked'));
-        return false;
-      }
+      const key = newActionKey();
+      // Sessiya hozir turgan stol (oflayn ko'chirilgan bo'lsa — yangisi)
+      const table = viewTablesRef.current.find((tbl) => tbl.id === session.tableId) ?? null;
+      const queue = async (afterPending: boolean): Promise<boolean> => {
+        if (!table) {
+          message.error(t('common.error'));
+          return false;
+        }
+        try {
+          await queuePlanChange(table, session, plan, key, offsetMs);
+          message.success(t(afterPending ? 'offline.savedQueued' : 'offline.savedOffline'));
+          return true;
+        } catch (err) {
+          message.error(errorMessage(err, t('common.error')));
+          return false;
+        }
+      };
+      const pendingOps = hasPendingOps(entriesRef.current, session, [session.tableId]);
+      if (!online || session.offlineLocalId || pendingOps) return queue(online && pendingOps);
+
       markPending(session.id, true);
       try {
-        const res = await sessionsApi.updatePlan(session.id, plan);
+        const res = await sessionsApi.updatePlan(session.id, plan, key);
         message.success(res.message);
         await fetchTables(true);
         return true;
       } catch (err) {
+        // Aloqa aynan shu so'rovda uzildi — o'zgarish yo'qolmasin, navbatga tushsin
+        if (isNetworkError(err)) return queue(false);
         message.error(errorMessage(err, t('common.error')));
         return false;
       } finally {
         markPending(session.id, false);
       }
     },
-    [fetchTables, markPending, message, online, t],
+    [fetchTables, markPending, message, offsetMs, online, t],
   );
 
   const handleLimitSubmit = useCallback(
@@ -421,27 +480,46 @@ const TablesPage = () => {
     [handlePlanChange],
   );
 
+  /**
+   * O'yinni bekor qilish. Internetsiz ham ishlaydi: o'yin AYNAN bosilgan
+   * paytda to'xtagan hisoblanadi (offline/pos.ts: queueCancelSession), stol
+   * darhol bo'shaydi. Kassir chegarasi (barsiz va 10 daqiqagacha) kartada
+   * tekshiriladi va server uni o'sha payt bo'yicha qayta tekshiradi — rad
+   * etsa amal navbatda "xato" bo'lib ko'rinadi va stol yana band bo'ladi.
+   */
   const handleCancel = useCallback(
-    async (session: Session) => {
-      // Bekor qilish oflaynda ATAYLAB bloklangan (summa boshqa terminaldagi
-      // buyurtma/qarzga bog'liq — eskirgan ma'lumot ustida ishlamaydi). Tugma
-      // ham o'chiriladi; bu esa tugma holati eskirgan bo'lsa qo'shimcha himoya.
-      if (!online) {
-        message.warning(t('offline.offlineBlocked'));
+    async (session: Session, table: BilliardTable) => {
+      const key = newActionKey();
+      const queue = async (afterPending: boolean) => {
+        try {
+          await queueCancelSession(table, session, key, offsetMs);
+          message.success(t(afterPending ? 'offline.savedQueued' : 'offline.savedOffline'));
+        } catch (err) {
+          message.error(errorMessage(err, t('common.error')));
+        }
+      };
+      const pendingOps = hasPendingOps(entriesRef.current, session, [table.id]);
+      if (!online || session.offlineLocalId || pendingOps) {
+        await queue(online && pendingOps);
         return;
       }
       markPending(session.id, true);
       try {
-        const res = await sessionsApi.cancel(session.id);
+        const res = await sessionsApi.cancel(session.id, key);
         message.success(res.message);
         await fetchTables(true);
       } catch (err) {
+        // Aloqa aynan shu so'rovda uzildi — bekor qilish bosilgan payt bilan navbatga
+        if (isNetworkError(err)) {
+          await queue(false);
+          return;
+        }
         message.error(errorMessage(err, t('common.error')));
       } finally {
         markPending(session.id, false);
       }
     },
-    [fetchTables, markPending, message, online, t],
+    [fetchTables, markPending, message, offsetMs, online, t],
   );
 
   const handleStarted = useCallback(
@@ -506,13 +584,38 @@ const TablesPage = () => {
     );
   }, []);
 
+  /** Markaz shu kompyuterda ishlayapti va relelarni boshqaryapti */
+  const hubActive = hubControlling(hubStatus);
+
+  /**
+   * Internetsiz qo'lda boshqaruv: buyruq to'g'ridan-to'g'ri kompyuterdagi chiroq
+   * markaziga ketadi (serverga emas). `true` — markaz bajardi.
+   */
+  const lightViaHub = useCallback(async (tableIds: number[] | null, on: boolean | null): Promise<boolean> => {
+    const hub = desktopLights();
+    if (!hub || !hubActive) return false;
+    await hub.override({ tableIds, on, minutes: 30 });
+    message.success(t('tables.lightsLocalApplied'));
+    return true;
+  }, [hubActive, message, t]);
+
   /**
    * Chiroqni qo'lda yoqish/o'chirish (override, 30 daqiqa).
    * Butunlay QO'SHIMCHA amal — sessiya oqimiga hech qanday aloqasi yo'q.
+   * Internet bo'lmasa (va desktop dasturda chiroq markazi yoqilgan bo'lsa)
+   * buyruq shu kompyuterdan to'g'ridan-to'g'ri bajariladi.
    */
   const handleLightToggle = useCallback(
     async (table: BilliardTable, on: boolean) => {
-      if (!online || lightRequests.current.has(table.id)) return;
+      if (lightRequests.current.has(table.id)) return;
+      if (!online) {
+        try {
+          if (!(await lightViaHub([table.id], on))) message.warning(t('offline.offlineBlocked'));
+        } catch (err) {
+          message.error(errorMessage(err, t('common.error')));
+        }
+        return;
+      }
       lightRequests.current.add(table.id);
       setPendingLights(new Set(lightRequests.current));
       try {
@@ -523,19 +626,29 @@ const TablesPage = () => {
         // Bridge rejimida haqiqiy holat bir necha soniyadan keyin keladi
         scheduleLightRefresh();
       } catch (err) {
+        // Aloqa aynan shu so'rovda uzildi — buyruqni kompyuterdagi markaz bajaradi
+        if (isNetworkError(err) && await lightViaHub([table.id], on).catch(() => false)) return;
         message.error(errorMessage(err, t('common.error')));
       } finally {
         lightRequests.current.delete(table.id);
         setPendingLights(new Set(lightRequests.current));
       }
     },
-    [applyLightResult, fetchTables, message, scheduleLightRefresh, t, online, i18n],
+    [applyLightResult, fetchTables, message, scheduleLightRefresh, t, online, i18n, lightViaHub],
   );
 
   /** Qo'lda boshqaruvni bekor qilish — chiroq avtomatik (sessiya) holatiga qaytadi */
   const handleLightAuto = useCallback(
     async (table: BilliardTable) => {
-      if (!online || lightRequests.current.has(table.id)) return;
+      if (lightRequests.current.has(table.id)) return;
+      if (!online) {
+        try {
+          if (!(await lightViaHub([table.id], null))) message.warning(t('offline.offlineBlocked'));
+        } catch (err) {
+          message.error(errorMessage(err, t('common.error')));
+        }
+        return;
+      }
       lightRequests.current.add(table.id);
       setPendingLights(new Set(lightRequests.current));
       try {
@@ -545,13 +658,14 @@ const TablesPage = () => {
         await fetchTables(true);
         scheduleLightRefresh();
       } catch (err) {
+        if (isNetworkError(err) && await lightViaHub([table.id], null).catch(() => false)) return;
         message.error(errorMessage(err, t('common.error')));
       } finally {
         lightRequests.current.delete(table.id);
         setPendingLights(new Set(lightRequests.current));
       }
     },
-    [applyLightResult, fetchTables, message, scheduleLightRefresh, t, online],
+    [applyLightResult, fetchTables, message, scheduleLightRefresh, t, online, lightViaHub],
   );
 
   /* ---------------------------------------------------------- Statistika */
@@ -566,6 +680,61 @@ const TablesPage = () => {
     () => applyQueueToTables(tables, entries),
     [tables, entries],
   );
+  viewTablesRef.current = viewTables;
+
+  /**
+   * EKRANDAGI segmentlar = server keshi + navbatdagi oflayn ko'chirishlar.
+   * Oflayn ko'chirilgan o'yinning jonli summasi, limiti va oflayn cheki eski
+   * stol narxida shu paytgacha, yangisida shu paytdan hisoblanadi — server
+   * navbatni qabul qilganda yozadigan bo'linish bilan aynan bir xil
+   * (offline/overlay.ts: withOfflineTransfers).
+   */
+  const viewSegments = useMemo(() => {
+    let changed = false;
+    const map: Record<number, SegmentLike[]> = { ...segmentsMap };
+    for (const tbl of viewTables) {
+      const session = tbl.sessions?.[0];
+      if (!session?.offlineTransfers?.length) continue;
+      const segments = withOfflineTransfers(session, segmentsMap[session.id] ?? null);
+      if (segments) {
+        map[session.id] = segments;
+        changed = true;
+      }
+    }
+    return changed ? map : segmentsMap;
+  }, [viewTables, segmentsMap]);
+
+  /* ------------------------------------------------ Chiroq markazi (desktop) */
+
+  // Markaz holatiga obuna: kartadagi chiroq tugmasi relening JONLI holatini
+  // ko'rsatadi va internetsiz ham ishlaydi
+  useEffect(() => {
+    const hub = desktopLights();
+    if (!hub) return undefined;
+    let alive = true;
+    hub.status().then((status) => { if (alive) setHubStatus(status); }).catch(() => undefined);
+    const unsubscribe = hub.onStatus((status) => { if (alive) setHubStatus(status); });
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
+  }, []);
+
+  // Kassir ko'rib turgan holat (navbatdagi amallar bilan) markazga uzatiladi:
+  // internet uzilsa ham chiroq o'yin bilan birga yonadi/o'chadi
+  const hubRunning = Boolean(hubStatus?.running);
+  useEffect(() => {
+    const hub = desktopLights();
+    if (!hub || !hubRunning) return;
+    const fetchedServerMs = fetchedAt === null ? null : fetchedAt;
+    hub.pushView(buildLightHubView(viewTables, entries, fetchedServerMs, Date.now() + offsetMs));
+  }, [viewTables, entries, fetchedAt, offsetMs, hubRunning]);
+
+  /** Kartalar uchun: markazning jonli chiroq holati qo'shilgan stollar */
+  const hubLightTables = useMemo(() => {
+    const merged = withHubLightState(viewTables, hubStatus, Date.now() + offsetMs);
+    return new Map(merged.map((table) => [table.id, table]));
+  }, [viewTables, hubStatus, offsetMs]);
 
   const busyCount = useMemo(
     () => viewTables.filter((tbl) => tbl.status === 'busy').length,
@@ -659,16 +828,18 @@ const TablesPage = () => {
     return map;
   }, [reservations, t]);
 
-  const renderTable = (table: BilliardTable) => {
+  const renderTable = (listed: BilliardTable) => {
+    const table = hubLightTables.get(listed.id) ?? listed;
     const session = table.sessions?.[0] ?? null;
     return (
       <TableCard
         key={table.id}
         variant={density === 'compact' ? 'row' : 'card'}
         table={table}
+        lightLocal={hubActive}
         focused={table.id === focusedTableId}
         session={session}
-        segments={session ? (segmentsMap[session.id] ?? null) : null}
+        segments={session ? (viewSegments[session.id] ?? null) : null}
         offsetMs={offsetMs}
         online={online}
         pending={!!session && pendingIds.has(session.id)}
@@ -732,7 +903,7 @@ const TablesPage = () => {
       {viewTables.length > 0 && (
         <BoardMoneyStrip
           tables={viewTables}
-          segmentsMap={segmentsMap}
+          segmentsMap={viewSegments}
           offsetMs={offsetMs}
           currency={currency}
           showShift={canCheckout && canShifts}
@@ -855,21 +1026,23 @@ const TablesPage = () => {
       {/* Summa limiti — o'yin davomida qo'yish yoki oshirish ("yana 20 mingga") */}
       <LimitModal
         table={limitTable}
-        segments={limitTable?.sessions?.[0] ? (segmentsMap[limitTable.sessions[0].id] ?? null) : null}
+        segments={limitTable?.sessions?.[0] ? (viewSegments[limitTable.sessions[0].id] ?? null) : null}
         offsetMs={offsetMs}
         onSubmit={handleLimitSubmit}
         onClose={closeLimit}
       />
 
-      {/* Bar buyurtmasi */}
-      <OrderModal table={orderTable} onClose={() => setOrderTable(null)} onOrdered={silentRefresh} />
+      {/* Bar buyurtmasi (oflaynda haqiqiy vaqti bilan navbatga) */}
+      <OrderModal table={orderTable} onClose={() => setOrderTable(null)} onOrdered={silentRefresh} offsetMs={offsetMs} />
 
-      {/* Boshqa stolga ko'chirish */}
+      {/* Boshqa stolga ko'chirish (oflaynda navbatga — overlay o'yinni darhol ko'chiradi) */}
       <TransferModal
         table={transferTable}
         freeTables={freeTables}
         onClose={() => setTransferTable(null)}
         onTransferred={handleTransferred}
+        onQueuedOffline={silentRefresh}
+        offsetMs={offsetMs}
       />
 
       {/* Hisob-kitob (checkout drawer) */}
@@ -879,7 +1052,7 @@ const TablesPage = () => {
         clubName={club?.name ?? ''}
         onClose={() => setCheckoutTable(null)}
         onSettled={silentRefresh}
-        segments={checkoutTable?.sessions?.[0] ? (segmentsMap[checkoutTable.sessions[0].id] ?? null) : null}
+        segments={checkoutTable?.sessions?.[0] ? (viewSegments[checkoutTable.sessions[0].id] ?? null) : null}
         offsetMs={offsetMs}
       />
 

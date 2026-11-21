@@ -53,7 +53,21 @@ export default {
     xReport: 'X-hisobot',
     print: 'Chop etish',
     reportTitle: 'Smena #{{id}} hisoboti',
-    offline: "Smenani ochish va yopish uchun internet kerak — kassa summasi server ma'lumotlari bilan hisoblanadi.",
+    offline:
+      "Internet yo'q: smenani ochish va yopish saqlanadi va aloqa tiklanganda yuboriladi. Kutilgan naqd va farqni server o'z ma'lumotidan hisoblaydi.",
+    offlineOpen: 'Smena ochildi (boshlang‘ich naqd {{amount}})',
+    queuedBehind:
+      'Navbatga qo‘shildi — oldingi yuborilmagan amallardan keyin serverga ketadi; kutilgan naqd va farqni server hisoblaydi',
+    offlineClose: 'Smena yopildi (sanalgan naqd {{amount}})',
+    offlinePending: 'Yuborilmagan',
+    offlineOpenPending: 'Smena internetsiz ochildi — aloqa tiklanganda serverga yuboriladi. Hisobot yuborilgandan keyin ko‘rinadi.',
+    offlineClosePendingTitle: 'Smena internetsiz yopildi',
+    offlineClosePending:
+      '{{time}} da yopildi, sanalgan naqd {{amount}}. Aloqa tiklanganda server kutilgan naqd va farqni hisoblab, Z-hisobotni tarixga yozadi.',
+    offlineCloseInfo:
+      'Internet yo‘q: kutilgan naqd va farqni server aloqa tiklanganda o‘z ma’lumotidan hisoblaydi va Z-hisobotga yozadi. Kassadagi pulni sanab, summani kiriting.',
+    offlineFailedTitle: 'Smena amali server tomonidan qabul qilinmadi',
+    offlineFailedHint: '«Yuborilmagan amallar» oynasida ko‘rib chiqing — hal qilinmaguncha keyingi smena amallari kutib turadi.',
     cash: 'Naqd',
     card: 'Karta',
     transfer: "O'tkazma",
@@ -112,7 +126,21 @@ export default {
     xReport: 'X-отчёт',
     print: 'Печать',
     reportTitle: 'Отчёт смены #{{id}}',
-    offline: 'Для открытия и закрытия смены нужен интернет — сумма кассы считается по данным сервера.',
+    offline:
+      'Нет интернета: открытие и закрытие смены сохраняются и отправятся при восстановлении связи. Ожидаемую сумму и расхождение посчитает сервер по своим данным.',
+    offlineOpen: 'Смена открыта (наличные на начало {{amount}})',
+    queuedBehind:
+      'Добавлено в очередь — уйдёт на сервер после предыдущих неотправленных действий; ожидаемую сумму и расхождение посчитает сервер',
+    offlineClose: 'Смена закрыта (пересчитано наличных {{amount}})',
+    offlinePending: 'Не отправлено',
+    offlineOpenPending: 'Смена открыта без интернета — будет отправлена при восстановлении связи. Отчёт появится после отправки.',
+    offlineClosePendingTitle: 'Смена закрыта без интернета',
+    offlineClosePending:
+      'Закрыта в {{time}}, пересчитано наличных {{amount}}. При восстановлении связи сервер посчитает ожидаемую сумму и расхождение и запишет Z-отчёт в историю.',
+    offlineCloseInfo:
+      'Нет интернета: ожидаемую сумму и расхождение сервер посчитает по своим данным при восстановлении связи и запишет в Z-отчёт. Пересчитайте наличные и введите сумму.',
+    offlineFailedTitle: 'Сервер не принял действие со сменой',
+    offlineFailedHint: 'Проверьте окно «Неотправленные действия» — пока это не решено, следующие действия со сменой ждут.',
     cash: 'Наличные',
     card: 'Карта',
     transfer: 'Перевод',

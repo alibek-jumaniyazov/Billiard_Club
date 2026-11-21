@@ -61,6 +61,9 @@ test('offline checkout bills up to the moment the cashier pressed «End», not t
   assert.equal(sale.totalAmount, PRICE);
   const paid = await paymentsOf(started.id);
   assert.equal(paid.reduce((sum, p) => sum + p.amount, 0), sale.totalAmount);
+  // Tushum "Yakunlash" bosilgan kunga/smenaga tushadi — navbat yetib kelgan vaqtga emas
+  assert.equal(new Date(sale.createdAt).getTime(), endedAt);
+  assert.ok(paid.every((payment) => new Date(payment.createdAt).getTime() === endedAt));
 });
 
 test('offline: a bar order added on another terminal never blocks the queue — collected money is recorded and the gap flagged', { timeout: 15000 }, async () => {

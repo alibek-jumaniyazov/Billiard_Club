@@ -28,7 +28,15 @@ export type LightDriver =
   | 'tcp'
   | 'modbus_tcp'
   | 'serial'
-  | 'http';
+  | 'http'
+  /** Tuya / Smart Life (lokal protokol) — chiroq markazi orqali */
+  | 'tuya'
+  /** Sonoff eWeLink LAN / DIY rejimi */
+  | 'sonoff'
+  /** RS485 (USB adapter) Modbus RTU platalar */
+  | 'modbus_rtu'
+  /** "USBRelay" HID platalar */
+  | 'usb_hid';
 /** Klubning chiroq rejimi: o'chiq / lokal agent orqali / to'g'ridan-to'g'ri */
 export type LightMode = 'off' | 'bridge' | 'direct';
 
@@ -233,6 +241,29 @@ export interface LightDeviceConfig {
 
   /** Shu stol uchun holatni o'qib tekshirish (klub sozlamasidan ustun) */
   verify?: boolean;
+
+  /* serial: tayyor shablon (LC Technology USB rele, CH340) */
+  preset?: 'lcus';
+
+  /* tuya / sonoff */
+  deviceId?: string;
+  version?: '3.1' | '3.3' | '3.4' | '3.5';
+  dps?: number[];
+  encrypt?: boolean;
+  outlets?: boolean;
+
+  /* modbus_tcp / modbus_rtu */
+  framing?: 'tcp' | 'rtu';
+  mode?: 'coil' | 'register';
+  register?: number;
+  registerOn?: number;
+  registerOff?: number;
+  registerReadback?: boolean;
+  parity?: 'none' | 'even' | 'odd';
+  stopBits?: 1 | 2;
+
+  /* usb_hid */
+  serialNumber?: string;
 }
 
 /**
@@ -326,9 +357,19 @@ export interface LightEventView {
   userName: string | null;
 }
 
-/** LAN skanerida topilgan qurilma */
+/** Agent qidiruvida topilgan qurilma: tarmoqdagi rele yoki USB/COM plata */
 export interface DiscoveredDevice {
-  host: string;
+  host?: string;
+  /** COM port ('COM3') */
+  serialPort?: string;
+  /** USB HID plata ID */
+  serialNumber?: string;
+  /** Tuya/Sonoff qurilma ID si */
+  id?: string;
+  /** Tuya protokol versiyasi */
+  version?: string;
+  /** Sonoff eWeLink LAN (shifrlangan) */
+  encrypt?: boolean;
   mac?: string;
   model?: string;
   name?: string;
@@ -500,10 +541,28 @@ export interface Session {
   /**
    * FAQAT KLIENT TOMONIDA. Sessiya internet yo'q paytda boshlangan va hali
    * serverga yuborilmagan — uning haqiqiy `id` si yo'q (`id` manfiy sintetik
-   * qiymat). Hisob-kitob va ko'chirish bunday sessiyada bloklanadi.
+   * qiymat). Barcha amallar unga `$local:` havolasi bilan navbat orqali boradi.
    * Manba: src/offline/overlay.ts
    */
   offlineLocalId?: string;
+  /**
+   * FAQAT KLIENT TOMONIDA. Navbatdagi (hali yuborilmagan) oflayn ko'chirishlar.
+   * Jonli summa segmentlar bo'yicha AYNAN shu nuqtalarda bo'linadi — server
+   * ham ko'chirishni o'sha paytga qo'llaydi (offline/overlay.ts: withOfflineTransfers).
+   */
+  offlineTransfers?: OfflineSessionTransfer[];
+}
+
+/** Oflayn ko'chirish nuqtasi — overlay qo'yadi, segment hisobi shundan quriladi */
+export interface OfflineSessionTransfer {
+  /** Ko'chirish bosilgan payt (server soati bo'yicha, ISO) */
+  at: string;
+  fromTableId: number;
+  toTableId: number;
+  fromPricePerHour: number;
+  toPricePerHour: number;
+  /** Ko'chirish paytidagi sessiyaning jami pauzasi — yopilgan segment pauzasi shundan chiqadi */
+  totalPausedMs: number;
 }
 
 /** Chek oldindan ko'rish (GET /sessions/:id/receipt) — live yoki yakunlangan */
@@ -625,6 +684,8 @@ export interface Debt {
   userId: number | null;
   customerName: string;
   customerPhone: string | null;
+  /** Ro'yxatdagi mijoz (bo'lsa) — oflayn to'lovlar navbatida bog'liqlik kaliti */
+  customerId?: number | null;
   tableAmount: number;
   barAmount: number;
   totalDebt: number;
@@ -1266,6 +1327,11 @@ export interface EndSessionPayload {
   isBarDebt?: boolean;
   customerName?: string;
   customerPhone?: string;
+  /**
+   * Ro'yxatdagi mijoz — qarz shu mijozga yoziladi (server mavjudligini qayta
+   * tekshiradi). Internetsiz qarz faqat shu maydon bilan qabul qilinadi.
+   */
+  customerId?: number;
   /** Oflayn navbatdan: kassada "Yakunlash" bosilgan payt (server chegaralaydi) */
   offlineAt?: string;
 }
@@ -1361,6 +1427,11 @@ export interface LightSettingsPayload {
  * Stolning rele sozlamalari (PUT /lights/tables/:id).
  * Faqat yuborilgan maydonlar yangilanadi; null yoki bo'sh satr — tozalaydi.
  */
+/** Bir nechta stolni bir martada sozlash (PUT /lights/tables) */
+export interface TableLightBulkItem extends TableLightPayload {
+  tableId: number;
+}
+
 export interface TableLightPayload {
   driver?: LightDriver;
   host?: string | null;

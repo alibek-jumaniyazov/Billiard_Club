@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   App,
@@ -11,10 +11,12 @@ import {
   Modal,
   Skeleton,
   Table,
+  Tag,
   Tooltip,
 } from 'antd';
 import {
   AuditOutlined,
+  CloudUploadOutlined,
   InfoCircleOutlined,
   LockOutlined,
   PrinterOutlined,
@@ -23,13 +25,23 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import { apiErrorMessage, shiftsApi } from '../api';
+import { apiErrorMessage, errorMessage, isNetworkError, shiftsApi } from '../api';
 import { ElapsedTime, EmptyState, MoneyText, PageHeader, PageTransition, StatusTag } from '../components/ui';
 import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useConnection } from '../context/ConnectionContext';
+import {
+  applyShiftOps,
+  closeMustQueue,
+  countOps,
+  newOpKey,
+  opNow,
+  queueShiftClose,
+  queueShiftOpen,
+  shiftRefOf,
+} from '../offline/ops';
 import type { CashShift, ShiftReport, ShiftSummary } from '../types';
-import { formatDateTime, formatNumber, moneyFormatter, moneyParser } from '../utils/format';
+import { formatDateTime, formatMoney, formatNumber, moneyFormatter, moneyParser } from '../utils/format';
 import { escapeHtml, printHtml, receiptRow } from '../utils/print';
 import '../styles/shifts.css';
 
@@ -146,7 +158,7 @@ const SummaryBody = ({
 const Shifts = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const { online } = useConnection();
+  const { online, entries } = useConnection();
   const { club } = useAuth();
   const currency = useCurrency();
   const screens = Grid.useBreakpoint();
@@ -182,16 +194,20 @@ const Shifts = () => {
     setHistoryTotal(res.pagination?.total ?? res.data.length);
   }, []);
 
+  /**
+   * Joriy smena va tarix ALOHIDA yuklanadi: internetsiz paytda tarix keshda
+   * bo'lmasa ham joriy smena (keshdan) ko'rinib, ochish/yopish ishlayveradi.
+   */
   const loadAll = useCallback(async () => {
     setError(null);
-    try {
-      await Promise.all([loadCurrent(), loadHistory(1)]);
-      setPage(1);
-    } catch (err) {
-      setError(apiErrorMessage(err, tRef.current));
-    } finally {
-      setLoading(false);
+    const [current, list] = await Promise.allSettled([loadCurrent(), loadHistory(1)]);
+    if (list.status === 'fulfilled') setPage(1);
+    if (current.status === 'rejected') {
+      setError(apiErrorMessage(current.reason, tRef.current));
+    } else if (list.status === 'rejected' && !isNetworkError(list.reason)) {
+      setError(apiErrorMessage(list.reason, tRef.current));
     }
+    setLoading(false);
   }, [loadCurrent, loadHistory]);
 
   useEffect(() => {
@@ -210,38 +226,115 @@ const Shifts = () => {
     return () => window.clearInterval(id);
   }, [openShiftId, loadCurrent]);
 
-  const shift = report?.shift ?? null;
-  const summary = report?.summary ?? null;
+  /**
+   * OFLAYN QOPLAMA — navbatdagi smena ochish/yopish joriy holat ustiga
+   * qo'yiladi (offline/ops.ts: applyShiftOps). Oflayn ochilgan smenaning
+   * hisoboti hali yo'q; oflayn yopilgan smena "yuborilishi kutilmoqda".
+   */
+  const view = useMemo(() => applyShiftOps(report, entries), [report, entries]);
+  const shift = view.shift;
+  const summary = view.summary;
+  const shiftOps = useMemo(() => countOps(entries, ['shift.open', 'shift.close']), [entries]);
+  /** Navbatda smena amali bor — yangisi ham faqat uning ORTIDAN yuborilishi shart */
+  const shiftOpsQueued = shiftOps > 0;
 
+  // Navbatdagi smena amali serverga yetdi (yoki voz kechildi) — qayta yuklaymiz
+  const prevShiftOps = useRef(shiftOps);
+  useEffect(() => {
+    if (shiftOps < prevShiftOps.current && online) void loadAll();
+    prevShiftOps.current = shiftOps;
+  }, [shiftOps, online, loadAll]);
+
+  /**
+   * Smenani ochish. Internet yo'q (yoki aynan shu so'rovda uzildi) — ochilgan
+   * payt bilan navbatga; server smenani o'sha paytdan boshlaydi.
+   */
   const submitOpen = async () => {
-    const values = await openForm.validateFields();
+    let values: { openingCash?: number; note?: string };
+    try {
+      values = await openForm.validateFields();
+    } catch {
+      return; // forma xatolari maydon ostida ko'rinadi
+    }
+    const body = { openingCash: values.openingCash ?? 0, note: values.note };
+    const key = newOpKey();
+    const at = opNow();
+    const behindQueue = shiftOpsQueued;
+    const saveOffline = async () => {
+      await queueShiftOpen(body, key, at);
+      message.success(online && behindQueue ? t('shifts.queuedBehind') : t('offline.savedOffline'));
+      setOpenVisible(false);
+      openForm.resetFields();
+    };
     setSubmitting(true);
     try {
-      const res = await shiftsApi.open({ openingCash: values.openingCash ?? 0, note: values.note });
+      if (!online || behindQueue) {
+        await saveOffline();
+        return;
+      }
+      const res = await shiftsApi.open(body, key);
       message.success(res.message ?? t('shifts.open'));
       setOpenVisible(false);
       openForm.resetFields();
       await loadAll();
     } catch (err) {
+      if (isNetworkError(err)) {
+        try {
+          await saveOffline();
+        } catch (queueErr) {
+          message.error(errorMessage(queueErr, t('common.error')));
+        }
+        return;
+      }
       message.error(apiErrorMessage(err, t));
     } finally {
       setSubmitting(false);
     }
   };
 
+  /**
+   * Kutilgan naqd FAQAT onlayn, server hisoboti bor va navbatda yuborilmagan
+   * pul amali YO'Q bo'lsa ko'rsatiladi — aks holda u to'liq bo'lmaydi va
+   * kassirni chalg'itadi (yopish baribir navbat orqali, server hisoblaydi).
+   */
+  const showExpected = online && !!summary && !closeMustQueue(entries);
   const expectedForClose = shift && summary ? round2(shift.openingCash + summary.byMethod.cash - (cashOut ?? 0)) : 0;
-  const liveDifference = typeof countedCash === 'number' ? round2(countedCash - expectedForClose) : null;
+  const liveDifference = showExpected && typeof countedCash === 'number' ? round2(countedCash - expectedForClose) : null;
 
+  /**
+   * Smenani yopish. Oflayn (yoki navbatda hali yuborilmagan pul amallari
+   * bo'lsa) yopish NAVBATGA tushadi: kassir sanagan summa va "Yopish"
+   * bosilgan payt yuboriladi, kutilgan naqd va farqni server navbat yetib
+   * kelganda — o'zidan OLDINGI barcha pul amallari yozilgach — hisoblaydi.
+   * Onlayn yopish navbatdagi to'lovlardan oldin o'tib ketsa, ular muhrlangan
+   * Z-hisobotdan tushib qolardi.
+   */
   const submitClose = async () => {
     if (!shift) return;
-    const values = await closeForm.validateFields();
+    let values: { countedCash?: number; cashOut?: number; note?: string };
+    try {
+      values = await closeForm.validateFields();
+    } catch {
+      return; // forma xatolari maydon ostida ko'rinadi
+    }
+    const target = shift;
+    const body = { countedCash: values.countedCash ?? 0, cashOut: values.cashOut ?? 0, note: values.note };
+    const key = newOpKey();
+    const at = opNow();
+    const behindQueue = !!target.offlineLocalId || closeMustQueue(entries);
+    const saveOffline = async () => {
+      await queueShiftClose(shiftRefOf(target), body, key, at);
+      message.success(online && behindQueue ? t('shifts.queuedBehind') : t('offline.savedOffline'));
+      setCloseVisible(false);
+      closeForm.resetFields();
+    };
     setSubmitting(true);
     try {
-      const res = await shiftsApi.close(shift.id, {
-        countedCash: values.countedCash ?? 0,
-        cashOut: values.cashOut ?? 0,
-        note: values.note,
-      });
+      if (!online || behindQueue) {
+        await saveOffline();
+        return;
+      }
+      const res = await shiftsApi.close(target.id, body, key);
       message.success(res.message ?? t('shifts.close'));
       setCloseVisible(false);
       closeForm.resetFields();
@@ -249,6 +342,14 @@ const Shifts = () => {
       setDetail({ shift: res.data, summary: res.data.summary, expectedCash: res.data.expectedCash });
       await loadAll();
     } catch (err) {
+      if (isNetworkError(err)) {
+        try {
+          await saveOffline();
+        } catch (queueErr) {
+          message.error(errorMessage(queueErr, t('common.error')));
+        }
+        return;
+      }
       message.error(apiErrorMessage(err, t));
     } finally {
       setSubmitting(false);
@@ -388,19 +489,42 @@ const Shifts = () => {
 
       {!online && <Alert type="warning" showIcon message={t('shifts.offline')} style={{ marginBottom: 16 }} />}
       {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
+      {/* Server rad etgan smena amali — sababi bilan, jimgina emas */}
+      {view.failed.length > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={t('shifts.offlineFailedTitle')}
+          description={
+            <>
+              {view.failed.map((entry) => (
+                <div key={entry.localId}>
+                  {t(entry.labelKey, entry.labelParams)}
+                  {entry.lastError ? ` — ${entry.lastError}` : ''}
+                </div>
+              ))}
+              <div>{t('shifts.offlineFailedHint')}</div>
+            </>
+          }
+        />
+      )}
 
       <Card className="shift-current">
         {loading ? (
           <Skeleton active paragraph={{ rows: 5 }} />
-        ) : shift && summary ? (
+        ) : shift ? (
           <>
             <div className="shift-current__head">
               <div>
                 <span className="shift-current__eyebrow">
-                  {t('shifts.current')} · #{shift.id}
+                  {t('shifts.current')}{shift.offlineLocalId ? '' : ` · #${shift.id}`}
                 </span>
                 <h2>
                   <StatusTag status="active" label={t('shifts.statusOpen')} />
+                  {shift.offlineLocalId && (
+                    <Tag color="processing" icon={<CloudUploadOutlined />}>{t('shifts.offlinePending')}</Tag>
+                  )}
                   <ElapsedTime from={shift.openedAt} className="shift-current__timer" />
                 </h2>
                 <p>
@@ -409,13 +533,16 @@ const Shifts = () => {
                 </p>
               </div>
               <div className="shift-current__actions">
-                <Button icon={<PrinterOutlined />} onClick={() => printReport(report!)}>
+                <Button
+                  icon={<PrinterOutlined />}
+                  disabled={!summary}
+                  onClick={() => summary && printReport({ shift, summary, expectedCash: view.expectedCash })}
+                >
                   {t('shifts.xReport')}
                 </Button>
                 <Button
                   type="primary"
                   icon={<LockOutlined />}
-                  disabled={!online}
                   onClick={() => {
                     closeForm.resetFields();
                     setCloseVisible(true);
@@ -425,18 +552,28 @@ const Shifts = () => {
                 </Button>
               </div>
             </div>
-            <SummaryBody summary={summary} shift={shift} expectedCash={report?.expectedCash ?? null} currency={currency} />
+            {summary ? (
+              <SummaryBody summary={summary} shift={shift} expectedCash={view.expectedCash} currency={currency} />
+            ) : (
+              <Alert type="info" showIcon message={t('shifts.offlineOpenPending')} />
+            )}
           </>
         ) : (
           <EmptyState
-            icon={<UnlockOutlined />}
-            title={t('shifts.noShift')}
-            hint={t('shifts.noShiftHint')}
+            icon={view.closePending ? <CloudUploadOutlined /> : <UnlockOutlined />}
+            title={view.closePending ? t('shifts.offlineClosePendingTitle') : t('shifts.noShift')}
+            hint={
+              view.closePending
+                ? t('shifts.offlineClosePending', {
+                    time: formatDateTime(view.closePending.at),
+                    amount: formatMoney(view.closePending.countedCash, currency),
+                  })
+                : t('shifts.noShiftHint')
+            }
             action={
               <Button
                 type="primary"
                 icon={<UnlockOutlined />}
-                disabled={!online}
                 onClick={() => {
                   openForm.resetFields();
                   setOpenVisible(true);
@@ -535,9 +672,9 @@ const Shifts = () => {
         onCancel={() => setCloseVisible(false)}
         destroyOnClose
       >
-        {shift && summary && (
+        {shift && (
           <>
-            {summary.activeSessions > 0 && (
+            {summary && summary.activeSessions > 0 && (
               <Alert
                 type="warning"
                 showIcon
@@ -545,11 +682,17 @@ const Shifts = () => {
                 style={{ marginBottom: 16 }}
               />
             )}
-            <div className="shift-close-expected">
-              <span>{t('shifts.expectedCash')}</span>
-              <MoneyText amount={expectedForClose} currency={currency} size="xl" />
-              <small>{t('shifts.expectedHint')}</small>
-            </div>
+            {showExpected ? (
+              <div className="shift-close-expected">
+                <span>{t('shifts.expectedCash')}</span>
+                <MoneyText amount={expectedForClose} currency={currency} size="xl" />
+                <small>{t('shifts.expectedHint')}</small>
+              </div>
+            ) : (
+              // Internetsiz (yoki navbatda yuborilmagan pul bor) — kutilgan naqdni
+              // server hisoblaydi; eskirgan raqam kassirni chalg'itmasin
+              <Alert type="info" showIcon message={t('shifts.offlineCloseInfo')} style={{ marginBottom: 16 }} />
+            )}
             <Form form={closeForm} layout="vertical" requiredMark={false} initialValues={{ cashOut: 0 }}>
               <Form.Item
                 name="countedCash"

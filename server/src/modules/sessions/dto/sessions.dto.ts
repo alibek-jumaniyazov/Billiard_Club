@@ -30,7 +30,7 @@ const MAX_MONEY = 999_999_999_999;
  * ayirilgan pauza serverda hisobga olinmay, mijozdan ORTIQCHA pul olinardi.
  *
  * ISHONCH CHEGARASI: qiymat klientdan keladi, shuning uchun server uni
- * QAT'IY CHEGARALAYDI (sessions.service.ts: clampOfflineAt) —
+ * QAT'IY CHEGARALAYDI (common/time/offline-at.ts: clampOfflineAt) —
  * [hozir - 24 soat, hozir] oralig'idan tashqarisi kesiladi va kesilgan
  * hollarda audit yozuvi qoldiriladi. Bu yangi ishonch yuzasi ochmaydi:
  * kassir baribir "boshlash" tugmasini qachon bosishni o'zi tanlaydi.
@@ -89,8 +89,12 @@ export class StartSessionDto extends OfflineAtDto {
  *  - { limitAmount: X }      — summa limiti (belgilangan vaqt bo'lsa olib tashlanadi);
  *  - { plannedMinutes: null } — cheklovni butunlay olib tashlash (ikkalasi ham).
  * Ikkala qiymat birga yuborilsa rad etiladi.
+ *
+ * `offlineAt` (OfflineAtDto) — o'zgarish internetsiz paytda kiritilgan va
+ * navbatdan kelmoqda: narxga bog'liq tekshiruvlar kassir ekranida o'sha payt
+ * bajarilgan, server ularni qayta rad etmaydi (sessions.service.ts: updatePlan).
  */
-export class UpdatePlanDto {
+export class UpdatePlanDto extends OfflineAtDto {
   @IsOptional()
   @IsInt()
   @Min(5)
@@ -134,19 +138,39 @@ export class SessionAdjustmentDto {
   reason: string;
 }
 
-/** Sessiyani bekor qilish — sabab ixtiyoriy, lekin audit jurnaliga yoziladi */
-export class CancelSessionDto {
+/**
+ * Sessiyani bekor qilish — sabab ixtiyoriy, lekin audit jurnaliga yoziladi.
+ * `offlineAt` — internetsiz paytda "Bekor qilish" bosilgan payt: o'yin AYNAN
+ * o'sha paytda to'xtagan hisoblanadi (yakun vaqti, audit va kassir chegarasi).
+ */
+export class CancelSessionDto extends OfflineAtDto {
   @IsOptional()
   @IsString()
   @MaxLength(200)
   reason?: string;
 }
 
-/** Sessiyani boshqa stolga ko'chirish */
-export class TransferSessionDto {
+/**
+ * Sessiyani boshqa stolga ko'chirish.
+ * `offlineAt` — internetsiz paytda ko'chirilgan payt: vaqt va narx AYNAN shu
+ * paytda bo'linadi (o'sha paytdagi onlayn ko'chirish bilan bir xil natija).
+ */
+export class TransferSessionDto extends OfflineAtDto {
   @IsInt()
   @Type(() => Number)
   tableId: number;
+
+  /**
+   * Kassir ko'chirishni bosgan paytda o'yin TURGAN stol. Berilsa server
+   * tekshiradi: o'yin oraliqda boshqa kassada boshqa stolga ko'chirilgan
+   * bo'lsa, eskirgan ko'chirish qo'llanmaydi (vaqt noto'g'ri stol narxida
+   * bo'linib ketmasin). Oflayn navbat har doim yuboradi.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  fromTableId?: number;
 }
 
 /**
@@ -222,6 +246,18 @@ export class EndSessionDto extends OfflineAtDto {
   @IsString()
   @MaxLength(20)
   customerPhone?: string;
+
+  /**
+   * Ro'yxatdagi mijoz (customers.id). Qarzga yozishda berilsa server mijozni
+   * QAYTA tekshiradi (shu klubda mavjudmi) va qarzni aynan unga bog'laydi —
+   * ism/telefon ham shu yozuvdan olinadi. Internetsiz (offlineAt bilan) qarz
+   * FAQAT shu maydon bilan qabul qilinadi.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  customerId?: number;
 }
 
 export class ListSessionsQueryDto {

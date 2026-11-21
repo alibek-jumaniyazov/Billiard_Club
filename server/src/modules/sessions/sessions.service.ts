@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
 import { clubTimezone, parseDateParts, zonedMidnight } from '../../common/time/club-day';
+import { clampOfflineAt } from '../../common/time/offline-at';
 import { Customer } from '../../entities/customer.entity';
 import { Debt } from '../../entities/debt.entity';
 import {
@@ -64,13 +65,6 @@ const PAYMENT_DRIFT_SECONDS = 900;
  * qilish demakdir, shuning uchun admin/superadmin talab qilinadi.
  */
 const CASHIER_CANCEL_MAX_SECONDS = 600;
-
-/**
- * Oflayn navbatdan kelgan vaqt muhri eng ko'pi bilan shuncha orqada bo'lishi
- * mumkin (24 soat). Oflayn navbat bir smenadan uzoq kutmaydi; undan eskisi
- * xato yoki suiiste'mol belgisi, shuning uchun chegaraga kesiladi.
- */
-const OFFLINE_MAX_BACKDATE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Oflayn hisob-kitobda olingan pul server hisobidan farq qilganda tuzatish
@@ -303,34 +297,10 @@ export class SessionsService {
    * "eski sessiyani naqd to'landi deb yopish" xatti-harakati olib tashlandi:
    * u yig'ilmagan pulni kassaga yozar va rol nazoratini chetlab o'tardi).
    * Poyga holatlaridan stol qatori qulfi + DB partial unique indeks himoya qiladi.
-   */
-  /**
-   * Oflayn vaqt muhrini XAVFSIZ oraliqqa keltirish.
    *
-   * Qiymat klientdan keladi, shuning uchun unga ko'r-ko'rona ishonilmaydi:
-   *  - kelajakdagi vaqt — hozirgi vaqtga kesiladi (kelajakka yozib qo'yib
-   *    bo'lmaydi);
-   *  - juda eski vaqt (24 soatdan orqada) — chegaraga kesiladi; bu oflayn
-   *    navbat uchun yetarlicha keng, lekin "o'tgan oy" deb yozishga yo'l qo'ymaydi;
-   *  - berilmagan yoki buzuq bo'lsa — hozirgi vaqt ishlatiladi.
-   *
-   * @returns [vaqt, kesilganmi] — kesilgan holat audit yozuviga tushadi
+   * Oflayn vaqt muhri (`offlineAt`) barcha amallarda bitta qoida bilan
+   * chegaralanadi — common/time/offline-at.ts: clampOfflineAt.
    */
-  private clampOfflineAt(raw: string | undefined, floor?: Date): [Date, boolean] {
-    const now = new Date();
-    if (!raw) return [now, false];
-
-    const parsed = Date.parse(raw);
-    if (Number.isNaN(parsed)) return [now, true];
-
-    const earliest = Math.max(
-      now.getTime() - OFFLINE_MAX_BACKDATE_MS,
-      floor ? new Date(floor).getTime() : 0,
-    );
-    const clamped = Math.min(Math.max(parsed, earliest), now.getTime());
-    return [new Date(clamped), clamped !== parsed];
-  }
-
   async start(clubId: number, user: User, dto: StartSessionDto) {
     const result = await this.dataSource.transaction(async (manager) => {
       const table = await manager.findOne(Table, {
@@ -373,7 +343,7 @@ export class SessionsService {
       // OFLAYN: o'yin internetsiz boshlangan bo'lsa HAQIQIY boshlanish vaqti
       // klientdan keladi (chegaralangan — clampOfflineAt izohiga qarang).
       // Bo'lmasa avvalgidek server vaqti ishlatiladi.
-      const [startTime, startClamped] = this.clampOfflineAt(dto.offlineAt);
+      const [startTime, startClamped] = clampOfflineAt(dto.offlineAt);
       // Kesilgan qiymat — kutilmagan holat (klient soati juda noto'g'ri yoki
       // navbat 24 soatdan ko'p kutgan). Pulga ta'sir qilgani uchun iz qoldiramiz.
       if (startClamped) {
@@ -447,7 +417,7 @@ export class SessionsService {
       // OFLAYN: pauza internetsiz bosilgan bo'lsa HAQIQIY vaqti klientdan
       // keladi. Aks holda navbat yuborilgan payt yozilib, oflayn o'tgan pauza
       // vaqti mijozga hisoblanib ketardi. Quyi chegara — sessiya boshlanishi.
-      const [pausedAt] = this.clampOfflineAt(dto.offlineAt, session.startTime);
+      const [pausedAt] = clampOfflineAt(dto.offlineAt, session.startTime);
       await manager.update(Session, id, {
         status: SessionStatus.PAUSED,
         pausedAt,
@@ -488,8 +458,18 @@ export class SessionsService {
    * O'yin vaqti cheklovini o'zgartirish: belgilangan vaqt ("+30 daqiqa"),
    * summa limiti yoki cheklovni olib tashlash (UpdatePlanDto izohiga qarang).
    * Pulga ta'sir qilmaydi — faqat ogohlantirish chegarasi.
+   *
+   * OFLAYN (`offlineAt` bor): kassir qiymatni internetsiz paytda kiritgan va
+   * narxga bog'liq tekshiruvlar (5 daqiqa / 24 soat, bepul stol) o'sha payt
+   * kassir ekranidagi narx bo'yicha bajarilgan. Server ularni qayta RAD
+   * ETMAYDI va qiymatni o'zgartirmaydi: narx farqi faqat boshqa kassada
+   * parallel ko'chirishdan chiqadi, rad javobi esa navbatda shu o'yinning
+   * keyingi (pulli) amallarini — masalan hisob-kitobni — to'xtatib qo'yardi.
+   * Limit pulga ta'sir qilmaydi, shuning uchun kassir kiritgani aynan yoziladi.
+   * Shakl tekshiruvi (musbat summa, vaqt yoki limit — bittasi) o'z kuchida.
    */
   async updatePlan(clubId: number, id: number, dto: UpdatePlanDto) {
+    const offline = dto.offlineAt !== undefined;
     return this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status !== SessionStatus.ACTIVE && session.status !== SessionStatus.PAUSED) {
@@ -502,6 +482,8 @@ export class SessionsService {
       let limitAmount: number | null = null;
       if (dto.limitAmount != null) {
         limitAmount = round2(dto.limitAmount);
+      }
+      if (limitAmount !== null && !offline) {
         // JORIY narx: ochiq segment (transferdan keyin — yangi stol narxi);
         // segmentlarsiz eski sessiyada muhrlangan narx, u ham bo'lmasa stol narxi
         const openSegment = await manager.findOne(SessionSegment, {
@@ -535,7 +517,7 @@ export class SessionsService {
       // OFLAYN: davom ettirish vaqti ham klientdan kelishi mumkin — aks holda
       // pauza navbat yuborilgunicha davom etgan hisoblanib, mijozdan KAM pul
       // olinardi. Quyi chegara — pauza boshlangan payt (manfiy davomiylik yo'q).
-      const [resumedAt] = this.clampOfflineAt(dto.offlineAt, session.pausedAt);
+      const [resumedAt] = clampOfflineAt(dto.offlineAt, session.pausedAt);
       const pausedDuration = Math.max(
         0,
         resumedAt.getTime() - new Date(session.pausedAt).getTime(),
@@ -568,15 +550,32 @@ export class SessionsService {
    * Tranzaksiya ichida: sessiya qulfi -> ikkala stol id O'SISH TARTIBIDA qulflanadi
    * (parallel transferlar deadlock bo'lmasligi uchun). Joriy segment yopiladi,
    * yangi stolning JORIY narxida yangi segment ochiladi.
+   *
+   * OFLAYN (`offlineAt` bor) — ko'chirish internetsiz paytda bosilgan:
+   *  - segment AYNAN o'sha paytda bo'linadi: natija o'sha paytda bajarilgan
+   *    onlayn ko'chirish bilan bir xil (eski stol narxi — o'sha paytgacha,
+   *    yangi stol narxi — o'sha paytdan). Vaqt clampOfflineAt bilan
+   *    chegaralanadi; quyi chegara — sessiya va joriy (ochiq) segment boshlanishi;
+   *  - `fromTableId` mos kelmasa (o'yin oraliqda boshqa kassada ko'chirilgan)
+   *    RAD ETILADI — eskirgan ko'chirish vaqtni noto'g'ri stol narxida bo'lardi;
+   *  - sessiya hozir pauzada bo'lsa: pauza ko'chirish paytidan KEYIN boshlangan
+   *    bo'lsagina qabul qilinadi (u to'liq yangi segmentga tegishli — invariant
+   *    buzilmaydi), aks holda onlayn kabi rad etiladi.
+   * Rad javoblari 400 — navbat ularni vaqtinchalik deb qayta urmaydi, kassirga
+   * darhol "xato" bo'lib ko'rinadi.
    */
-  async transfer(clubId: number, id: number, dto: TransferSessionDto) {
-    const result = await this.dataSource.transaction(async (manager) => {
+  async transfer(clubId: number, id: number, dto: TransferSessionDto, user?: User) {
+    const offline = dto.offlineAt !== undefined;
+    const { data: result, offlineApplied } = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
-      if (session.status === SessionStatus.PAUSED) {
+      if (!offline && session.status === SessionStatus.PAUSED) {
         throw new BadRequestException({ key: 'sessions.transferWhilePaused' });
       }
-      if (session.status !== SessionStatus.ACTIVE) {
+      if (session.status !== SessionStatus.ACTIVE && session.status !== SessionStatus.PAUSED) {
         throw new BadRequestException({ key: 'sessions.alreadyEnded' });
+      }
+      if (dto.fromTableId !== undefined && dto.fromTableId !== session.tableId) {
+        throw new BadRequestException({ key: 'sessions.transferConflict' });
       }
       if (dto.tableId === session.tableId) {
         throw new BadRequestException({ key: 'sessions.transferSameTable' });
@@ -609,22 +608,44 @@ export class SessionsService {
         throw new BadRequestException({ key: 'sessions.tableBusy' });
       }
 
-      const now = new Date();
-
-      // Joriy ochiq segmentni yopamiz; legacy sessiyada (segmentlarsiz)
-      // birinchi segmentni retrospektiv yaratamiz — hisob uzluksiz qoladi
       const openSegment = await manager.findOne(SessionSegment, {
         where: { sessionId: session.id, endedAt: IsNull() },
       });
+
+      // Bo'linish payti: onlayn — hozir; oflayn — kassada bosilgan payt
+      // (joriy segment boshlanishidan oldin bo'la olmaydi)
+      let at = new Date();
+      let offlineApplied: { at: Date; clamped: boolean; fromTableId: number } | null = null;
+      if (offline) {
+        const floorMs = Math.max(
+          new Date(session.startTime).getTime(),
+          openSegment ? new Date(openSegment.startedAt).getTime() : 0,
+        );
+        const [offlineAt, clamped] = clampOfflineAt(dto.offlineAt, new Date(floorMs));
+        at = offlineAt;
+        offlineApplied = { at, clamped, fromTableId: session.tableId };
+      }
+      if (session.status === SessionStatus.PAUSED) {
+        // Faqat oflaynda shu yerga yetadi: pauza ko'chirishdan KEYIN boshlangan
+        // bo'lsa u butunlay yangi segmentga tegishli (resume uni ochiq segmentga
+        // qo'shadi). Ko'chirishdan oldin boshlangan pauza chegaradan oshardi.
+        const pausedAtMs = session.pausedAt ? new Date(session.pausedAt).getTime() : NaN;
+        if (!(pausedAtMs >= at.getTime())) {
+          throw new BadRequestException({ key: 'sessions.transferWhilePaused' });
+        }
+      }
+
+      // Joriy ochiq segmentni yopamiz; legacy sessiyada (segmentlarsiz)
+      // birinchi segmentni retrospektiv yaratamiz — hisob uzluksiz qoladi
       if (openSegment) {
-        await manager.update(SessionSegment, openSegment.id, { endedAt: now });
+        await manager.update(SessionSegment, openSegment.id, { endedAt: at });
       } else {
         await manager.save(SessionSegment, {
           sessionId: session.id,
           tableId: session.tableId,
           pricePerHour: session.pricePerHour ?? oldTable?.pricePerHour ?? 0,
           startedAt: session.startTime,
-          endedAt: now,
+          endedAt: at,
           // Shu paytgacha yig'ilgan pauzalar to'liq shu segmentga tegishli
           pausedMs: session.totalPausedMs,
         });
@@ -635,7 +656,7 @@ export class SessionsService {
         sessionId: session.id,
         tableId: newTable.id,
         pricePerHour: newTable.pricePerHour,
-        startedAt: now,
+        startedAt: at,
         endedAt: null,
         pausedMs: 0,
       });
@@ -663,8 +684,28 @@ export class SessionsService {
         relations: { table: true, segments: true },
         order: { segments: { startedAt: 'ASC', id: 'ASC' } },
       });
-      return { ...fresh!, serverNow: new Date().toISOString() };
+      return { data: { ...fresh!, serverNow: new Date().toISOString() }, offlineApplied };
     });
+
+    // Oflayn ko'chirish jurnalga: kechikib kelgan va o'tmish vaqtida bo'lingan
+    // hisob (narx farqi pulga ta'sir qiladi) egaga izlanadigan bo'lsin
+    if (offlineApplied) {
+      this.auditService?.log({
+        action: 'session.offline_transfer',
+        clubId,
+        userId: user?.id ?? null,
+        actorRole: user?.role ?? null,
+        entity: 'session',
+        entityId: result.id,
+        meta: {
+          requested: dto.offlineAt ?? null,
+          applied: offlineApplied.at.toISOString(),
+          clamped: offlineApplied.clamped,
+          fromTableId: offlineApplied.fromTableId,
+          toTableId: result.tableId,
+        },
+      });
+    }
 
     // Chiroq — fire-and-forget; xato sessiyani buzmaydi. Transferda IKKALA stol
     // moslashtiriladi: eskisi endigina yopilgan segmentdan olinadi (oxirgidan
@@ -701,7 +742,11 @@ export class SessionsService {
      *  - bar yoki to'lov summasi server hisobidan farq qilsa RAD ETILMAYDI
      *    (rad etish olingan pulni "yo'q" qilmaydi, faqat navbatni to'xtatadi):
      *    haqiqatda olingan summa yoziladi, farq tuzatish sifatida muhrlanadi
-     *    va audit jurnali + o'yinlar tarixida admin'ga ko'rinadi.
+     *    va audit jurnali + o'yinlar tarixida admin'ga ko'rinadi;
+     *  - `payments` (bo'sh bo'lsa ham) — kassada HAQIQATDA olingan pul ro'yxati;
+     *  - qarz FAQAT ro'yxatdagi mijozga (`customerId`) yoziladi va mijoz shu
+     *    yerda QAYTA tekshiriladi: topilmasa amal 400 bilan rad etiladi —
+     *    navbatda "xato" bo'lib ko'rinadi, jimgina yo'qolmaydi.
      * Onlayn oqim (offlineAt yo'q) avvalgidek: 409 va paymentsMismatch himoyasi.
      */
     const offline = dto.offlineAt !== undefined;
@@ -732,7 +777,7 @@ export class SessionsService {
         ...segments.map((s) => new Date(s.startedAt).getTime()),
       );
       const [endTime, endClamped] = offline
-        ? this.clampOfflineAt(dto.offlineAt, new Date(floorMs))
+        ? clampOfflineAt(dto.offlineAt, new Date(floorMs))
         : [new Date(), false];
       const currentPauseMs =
         session.status === SessionStatus.PAUSED && session.pausedAt
@@ -823,11 +868,36 @@ export class SessionsService {
       const isDebt = dto.isDebt === true;
       let totalDebt = 0;
       let debtRecord: Debt | null = null;
-      const customerName = dto.customerName?.trim() || session.customerName;
+      let customerName = dto.customerName?.trim() || session.customerName;
       // Telefon KANONIK ko'rinishda: customers jadvalidagi kalit bilan bir xil
       // bo'lmasa mijoz profilidagi "sarflagan puli"/"ochiq qarzi" 0 bo'lib qolardi
-      const customerPhone = normalizePhone(dto.customerPhone) ?? normalizePhone(session.customerPhone);
-      const customerId = await this.linkCustomer(manager, clubId, customerName, customerPhone);
+      let customerPhone = normalizePhone(dto.customerPhone) ?? normalizePhone(session.customerPhone);
+      let customerId: number | null = null;
+
+      /**
+       * RO'YXATDAGI MIJOZ (`customerId`) — kassir mijozni ro'yxatdan tanlagan
+       * (oflaynda — kassadagi keshdan). Server uni QAYTA tekshiradi: keshdagi
+       * mijoz oraliqda o'chirilgan bo'lishi mumkin. Qarz yozilayotganda
+       * topilmasa — rad etiladi (qarz egasiz qolmasin); qarzsiz hisob-kitobda
+       * esa bog'lash shunchaki telefon bo'yicha davom etadi (pul oqimi to'xtamaydi).
+       * Ism va telefon ro'yxatdagi yozuvdan olinadi — eng ishonchli manba.
+       */
+      const listed = dto.customerId !== undefined
+        ? await manager.findOne(Customer, { where: { id: dto.customerId, clubId } })
+        : null;
+      if (listed) {
+        customerName = listed.name;
+        customerPhone = listed.phone;
+        customerId = listed.id;
+      } else if (dto.customerId !== undefined && isDebt) {
+        throw new BadRequestException({ key: 'sessions.debtCustomerNotFound' });
+      } else if (offline && isDebt) {
+        // Internetsiz qarz faqat ro'yxatdagi mijozga: erkin yozilgan ism bilan
+        // yozilgan qarzni keyin undirib bo'lmasligi mumkin (kim ekani noma'lum)
+        throw new BadRequestException({ key: 'sessions.offlineDebtNeedsCustomer' });
+      } else {
+        customerId = await this.linkCustomer(manager, clubId, customerName, customerPhone);
+      }
 
       if (isDebt) {
         if (!customerName) {
@@ -856,18 +926,30 @@ export class SessionsService {
             remainingDebt: totalDebt,
             description: dto.notes ?? null,
             isPaid: false,
+            // Oflayn hisob-kitob: qarz kassada "Yakunlash" bosilgan paytga yoziladi
+            ...(offline ? { createdAt: endTime } : {}),
           });
         }
       }
 
       let paidNow = round2(totalAmount - totalDebt);
 
-      // Bo'lib to'lash: BO'SH ro'yxat berilmagani kabi qabul qilinadi (100% qarz holati);
-      // berilsa yig'indi hozir to'lanadigan summaga teng bo'lishi shart
+      /**
+       * Bo'lib to'lash / olingan pul ro'yxati.
+       *  - ONLAYN: BO'SH ro'yxat berilmagani kabi qabul qilinadi (100% qarz holati);
+       *    berilsa yig'indi hozir to'lanadigan summaga teng bo'lishi shart.
+       *  - OFLAYN: ro'yxat (BO'SH bo'lsa ham) — kassada HAQIQATDA olingan pul.
+       *    Bo'sh ro'yxat = "hech narsa olinmadi" (to'liq chegirma, 100% qarz,
+       *    bepul stol). Avval u onlayn kabi "berilmagan" deb o'qilardi va server
+       *    o'zi hisoblagan summani NAQD OLINGAN deb yozardi: masalan to'liq
+       *    chegirmadan keyin boshqa kassada bar qo'shilgan bo'lsa, kassaga
+       *    tushmagan pul tushum bo'lib ketar va farq belgilanmasdi.
+       */
       let payments: Array<{ method: PaymentMethod; amount: number }>;
       let paymentMethod: PaymentMethod;
-      if (dto.payments && dto.payments.length > 0) {
-        payments = dto.payments.map((p) => ({ method: p.method, amount: round2(p.amount) }));
+      const collectedList = dto.payments !== undefined && (dto.payments.length > 0 || offline);
+      if (collectedList) {
+        payments = (dto.payments ?? []).map((p) => ({ method: p.method, amount: round2(p.amount) }));
         const paymentsSum = round2(payments.reduce((sum, p) => sum + p.amount, 0));
         const diff = round2(paidNow - paymentsSum);
         // Hisob O'SGAN holat (diff > 0): farq oynadan kichik bo'lsa eng yirik
@@ -879,10 +961,16 @@ export class SessionsService {
         const driftAllowance = round2(
           (this.maxPricePerHour(segments, session) * PAYMENT_DRIFT_SECONDS) / 3600 + 0.01,
         );
+        // Bo'sh ro'yxatda farqni singdiradigan to'lov satri YO'Q: server
+        // hisobida to'lanadigan summa chiqsa, u olinmagan pul — farq sifatida
+        // belgilanadi (diff >= 0, chunki paidNow manfiy bo'lmaydi)
+        const outOfRange = payments.length === 0
+          ? diff !== 0
+          : diff < -0.01 || diff > driftAllowance;
         // OFLAYN: kassa vaqti oflayn muhrga teng, ya'ni farq faqat boshqa
         // terminaldagi o'zgarish (bar, bekor qilingan buyurtma) yoki kesilgan
         // vaqtdan bo'ladi. Pul allaqachon olingan — yoziladi, farq muhrlanadi.
-        if (offline && (diff < -0.01 || diff > driftAllowance)) {
+        if (offline && outOfRange) {
           offlineMismatch = {
             expected: paidNow,
             collected: paymentsSum,
@@ -892,11 +980,12 @@ export class SessionsService {
           adjustmentReason = [adjustmentReason, OFFLINE_MISMATCH_REASON].filter(Boolean).join(' · ');
           totalAmount = round2(totalAmount + offlineMismatch.difference);
           paidNow = paymentsSum;
-        } else if (diff < -0.01 || diff > driftAllowance) {
+        } else if (outOfRange) {
           throw new BadRequestException({ key: 'sessions.paymentsMismatch' });
         }
-        // Oflayn farq yuqorida summaning o'ziga yozildi — to'lov satrlari o'zgarmaydi
-        if (diff !== 0 && !offlineMismatch) {
+        // Oflayn farq yuqorida summaning o'ziga yozildi — to'lov satrlari o'zgarmaydi.
+        // (Bo'sh ro'yxatda diff !== 0 har doim farq sifatida yuqorida tushadi.)
+        if (diff !== 0 && !offlineMismatch && payments.length > 0) {
           let largest = 0;
           for (let i = 1; i < payments.length; i++) {
             if (payments[i].amount > payments[largest].amount) largest = i;
@@ -905,12 +994,17 @@ export class SessionsService {
           if (adjusted < 0) throw new BadRequestException({ key: 'sessions.paymentsMismatch' });
           payments[largest] = { ...payments[largest], amount: adjusted };
         }
-        // Orqaga moslik: Sale.paymentMethod = eng katta ulushli usul
-        const sumByMethod = new Map<PaymentMethod, number>();
-        for (const p of payments) {
-          sumByMethod.set(p.method, round2((sumByMethod.get(p.method) ?? 0) + p.amount));
+        if (payments.length > 0) {
+          // Orqaga moslik: Sale.paymentMethod = eng katta ulushli usul
+          const sumByMethod = new Map<PaymentMethod, number>();
+          for (const p of payments) {
+            sumByMethod.set(p.method, round2((sumByMethod.get(p.method) ?? 0) + p.amount));
+          }
+          paymentMethod = [...sumByMethod.entries()].sort((a, b) => b[1] - a[1])[0][0];
+        } else {
+          // Hech narsa olinmagan (oflayn) — sotuv yozuvidagi usul shunchaki standart
+          paymentMethod = dto.paymentMethod ?? PaymentMethod.CASH;
         }
-        paymentMethod = [...sumByMethod.entries()].sort((a, b) => b[1] - a[1])[0][0];
       } else {
         paymentMethod = dto.paymentMethod ?? PaymentMethod.CASH;
         payments = paidNow > 0 ? [{ method: paymentMethod, amount: paidNow }] : [];
@@ -940,6 +1034,14 @@ export class SessionsService {
         await manager.update(Table, table.id, { status: TableStatus.FREE });
       }
 
+      /**
+       * Oflayn hisob-kitob: pul kassada "Yakunlash" bosilgan paytda olingan.
+       * Sotuv va to'lov yozuvlari ham O'SHA vaqt bilan yoziladi — aks holda
+       * kechasi uzilgan internet tiklanganda tushum keyingi kunga yoki boshqa
+       * smenaga (hisobotlar createdAt bo'yicha yig'adi) tushib qolardi.
+       */
+      const paidAt = offline ? { createdAt: endTime } : {};
+
       // Hisob-kitob yozuvi: haqiqatda hozir olingan pul
       const sale = await manager.save(Sale, {
         clubId,
@@ -951,6 +1053,7 @@ export class SessionsService {
         paymentMethod,
         discount,
         notes: dto.notes ?? null,
+        ...paidAt,
       });
 
       // Bo'lib to'lash yozuvlari (bitta usulda ham bitta yozuv yoziladi)
@@ -962,6 +1065,7 @@ export class SessionsService {
           saleId: sale.id,
           method: p.method,
           amount: p.amount,
+          ...paidAt,
         });
       }
 
@@ -1002,6 +1106,10 @@ export class SessionsService {
           applied: result.endTime,
           clamped: result.endClamped,
           mismatch: result.offlineMismatch,
+          // Internetsiz yozilgan qarz — kimga va qancha (keyin izlash uchun)
+          ...(result.totalDebt > 0
+            ? { debt: result.totalDebt, debtId: result.debtId, customerId: dto.customerId ?? null }
+            : {}),
         },
       });
     }
@@ -1061,9 +1169,16 @@ export class SessionsService {
    *  - kassir faqat ADASHIB boshlangan sessiyani bekor qila oladi (bar
    *    buyurtmasi yo'q va {CASHIER_CANCEL_MAX_SECONDS} soniyadan qisqa),
    *    undan kattasi uchun admin/superadmin talab qilinadi.
+   *
+   * OFLAYN (`offlineAt` bor): "Bekor qilish" internetsiz paytda bosilgan.
+   * O'yin AYNAN o'sha paytda to'xtagan hisoblanadi — yakun vaqti, o'chirilgan
+   * summa (audit) va kassir chegarasi shu payt bo'yicha (navbat necha soat
+   * kechiksa ham natija bir xil). Vaqt clampOfflineAt bilan chegaralanadi.
    */
   async cancel(clubId: number, user: User, id: number, dto: CancelSessionDto = {}) {
     const isManager = user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN;
+    const offline = dto.offlineAt !== undefined;
+    let endClamped = false;
     const result = await this.dataSource.transaction(async (manager) => {
       const session = await this.lockSession(manager, clubId, id);
       if (session.status !== SessionStatus.ACTIVE && session.status !== SessionStatus.PAUSED) {
@@ -1075,18 +1190,30 @@ export class SessionsService {
         lock: { mode: 'pessimistic_write' },
       });
 
-      const endTime = new Date();
-      const currentPauseMs =
-        session.status === SessionStatus.PAUSED && session.pausedAt
-          ? Math.max(0, endTime.getTime() - new Date(session.pausedAt).getTime())
-          : 0;
-
       // NOLGA TUSHIRILAYOTGAN summani AVVAL hisoblaymiz — audit jurnaliga
-      // "qancha pul o'chirildi" deb yozish va rol chegarasini tekshirish uchun
+      // "qancha pul o'chirildi" deb yozish va rol chegarasini tekshirish uchun.
+      // Segmentlar vaqtdan OLDIN o'qiladi: oflayn yakun oxirgi segment
+      // (ko'chirish) boshlanishidan oldin bo'la olmaydi
       const segments = await manager.find(SessionSegment, {
         where: { sessionId: session.id },
         order: { startedAt: 'ASC', id: 'ASC' },
       });
+
+      let endTime = new Date();
+      if (offline) {
+        const floorMs = Math.max(
+          new Date(session.startTime).getTime(),
+          session.status === SessionStatus.PAUSED && session.pausedAt
+            ? new Date(session.pausedAt).getTime()
+            : 0,
+          ...segments.map((s) => new Date(s.startedAt).getTime()),
+        );
+        [endTime, endClamped] = clampOfflineAt(dto.offlineAt, new Date(floorMs));
+      }
+      const currentPauseMs =
+        session.status === SessionStatus.PAUSED && session.pausedAt
+          ? Math.max(0, endTime.getTime() - new Date(session.pausedAt).getTime())
+          : 0;
       const totalPausedMs = session.totalPausedMs + currentPauseMs;
       const voidedSeconds = Math.floor(
         Math.max(0, endTime.getTime() - new Date(session.startTime).getTime() - totalPausedMs) /
@@ -1098,8 +1225,13 @@ export class SessionsService {
           : round2(((session.pricePerHour ?? 0) * voidedSeconds) / 3600);
       const voidedBarAmount = round2(orders.reduce((sum, o) => sum + o.totalAmount, 0));
 
-      // Kassir faqat adashib boshlangan (qisqa va barsiz) sessiyani bekor qiladi
+      // Kassir faqat adashib boshlangan (qisqa va barsiz) sessiyani bekor qiladi.
+      // OFLAYN amalda 400: navbat 401/403 ni VAQTINCHALIK (token muddati) deb
+      // qayta-qayta yuboradi — biznes qoidasi rad etgani esa darhol va aniq
+      // sababi bilan "xato" bo'lib ko'rinishi kerak (masalan boshqa kassada bar
+      // qo'shilgan o'yinni kassir internetsiz bekor qilgan bo'lsa)
       if (!isManager && (voidedBarAmount > 0 || voidedSeconds > CASHIER_CANCEL_MAX_SECONDS)) {
+        if (offline) throw new BadRequestException({ key: 'sessions.cancelNeedsAdmin' });
         throw new ForbiddenException({ key: 'sessions.cancelNeedsAdmin' });
       }
 
@@ -1161,7 +1293,8 @@ export class SessionsService {
     });
 
     // Bekor qilish HAR DOIM audit jurnaliga tushadi: kim, qaysi sessiyani,
-    // qancha summani va nima sababdan o'chirgani egaga ko'rinadigan bo'lsin
+    // qancha summani va nima sababdan o'chirgani egaga ko'rinadigan bo'lsin.
+    // Oflayn bekor qilishda — qachon bosilgani va navbatdan qachon kelgani ham
     this.auditService?.log({
       action: 'session.cancel',
       clubId,
@@ -1169,7 +1302,19 @@ export class SessionsService {
       actorRole: user.role,
       entity: 'session',
       entityId: id,
-      meta: { ...result.voided, reason: dto.reason?.trim() || null },
+      meta: {
+        ...result.voided,
+        reason: dto.reason?.trim() || null,
+        ...(offline
+          ? {
+              offline: {
+                requested: dto.offlineAt ?? null,
+                applied: result.endTime ? new Date(result.endTime).toISOString() : null,
+                clamped: endClamped,
+              },
+            }
+          : {}),
+      },
     });
 
     // Chiroq — fire-and-forget; xato sessiyani buzmaydi

@@ -9,9 +9,15 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { OfflineStampDto } from '../../../common/offline/offline-at';
 import { ReservationStatus } from '../../../entities/enums';
 
-export class CreateReservationDto {
+/**
+ * `offlineAt` (OfflineStampDto) — bron internetsiz paytda kiritilgan HAQIQIY
+ * vaqt. Berilsa amal "oflayn navbatdan" deb qaraladi: vaqt to'qnashuvi
+ * ogohlantirish emas, RAD ETISH bo'ladi (reservations.service.ts: create).
+ */
+export class CreateReservationDto extends OfflineStampDto {
   @IsInt()
   @Type(() => Number)
   tableId: number;
@@ -49,7 +55,8 @@ export class CreateReservationDto {
   notes?: string;
 }
 
-export class UpdateReservationDto {
+/** `offlineAt` — holat o'tishi (tasdiqlash/o'tirdi/kelmadi) oflayn bosilgan payt */
+export class UpdateReservationDto extends OfflineStampDto {
   @IsOptional()
   @IsInt()
   @Type(() => Number)

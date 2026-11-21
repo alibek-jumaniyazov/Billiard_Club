@@ -19,6 +19,84 @@
 
 ---
 
+## 0.1 Yangi: kassa kompyuteri — chiroq markazi (internetsiz ishlaydi)
+
+**Qisqasi:** relelarga buyruqni endi kassadagi **Billiard Club kompyuter dasturi** o'zi beradi.
+Internet uzilsa, Wi‑Fi (internet) obunasi tugasa yoki server javob bermasa ham chiroqlar
+o'yinga mos yonib-o'chaveradi — **24 soatgacha**. Aloqa tiklangach barcha natijalar serverga yuboriladi.
+
+### Qanday ishlaydi
+
+```
+ Kassir (dastur oynasi) ──► o'yin boshlandi/pauza/yakun (oflayn navbatga ham yoziladi)
+          │                                   │
+          ▼                                   ▼
+  Chiroq markazi (shu kompyuter) ◄──── server (internet bo'lsa: holat, qoidalar)
+          │   qoidalarni O'ZI hisoblaydi: o'yin, pauza, kechikish, bron oldidan yoqish,
+          │   qo'lda boshqaruv, 24 soatlik chegara
+          ▼
+  Relelar: Wi‑Fi (Tuya, Sonoff, Shelly, Tasmota, ESPHome) · Ethernet/RS485 (Modbus) · USB platalar
+```
+
+- Markaz serverdan stollar holatini va klub qoidalarini oladi, ularni diskda shifrlangan holda saqlaydi.
+- Internet yo'q paytda kassadagi har bir amal (o'yin boshlash, pauza, yakunlash, ko'chirish) markazga
+  darhol uzatiladi — chiroq serverni kutmasdan o'zgaradi.
+- Ma'lumot 24 soatdan eskirsa, markaz relelarga yangi buyruq bermaydi (eskirgan holat bilan chiroqni
+  "boshqarib" yubormaslik uchun) va oynada ogohlantirish chiqadi.
+- Kompyuter qayta yoqilsa dastur o'zi ishga tushadi va oyna yopiq bo'lsa ham soat yonidagi belgida
+  ishlab turadi.
+- Markazni yoqish: **Stollar → Chiroq boshqaruvi → Ulash → «Chiroq markazini yoqish»**. Token ekranga
+  chiqmaydi — u faqat Windows shifrlash xizmati (DPAPI) bilan shu kompyuterda saqlanadi.
+
+> **Muhim:** "internetsiz" degani — klub ichidagi lokal tarmoq (router) ishlab turibdi degani. Router
+> o'chsa Wi‑Fi relelarga ham, Ethernet relelarga ham yetib bo'lmaydi. Shuning uchun router va kassa
+> kompyuteriga **UPS** tavsiya etiladi. USB va RS485 platalar router ishlamasa ham ishlaydi.
+
+### Chiroq oynasi (to'rt bo'lim)
+
+| Bo'lim | Nima uchun |
+|---|---|
+| **Holat** | Kim boshqaryapti (shu kompyuter / agent / server), har stol chirog'i, qo'lda yoqish/o'chirish, hammasini birdan boshqarish. Internet yo'q bo'lsa ham shu kompyuterdagi markaz orqali ishlaydi. |
+| **Ulash** | Boshqaruv usuli, chiroq markazi, **qurilma qo'shish ustasi**, tarmoqdan qidirish, alohida agent tokeni, stollar bo'yicha qo'lda sozlash (MQTT, HTTP, Home Assistant). |
+| **Qoidalar** | Pauzada o'chirish, o'yin tugagach kechikish, bron oldidan yoqish, qayta tekshirish oralig'i, holatni o'qib tekshirish. Qoidalar markazga ham yuboriladi. |
+| **Jurnal** | Chiroq qachon va nima sababdan o'zgargani. |
+
+### Qurilma qo'shish ustasi
+
+1. **Turi** — qaysi rele (quyidagi jadval).
+2. **Ulanish** — IP manzil, kalit/parol, COM port yoki plata ID. Qidiruvda topilgan qurilmada bu
+   maydonlar o'zi to'ladi.
+3. **Stollar** — har bir kanalga stol tanlanadi (kanallar platadagi yozuv kabi **1 dan**). «Bo'sh
+   kanallarni ketma-ket to'ldirish» bilan 8 kanalli plata bir bosishda 8 ta stolga ulanadi. Bitta stolni
+   ikki kanalga qo'ysangiz, ikkala lampa birga yonadi. Hammasi **bitta so'rov** bilan saqlanadi: bitta
+   kanal boshqa stolda band bo'lsa, hech narsa o'zgarmaydi va qaysi stol egallagani aytiladi.
+4. **Sinov** — har stol uchun «Yoqish/O'chirish» va natija (rele javobi yoki aniq xato). «Tayyor»
+   bosilganda sinalgan stollar avtomatik boshqaruvga qaytadi.
+
+| Tur | Ulanish | Internetsiz | Eslatma |
+|---|---|---|---|
+| **Tuya / Smart Life** | Wi‑Fi, IP + Device ID + Local key + versiya | Ha | Local key ni «Tuya bulutidan olish» (iot.tuya.com loyihasining Access ID/Secret) bilan bir marta olasiz. Qurilma ilovada qayta ulansa kalit o'zgaradi. Bir vaqtda faqat bitta lokal ulanish — Smart Life ilovasini LAN rejimida ochiq qoldirmang. |
+| **Sonoff (eWeLink)** | Wi‑Fi, IP; DIY rejimi yoki eWeLink LAN (Device ID + Device key) | Ha | DIY rejimini yoqish: tugmani 5 s bosib turish, `ITEAD-xxxx` tarmog'i orqali. 4CH/MINIR3 — ko'p kanalli (outlet) API. |
+| **Shelly** | Wi‑Fi, IP (Gen1 yoki Gen2+) | Ha | Parol qo'yilgan bo'lsa `login:parol`. |
+| **Tasmota** | Wi‑Fi, IP | Ha | Parol (WebPassword) bo'lsa `admin:parol` — barcha proshivkalar uchun URL va sarlavha bilan yuboriladi. |
+| **ESPHome** | Wi‑Fi, IP + switch nomi | Ha | `web_server:` komponenti yoqilgan bo'lishi kerak. |
+| **Modbus TCP / Ethernet** | IP[:502], Unit ID, coil yoki registr, Modbus TCP yoki RTU-over-TCP | Ha | Waveshare kabi platalar registr rejimida (0x0100/0x0200). |
+| **Modbus RTU (RS485)** | COM port, tezlik, juftlik, Unit ID | Ha | USB-RS485 adapter orqali; bitta shinadagi platalar navbat bilan so'raladi. |
+| **USB rele (CH340 / LCUS)** | COM port | Ha | LCUS-1/2/4/8 platalar, buyruq `A0 kanal holat summa`. |
+| **USB rele (HID, USBRelay)** | Plata ID (bitta plata bo'lsa shart emas) | Ha | Windows da drayver kerak emas. Zadig/WinUSB o'rnatmang. |
+
+### Sinash va nosozliklar
+
+- **Holat** bo'limida har stolda xato matni ko'rinadi (masalan: «qurilmaga ulanib bo'lmadi (timeout) —
+  IP manzil va tarmoqni tekshiring»).
+- IP manzil o'zgarib qolmasligi uchun routerda har bir relega **doimiy IP (DHCP reservation)** bering.
+- Wi‑Fi relelar faqat **2.4 GHz** tarmoqda ishlaydi; mehmonlar uchun "client isolation" yoqilgan
+  tarmoqqa ulamang — qidiruv va boshqaruv ishlamaydi.
+- Windows Firewall so'rasa, Billiard Club dasturiga **xususiy (Private)** tarmoqda ruxsat bering
+  (qidiruv mDNS/UDP orqali ishlaydi).
+
+---
+
 ## 1. Umumiy g'oya va oqim sxemasi
 
 ### 1.1 G'oya bir jumlada

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException, Optional } from '@n
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { resolveOfflineAt } from '../../common/offline/offline-at';
 import { Debt } from '../../entities/debt.entity';
 import { DebtPayment } from '../../entities/debt-payment.entity';
 import { PaymentMethod } from '../../entities/enums';
@@ -123,12 +124,27 @@ export class DebtsService {
    *    tushum hisobotlariga qarz undirilgan pul ham kiradi
    */
   async pay(clubId: number, user: User, debtId: number, dto: PayDebtDto) {
-    return this.dataSource.transaction(async (manager) => {
+    const { debt: paid, clamp } = await this.dataSource.transaction(async (manager) => {
       const debt = await manager.findOne(Debt, {
         where: { id: debtId, clubId },
         lock: { mode: 'pessimistic_write' },
       });
       if (!debt) throw new NotFoundException({ key: 'debts.notFound' });
+
+      /**
+       * OFLAYN TO'LOV (navbatdan kelgan, `offlineAt` bor): pul internetsiz
+       * paytda ALLAQACHON olingan. To'lov o'sha paytga yoziladi — busiz u
+       * qayta yuborilgan paytdagi smenaga tushib, ikki smenada soxta farq
+       * chiqarardi. To'lov qarz yozilishidan oldin bo'la olmaydi (pastki chegara).
+       *
+       * Qolgan tekshiruvlar ONLAYN bilan AYNAN bir xil va 4xx bilan RAD ETADI:
+       * masalan oflayn paytda boshqa kassa shu qarzni to'liq yopgan bo'lsa,
+       * ikkinchi to'lov jimgina yozilmaydi — navbatda xato bo'lib turadi va
+       * kassir ortiqcha olingan pulni o'zi hal qiladi (pul hech qachon
+       * ko'rinmasdan "yutilmaydi").
+       */
+      const moment = resolveOfflineAt(dto.offlineAt, debt.createdAt);
+
       if (debt.isPaid) throw new BadRequestException({ key: 'debts.alreadyPaid' });
 
       const amount = round2(dto.amount);
@@ -150,7 +166,7 @@ export class DebtsService {
         paidAmount: newPaid,
         remainingDebt: newRemaining,
         isPaid,
-        paidAt: isPaid ? new Date() : null,
+        paidAt: isPaid ? moment.at : null,
       });
 
       // Qarz to'liq undirilgach sessiya ham "to'langan" bo'ladi: aks holda
@@ -172,10 +188,33 @@ export class DebtsService {
         userId: user.id,
         amount,
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
+        // Tushum hisobotlari va smena Z-hisoboti `createdAt` bo'yicha yig'adi —
+        // oflayn to'lov HAQIQIY olingan vaqtga yoziladi (onlaynda — hozir)
+        ...(moment.offline ? { createdAt: moment.at } : {}),
       });
 
-      return manager.findOne(Debt, { where: { id: debt.id }, relations: { session: true } });
+      return {
+        debt: await manager.findOne(Debt, { where: { id: debt.id }, relations: { session: true } }),
+        clamp: moment.clamped
+          ? { requested: dto.offlineAt ?? null, applied: moment.at.toISOString() }
+          : null,
+      };
     });
+
+    // Kesilgan muhr — kutilmagan holat (klient soati noto'g'ri). Pul vaqtiga
+    // ta'sir qilgani uchun tranzaksiya muvaffaqiyatli tugagach iz qoldiriladi.
+    if (clamp) {
+      this.auditService?.log({
+        action: 'debt.offline_time_clamped',
+        clubId,
+        userId: user.id,
+        actorRole: user.role,
+        entity: 'debt',
+        entityId: debtId,
+        meta: clamp,
+      });
+    }
+    return paid;
   }
 
   /**

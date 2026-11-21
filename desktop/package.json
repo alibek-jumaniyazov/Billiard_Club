@@ -1,20 +1,21 @@
 {
   "name": "billiardclub-desktop",
   "productName": "Billiard Club",
-  "version": "1.3.4",
+  "version": "1.4.0",
   "private": true,
   "description": "Billiard Club — klub boshqaruv tizimining desktop (Windows/macOS/Linux) qobig'i",
   "main": "main.js",
   "author": "Billiard Club",
   "license": "UNLICENSED",
   "scripts": {
-    "start": "electron .",
-    "dev": "cross-env BILLIARDCLUB_URL=http://localhost:5173 electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win",
-    "check": "node --check main.js && node --check preload.js && node --check offline.js && node --check updater.js && node --check security.js",
-    "test": "node --test test/*.test.cjs"
+    "start": "node scripts/sync-bridge.cjs && electron .",
+    "dev": "node scripts/sync-bridge.cjs && cross-env BILLIARDCLUB_URL=http://localhost:5173 electron .",
+    "pack": "node scripts/sync-bridge.cjs && electron-builder --dir",
+    "dist": "node scripts/sync-bridge.cjs && electron-builder",
+    "dist:win": "node scripts/sync-bridge.cjs && electron-builder --win",
+    "check": "node --check main.js && node --check preload.js && node --check offline.js && node --check updater.js && node --check security.js && node --check lights.js && node --check scripts/sync-bridge.cjs",
+    "test": "node --test test/*.test.cjs",
+    "sync-bridge": "node scripts/sync-bridge.cjs"
   },
   "dependencies": {
     "electron-updater": "6.8.11"
@@ -38,7 +39,9 @@
       "offline.js",
       "updater.js",
       "build/icon.*",
-      "security.js"
+      "security.js",
+      "lights.js",
+      "bridge-lib/**/*.js"
     ],
     "publish": [
       {
@@ -88,6 +91,11 @@
       "onlyLoadAppFromAsar": true,
       "enableCookieEncryption": true,
       "grantFileProtocolExtraPrivileges": false
-    }
+    },
+    "npmRebuild": false
+  },
+  "optionalDependencies": {
+    "node-hid": "3.4.0",
+    "serialport": "12.0.0"
   }
 }

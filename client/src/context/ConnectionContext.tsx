@@ -92,6 +92,12 @@ export const ConnectionProvider = ({ children }: { children: ReactNode }) => {
   // Tarmoq holati — haqiqiy so'rovlar natijasidan (net-status.ts)
   useEffect(() => onNetworkChange(setOnline), []);
 
+  // Aloqa uzildi — "oxirgi sinxronizatsiya" vaqti qayta o'qiladi: u faqat
+  // navbat o'zgarganda yangilanardi va oflayn chizig'ida eskirgan soat chiqardi
+  useEffect(() => {
+    if (!online) void reload();
+  }, [online, reload]);
+
   /**
    * Aloqa tiklandi va sessiya OFLAYN suratdan tiklangan edi — foydalanuvchi
    * va klub holatini serverdan qayta so'raymiz. Bu ikki narsani beradi:

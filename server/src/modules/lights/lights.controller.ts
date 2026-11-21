@@ -26,6 +26,7 @@ import {
   LightTestDto,
   UpdateLightSettingsDto,
   UpdateTableLightDto,
+  UpdateTableLightsBulkDto,
 } from './dto/lights.dto';
 import { LightsService, LightTableConfig } from './lights.service';
 import { RequireFeature } from '../../common/decorators/require-feature.decorator';
@@ -81,6 +82,22 @@ export class LightsController {
   ) {
     const data = await this.lightsService.updateSettings(clubId, dto);
     return { success: true, message: t(lang, 'lights.settingsUpdated'), data };
+  }
+
+  /**
+   * Bir nechta stolni bir martada sozlash (sozlash ustasi: plata kanallari -> stollar).
+   * Hammasi bitta tranzaksiyada saqlanadi.
+   */
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN)
+  @RequireFeature('lights')
+  @Put('tables')
+  async updateTables(
+    @ClubId() clubId: number,
+    @Body() dto: UpdateTableLightsBulkDto,
+    @Lang() lang: Language,
+  ) {
+    const data = await this.lightsService.updateTableDevices(clubId, dto.tables);
+    return { success: true, message: t(lang, 'lights.bulkUpdated', { count: data.length }), data };
   }
 
   /** Stolning rele sozlamalari (manzil va drayverga xos maydonlar servisda tekshiriladi) */

@@ -19,6 +19,7 @@ const device: LightDeviceState = {
   config: null, desired: true, commandRevision: 'a'.repeat(64),
 };
 const settings = { mode: LightMode.BRIDGE, verify: true, forceSyncSec: 60, offOnPause: false, offDelaySec: 0, preOnMinutes: 0 };
+const rules = { offOnPause: false, offDelaySec: 0, preOnMinutes: 0 };
 
 function harness() {
   const row = { id: 1, clubId: 7, lightState: true as boolean | null, lightError: null as string | null, lightSyncedAt: null as Date | null };
@@ -30,7 +31,7 @@ function harness() {
   const service = new LightsService({} as DataSource, repository, {} as Repository<Settings>, {} as Repository<ClubBridge>, {
     insert: async (entries: Array<Partial<TableLightEvent>>) => { events.push(...entries); },
   } as unknown as Repository<TableLightEvent>);
-  service.bridgeState = async () => ({ settings, devices: [{ ...device }], version: 'current', timeSensitive: false });
+  service.bridgeState = async () => ({ settings, devices: [{ ...device }], version: 'current', rules, timeSensitive: false });
   return { service, row, events };
 }
 
@@ -52,7 +53,7 @@ test('missing readback on a readable relay clears stale state and records verifi
 
 test('write-only command delivery remains unknown rather than a fabricated true state', async () => {
   const { service, row } = harness();
-  service.bridgeState = async () => ({ settings, devices: [{ ...device, driver: LightDriver.HTTP }], version: 'current', timeSensitive: false });
+  service.bridgeState = async () => ({ settings, devices: [{ ...device, driver: LightDriver.HTTP }], version: 'current', rules, timeSensitive: false });
   await service.applyReport(7, [{ tableId: 1, ok: true, on: true, actual: null }]);
   assert.equal(row.lightState, null);
   assert.equal(row.lightError, null);
@@ -73,7 +74,7 @@ test('obsolete revisions, opposite targets and other-club table IDs cannot overw
 
 test('a bridge report cannot update state after the club switches to OFF', async () => {
   const { service, row } = harness();
-  service.bridgeState = async () => ({ settings: { ...settings, mode: LightMode.OFF }, devices: [], version: 'off', timeSensitive: false });
+  service.bridgeState = async () => ({ settings: { ...settings, mode: LightMode.OFF }, devices: [], version: 'off', rules, timeSensitive: false });
   assert.equal(await service.applyReport(7, [{ tableId: 1, ok: true, on: true, actual: true }]), 0);
   assert.equal(row.lightSyncedAt, null);
 });

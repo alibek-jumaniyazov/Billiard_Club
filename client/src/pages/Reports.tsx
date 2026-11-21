@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -17,6 +18,7 @@ import {
   BarChartOutlined,
   CalendarOutlined,
   CoffeeOutlined,
+  DisconnectOutlined,
   DollarOutlined,
   DownloadOutlined,
   FieldTimeOutlined,
@@ -31,7 +33,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { errorMessage, reportsApi } from '../api';
+import { errorMessage, isNetworkError, reportsApi } from '../api';
 import {
   EmptyState,
   MoneyText,
@@ -42,6 +44,7 @@ import {
 } from '../components/ui';
 import { PAYMENT_METHODS } from '../constants';
 import { useCurrency } from '../context/AppSettingsContext';
+import { useConnection } from '../context/ConnectionContext';
 import { TOKENS } from '../theme/tokens';
 import type { ProductSalesRow, ProductsReport, Report, Session } from '../types';
 import { formatDuration, formatElapsed, formatNumber } from '../utils/format';
@@ -55,6 +58,14 @@ const Reports = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const currency = useCurrency();
+  const { online } = useConnection();
+
+  /**
+   * Hisobot serverga yetib bormadi (internet yo'q). Hisobotlar ATAYLAB
+   * keshlanmaydi (offline/cache.ts) — umumiy "xatolik" o'rniga kassirga
+   * aniq sabab aytiladi va aloqa tiklanganda hisobot o'zi qayta yuklanadi.
+   */
+  const [needsInternet, setNeedsInternet] = useState(false);
 
   const [reportType, setReportType] = useState<ReportType>('daily');
   const [dailyDate, setDailyDate] = useState<Dayjs>(dayjs());
@@ -112,9 +123,11 @@ const Reports = () => {
         const res = await reportsApi.get(reportType, { ...currentParams, page: p, limit: ps });
         if (isStale()) return;
         setReport(res.data);
+        setNeedsInternet(false);
       } catch (err) {
         if (isStale()) return;
-        message.error(errorMessage(err, t('common.error')));
+        if (isNetworkError(err)) setNeedsInternet(true);
+        else message.error(errorMessage(err, t('common.error')));
       } finally {
         // Eskirgan oqim yangi so'rovning yuklanish holatini o'chirmasin
         if (!isStale()) {
@@ -152,7 +165,8 @@ const Reports = () => {
       setProductsReport(res.data);
     } catch (err) {
       if (isStale()) return;
-      message.error(errorMessage(err, t('common.error')));
+      if (isNetworkError(err)) setNeedsInternet(true);
+      else message.error(errorMessage(err, t('common.error')));
     } finally {
       if (!isStale()) setProductsLoading(false);
     }
@@ -177,13 +191,28 @@ const Reports = () => {
     if (activeTab === 'products') void fetchProducts();
   };
 
+  // Aloqa tiklandi — hisobot o'zi qayta yuklanadi (internetsiz ochilmagan
+  // bo'lsa ham, uzilish paytida ekranda eskirib qolgan bo'lsa ham)
+  const refreshRef = useRef(handleRefresh);
+  refreshRef.current = handleRefresh;
+  const connectionLost = useRef(!online);
+  useEffect(() => {
+    if (!online) {
+      connectionLost.current = true;
+      return;
+    }
+    if (!connectionLost.current) return;
+    connectionLost.current = false;
+    refreshRef.current();
+  }, [online]);
+
   const handleExport = async () => {
     if (!currentParams) return;
     setExporting(true);
     try {
       await reportsApi.exportExcel(reportType, currentParams);
     } catch (err) {
-      message.error(errorMessage(err, t('common.error')));
+      message.error(isNetworkError(err) ? t('reports.offlineTitle') : errorMessage(err, t('common.error')));
     } finally {
       setExporting(false);
     }
@@ -381,6 +410,23 @@ const Reports = () => {
           </>
         }
       />
+
+      {/* Internetsiz hisobot yo'q — umumiy xato o'rniga aniq sabab */}
+      {(!online || needsInternet) && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<DisconnectOutlined />}
+          style={{ marginBottom: 16 }}
+          message={t('reports.offlineTitle')}
+          description={t('reports.offlineHint')}
+          action={
+            <Button size="small" onClick={handleRefresh} disabled={!currentParams}>
+              {t('btn.refresh')}
+            </Button>
+          }
+        />
+      )}
 
       {/* "Davr" tanlangan, lekin sana oralig'i hali berilmagan — raqamlar
           o'rniga bo'sh holat (eski davr raqamlari ko'rinib turmasin) */}

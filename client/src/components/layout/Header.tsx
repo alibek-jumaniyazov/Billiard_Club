@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { viewingClub } from '../../api/client';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useLogout } from '../../hooks/useLogout';
 import { ROLE_TAG_COLORS } from '../../constants';
 import { isAppShell } from '../../utils/appShell';
 import { TOKENS } from '../../theme/tokens';
@@ -48,7 +49,9 @@ interface HeaderProps {
 const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) => {
   const { t } = useTranslation();
   const { lang, setLang } = useAppSettings();
-  const { user, club, logout } = useAuth();
+  const { user, club } = useAuth();
+  // Yuborilmagan amallar bo'lsa yoki internet yo'q bo'lsa — avval tasdiq so'raladi
+  const logout = useLogout();
   const navigate = useNavigate();
   const screens = Grid.useBreakpoint();
 
@@ -61,12 +64,6 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
 
   // Ko'rish rejimi belgisi faqat superadminga tegishli
   const viewing = user?.role === 'superadmin' ? viewingClub.get() : null;
-
-  const handleLogout = async () => {
-    viewingClub.clear();
-    await logout();
-    navigate('/login');
-  };
 
   /**
    * Obuna tugashigacha qolgan vaqt (kun + soat) — headerda profil yonida.
@@ -259,7 +256,7 @@ const Header = ({ collapsed, onToggle, onOpenSearch, onOpenHelp }: HeaderProps) 
                   icon: <LogoutOutlined />,
                   label: t('btn.logout'),
                   danger: true,
-                  onClick: handleLogout,
+                  onClick: () => void logout(),
                 },
               ],
             }}

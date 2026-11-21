@@ -114,8 +114,12 @@ export enum LightDriver {
   MQTT = 'mqtt', // FAQAT bridge rejimida
   TCP = 'tcp', // FAQAT bridge — xom TCP baytlar
   MODBUS_TCP = 'modbus_tcp', // FAQAT bridge — FC5 write coil
-  SERIAL = 'serial', // FAQAT bridge — USB rele (COM/ttyUSB)
+  SERIAL = 'serial', // FAQAT bridge — USB rele (COM/ttyUSB), LCUS shabloni bilan
   HTTP = 'http', // umumiy URL shabloni
+  TUYA = 'tuya', // FAQAT bridge — Tuya / Smart Life (lokal protokol 3.1–3.5)
+  SONOFF = 'sonoff', // FAQAT bridge — Sonoff eWeLink LAN / DIY rejimi
+  MODBUS_RTU = 'modbus_rtu', // FAQAT bridge — RS485 (USB adapter) Modbus RTU platalar
+  USB_HID = 'usb_hid', // FAQAT bridge — "USBRelay" HID platalar (drayversiz USB)
 }
 
 /**
@@ -142,6 +146,12 @@ export const BRIDGE_ONLY_DRIVERS: LightDriver[] = [
   LightDriver.TCP,
   LightDriver.MODBUS_TCP,
   LightDriver.SERIAL,
+  // Klub tarmog'idagi chiroq markazi (agent yoki kassa kompyuteri) bajaradi:
+  // shifrlangan lokal protokollar, RS485 va USB — bulut server ularga yeta olmaydi
+  LightDriver.TUYA,
+  LightDriver.SONOFF,
+  LightDriver.MODBUS_RTU,
+  LightDriver.USB_HID,
 ];
 
 /** Klubning chiroq boshqaruv rejimi: o'chiq / lokal agent orqali / to'g'ridan-to'g'ri */

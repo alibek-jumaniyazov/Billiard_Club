@@ -1,7 +1,13 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { OfflineStampDto } from '../../../common/offline/offline-at';
 
-export class CreateCustomerDto {
+/**
+ * `offlineAt` (OfflineStampDto) — mijoz internetsiz paytda qo'shilgan HAQIQIY
+ * vaqt; berilsa so'rov oflayn navbatdan kelgan deb qaraladi
+ * (customers.service.ts: create — telefon bo'yicha birlashtirish).
+ */
+export class CreateCustomerDto extends OfflineStampDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)

@@ -1,20 +1,9 @@
 .light-control-drawer .ant-drawer-body { padding: 20px; }
-.light-readiness { border: 1px solid var(--color-border, rgba(202,164,86,.24)); border-radius: 18px; padding: 22px; background: linear-gradient(125deg, rgba(202,164,86,.1), transparent 75%); }
-.light-readiness-heading { display:flex; align-items:center; justify-content:space-between; gap: 14px; }
-.light-eyebrow { font-size: 10px; letter-spacing: .16em; font-weight: 700; color: #b89551; }
-.light-readiness-heading h3.ant-typography { margin: 5px 0 8px; font-size: 25px; }
-.light-readiness-icon { font-size: 30px; color: #b89551; }
-.light-readiness .ant-typography-secondary { font-size: 13px; margin-bottom: 18px; }
 .light-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
 .light-metrics > div { min-width:0; display:flex; flex-direction:column; gap:4px; padding: 12px; border:1px solid rgba(128,128,128,.18); border-radius: 12px; }
 .light-metrics strong { font-size: 25px; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .light-metrics small { font-size:13px; opacity:.5; font-weight:400; }
 .light-metrics span { font-size:11px; opacity:.7; overflow-wrap:anywhere; }
-.light-readiness .ant-collapse { margin-top:12px; }
-.light-readiness .ant-collapse-header { padding-left: 0 !important; }
-.light-setup-steps { display:flex; flex-direction:column; gap:16px; }
-.light-setup-steps > div { display:flex; align-items:flex-start; gap:8px; }
-.light-setup-steps p { font-size:12px; opacity:.7; line-height:1.6; margin:5px 0 0; }
 .light-setting-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
 .light-table-toolbar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
 .light-table-toolbar .ant-input-affix-wrapper { flex:1 1 200px; }
@@ -28,8 +17,6 @@
 .light-event-card > div { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
 @media (max-width: 520px) {
  .light-control-drawer .ant-drawer-body { padding:12px; }
- .light-readiness { padding:16px; }
- .light-readiness-heading h3.ant-typography { font-size:22px; }
  .light-metrics { gap:6px; }
  .light-metrics > div { padding:10px 8px; }
  .light-metrics strong { font-size:23px; }
@@ -40,4 +27,135 @@
  .light-card-actions { row-gap:12px !important; }
  .light-control-drawer .ant-select, .light-control-drawer .ant-input-number, .light-control-drawer .ant-input { max-width:100%; }
  .light-control-drawer .ant-segmented-item-label { padding-inline:8px; font-size:12px; }
+}
+
+/* ---------------------------------------------------------------- Bo'limlar */
+.light-tabs > .ant-tabs-nav { margin-bottom: 14px; }
+.light-tab-label { display:inline-flex; align-items:center; gap:6px; }
+.light-stack { display:flex; flex-direction:column; gap:14px; }
+.light-section { padding:16px; background:var(--bg1); border:1px solid var(--border-subtle); border-radius:14px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+.light-section-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.light-section-head > .ant-typography { font-size:15px; }
+.light-section-hint, .light-form-hint { display:block; font-size:12.5px; line-height:1.55; }
+.light-form-hint { font-size:12px; }
+.light-field-label { display:block; font-size:12px; margin-bottom:6px; }
+.light-popconfirm-text { display:block; max-width:300px; }
+
+/* ------------------------------------------------------------------- Holat */
+.light-board { display:flex; flex-direction:column; gap:12px; }
+.light-board .ant-alert { align-items:flex-start; }
+.light-board .ant-alert-message { overflow-wrap:anywhere; }
+.light-metrics > div.is-on strong { color:var(--gold); }
+.light-metrics > div.is-attention strong { color:var(--warning); }
+.light-master { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.light-master-duration { width:132px; }
+.light-board-hint { display:block; font-size:12px; }
+.light-board-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(232px, 1fr)); gap:10px; }
+.light-tile { position:relative; display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:12px; background:var(--bg1); border:1px solid var(--border-subtle); transition:border-color .2s, box-shadow .2s; min-width:0; }
+.light-tile.is-on { border-color:var(--gold-line); box-shadow:inset 0 0 0 1px var(--gold-subtle); }
+.light-tile.needs-attention { border-color:color-mix(in srgb, var(--warning) 55%, transparent); }
+.light-tile-head { display:flex; align-items:center; gap:10px; min-width:0; }
+.light-tile-number { width:32px; height:32px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--gold); background:var(--gold-subtle); border:1px solid var(--gold-line); }
+.light-tile-name { flex:1; min-width:0; display:flex; flex-direction:column; }
+.light-tile-sub { font-size:11.5px; color:var(--text-tertiary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.light-tile-lamp { font-size:22px; line-height:1; color:var(--text-disabled); }
+.light-tile.is-on .light-tile-lamp { color:var(--gold); filter:drop-shadow(0 0 6px var(--gold-glow)); }
+.light-tile.is-off .light-tile-lamp { color:var(--text-tertiary); }
+.light-tile-state { display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap; font-size:12.5px; }
+.light-tile-state-text { font-weight:600; }
+.light-tile.is-on .light-tile-state-text { color:var(--gold); }
+.light-tile-health { margin-inline-end:0; white-space:normal; }
+.light-tile-note { display:block; font-size:11.5px; line-height:1.45; }
+.light-tile-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.light-tile-actions .ant-btn { flex:1 1 auto; }
+
+/* ------------------------------------------------------------ Boshqaruvchi */
+.light-mode .ant-radio-group { display:flex; flex-wrap:wrap; gap:5px; }
+.light-mode .light-section-hint { margin-top:8px; }
+.light-hub { display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:12px; background:linear-gradient(125deg, var(--gold-subtle), transparent 80%); border:1px solid var(--gold-line); }
+.light-hub-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.light-hub-icon { color:var(--gold); font-size:18px; }
+.light-hub-lines { display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--text-secondary); }
+.light-hub-lines > span { display:inline-flex; align-items:center; gap:6px; }
+.light-hub-lines .is-ok { color:var(--success); }
+.light-hub-lines .is-warn { color:var(--warning); }
+.light-hub-note { display:block; font-size:12px; line-height:1.55; }
+.light-hub-action { align-self:flex-start; }
+.light-agent-collapse .ant-collapse-header { padding-inline:0 !important; }
+.light-agent-collapse .ant-collapse-content-box { padding-inline:0 !important; }
+
+/* -------------------------------------------------------------- Qurilmalar */
+.light-scan { display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:12px; background:var(--bg2); }
+.light-scan-bar { display:flex; gap:8px; flex-wrap:wrap; }
+.light-scan-subnet { width:150px; }
+.light-found-list, .light-device-list { display:flex; flex-direction:column; gap:8px; }
+.light-found { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; background:var(--bg1); border:1px solid var(--border-subtle); min-width:0; }
+.light-found-body { flex:1; min-width:0; display:flex; flex-direction:column; }
+.light-kind-icon { width:32px; height:32px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; border-radius:9px; color:var(--gold); background:var(--gold-subtle); font-size:16px; }
+.light-device { display:flex; flex-direction:column; gap:10px; padding:12px; border-radius:12px; background:var(--bg1); border:1px solid var(--border-subtle); }
+.light-device-head { display:flex; align-items:center; gap:10px; min-width:0; }
+.light-device-title { min-width:0; display:flex; flex-direction:column; }
+.light-device-channels { display:flex; flex-wrap:wrap; gap:6px; }
+.light-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:999px; font-size:12px; background:var(--bg2); border:1px solid var(--border-subtle); white-space:nowrap; }
+.light-dot { width:8px; height:8px; border-radius:50%; background:var(--text-disabled); flex-shrink:0; }
+.light-dot.is-on { background:var(--gold); box-shadow:0 0 6px var(--gold-glow); }
+.light-dot.is-off { background:var(--text-tertiary); }
+.light-dot.is-attention { background:var(--warning); }
+.light-device-actions { display:flex; gap:6px; flex-wrap:wrap; }
+
+/* -------------------------------------------------------------- Usta (modal) */
+.light-steps { margin:6px 0 18px; }
+.light-form { display:flex; flex-direction:column; gap:12px; }
+.light-form-row { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.light-form-label { font-size:12.5px; font-weight:600; color:var(--text-secondary); }
+.light-form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; }
+.light-form .ant-alert { align-items:flex-start; }
+.light-form .ant-alert-message { overflow-wrap:anywhere; }
+.light-kind-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
+.light-kind { all:unset; box-sizing:border-box; cursor:pointer; display:flex; align-items:flex-start; gap:10px; padding:12px; border-radius:12px; border:1px solid var(--border-subtle); background:var(--bg1); position:relative; transition:border-color .15s, box-shadow .15s, transform .15s; min-width:0; }
+.light-kind:hover, .light-kind:focus-visible { border-color:var(--gold-line); box-shadow:0 0 0 3px var(--gold-subtle); }
+.light-kind.is-active { border-color:var(--gold); }
+.light-kind-body { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.light-kind-body strong { font-size:13.5px; color:var(--text-primary); padding-right:46px; }
+.light-kind-body span { font-size:12px; line-height:1.45; color:var(--text-secondary); }
+.light-kind-tag { position:absolute; top:10px; right:8px; margin-inline-end:0; font-size:10.5px; }
+.light-kind-chosen { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; border-radius:12px; background:var(--gold-subtle); border:1px solid var(--gold-line); }
+.light-kind-chosen .ant-typography-secondary { flex-basis:100%; font-size:12px; }
+.light-fill { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px; border-radius:10px; background:var(--bg2); }
+.light-fill-label { flex-basis:100%; font-size:12px; }
+.light-fill-select { min-width:180px; flex:1 1 180px; }
+.light-channel-list { display:flex; flex-direction:column; gap:8px; }
+.light-channel-row { display:flex; align-items:flex-start; gap:10px; }
+.light-channel-no { width:32px; height:32px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; font-weight:700; font-variant-numeric:tabular-nums; background:var(--bg2); border:1px solid var(--border-subtle); }
+.light-channel-pick { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.light-channel-pick .ant-select { width:100%; }
+.light-inline-switch { display:flex; align-items:flex-start; gap:10px; }
+.light-inline-switch .ant-switch { margin-top:2px; }
+.light-tuya-cloud { display:flex; flex-direction:column; gap:10px; align-items:stretch; }
+.light-tuya-cloud > .ant-btn { align-self:flex-start; }
+.light-test-list { display:flex; flex-direction:column; gap:8px; }
+.light-test-row { display:flex; flex-direction:column; gap:6px; padding:10px 12px; border-radius:10px; border:1px solid var(--border-subtle); background:var(--bg1); }
+.light-test-head { display:flex; align-items:center; gap:10px; min-width:0; }
+.light-test-name { flex:1; min-width:0; display:flex; flex-direction:column; }
+.light-test-actions { display:flex; gap:6px; flex-shrink:0; }
+.light-test-result { display:inline-flex; align-items:flex-start; gap:6px; font-size:12.5px; line-height:1.5; color:var(--text-secondary); overflow-wrap:anywhere; }
+.light-test-result.is-ok { color:var(--success); }
+.light-test-result.is-info { color:var(--info); }
+.light-test-result.is-error { color:var(--error); }
+.light-test-result .anticon { margin-top:3px; }
+.light-advanced { display:flex; flex-direction:column; gap:6px; }
+
+@media (max-width: 520px) {
+ .light-section { padding:12px; }
+ .light-board-grid { grid-template-columns:1fr; }
+ .light-master > .ant-btn, .light-master > .ant-select { flex:1 1 auto; }
+ .light-tile-actions .ant-btn { min-height:36px; }
+ .light-kind-grid { grid-template-columns:1fr; }
+ .light-test-head { flex-wrap:wrap; }
+ .light-test-actions { width:100%; }
+ .light-test-actions .ant-btn { flex:1; min-height:36px; }
+ .light-steps .ant-steps-item-title { font-size:11.5px; }
+ .light-scan-subnet { flex:1 1 120px; width:auto; }
+ .light-tabs .ant-tabs-tab { padding-inline:2px; }
+ .light-tabs .ant-tabs-tab + .ant-tabs-tab { margin-left:14px; }
 }

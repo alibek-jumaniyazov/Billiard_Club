@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   Param,
@@ -82,7 +84,18 @@ export class SessionsController {
   ) {
     // Qarzga yozish — "Qarzlar daftari" imkoniyati (tarif). Superadmin tekshirilmaydi.
     if (dto.isDebt === true && club && user.role !== UserRole.SUPERADMIN) {
-      await this.tiers.assertFeature(club, 'debts');
+      try {
+        await this.tiers.assertFeature(club, 'debts');
+      } catch (err) {
+        // OFLAYN navbatdan kelgan qarz: 403 ni navbat VAQTINCHALIK deb qayta-qayta
+        // yuboradi va urinishlar tugagach BUTUN navbatni to'xtatadi. Tarif rad
+        // etgani esa doimiy sabab — 400 bilan darhol "xato" bo'lib ko'rinsin va
+        // faqat shu o'yinga bog'liq amallar kutsin (xabar va kod o'zgarmaydi)
+        if (dto.offlineAt !== undefined && err instanceof ForbiddenException) {
+          throw new BadRequestException(err.getResponse());
+        }
+        throw err;
+      }
     }
     const data = await this.sessionsService.end(clubId, user, id, dto);
     return {
@@ -136,17 +149,21 @@ export class SessionsController {
     return { success: true, message: t(lang, key), data };
   }
 
-  /** Sessiyani boshqa stolga ko'chirish — faqat faol sessiya */
+  /**
+   * Sessiyani boshqa stolga ko'chirish — faqat faol sessiya. Oflayn navbatdan
+   * (`offlineAt` bilan) kelganda vaqt o'sha paytda bo'linadi va audit yoziladi.
+   */
   @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
   @HttpCode(200)
   @Post(':id/transfer')
   async transfer(
     @ClubId() clubId: number,
+    @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: TransferSessionDto,
     @Lang() lang: Language,
   ) {
-    const data = await this.sessionsService.transfer(clubId, id, dto);
+    const data = await this.sessionsService.transfer(clubId, id, dto, user);
     return { success: true, message: t(lang, 'sessions.transferred'), data };
   }
 

@@ -33,6 +33,15 @@ export default {
     emptyHint: "Birinchi mijozni qo'shing — sessiyalar va qarzlar unga bog'lanadi",
     emptySearchTitle: 'Hech narsa topilmadi',
     emptySearchHint: "Qidiruv so'zini o'zgartirib ko'ring",
+    // Oflayn (internetsiz) qo'shish
+    offlineCreate: '{{name}} — yangi mijoz',
+    offlinePending: 'Yuborilmagan',
+    offlinePendingHint:
+      'Internetsiz qo‘shildi — aloqa tiklanganda yuboriladi. Bu telefon raqami bilan mijoz allaqachon bo‘lsa, yozuv o‘sha mijozga birlashtiriladi.',
+    offlineFailed: 'Qabul qilinmadi',
+    offlineFailedHint: 'Server rad etdi: {{reason}}. «Yuborilmagan amallar» oynasida hal qiling.',
+    offlineEditBlocked: 'Mijozni tahrirlash va o‘chirish uchun internet kerak',
+    offlineLocalBlocked: 'Mijoz hali serverga yuborilmagan — profil aloqa tiklangach ochiladi',
   },
   ru: {
     title: 'Клиенты',
@@ -68,5 +77,14 @@ export default {
     emptyHint: 'Добавьте первого клиента — сессии и долги будут привязаны к нему',
     emptySearchTitle: 'Ничего не найдено',
     emptySearchHint: 'Попробуйте изменить поисковый запрос',
+    // Офлайн-добавление (без интернета)
+    offlineCreate: '{{name}} — новый клиент',
+    offlinePending: 'Не отправлено',
+    offlinePendingHint:
+      'Добавлен без интернета — будет отправлен при восстановлении связи. Если клиент с этим телефоном уже есть, запись будет объединена с ним.',
+    offlineFailed: 'Не принято',
+    offlineFailedHint: 'Сервер отклонил: {{reason}}. Решите в окне «Неотправленные действия».',
+    offlineEditBlocked: 'Для редактирования и удаления клиента нужен интернет',
+    offlineLocalBlocked: 'Клиент ещё не отправлен на сервер — профиль откроется после восстановления связи',
   },
 };

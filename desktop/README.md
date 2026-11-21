@@ -35,6 +35,28 @@ Qobiq `https://billiardclub.uz` ni ochadi va shu holicha ko'rsatadi. Sabablari:
   Electron uni ochmaydi (ASAR integrity fuse)
 - **Yangilanish dastur ichida** — yuklab bo'lingach yashil banner va "Hoziroq qayta
   ishga tushirish" tugmasi; menyudan tekshirilganda natija xabari chiqadi
+- **Chiroq markazi** (`lights.js`) — kassa kompyuteri relelarni o'zi boshqaradi, internet
+  bo'lmasa ham (pastga qarang)
+
+## Chiroq markazi (internetsiz chiroq boshqaruvi)
+
+`lights.js` bridge agentining dvigatelini (`bridge/lib` → build paytida `bridge-lib/`,
+`scripts/sync-bridge.cjs`) asosiy jarayonda ishga tushiradi:
+
+- **Yoqish** veb-ilovadan: Chiroq boshqaruvi → Ulash → «Chiroq markazini yoqish». Ilova yangi
+  bridge token oladi va uni IPC orqali beradi; token **faqat** `safeStorage` (Windows DPAPI)
+  bilan shifrlanib `userData/lights/hub.json` ga yoziladi, sahifaga qaytmaydi. Shifrlash
+  mavjud bo'lmasa markaz yoqilmaydi.
+- **Holat fayli** `userData/lights/state.json` — oxirgi stollar holati, qoidalar va rele
+  sozlamalari; parollar ham DPAPI bilan muhrlanadi. Jurnal: `userData/lights/hub.log` (1 MB aylanadi).
+- **Fon rejimi** — markaz yoqiq bo'lsa oyna yopilganda dastur tizim tepsisida (soat yonida) qoladi
+  va Windows ga kirganda `--hidden` bilan o'zi ishga tushadi. To'liq chiqish — tepsi menyusidagi «Chiqish».
+- **IPC xavfsizligi** — barcha `billiardclub:lights:*` kanallari faqat ishonchli sahifadan
+  (`trustedSender`) qabul qilinadi; sinov buyrug'i faqat serverda saqlangan stol sozlamasiga
+  yuboriladi (ixtiyoriy IP ga so'rov yuborib bo'lmaydi), qidiruv orasida kamida 8 s.
+- **Ixtiyoriy native paketlar** — `serialport` (COM, RS485, CH340) va `node-hid` (USB HID)
+  `optionalDependencies` da; N-API prebuild ishlatiladi (`npmRebuild: false`). Yuklanmasa faqat
+  shu turdagi relelar ishlamaydi, qolganlari ishlayveradi.
 
 ## Ishga tushirish (dasturchi uchun)
 

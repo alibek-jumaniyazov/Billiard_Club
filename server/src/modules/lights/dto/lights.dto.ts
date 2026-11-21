@@ -155,6 +155,93 @@ export class LightConfigDto {
   @IsOptional()
   @IsBoolean()
   verify?: boolean;
+
+  // --- serial: tayyor shablon (LCUS / CH340) ---
+  @IsOptional()
+  @IsIn(['lcus'])
+  preset?: 'lcus';
+
+  // --- tuya / sonoff ---
+  /** Tuya gwId/devId yoki eWeLink deviceid */
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{6,40}$/)
+  deviceId?: string;
+
+  /** Tuya lokal protokol versiyasi */
+  @IsOptional()
+  @IsIn(['3.1', '3.3', '3.4', '3.5'])
+  version?: '3.1' | '3.3' | '3.4' | '3.5';
+
+  /** Tuya: kanal tartibidagi aniq DP raqamlari */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(9)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(255, { each: true })
+  @Type(() => Number)
+  dps?: number[];
+
+  /** Sonoff: eWeLink LAN (shifrlangan) rejimi */
+  @IsOptional()
+  @IsBoolean()
+  encrypt?: boolean;
+
+  /** Sonoff: ko'p kanalli API */
+  @IsOptional()
+  @IsBoolean()
+  outlets?: boolean;
+
+  // --- modbus_tcp / modbus_rtu ---
+  @IsOptional()
+  @IsIn(['tcp', 'rtu'])
+  framing?: 'tcp' | 'rtu';
+
+  @IsOptional()
+  @IsIn(['coil', 'register'])
+  mode?: 'coil' | 'register';
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(65535)
+  @Type(() => Number)
+  register?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(65535)
+  @Type(() => Number)
+  registerOn?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(65535)
+  @Type(() => Number)
+  registerOff?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  registerReadback?: boolean;
+
+  @IsOptional()
+  @IsIn(['none', 'even', 'odd'])
+  parity?: 'none' | 'even' | 'odd';
+
+  @IsOptional()
+  @IsIn([1, 2])
+  @Type(() => Number)
+  stopBits?: 1 | 2;
+
+  // --- usb_hid ---
+  /** "USBRelay" platasining seriya raqami (bir nechta plata bo'lsa) */
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{1,16}$/)
+  serialNumber?: string;
 }
 
 /**
@@ -211,6 +298,22 @@ export class UpdateTableLightDto {
   @ValidateNested()
   @Type(() => LightConfigDto)
   config?: LightConfigDto | null;
+}
+
+/** Bir nechta stolni BIR MARTADA sozlash (masalan 8 kanalli plata -> 8 stol) */
+export class UpdateTableLightItemDto extends UpdateTableLightDto {
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  tableId: number;
+}
+
+export class UpdateTableLightsBulkDto {
+  @IsArray()
+  @ArrayMaxSize(64)
+  @ValidateNested({ each: true })
+  @Type(() => UpdateTableLightItemDto)
+  tables: UpdateTableLightItemDto[];
 }
 
 /**
@@ -388,12 +491,45 @@ export class BridgeReportDto {
   results: BridgeReportItemDto[];
 }
 
-/** LAN skanerida topilgan bitta qurilma */
+/**
+ * Qidiruvda topilgan bitta qurilma: tarmoqdagi rele (`host`) yoki kompyuterga
+ * ulangan plata (`serialPort` — COM port, `serialNumber` — USB HID plata ID).
+ */
 export class DiscoveredDeviceDto {
-  /** '192.168.1.51' */
+  /** '192.168.1.51' — USB/COM qurilmada bo'lmaydi */
+  @IsOptional()
   @IsString()
   @MaxLength(60)
-  host: string;
+  host?: string;
+
+  /** COM port ('COM3', '/dev/ttyUSB0') */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  serialPort?: string;
+
+  /** USB HID plata ID */
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  serialNumber?: string;
+
+  /** Tuya/Sonoff qurilma ID si (ustada oldindan to'ldiriladi) */
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{1,64}$/)
+  id?: string;
+
+  /** Tuya protokol versiyasi ('3.3') */
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  version?: string;
+
+  /** Sonoff: eWeLink LAN (shifrlangan) rejimi */
+  @IsOptional()
+  @IsBoolean()
+  encrypt?: boolean;
 
   @IsOptional()
   @IsString()

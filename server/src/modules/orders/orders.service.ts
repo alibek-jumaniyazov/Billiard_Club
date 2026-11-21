@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException, Optional } from '@n
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { clampOfflineAt } from '../../common/time/offline-at';
 import { OrderStatus, SessionStatus } from '../../entities/enums';
 import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
@@ -135,9 +136,11 @@ export class OrdersService {
    * - Mahsulot topilmasa — XATO (avval jimgina o'tkazib yuborilardi)
    * - Ombor yetarli bo'lmasa — XATO (avval "yashirin oversell" bo'lardi)
    * - Mahsulot qatori qulflanadi — parallel buyurtmalar ombor hisobini buzmaydi
+   * - OFLAYN (`offlineAt` bor): buyurtma va pozitsiyalar internetsiz kiritilgan
+   *   HAQIQIY vaqt bilan yoziladi (chegara: sessiya boshlanishi .. hozir, 24 soat)
    */
   async create(clubId: number, user: User, dto: CreateOrderDto) {
-    return this.dataSource.transaction(async (manager) => {
+    const { order, clamped } = await this.dataSource.transaction(async (manager) => {
       const session = await manager.findOne(Session, {
         where: {
           id: dto.sessionId,
@@ -147,6 +150,13 @@ export class OrdersService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!session) throw new BadRequestException({ key: 'orders.sessionNotActive' });
+
+      // Oflayn buyurtma vaqti: o'yin boshlanishidan oldin bo'la olmaydi
+      const [orderedAt, timeClamped]: [Date | null, boolean] = dto.offlineAt !== undefined
+        ? clampOfflineAt(dto.offlineAt, session.startTime)
+        : [null, false];
+      // Berilmasa (onlayn) — undefined: TypeORM ustun standartini (now()) qo'yadi
+      const createdAt = orderedAt ?? undefined;
 
       // Ochiq buyurtmani topamiz yoki yaratamiz (DB unique indeks dublikatdan himoya qiladi)
       let order = await manager.findOne(Order, {
@@ -161,7 +171,13 @@ export class OrdersService {
           userId: user.id,
           status: OrderStatus.OPEN,
           totalAmount: 0,
+          createdAt,
         });
+      } else if (orderedAt && new Date(order.createdAt).getTime() > orderedAt.getTime()) {
+        // Buyurtma (stoldagi hisob) boshqa kassada keyinroq ochilgan, bu
+        // pozitsiya esa undan OLDIN kiritilgan — ochilish vaqti eng birinchi
+        // pozitsiyadan keyin turmasin
+        await manager.update(Order, order.id, { createdAt: orderedAt });
       }
 
       // Bir mahsulot bir necha qatorda kelishi mumkin — AVVAL mahsulot bo'yicha
@@ -206,6 +222,8 @@ export class OrdersService {
           quantity,
           price: product.price,
           subtotal,
+          // "Bugungi bar savdosi" va hisobotlar pozitsiya vaqtiga qaraydi
+          createdAt,
         });
         await manager.update(Product, product.id, { stock: product.stock - quantity });
         addedAmount += subtotal;
@@ -217,11 +235,32 @@ export class OrdersService {
         barAmount: round2(session.barAmount + addedAmount),
       });
 
-      return manager.findOne(Order, {
-        where: { id: order.id },
-        relations: { items: { product: true } },
-      });
+      return {
+        order: await manager.findOne(Order, {
+          where: { id: order.id },
+          relations: { items: { product: true } },
+        }),
+        clamped: timeClamped ? { requested: dto.offlineAt ?? null, applied: orderedAt } : null,
+      };
     });
+
+    // Kesilgan oflayn vaqt — kutilmagan holat (soat noto'g'ri yoki navbat
+    // 24 soatdan ko'p kutgan): sessions.start dagi kabi iz qoldiramiz
+    if (clamped) {
+      this.auditService?.log({
+        action: 'order.offline_time_clamped',
+        clubId,
+        userId: user.id,
+        actorRole: user.role,
+        entity: 'order',
+        entityId: order?.id ?? 0,
+        meta: {
+          requested: clamped.requested,
+          applied: clamped.applied ? clamped.applied.toISOString() : null,
+        },
+      });
+    }
+    return order;
   }
 
   /**

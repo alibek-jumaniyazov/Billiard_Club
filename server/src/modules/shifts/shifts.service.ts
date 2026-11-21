@@ -1,7 +1,13 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
+import { DataSource, EntityManager, IsNull, Not, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { OfflineMoment, resolveOfflineAt } from '../../common/offline/offline-at';
 import { CashShift, ShiftSummary } from '../../entities/cash-shift.entity';
 import { User } from '../../entities/user.entity';
 import { round2 } from '../subscription/billing.util';
@@ -16,6 +22,15 @@ const isUniqueViolation = (err: unknown): boolean => {
 };
 
 type Runner = Pick<DataSource | EntityManager, 'query'>;
+
+/**
+ * Holat to'qnashuvi (smena allaqachon ochiq/yopiq) — ONLAYN 409, OFLAYN
+ * navbatdan kelganda 422. Klient navbati 409 ni "idempotentlik kaliti band,
+ * keyinroq qayta urin" deb tushunadi va 20 marta behuda urinardi; 422 esa
+ * darhol "doimiy xato" bo'lib "Yuborilmagan amallar" oynasida ko'rinadi.
+ */
+const stateConflict = (offline: boolean, key: string) =>
+  offline ? new UnprocessableEntityException({ key }) : new ConflictException({ key });
 
 @Injectable()
 export class ShiftsService {
@@ -33,7 +48,25 @@ export class ShiftsService {
     return { shift, summary, expectedCash: round2(shift.openingCash + summary.byMethod.cash) };
   }
 
+  /**
+   * Smenani ochish.
+   *
+   * OFLAYN (`offlineAt` bor — navbatdan): smena internetsiz paytda ochilgan
+   * HAQIQIY vaqtdan boshlanadi — shu paytdan keyingi oflayn to'lovlar unga
+   * tushadi. Vaqt oxirgi yopilgan smenaning yopilish vaqtidan OLDIN bo'la
+   * olmaydi (oynalar ustma-ust tushsa bitta to'lov ikki smenada sanalardi).
+   * Klubda ochiq smena bo'lsa (masalan boshqa kassa oflayn paytda ochgan) —
+   * 422 bilan rad etiladi va navbatda ko'rinadi.
+   */
   async open(clubId: number, user: User, dto: OpenShiftDto): Promise<CashShift> {
+    let moment: OfflineMoment = resolveOfflineAt(undefined);
+    if (dto.offlineAt !== undefined) {
+      const lastClosed = await this.shiftRepo.findOne({
+        where: { clubId, closedAt: Not(IsNull()) },
+        order: { closedAt: 'DESC' },
+      });
+      moment = resolveOfflineAt(dto.offlineAt, lastClosed?.closedAt ?? null);
+    }
     try {
       const shift = await this.shiftRepo.save(
         this.shiftRepo.create({
@@ -42,6 +75,8 @@ export class ShiftsService {
           openedByName: user.name ?? user.username ?? null,
           openingCash: round2(dto.openingCash ?? 0),
           openingNote: dto.note?.trim() || null,
+          // Onlayn — DB standart qiymati (now()), oflayn — haqiqiy ochilgan payt
+          ...(moment.offline ? { openedAt: moment.at } : {}),
         }),
       );
       this.audit.log({
@@ -51,11 +86,16 @@ export class ShiftsService {
         actorRole: user.role,
         entity: 'cash_shift',
         entityId: shift.id,
-        meta: { openingCash: shift.openingCash },
+        meta: {
+          openingCash: shift.openingCash,
+          ...(moment.offline
+            ? { offline: { requested: dto.offlineAt, applied: moment.at.toISOString(), clamped: moment.clamped } }
+            : {}),
+        },
       });
       return shift;
     } catch (err) {
-      if (isUniqueViolation(err)) throw new ConflictException({ key: 'shifts.alreadyOpen' });
+      if (isUniqueViolation(err)) throw stateConflict(moment.offline, 'shifts.alreadyOpen');
       throw err;
     }
   }
@@ -63,8 +103,20 @@ export class ShiftsService {
   /**
    * Smenani yopish — qator qulfi ostida: ikki marta bosilgan "Yopish" yoki
    * ikki kassir bir vaqtda yopsa ham hisobot bir marta muhrlanadi.
+   *
+   * OFLAYN YOPISH (`offlineAt` bor — navbatdan): kassir kassani internetsiz
+   * paytda sanagan. Yopilish vaqti — o'sha "Yopish" bosilgan payt (smena
+   * ochilgan paytdan oldin bo'la olmaydi). Kutilgan naqd va Z-hisobot KLIENT
+   * ko'rgan raqamdan EMAS — navbat yetib kelgan paytda SERVER ma'lumotidan
+   * [ochilgan, offlineAt) oralig'i bo'yicha hisoblanadi; sanalgan naqd bilan
+   * farq onlayn yopishdagi kabi yoziladi. Klient navbati yopishni o'zidan
+   * OLDINGI barcha pul amallaridan keyin yuboradi (client/src/offline/ops.ts),
+   * oflayn yakunlangan o'yinlar esa sessiyaning `endTime` i bo'yicha
+   * hisoblanadi (computeSummary) — ular smenaga to'g'ri tushadi.
    */
   async close(clubId: number, user: User, id: number, dto: CloseShiftDto): Promise<CashShift> {
+    const offline = dto.offlineAt !== undefined;
+    let moment: OfflineMoment = resolveOfflineAt(undefined);
     const saved = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(CashShift);
       const shift = await repo
@@ -73,9 +125,10 @@ export class ShiftsService {
         .where('shift.id = :id AND shift.clubId = :clubId', { id, clubId })
         .getOne();
       if (!shift) throw new NotFoundException({ key: 'shifts.notFound' });
-      if (shift.closedAt) throw new ConflictException({ key: 'shifts.alreadyClosed' });
+      if (shift.closedAt) throw stateConflict(offline, 'shifts.alreadyClosed');
 
-      const closedAt = new Date();
+      moment = resolveOfflineAt(dto.offlineAt, shift.openedAt);
+      const closedAt = moment.at;
       const summary = await this.computeSummary(manager, clubId, shift.openedAt, closedAt);
       const cashOut = round2(dto.cashOut ?? 0);
       const expectedCash = round2(shift.openingCash + summary.byMethod.cash - cashOut);
@@ -105,6 +158,9 @@ export class ShiftsService {
         countedCash: saved.countedCash,
         difference: saved.difference,
         collected: saved.summary?.collected ?? 0,
+        ...(moment.offline
+          ? { offline: { requested: dto.offlineAt, applied: moment.at.toISOString(), clamped: moment.clamped } }
+          : {}),
       },
     });
     return saved;
@@ -136,11 +192,23 @@ export class ShiftsService {
   /**
    * [from, to) oralig'idagi kassa hisoboti.
    *
-   * Formula hisobotlar moduli (reports.service getReport) bilan AYNAN bir xil:
+   * Formula hisobotlar moduli (reports.service getReport) bilan bir xil:
    * olingan pul = sales.totalAmount + debt_payments; usullar taqsimoti
    * session_payments (bo'lib to'lash satrlari) ustuvor, ular yo'q sotuvlar
-   * sale.paymentMethod bilan, qarz to'lovlari o'z usuli bilan. Shu tufayli
-   * smenalar yig'indisi kunlik hisobotdagi raqamlar bilan mos tushadi.
+   * sale.paymentMethod bilan, qarz to'lovlari o'z usuli bilan.
+   *
+   * VAQT TAYANCHI — PUL OLINGAN PAYT. Sotuv va uning to'lov satrlari
+   * sessiyaning `endTime` i (hisob-kitob bosilgan payt) bo'yicha smenaga
+   * biriktiriladi, `createdAt` (yozuv bazaga tushgan payt) bo'yicha EMAS.
+   * Onlayn hisob-kitobda ikkalasi bir tranzaksiyada, millisekund farq bilan
+   * yoziladi — natija o'zgarmaydi. Oflayn yakunlangan o'yin esa navbat orqali
+   * soatlab kechikib keladi: `createdAt` bo'yicha uning puli kassa sanalgan
+   * smenadan TUSHIB QOLIB (soxta ortiqcha) keyingi smenaga (soxta kamomad)
+   * yozilardi. Hisob-kitobda yozilgan qarz ham (ma'lumot uchun) o'sha
+   * `endTime` bo'yicha olinadi. Qarz to'lovlari oflayn qabul qilinganda
+   * `createdAt` ning o'zi haqiqiy olingan payt bilan yoziladi
+   * (debts.service.ts: pay). `endTime` bo'yicha IDX_sessions_club_endTime
+   * indeksi ishlaydi.
    */
   private async computeSummary(runner: Runner, clubId: number, from: Date, to: Date): Promise<ShiftSummary> {
     const [sums] = (await runner.query(
@@ -154,13 +222,17 @@ export class ShiftsService {
          (SELECT COALESCE(SUM(s."totalAmount"), 0)::float FROM sessions s
            WHERE s."clubId" = $1 AND s.status = 'completed' AND s."endTime" >= $2 AND s."endTime" < $3) AS "billedRevenue",
          (SELECT COALESCE(SUM(sa."totalAmount"), 0)::float FROM sales sa
-           WHERE sa."clubId" = $1 AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "collectedSales",
+           JOIN sessions s ON s.id = sa."sessionId"
+           WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3) AS "collectedSales",
          (SELECT COALESCE(SUM(sa."discount"), 0)::float FROM sales sa
-           WHERE sa."clubId" = $1 AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "discounts",
+           JOIN sessions s ON s.id = sa."sessionId"
+           WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3) AS "discounts",
          (SELECT COALESCE(SUM(dp."amount"), 0)::float FROM debt_payments dp
            WHERE dp."clubId" = $1 AND dp."createdAt" >= $2 AND dp."createdAt" < $3) AS "debtPayments",
          (SELECT COALESCE(SUM(d."totalDebt"), 0)::float FROM debts d
-           WHERE d."clubId" = $1 AND d."createdAt" >= $2 AND d."createdAt" < $3) AS "debtsCreated",
+           LEFT JOIN sessions s ON s.id = d."sessionId"
+           WHERE d."clubId" = $1
+             AND COALESCE(s."endTime", d."createdAt") >= $2 AND COALESCE(s."endTime", d."createdAt") < $3) AS "debtsCreated",
          (SELECT COALESCE(SUM(e."amount"), 0)::float FROM expenses e
            WHERE e."clubId" = $1 AND e."createdAt" >= $2 AND e."createdAt" < $3) AS "expenses",
          (SELECT COUNT(*)::int FROM sessions s
@@ -171,10 +243,12 @@ export class ShiftsService {
     const methodRows = (await runner.query(
       `SELECT m.method, COALESCE(SUM(m.total), 0)::float AS total FROM (
          SELECT sp.method::text AS method, sp.amount AS total FROM session_payments sp
-         WHERE sp."clubId" = $1 AND sp."createdAt" >= $2 AND sp."createdAt" < $3
+         JOIN sessions s ON s.id = sp."sessionId"
+         WHERE sp."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3
          UNION ALL
          SELECT sa."paymentMethod"::text, sa."totalAmount" FROM sales sa
-         WHERE sa."clubId" = $1 AND sa."createdAt" >= $2 AND sa."createdAt" < $3
+         JOIN sessions s ON s.id = sa."sessionId"
+         WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3
            AND NOT EXISTS (SELECT 1 FROM session_payments sp2 WHERE sp2."saleId" = sa.id)
          UNION ALL
          SELECT dp."paymentMethod"::text, dp."amount" FROM debt_payments dp

@@ -16,6 +16,7 @@
  */
 
 import type { BilliardTable, Session } from '../types';
+import type { SegmentLike } from '../utils/session';
 import type { QueueEntry } from './queue';
 
 /** Navbatdagi amal turi — `meta.kind` da saqlanadi */
@@ -24,12 +25,19 @@ export type OfflineOpKind =
   | 'session.pause'
   | 'session.resume'
   | 'order.create'
-  | 'session.end';
+  | 'session.end'
+  | 'session.cancel'
+  | 'session.transfer'
+  | 'session.plan';
 
 /** `meta` ning qoplama uchun ishlatiladigan maydonlari */
 interface OpMeta {
   kind?: OfflineOpKind;
   tableId?: number;
+  /** session.transfer uchun — maqsad stol */
+  toTableId?: number;
+  /** Navbat bog'liqlik kalitlari (queue.ts: `table:<id>`, `session:<ref>` ...) */
+  deps?: unknown;
   /** Sessiyaga havola: server ID si (son) yoki `$local:<localId>` */
   sessionRef?: string;
   startTime?: string;
@@ -38,7 +46,7 @@ interface OpMeta {
   customerPhone?: string | null;
   notes?: string | null;
   plannedMinutes?: number | null;
-  /** session.start uchun — summa limiti (plannedMinutes bilan birga bo'lmaydi) */
+  /** session.start / session.plan uchun — summa limiti (plannedMinutes bilan birga bo'lmaydi) */
   limitAmount?: number | null;
   /** order.create uchun — buyurtma summasi */
   amount?: number;
@@ -107,8 +115,8 @@ const makeSession = (
   notes: meta.notes ?? null,
   createdAt: meta.startTime ?? nowIso,
   updatedAt: nowIso,
-  // Bu belgi bo'yicha interfeys hisob-kitob va ko'chirishni bloklaydi:
-  // sessiyaning serverda hali ID si yo'q
+  // Bu belgi bo'yicha shu sessiyadagi barcha amallar navbat orqali
+  // (`$local:` havolasi bilan) yuboriladi: serverda hali ID si yo'q
   offlineLocalId: entry.localId,
 });
 
@@ -199,17 +207,69 @@ export const applyQueueToTables = (
         session.barAmount = Number((session.barAmount + meta.amount).toFixed(2));
         break;
       }
-      case 'session.end': {
-        // Oflayn hisob-kitob: mijoz to'lab ketdi — stol shu kassada darhol
-        // BO'SH ko'rinadi (keyingi mehmonni oflayn ham joylashtirish mumkin).
+      case 'session.end':
+      case 'session.cancel': {
+        // Oflayn hisob-kitob yoki bekor qilish: stol shu kassada darhol BO'SH
+        // ko'rinadi (keyingi mehmonni oflayn ham joylashtirish mumkin).
         // Sessiya serverda hali ochiq bo'lsa ham qoplama uni yashiradi; navbat
-        // yuborilgach serverning o'zi "yakunlangan" deb qaytaradi.
+        // yuborilgach serverning o'zi "yakunlangan/bekor" deb qaytaradi.
         const session = findSession(meta.sessionRef);
         if (!session) break;
         const owner = next.find((tbl) => tbl.sessions?.[0] === session);
         if (!owner) break;
         owner.sessions = [];
         owner.status = 'free';
+        break;
+      }
+
+      case 'session.transfer': {
+        // Oflayn ko'chirish: o'yin maqsad stolga darhol o'tadi, manba stol
+        // bo'shaydi. Jonli summa uchun bo'linish nuqtasi yoziladi — eski stol
+        // narxi shu paytgacha, yangisi shu paytdan (withOfflineTransfers).
+        const session = findSession(meta.sessionRef);
+        if (!session) break;
+        const owner = next.find((tbl) => tbl.sessions?.[0] === session);
+        const target = meta.toTableId !== undefined ? tableById.get(meta.toTableId) : undefined;
+        // HAQIQAT USTUN: server allaqachon ko'chirgan (o'yin maqsad stolda),
+        // o'yin boshqa kassada boshqa stolga ketgan yoki maqsad stol band —
+        // qoplama qo'llanmaydi (navbatdagi amal serverda tekshiriladi)
+        if (!owner || !target || owner === target || owner.id !== meta.tableId) break;
+        if (target.sessions && target.sessions.length > 0) break;
+        const at = meta.at ?? nowIso;
+        // Pauzadagi o'yin faqat pauza ko'chirishdan KEYIN boshlangan bo'lsa
+        // (server qoidasi bilan bir xil — sessions.service.ts: transfer)
+        if (session.status === 'paused'
+          && !(session.pausedAt && Date.parse(session.pausedAt) >= Date.parse(at))) break;
+        const fromPrice = session.pricePerHour ?? owner.pricePerHour;
+        session.offlineTransfers = [
+          ...(session.offlineTransfers ?? []),
+          {
+            at,
+            fromTableId: owner.id,
+            toTableId: target.id,
+            fromPricePerHour: fromPrice,
+            // Server ko'chirish paytidagi stol narxini oladi — ekrandagi eng yangi qiymat
+            toPricePerHour: target.pricePerHour,
+            totalPausedMs: session.totalPausedMs || 0,
+          },
+        ];
+        session.tableId = target.id;
+        session.pricePerHour = target.pricePerHour;
+        owner.sessions = [];
+        owner.status = 'free';
+        target.sessions = [session];
+        target.status = 'busy';
+        break;
+      }
+
+      case 'session.plan': {
+        // O'yin vaqti / summa limiti — server qoidasi: biri qo'yilsa ikkinchisi
+        // tozalanadi, { plannedMinutes: null } — ikkalasi ham olib tashlanadi
+        const session = findSession(meta.sessionRef);
+        if (!session) break;
+        const limit = meta.limitAmount ?? null;
+        session.limitAmount = limit;
+        session.plannedMinutes = limit !== null ? null : (meta.plannedMinutes ?? null);
         break;
       }
 
@@ -224,3 +284,85 @@ export const applyQueueToTables = (
 /** Ro'yxatda kamida bitta oflayn (serverda hali yo'q) sessiya bormi */
 export const hasOfflineSession = (tables: BilliardTable[]): boolean =>
   tables.some((tbl) => tbl.sessions?.some((s) => !!s.offlineLocalId));
+
+/**
+ * Oflayn ko'chirilgan sessiyaning segmentlari — serverdagi transfer() bilan
+ * AYNAN bir xil bo'linish (jonli summa, limit va oflayn chek shu bilan hisoblanadi).
+ *
+ * `base` — serverdan kelgan segmentlar keshi (bo'lmasa yoki bo'sh bo'lsa
+ * boshlanishdan bitta ochiq segment olinadi: oflayn boshlangan yoki eski
+ * segmentlarsiz sessiya — server ham aynan shunday retrospektiv segment yozadi).
+ * Har ko'chirishda ochiq segment o'sha paytda yopiladi; uning pauzasi —
+ * ko'chirish paytidagi jami pauzadan yopiq segmentlar pauzasi ayirilgani
+ * (server invarianti: pauza segment chegarasidan oshmaydi).
+ *
+ * Kirish massivlari O'ZGARTIRILMAYDI. Ko'chirish bo'lmasa `base` qaytadi.
+ */
+export const withOfflineTransfers = (
+  session: Pick<Session, 'startTime' | 'offlineTransfers'>,
+  base: SegmentLike[] | null,
+): SegmentLike[] | null => {
+  const moves = session.offlineTransfers;
+  if (!moves || moves.length === 0) return base;
+
+  const segments: SegmentLike[] = base && base.length > 0
+    ? base.map((seg) => ({ ...seg }))
+    : [{
+        tableId: moves[0].fromTableId,
+        pricePerHour: moves[0].fromPricePerHour,
+        startedAt: session.startTime,
+        endedAt: null,
+        pausedMs: 0,
+      }];
+
+  for (const move of moves) {
+    const open = segments.find((seg) => !seg.endedAt);
+    if (!open) break;
+    const closedPausedMs = segments.reduce(
+      (sum, seg) => (seg.endedAt ? sum + (seg.pausedMs || 0) : sum),
+      0,
+    );
+    open.endedAt = move.at;
+    open.pausedMs = Math.max(0, move.totalPausedMs - closedPausedMs);
+    segments.push({
+      tableId: move.toTableId,
+      pricePerHour: move.toPricePerHour,
+      startedAt: move.at,
+      endedAt: null,
+      pausedMs: 0,
+    });
+  }
+  return segments;
+};
+
+/**
+ * Shu sessiya yoki stol(lar) bo'yicha navbatda HALI YUBORILMAGAN amal bormi.
+ *
+ * Bor bo'lsa YANGI amal ham (internet bo'lsa ham) navbat orqali yuboriladi:
+ * aks holda u navbatdagi eski amaldan OLDIN serverga yetib, tartib buzilardi —
+ * masalan oflayn ko'chirish yoki bar buyurtmasi yuborilmay turib hisob-kitob
+ * yopilardi va kechikkan amal "sessiya tugagan" xatosi bilan qolardi.
+ *
+ * Faqat `pending` yozuvlar hisobga olinadi: XATO bo'lgan yozuvni server
+ * allaqachon rad etgan, server holati to'g'ri — onlayn amal uni kutmaydi.
+ * Moslik `meta.deps` bo'yicha; u yo'q (eski) yozuvlarda — meta maydonlari.
+ */
+export const hasPendingOps = (
+  entries: QueueEntry[],
+  session: Pick<Session, 'id' | 'offlineLocalId'> | null,
+  tableIds: number[] = [],
+): boolean => {
+  const ref = session ? sessionRefOf(session) : null;
+  const keys = new Set<string>(tableIds.map((id) => `table:${id}`));
+  if (ref) keys.add(`session:${ref}`);
+  return entries.some((entry) => {
+    if (entry.status !== 'pending') return false;
+    const meta = (entry.meta ?? {}) as OpMeta;
+    if (Array.isArray(meta.deps)) {
+      return meta.deps.some((dep) => typeof dep === 'string' && keys.has(dep));
+    }
+    return (ref !== null && meta.sessionRef === ref)
+      || (meta.tableId !== undefined && tableIds.includes(meta.tableId))
+      || (meta.toTableId !== undefined && tableIds.includes(meta.toTableId));
+  });
+};

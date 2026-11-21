@@ -69,6 +69,12 @@ const messages: Record<Language, Record<string, string>> = {
     'sessions.transferred': "O'yin boshqa stolga ko'chirildi",
     'sessions.transferWhilePaused': "Pauzadagi o'yinni ko'chirib bo'lmaydi — avval davom ettiring",
     'sessions.transferSameTable': "Sessiya allaqachon shu stolda",
+    'sessions.transferConflict':
+      "O'yin bu orada boshqa kassada boshqa stolga ko'chirilgan — internetsiz qilingan ko'chirish qo'llanmadi. Stollarni tekshiring va kerak bo'lsa qayta ko'chiring",
+    'sessions.debtCustomerNotFound':
+      "Qarz yoziladigan mijoz ro'yxatda topilmadi (o'chirilgan bo'lishi mumkin). Hisob-kitobni internet bilan qayta bajaring",
+    'sessions.offlineDebtNeedsCustomer':
+      "Internetsiz qarz faqat «Mijozlar» ro'yxatidagi mijozga yoziladi — mijozni ro'yxatdan tanlang",
     'sessions.paymentsMismatch': "To'lovlar yig'indisi to'lanishi kerak bo'lgan summaga teng emas",
     'sessions.adjustmentForbidden': "Qo'lda tuzatish faqat administratorga ruxsat etilgan",
     'sessions.barChanged':
@@ -129,6 +135,10 @@ const messages: Record<Language, Record<string, string>> = {
 
     // Chiroqlar
     'lights.updated': 'Chiroq sozlamalari saqlandi',
+    'lights.bulkUpdated': '{count} ta stolning chiroq sozlamalari saqlandi',
+    'lights.outputInUse':
+      "Bu rele chiqishi {table}-stolga ulangan. Boshqa kanalni tanlang yoki avval eski ulanishni olib tashlang",
+    'lights.duplicateTable': "Bitta stol ro'yxatda ikki marta keldi",
     'lights.settingsUpdated': 'Chiroq rejimi yangilandi',
     'lights.tested': "Sinov buyrug'i yuborildi",
     'lights.overrideSet': "Qo'lda boshqaruv yoqildi",
@@ -304,6 +314,12 @@ const messages: Record<Language, Record<string, string>> = {
     'common.tryAgain': "Amal bajarilmoqda — birozdan keyin qayta urinib ko'ring",
     'common.tooManyRequests': "So'rovlar juda ko'p. Birozdan keyin urinib ko'ring",
 
+    // Oflayn navbatdan kelgan amal vaqti (offlineAt) — common/offline/offline-at.ts
+    'offline.timeInFuture':
+      "Amal vaqti kelajakda ko'rsatilgan — qurilma soati noto'g'ri. Soatni to'g'rilab, amalni internet bor paytda qayta kiriting",
+    'offline.timeTooOld':
+      "Amal 26 soatdan ko'proq yuborilmay qolgan va qabul qilinmaydi. Uni internet bor paytda qayta kiriting",
+
     // Mijozlar
     'customers.notFound': 'Mijoz topilmadi',
     'customers.created': "Mijoz qo'shildi",
@@ -325,6 +341,8 @@ const messages: Record<Language, Record<string, string>> = {
     'reservations.cancelled': 'Bron bekor qilindi',
     'reservations.invalidTransition': "Bron holatini bunday o'zgartirib bo'lmaydi",
     'reservations.overlapWarning': 'Diqqat: bu vaqtda stolda boshqa bron bor',
+    'reservations.offlineConflict':
+      "Internetsiz kiritilgan bron saqlanmadi: bu vaqtda stol allaqachon band ({time}, {name}). Boshqa vaqt yoki stolni tanlang",
 
     // Desktop relizlari
     'releases.notFound': 'Reliz topilmadi',
@@ -403,6 +421,12 @@ const messages: Record<Language, Record<string, string>> = {
     'sessions.transferred': 'Игра перенесена на другой стол',
     'sessions.transferWhilePaused': 'Нельзя перенести игру на паузе — сначала возобновите её',
     'sessions.transferSameTable': 'Сессия уже на этом столе',
+    'sessions.transferConflict':
+      'Игру за это время перенесли на другой стол на другой кассе — перенос без интернета не применён. Проверьте столы и при необходимости перенесите заново',
+    'sessions.debtCustomerNotFound':
+      'Клиент для записи в долг не найден в списке (возможно, удалён). Проведите расчёт заново при наличии интернета',
+    'sessions.offlineDebtNeedsCustomer':
+      'Без интернета в долг можно записать только клиента из списка «Клиенты» — выберите клиента из списка',
     'sessions.paymentsMismatch': 'Сумма платежей не совпадает с суммой к оплате',
     'sessions.adjustmentForbidden': 'Ручная корректировка доступна только администратору',
     'sessions.barChanged':
@@ -461,6 +485,10 @@ const messages: Record<Language, Record<string, string>> = {
 
     // Освещение
     'lights.updated': 'Настройки освещения сохранены',
+    'lights.bulkUpdated': 'Сохранены настройки освещения для {count} столов',
+    'lights.outputInUse':
+      'Этот выход реле уже подключён к столу {table}. Выберите другой канал или сначала отключите старую привязку',
+    'lights.duplicateTable': 'Один и тот же стол указан дважды',
     'lights.settingsUpdated': 'Режим освещения обновлён',
     'lights.tested': 'Тестовая команда отправлена',
     'lights.overrideSet': 'Ручное управление включено',
@@ -633,6 +661,12 @@ const messages: Record<Language, Record<string, string>> = {
     'common.tryAgain': 'Операция выполняется — повторите через несколько секунд',
     'common.tooManyRequests': 'Слишком много запросов. Попробуйте позже',
 
+    // Время операции из офлайн-очереди (offlineAt) — common/offline/offline-at.ts
+    'offline.timeInFuture':
+      'Время операции указано в будущем — часы устройства неверны. Исправьте часы и повторите операцию при наличии интернета',
+    'offline.timeTooOld':
+      'Операция не отправлялась больше 26 часов и не может быть принята. Повторите её при наличии интернета',
+
     // Клиенты
     'customers.notFound': 'Клиент не найден',
     'customers.created': 'Клиент добавлен',
@@ -654,6 +688,8 @@ const messages: Record<Language, Record<string, string>> = {
     'reservations.cancelled': 'Бронь отменена',
     'reservations.invalidTransition': 'Недопустимое изменение статуса брони',
     'reservations.overlapWarning': 'Внимание: на это время у стола есть другая бронь',
+    'reservations.offlineConflict':
+      'Бронь, созданная без интернета, не сохранена: стол на это время уже занят ({time}, {name}). Выберите другое время или стол',
 
     // Релизы desktop-приложения
     'releases.notFound': 'Релиз не найден',

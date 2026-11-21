@@ -8,8 +8,10 @@ import {
 } from '@ant-design/icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useConnection } from '../../context/ConnectionContext';
+import { onScreenDataChange, resetScreenData, screenDataAsOf } from '../../offline/cache';
 import { applyUpdate, onUpdateReady } from '../../offline/register-sw';
 import { onSyncNotice } from '../../offline/queue';
 import { TOKENS } from '../../theme/tokens';
@@ -67,8 +69,19 @@ const ConnectionBanner = () => {
   const [updateReady, setUpdateReady] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const { notification } = App.useApp();
+  const { pathname } = useLocation();
 
   useEffect(() => onUpdateReady(() => setUpdateReady(true)), []);
+
+  /**
+   * "Ma'lumot HH:MM holatida" — AYNAN shu sahifadagi eng eski ma'lumot vaqti
+   * (offline/cache.ts: screenDataAsOf). Sahifada keshlanadigan ma'lumot
+   * bo'lmasa — oxirgi umumiy sinxronizatsiya vaqti.
+   */
+  const [screenAsOf, setScreenAsOf] = useState<number | null>(screenDataAsOf);
+  useEffect(() => onScreenDataChange(() => setScreenAsOf(screenDataAsOf())), []);
+  useEffect(() => resetScreenData(), [pathname]);
+  const dataAsOf = screenAsOf ?? lastSync;
 
   // Oflayn hisob-kitob serverga yetib borganda farq chiqsa — kassir darhol
   // biladi (yopilmaydigan ogohlantirish: mijoz hali zalda bo'lishi mumkin)
@@ -115,8 +128,8 @@ const ConnectionBanner = () => {
           // kassir ekrandagi ma'lumot qayerdan kelganini bilishi kerak
           desc: restoredOffline
             ? t('offline.offlineDescRestored')
-            : lastSync
-              ? t('offline.offlineDesc', { time: hhmm(lastSync) })
+            : dataAsOf
+              ? t('offline.offlineDesc', { time: hhmm(dataAsOf) })
               : t('offline.offlineDescNoData'),
           action:
             pending > 0 ? (

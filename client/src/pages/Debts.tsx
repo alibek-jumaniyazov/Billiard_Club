@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   App,
@@ -24,8 +24,10 @@ import {
   Typography,
 } from 'antd';
 import {
+  CloudUploadOutlined,
   CreditCardOutlined,
   DeleteOutlined,
+  ExclamationCircleOutlined,
   DollarOutlined,
   HistoryOutlined,
   ReloadOutlined,
@@ -34,7 +36,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { apiErrorMessage, debtsApi, errorMessage } from '../api';
+import { apiErrorMessage, debtsApi, errorMessage, isNetworkError } from '../api';
 import {
   EmptyState,
   MoneyText,
@@ -46,8 +48,22 @@ import {
 import { PAYMENT_METHODS } from '../constants';
 import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
+import { useConnection } from '../context/ConnectionContext';
+import {
+  applyDebtPayments,
+  countOps,
+  depKeys,
+  hasQueuedDeps,
+  newOpKey,
+  offlineDebtPayments,
+  opNow,
+  pendingDebtPaymentsTotal,
+  queueDebtPayment,
+  type DebtView,
+} from '../offline/ops';
 import { TOKENS } from '../theme/tokens';
 import type { Debt, DebtPayment, PaymentMethod } from '../types';
+import { formatMoney } from '../utils/format';
 import { isFormValidationError } from '../utils/formErrors';
 import '../styles/records-mobile.css';
 
@@ -71,6 +87,7 @@ const Debts = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { hasRole } = useAuth();
+  const { online, entries } = useConnection();
   const currency = useCurrency();
   const screens = Grid.useBreakpoint();
   const mobile = screens.md === false;
@@ -85,13 +102,15 @@ const Debts = () => {
   const [status, setStatus] = useState<StatusFilter>('unpaid');
   const [totals, setTotals] = useState<Record<string, number> | null>(null);
 
-  const [payDebt, setPayDebt] = useState<Debt | null>(null);
+  const [payDebt, setPayDebt] = useState<DebtView | null>(null);
   const [payForm] = Form.useForm<{ amount: number; paymentMethod: PaymentMethod }>();
   const [paying, setPaying] = useState(false);
 
   const [historyDebt, setHistoryDebt] = useState<Debt | null>(null);
   const [payments, setPayments] = useState<DebtPayment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
+  /** Server tarixi internetsiz yuklanmadi — faqat navbatdagi to'lovlar ko'rinadi */
+  const [paymentsOffline, setPaymentsOffline] = useState(false);
 
   // Hisobdan chiqarish — oddiy "rostdanmi?" o'rniga to'liq tasdiq oynasi
   const [deleteDebt, setDeleteDebt] = useState<Debt | null>(null);
@@ -138,7 +157,7 @@ const Debts = () => {
         setTotals(res.totals ?? null);
       } catch (err) {
         if (!isCurrent()) return;
-        message.error(errorMessage(err, tRef.current('common.error')));
+        message.error(apiErrorMessage(err, tRef.current));
       } finally {
         // A corrective fetch for an empty page owns its own loading state.
         if (isCurrent()) {
@@ -155,6 +174,32 @@ const Debts = () => {
     return () => { debtsRequest.current += 1; };
   }, [fetchDebts]);
 
+  /**
+   * OFLAYN TO'LOVLAR — navbatdagi (yuborilmagan) to'lovlar ro'yxat ustiga
+   * qoplanadi: qoldiq darhol kamayadi va "Yuborilmagan" belgisi chiqadi.
+   * Manba yagona — navbatning o'zi (offline/ops.ts), alohida holat yo'q.
+   */
+  const view = useMemo(() => applyDebtPayments(debts, entries), [debts, entries]);
+  const pendingTotal = useMemo(
+    () => pendingDebtPaymentsTotal(entries, { status, search }),
+    [entries, status, search],
+  );
+  /** Server yig'indisidan yuborilmagan to'lovlar ayirilgan qoldiq */
+  const shownRemaining = totals
+    ? Math.max(0, Math.round((totals.totalRemaining - pendingTotal) * 100) / 100)
+    : undefined;
+
+  // Navbatdagi to'lov serverga yetib bordi (yoki voz kechildi) — ro'yxat
+  // serverdan qayta olinadi, aks holda qoldiq eski holatda qolib ketardi
+  const filtersRef = useRef<FetchParams>({ page, limit: pageSize, search, status });
+  filtersRef.current = { page, limit: pageSize, search, status };
+  const debtOps = useMemo(() => countOps(entries, ['debt.pay']), [entries]);
+  const prevDebtOps = useRef(debtOps);
+  useEffect(() => {
+    if (debtOps < prevDebtOps.current && online) void fetchDebts(filtersRef.current);
+    prevDebtOps.current = debtOps;
+  }, [debtOps, online, fetchDebts]);
+
   const applyStatus = (value: StatusFilter) => {
     setStatus(value);
     setPage(1);
@@ -168,25 +213,65 @@ const Debts = () => {
   };
 
   // ---------- To'lov ----------
-  const openPay = (debt: Debt) => {
+  const openPay = (debt: DebtView) => {
     payForm.setFieldsValue({ amount: debt.remainingDebt, paymentMethod: 'cash' });
     setPayDebt(debt);
   };
 
+  const closePay = () => {
+    setPayDebt(null);
+    payForm.resetFields();
+  };
+
+  /**
+   * To'lov: onlayn — darhol serverga; internet yo'q (yoki aynan shu so'rovda
+   * uzilsa) — AYNAN SHU kalit va tugma bosilgan vaqt bilan navbatga. Server
+   * bajargan-u javob yo'qolgan bo'lsa, navbatdagi takror ikkinchi to'lov
+   * yozmaydi (idempotentlik). `payDebt` qoldig'i navbatdagi to'lovlar
+   * ayirilgan qiymat — forma ortiqcha summani o'tkazmaydi.
+   */
   const handlePay = async () => {
     if (!payDebt) return;
+    let values: { amount: number; paymentMethod: PaymentMethod };
     try {
       // Validatsiya try ICHIDA — rad javob "unhandled rejection" bo'lib qolmasin
-      const values = await payForm.validateFields();
-      setPaying(true);
-      const res = await debtsApi.pay(payDebt.id, values.amount, values.paymentMethod);
-      message.success(res.message);
-      setPayDebt(null);
-      payForm.resetFields();
-      void fetchDebts({ page, limit: pageSize, search, status });
+      values = await payForm.validateFields();
     } catch (err) {
       // Forma xatolari maydon ostida ko'rinadi — toast shart emas
       if (!isFormValidationError(err)) message.error(apiErrorMessage(err, t));
+      return;
+    }
+    const debt = payDebt;
+    const key = newOpKey();
+    const at = opNow();
+    // Shu mijozning oldingi to'lovi navbatda — yangisi ham uning ORTIDAN ketadi
+    const behindQueue = hasQueuedDeps(entries, [depKeys.debt(debt)]);
+    const saveOffline = async () => {
+      await queueDebtPayment(debt, values, key, at);
+      message.success(online && behindQueue ? t('debts.queuedBehind') : t('debts.offlineSaved'));
+      closePay();
+    };
+    setPaying(true);
+    try {
+      if (!online || behindQueue) {
+        await saveOffline();
+        return;
+      }
+      const res = await debtsApi.pay(debt.id, values.amount, values.paymentMethod, key);
+      message.success(res.message);
+      closePay();
+      void fetchDebts({ page, limit: pageSize, search, status });
+    } catch (err) {
+      // Aloqa aynan shu so'rovda uzildi — pul olingan, to'lov yo'qolmasin
+      if (isNetworkError(err)) {
+        try {
+          await saveOffline();
+        } catch (queueErr) {
+          message.error(errorMessage(queueErr, t('common.error')));
+        }
+        return;
+      }
+      message.error(apiErrorMessage(err, t));
     } finally {
       setPaying(false);
     }
@@ -196,16 +281,23 @@ const Debts = () => {
   const openHistory = async (debt: Debt) => {
     setHistoryDebt(debt);
     setPayments([]);
+    setPaymentsOffline(false);
     setPaymentsLoading(true);
     try {
       const res = await debtsApi.payments(debt.id);
       setPayments(res.data);
     } catch (err) {
-      message.error(apiErrorMessage(err, t));
+      // Internetsiz server tarixi yo'q — navbatdagi to'lovlar baribir ko'rinadi
+      if (isNetworkError(err)) setPaymentsOffline(true);
+      else message.error(apiErrorMessage(err, t));
     } finally {
       setPaymentsLoading(false);
     }
   };
+  const historyPending = useMemo(
+    () => (historyDebt ? offlineDebtPayments(entries, historyDebt.id) : []),
+    [entries, historyDebt],
+  );
 
   // ---------- Hisobdan chiqarish (server to'lovi bor qarzni bloklaydi) ----------
   const handleDelete = async () => {
@@ -240,21 +332,44 @@ const Debts = () => {
     { label: t('debts.writtenOff'), value: 'written_off' },
     { label: t('common.all'), value: 'all' },
   ];
-  const debtStatus = (debt: Debt) => debt.writtenOffAt ? (
-    <Tooltip title={debt.writtenOffReason || t('debts.writeOffTitle')}><Tag color="warning">{t('debts.writtenOff')}</Tag></Tooltip>
-  ) : <StatusTag status={debt.isPaid ? 'paid' : 'debt'} label={t(debt.isPaid ? 'status.paid' : 'status.unpaid')} />;
-  const debtActions = (debt: Debt) => <Space wrap size={4}>
+  /** Oflayn to'lov belgisi: kutayotgani — ko'k, server rad etgani — qizil */
+  const offlineTags = (debt: DebtView) => <>
+    {debt.offlinePaid ? <Tooltip title={t('debts.offlinePendingHint', { amount: formatMoney(debt.offlinePaid, currency) })}>
+      <Tag color="processing" icon={<CloudUploadOutlined />}>{t('debts.offlinePending')}</Tag>
+    </Tooltip> : null}
+    {debt.offlineFailed ? <Tooltip title={t('debts.offlineFailedHint')}>
+      <Tag color="error" icon={<ExclamationCircleOutlined />}>{t('debts.offlineFailed')}</Tag>
+    </Tooltip> : null}
+  </>;
+  const debtStatus = (debt: DebtView) => <Space size={4} wrap>
+    {debt.writtenOffAt ? (
+      <Tooltip title={debt.writtenOffReason || t('debts.writeOffTitle')}><Tag color="warning">{t('debts.writtenOff')}</Tag></Tooltip>
+    ) : <StatusTag status={debt.isPaid ? 'paid' : 'debt'} label={t(debt.isPaid ? 'status.paid' : 'status.unpaid')} />}
+    {offlineTags(debt)}
+  </Space>;
+  /**
+   * Hisobdan chiqarish INTERNET TALAB QILADI: pulni yo'q qiladigan admin amali,
+   * server to'lov tarixini tekshiradi. Yuborilmagan to'lovi bor qarz ham
+   * chiqarilmaydi — server uni baribir "to'lovi bor" deb rad etardi.
+   */
+  const writeOffBlock = (debt: DebtView): string | null =>
+    !online ? t('debts.writeOffOffline') : debt.offlinePaid ? t('debts.writeOffPending') : null;
+  const debtActions = (debt: DebtView) => <Space wrap size={4}>
     {canPay && !debt.isPaid && <Button type="primary" size="small" icon={<DollarOutlined />} onClick={() => openPay(debt)}>{t('debts.pay')}</Button>}
     <Button size="small" icon={<HistoryOutlined />} aria-label={t('debts.historyTitle')} title={t('debts.historyTitle')} onClick={() => void openHistory(debt)}>
       {mobile ? t('debts.historyTitle') : null}
     </Button>
-    {canWriteOff && !debt.isPaid && <Button size="small" danger type="text" icon={<DeleteOutlined />}
-      aria-label={t('debts.writeOffTitle')} title={t('debts.writeOffTitle')}
-      onClick={() => { setWriteOffReason(''); setDeleteDebt(debt); }} />}
+    {canWriteOff && !debt.isPaid && <Tooltip title={writeOffBlock(debt) ?? t('debts.writeOffTitle')}>
+      <span>
+        <Button size="small" danger type="text" icon={<DeleteOutlined />}
+          aria-label={t('debts.writeOffTitle')} disabled={writeOffBlock(debt) !== null}
+          onClick={() => { setWriteOffReason(''); setDeleteDebt(debt); }} />
+      </span>
+    </Tooltip>}
   </Space>;
   const emptyDebts = <EmptyState icon={<CreditCardOutlined />} title={t('debts.emptyTitle')} hint={t('debts.emptyHint')} />;
 
-  const columns: ColumnsType<Debt> = [
+  const columns: ColumnsType<DebtView> = [
     {
       title: t('common.customer'),
       key: 'customer',
@@ -385,12 +500,15 @@ const Debts = () => {
                 label={t('debts.statRemaining')}
                 value={
                   <MoneyText
-                    amount={totals?.totalRemaining}
+                    amount={shownRemaining}
                     currency={currency}
-                    color={(totals?.totalRemaining ?? 0) > 0 ? TOKENS.color.gold.base : undefined}
+                    color={(shownRemaining ?? 0) > 0 ? TOKENS.color.gold.base : undefined}
                     style={{ fontSize: 'inherit', fontWeight: 'inherit' }}
                   />
                 }
+                footnote={pendingTotal > 0
+                  ? t('debts.offlineTotalsHint', { amount: formatMoney(pendingTotal, currency) })
+                  : undefined}
                 icon={<DollarOutlined />}
                 loading={loading && totals === null}
               />
@@ -430,8 +548,8 @@ const Debts = () => {
           />
           {mobile ? <div className="records-mobile" aria-busy={loading}>
             <Spin spinning={loading}>
-              {debts.length === 0 ? emptyDebts : <div className="records-mobile__list" role="list">
-                {debts.map((debt) => <article className="record-card" role="listitem" key={debt.id}>
+              {view.length === 0 ? emptyDebts : <div className="records-mobile__list" role="list">
+                {view.map((debt) => <article className="record-card" role="listitem" key={debt.id}>
                   <header className="record-card__header">
                     <div><h2>{debt.customerName}</h2><p>{debt.customerPhone ?? t('debts.noPhone')}</p></div>
                     {debtStatus(debt)}
@@ -458,7 +576,7 @@ const Debts = () => {
             size="middle"
             sticky
             columns={columns}
-            dataSource={debts}
+            dataSource={view}
             loading={loading}
             scroll={{ x: 1000 }}
             locale={{
@@ -622,6 +740,28 @@ const Debts = () => {
         onClose={() => setHistoryDebt(null)}
         width="min(480px, 100vw)"
       >
+        {paymentsOffline && (
+          <Alert type="info" showIcon message={t('debts.offlineHistoryUnavailable')} style={{ marginBottom: 12 }} />
+        )}
+        {/* Shu kassada navbatda turgan (serverga hali yetmagan) to'lovlar */}
+        {historyPending.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <Text strong style={{ display: 'block', marginBottom: 6 }}>{t('debts.offlineHistoryTitle')}</Text>
+            {historyPending.map((p) => (
+              <div key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '6px 0',
+                borderBottom: `1px solid ${TOKENS.color.border.subtle}` }}>
+                <MoneyText amount={p.amount} currency={currency} />
+                <Tag>{t(`payment.${p.paymentMethod}`)}</Tag>
+                <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(p.at).format('DD.MM.YYYY HH:mm')}</Text>
+                {p.offlineMark === 'failed' ? (
+                  <Tooltip title={p.offlineError ?? t('debts.offlineFailedHint')}>
+                    <Tag color="error" icon={<ExclamationCircleOutlined />}>{t('debts.offlineFailed')}</Tag>
+                  </Tooltip>
+                ) : <Tag color="processing" icon={<CloudUploadOutlined />}>{t('debts.offlinePending')}</Tag>}
+              </div>
+            ))}
+          </div>
+        )}
         <Table
           rowKey="id"
           size="small"

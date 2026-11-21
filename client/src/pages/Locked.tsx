@@ -9,7 +9,7 @@ import {
   StopOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { authApi, subscriptionApi } from '../api';
 import SubscriptionPlans from '../components/subscription/SubscriptionPlans';
@@ -17,6 +17,7 @@ import { AnimatedBackground, BrandLogo, GlassCard, PageTransition } from '../com
 import { SUPPORT_PHONE, SUPPORT_TELEGRAM } from '../constants';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { useLogout } from '../hooks/useLogout';
 import { TOKENS } from '../theme/tokens';
 import type { Plan, SubscriptionStatus } from '../types';
 import { isPaymentResolvable } from '../utils/blockReasons';
@@ -40,9 +41,10 @@ const PAGE_BG = [
  */
 const Locked = () => {
   const { t, i18n } = useTranslation();
-  const { user, club, loading, refreshMe, logout, subscriptionLocked, offlineLicense, offlineAccess } = useAuth();
+  const { user, club, loading, refreshMe, subscriptionLocked, offlineLicense, offlineAccess } = useAuth();
   const { message } = App.useApp();
-  const navigate = useNavigate();
+  // Blok ekranida ham navbatda yuborilmagan amallar bo'lishi mumkin — chiqishdan oldin aytiladi
+  const logout = useLogout();
 
   const [checking, setChecking] = useState(false);
   const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
@@ -143,11 +145,6 @@ const Locked = () => {
     } finally {
       setChecking(false);
     }
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
   };
 
   const handleChanged = async () => {
@@ -376,7 +373,7 @@ const Locked = () => {
                   >
                     {t('locked.recheck')}
                   </Button>
-                  <Button onClick={handleLogout}>{t('btn.logout')}</Button>
+                  <Button onClick={() => void logout()}>{t('btn.logout')}</Button>
                 </Space>
               </div>
             </GlassCard>

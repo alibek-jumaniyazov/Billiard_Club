@@ -597,6 +597,13 @@ h1.ant-typography, h2.ant-typography, h3.ant-typography, h4.ant-typography,
     align-items: center;
   }
 
+  /* Select/AutoComplete qobig'i antd da 32px ga qotirilgan — ichidagi 44px
+     maydon undan toshib, ostidagi izoh matnining ustiga chiqib qolardi */
+  .ant-select-single {
+    height: auto;
+    min-height: 44px;
+  }
+
   /* Faqat ikonkali tugmalar (masalan stol kartasidagi pauza/bar/ko'chirish)
      kvadrat 44px nishon olsin — 3 ta yonma-yon tugma xato bosilmasin */
   .ant-btn-icon-only {

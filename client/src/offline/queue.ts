@@ -8,11 +8,14 @@
  *     kalitni eslab qoladi, shuning uchun tarmoq lipillashi sabab AYNAN BIR
  *     amal ikki marta yuborilsa ham PUL IKKI MARTA YOZILMAYDI.
  *  3. Ulanish tiklanganda navbat aynan yozilgan tartibda qayta yuboriladi.
- *  4. Bir amal DOIMIY xato (4xx) bilan qaytsa navbat TO'XTAYDI va foydalanuvchiga
- *     ko'rsatiladi. Undan keyingi amallar odatda shunga bog'liq (masalan
- *     "sessiyani yakunlash" — "sessiyani boshlash" ga), shuning uchun ularni
- *     ko'r-ko'rona yuborish noto'g'ri hisob beradi. HECH QACHON jimgina
- *     tashlab yuborilmaydi.
+ *  4. Bir amal DOIMIY xato (4xx) bilan qaytsa u "xato" holatida qoladi va
+ *     foydalanuvchiga ko'rsatiladi — HECH QACHON jimgina tashlab yuborilmaydi.
+ *     Undan keyingi amallardan faqat SHUNGA BOG'LIQLARI kutadi (masalan
+ *     "sessiyani yakunlash" — "sessiyani boshlash" ga): ularni ko'r-ko'rona
+ *     yuborish noto'g'ri hisob berardi. Boshqa stol/mijozga tegishli MUSTAQIL
+ *     amallar esa yuborilaveradi — bitta rad etilgan buyurtma butun kassani
+ *     to'xtatib qo'ymaydi. Bog'liqlik qoidalari pastdagi "BOG'LIQLIKLAR"
+ *     bo'limida.
  *
  * LOKAL HAVOLALAR: offline'da yaratilgan yozuvning haqiqiy ID si hali yo'q.
  * Shuning uchun keyingi amallar `$local:<localId>` shaklidagi o'rin egallovchi
@@ -48,12 +51,25 @@ export interface QueueEntry {
    * boshlangan va h.k.). Serverga YUBORILMAYDI — faqat lokal ko'rinish uchun.
    * Manba yagona: ekrandagi oflayn holat aynan shu navbatdan hisoblanadi
    * (overlay.ts), shuning uchun ikkinchi "soya holat" saqlanmaydi.
+   *
+   * `meta.deps?: string[]` — amal qaysi obyektlarga tegishi (bog'liqlik
+   * kalitlari: `table:3`, `session:$local:ab` ...). Xato amaldan keyin navbat
+   * faqat shu kalitlari mos kelgan amallarni ushlab turadi ("BOG'LIQLIKLAR").
    */
   meta?: Record<string, unknown>;
   createdAt: number;
   attempts: number;
   lastError?: string;
   status: 'pending' | 'failed';
+  /**
+   * Xato turi (faqat `status: 'failed'` da):
+   *  - 'rejected'  — server amalni RAD ETDI (4xx) yoki havola hal bo'lmadi:
+   *    muammo SHU amalda, faqat unga bog'liq keyingi amallar kutadi;
+   *  - 'exhausted' — vaqtinchalik xato urinishlar chegarasidan oshdi: sabab
+   *    odatda aloqa/hisob/obunada, shuning uchun BUTUN navbat to'xtaydi.
+   * Maydoni yo'q eski yozuv 'rejected' deb qaraladi.
+   */
+  failure?: 'rejected' | 'exhausted';
 }
 
 const LOCAL_MAP_KEY = 'localIdMap';
@@ -114,6 +130,114 @@ const resolveRefs = <T>(value: T, map: LocalMap): T => {
   return value;
 };
 
+/* --------------------------------------------------------- Bog'liqliklar */
+
+/** Bog'liqligi aniqlanmagan amal — o'zidan oldingi HAMMA narsaga bog'liq */
+const ALL = 'all';
+type Deps = ReadonlySet<string> | typeof ALL;
+
+/** `$local:<localId>` havolasi — identifikator belgilari resolveRefs bilan bir xil */
+const LOCAL_REFS = /\$local:([A-Za-z0-9-]+)/g;
+
+const isRefValue = (value: unknown): value is string | number =>
+  (typeof value === 'number' && Number.isFinite(value)) ||
+  (typeof value === 'string' && value.trim() !== '');
+
+/**
+ * BOG'LIQLIK KALITLARI (`meta.deps`) — amal qaysi obyektga tegadi.
+ *
+ * NEGA KERAK: avval bitta amal rad etilsa (4xx) BUTUN navbat to'xtardi.
+ * Masalan 3-stoldagi bar buyurtmasi rad etilsa, 7-stolda boshlangan o'yin va
+ * boshqa barcha mustaqil amallar ham serverga yetmay qolardi. Endi xato amal
+ * faqat O'ZIGA BOG'LIQ amallarni ushlab turadi.
+ *
+ * KALITLAR (satr): table:<id> · session:<ref> · customer:<ref> ·
+ * reservation:<ref> · debt:<customerId> · shift
+ * `<ref>` — server ID si yoki oflayn yaratilgan obyekt uchun `$local:<localId>`.
+ * Obyekt serverga yetib borgach `$local:` haqiqiy ID ga almashtirib
+ * solishtiriladi: `session:$local:ab` va `session:42` — bitta kalit.
+ *
+ * QOIDALAR (FIFO tartibida, faqat joriy doira ichida):
+ *  1. Amal KUTADI, agar u oldingi xato yoki kutayotgan amal bilan kamida
+ *     bitta umumiy kalitga ega bo'lsa, yoki URL/tanasi/kalitlarida xato yoki
+ *     kutayotgan amalning `$local:<localId>` iga havola bo'lsa. Kutayotgan
+ *     amal ham o'z navbatida keyingilarni ushlaydi (zanjir).
+ *  2. `meta.deps` yo'q (eski) yozuvda kalitlar `meta.tableId`,
+ *     `meta.sessionRef`, `meta.toTableId` dan olinadi.
+ *  3. Hech narsa aniqlanmasa (yoki `deps` buzuq bo'lsa) — amal ehtiyot uchun
+ *     "HAMMASIGA bog'liq" deb qaraladi: oldida ushlab turilgan biror amal bo'lsa
+ *     kutadi, o'zi ushlansa — keyingi har bir kalitli amalni ushlaydi.
+ *     `deps: []` — ataylab mustaqil amal: uni faqat `$local:` havolasi ushlaydi.
+ *  4. Kutayotgan amal "xato" deb BELGILANMAYDI va o'chirilmaydi: xato amal
+ *     qayta urinib o'tkazilishini yoki undan voz kechilishini kutadi.
+ *  5. Vaqtinchalik xato (tarmoq/5xx/401/403/429/409) urinishlar chegarasidan
+ *     oshsa ('exhausted'), sabab odatda amalda emas — aloqa, hisob yoki
+ *     obunada (obuna tugasa HAR BIR so'rov 403 oladi). Bunday yozuv avvalgidek
+ *     BUTUN navbatni to'xtatadi: aks holda mustaqil amallar ham birin-ketin
+ *     "xato" bo'lib, kassir ularni bittalab qayta yuborishiga to'g'ri kelardi.
+ *
+ * Natija: kalitlar to'plami (serverga yetgan `$local:` — haqiqiy ID bilan)
+ * yoki ALL.
+ */
+const depsOf = (row: QueueEntry, map: LocalMap): Deps => {
+  const meta = row.meta ?? {};
+  const keys: string[] = [];
+  if (Array.isArray(meta.deps)) {
+    for (const key of meta.deps as unknown[]) {
+      // Buzuq qiymat — kalitlarga ishonib bo'lmaydi, konservativ yo'l
+      if (typeof key !== 'string' || key.trim() === '') return ALL;
+      keys.push(key.trim());
+    }
+  } else {
+    if (isRefValue(meta.tableId)) keys.push(`table:${meta.tableId}`);
+    if (isRefValue(meta.toTableId)) keys.push(`table:${meta.toTableId}`);
+    if (isRefValue(meta.sessionRef)) keys.push(`session:${meta.sessionRef}`);
+    if (keys.length === 0) return ALL;
+  }
+  return new Set(
+    keys.map((key) =>
+      key.replace(LOCAL_REFS, (ref, id: string) => (map[id] === undefined ? ref : String(map[id]))),
+    ),
+  );
+};
+
+/** Amal havola qiladigan, hali serverda yo'q obyektlar (URL, tana, kalitlar) */
+const localRefsOf = (row: QueueEntry, deps: Deps): string[] => {
+  const text = [row.url, JSON.stringify(row.body ?? null), deps === ALL ? '' : [...deps].join(' ')].join(' ');
+  return Array.from(text.matchAll(LOCAL_REFS), (match) => match[1]);
+};
+
+/** Shu yuborish davrida ushlab turilgan (xato yoki kutayotgan) amallar izi */
+interface Hold {
+  /** Band kalitlar */
+  keys: Set<string>;
+  /** Ushlab turilgan amallarning localId lari — ularga havola qilgan amal kutadi */
+  localIds: Set<string>;
+  /** Kamida bitta amal ushlab turilibdi */
+  any: boolean;
+  /** "Hammasiga bog'liq" amal ushlab turilibdi — har bir kalitli amal kutadi */
+  all: boolean;
+}
+
+const newHold = (): Hold => ({ keys: new Set(), localIds: new Set(), any: false, all: false });
+
+/** Amal oldin ushlab turilgan biror amalga bog'liqmi */
+const mustWait = (hold: Hold, row: QueueEntry, deps: Deps): boolean => {
+  if (!hold.any) return false;
+  if (deps === ALL) return true;
+  if (localRefsOf(row, deps).some((id) => hold.localIds.has(id))) return true;
+  if (deps.size > 0 && hold.all) return true;
+  return [...deps].some((key) => hold.keys.has(key));
+};
+
+/** Amalni ushlab turilganlar qatoriga qo'shish — endi u ham keyingilarni ushlaydi */
+const holdBack = (hold: Hold, row: QueueEntry, deps: Deps): void => {
+  hold.any = true;
+  hold.localIds.add(row.localId);
+  if (deps === ALL) hold.all = true;
+  else deps.forEach((key) => hold.keys.add(key));
+};
+
 /* ------------------------------------------------------- Navbat amallari */
 
 type Listener = () => void;
@@ -150,8 +274,9 @@ export const queueList = async (): Promise<QueueEntry[]> => {
   return rows.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
 };
 
-export const queueCount = async (): Promise<{ pending: number; failed: number }> => {
-  const rows = await queueList();
+/** Kutayotgan va xato amallar soni; `scope` berilsa — faqat shu doiradagilar */
+export const queueCount = async (scope?: string): Promise<{ pending: number; failed: number }> => {
+  const rows = (await queueList()).filter((r) => scope === undefined || r.scope === scope);
   return {
     pending: rows.filter((r) => r.status === 'pending').length,
     failed: rows.filter((r) => r.status === 'failed').length,
@@ -160,7 +285,7 @@ export const queueCount = async (): Promise<{ pending: number; failed: number }>
 
 /** Amalni navbatga qo'yish. Qaytadi: yozuvning localId si */
 export const enqueue = async (
-  entry: Omit<QueueEntry, 'seq' | 'createdAt' | 'attempts' | 'status' | 'idempotencyKey' | 'localId'> &
+  entry: Omit<QueueEntry, 'seq' | 'createdAt' | 'attempts' | 'status' | 'failure' | 'idempotencyKey' | 'localId'> &
     Partial<Pick<QueueEntry, 'localId' | 'idempotencyKey'>>,
 ): Promise<string> => {
   await requireOfflineLease(entry.scope);
@@ -245,7 +370,7 @@ export const queueRetry = async (seq: number): Promise<void> => {
   const rows = await queueList();
   const row = rows.find((r) => r.seq === seq);
   if (!row) return;
-  await idbPut(STORE_QUEUE, { ...row, status: 'pending', attempts: 0, lastError: undefined });
+  await idbPut(STORE_QUEUE, { ...row, status: 'pending', attempts: 0, lastError: undefined, failure: undefined });
   notify();
 };
 
@@ -253,7 +378,10 @@ export const queueRetry = async (seq: number): Promise<void> => {
 
 export interface FlushResult {
   sent: number;
-  /** Doimiy xato tufayli to'xtadimi */
+  /**
+   * Yuborilmay qolgan amal bormi: xato bo'lgani, unga bog'liq bo'lib
+   * kutayotgani yoki yuborish xavfsizlik uchun to'xtatilgani
+   */
   blocked: boolean;
   /** Tarmoq hali yo'q — keyinroq qayta urinamiz */
   offline: boolean;
@@ -271,13 +399,13 @@ const flushWithLock = async (scope: string): Promise<FlushResult> => {
   if (flushing) return { sent: 0, blocked: false, offline: false };
   flushing = true;
   let sent = 0;
+  // Xato va unga bog'liq bo'lib kutayotgan amallar — keyingilar shu bilan solishtiriladi
+  const hold = newHold();
   try {
     const rows = await queueList();
-    for (const row of rows) {
+    for (const listed of rows) {
       if (fullScope() !== scope) return { sent, blocked: true, offline: false };
-      if (row.scope !== scope) continue;
-      // Oldida hal qilinmagan xato yozuv bo'lsa — undan keyingilar kutadi
-      if (row.status === 'failed') return { sent, blocked: true, offline: false };
+      if (listed.scope !== scope) continue;
 
       /**
        * YUBORISHDAN OLDIN yozuv HALI NAVBATDAMI — qayta tekshiriladi.
@@ -286,13 +414,34 @@ const flushWithLock = async (scope: string): Promise<FlushResult> => {
        * tufayli soniyalarcha davom etishi mumkin. Shu oraliqda foydalanuvchi
        * "voz kechish" bosgan bo'lsa, tekshiruvsiz holatda BEKOR QILINGAN amal
        * baribir serverga ketardi — kassir uchun bu eng chalg'ituvchi xatti-harakat.
+       * Qaror ham shu YANGI nusxa bo'yicha qilinadi: shu orada xato amal
+       * "qayta urinish" ga qo'yilgan bo'lishi mumkin.
        */
-      if (row.seq !== undefined) {
-        const still = await idbGet<QueueEntry>(STORE_QUEUE, row.seq);
+      let row = listed;
+      if (listed.seq !== undefined) {
+        const still = await idbGet<QueueEntry>(STORE_QUEUE, listed.seq);
         if (!still) continue;
+        row = still;
       }
 
       const map = await readLocalMap();
+      const deps = depsOf(row, map);
+
+      if (row.status === 'failed') {
+        // Urinishlari tugagan vaqtinchalik xato — sabab umumiy, navbat to'xtaydi
+        if (row.failure === 'exhausted') return { sent, blocked: true, offline: false };
+        // Rad etilgan amal — faqat unga bog'liqlar kutadi
+        holdBack(hold, row, deps);
+        continue;
+      }
+
+      // Oldingi xato amalga bog'liq — kutadi. "Xato" deb belgilanmaydi:
+      // havolasi baribir hal bo'lmasdi, lekin bu amalning o'zida aybi yo'q
+      if (mustWait(hold, row, deps)) {
+        holdBack(hold, row, deps);
+        continue;
+      }
+
       let url: string;
       let body: unknown;
       try {
@@ -302,10 +451,12 @@ const flushWithLock = async (scope: string): Promise<FlushResult> => {
         await idbPut(STORE_QUEUE, {
           ...row,
           status: 'failed',
+          failure: 'rejected',
           lastError: (err as Error).message,
         });
         notify();
-        return { sent, blocked: true, offline: false };
+        holdBack(hold, row, deps);
+        continue;
       }
 
       try {
@@ -371,21 +522,27 @@ const flushWithLock = async (scope: string): Promise<FlushResult> => {
         if (retryable && row.attempts + 1 < MAX_ATTEMPTS) {
           await idbPut(STORE_QUEUE, { ...row, attempts: row.attempts + 1 });
           notify();
-          return { sent, blocked: false, offline: true };
+          const anyFailed = rows.some((r) => r.scope === scope && r.status === 'failed');
+          return { sent, blocked: hold.any || anyFailed, offline: true };
         }
-        // 4xx — DOIMIY xato: bu amal shu holida hech qachon o'tmaydi.
-        // Jimgina tashlab yubormaymiz: foydalanuvchi ko'rsin va hal qilsin.
+        // 4xx — DOIMIY xato: bu amal shu holida hech qachon o'tmaydi (yoki
+        // vaqtinchalik xato urinishlari tugadi). Jimgina tashlab yubormaymiz:
+        // foydalanuvchi ko'rsin va hal qilsin.
+        const failure = retryable ? 'exhausted' : 'rejected';
         await idbPut(STORE_QUEUE, {
           ...row,
           attempts: row.attempts + 1,
           status: 'failed',
+          failure,
           lastError: axiosErr.response?.data?.message ?? `HTTP ${status}`,
         });
         notify();
-        return { sent, blocked: true, offline: false };
+        // Urinishlar tugadi — sabab umumiy (aloqa/obuna), navbat avvalgidek to'xtaydi
+        if (failure === 'exhausted') return { sent, blocked: true, offline: false };
+        holdBack(hold, row, deps);
       }
     }
-    return { sent, blocked: false, offline: false };
+    return { sent, blocked: hold.any, offline: false };
   } finally {
     flushing = false;
   }

@@ -41,11 +41,19 @@ import { MoneyText, useNow } from '../../components/ui';
 import { PAYMENT_METHODS } from '../../constants';
 import { useCurrency } from '../../context/AppSettingsContext';
 import { useConnection } from '../../context/ConnectionContext';
+import {
+  customerLabel,
+  customerMatches,
+  loadCustomerDirectory,
+  type CustomerDirectory,
+} from '../../offline/customer-directory';
+import { hasPendingOps } from '../../offline/overlay';
 import { newActionKey, queueEndSession } from '../../offline/pos';
 import { TOKENS } from '../../theme/tokens';
 import { escapeHtml, printHtml } from '../../utils/print';
 import type {
   BilliardTable,
+  Customer,
   EndSessionPayload,
   EndSessionResult,
   PaymentMethod,
@@ -399,7 +407,15 @@ interface EndFormValues {
   isBarDebt?: boolean;
   customerName?: string;
   customerPhone?: string;
+  /** Internetsiz qarz: keshdagi ro'yxatdan tanlangan mijoz */
+  customerId?: number;
   notes?: string;
+}
+
+/** Internetsiz qarz uchun mijozlar katalogi holati */
+interface DirectoryState {
+  status: 'idle' | 'loading' | 'ready' | 'unavailable';
+  data: CustomerDirectory | null;
 }
 
 interface CheckoutDrawerProps {
@@ -430,7 +446,7 @@ const CheckoutDrawer = ({
   const { t } = useTranslation();
   const { message } = App.useApp();
   const [form] = Form.useForm<EndFormValues>();
-  const { online } = useConnection();
+  const { online, entries } = useConnection();
 
   const session = table?.sessions?.[0] ?? null;
   const sessionId = session?.id ?? null;
@@ -438,13 +454,21 @@ const CheckoutDrawer = ({
   const currency = useCurrency();
 
   /**
-   * OFLAYN REJIM: internet yo'q YOKI sessiyaning o'zi hali serverda yo'q
-   * (oflayn boshlangan, navbatda). Chek shu kassadagi ma'lumotdan quriladi,
-   * yakunlash esa navbatga yoziladi (offline/pos.ts: queueEndSession).
+   * Shu o'yin/stol bo'yicha navbatda hali yuborilmagan amal bor (masalan
+   * oflayn ko'chirish yoki bar buyurtmasi). Hisob-kitob ulardan KEYIN borishi
+   * shart: onlayn yuborilsa, server o'yinni ularsiz yopib qo'yardi.
+   */
+  const pendingOps = hasPendingOps(entries, session, table ? [table.id] : []);
+
+  /**
+   * OFLAYN REJIM: internet yo'q, sessiyaning o'zi hali serverda yo'q
+   * (oflayn boshlangan, navbatda) YOKI shu stol bo'yicha navbatda amal bor.
+   * Chek shu kassadagi ma'lumotdan quriladi, yakunlash esa navbatga yoziladi
+   * (offline/pos.ts: queueEndSession).
    * Drawer ochilgan paytdagi qiymat ref da — aloqa o'zgarsa forma qayta
    * tozalanmasin (kassir pul sanab turgan bo'lishi mumkin).
    */
-  const offlineMode = !online || Boolean(session?.offlineLocalId);
+  const offlineMode = !online || Boolean(session?.offlineLocalId) || pendingOps;
   const offlineModeRef = useRef(offlineMode);
   offlineModeRef.current = offlineMode;
   // Sahifa har poll'da yangi qiymat beradi — ochilish effektini qayta ishga
@@ -489,7 +513,10 @@ const CheckoutDrawer = ({
   const adjustmentAmount = isAdmin ? watchedAdjustment : 0;
   const split = Form.useWatch('split', form) ?? false;
   const payments = Form.useWatch('payments', form);
-  const canDebts = useEntitlements().can('debts');
+  const { can } = useEntitlements();
+  const canDebts = can('debts');
+  // Internetsiz qarz «Mijozlar» ro'yxatidagi mijozga yoziladi — bo'lim tarifda bo'lishi shart
+  const canCustomers = can('customers');
   const isDebt = (Form.useWatch('isDebt', form) ?? false) && canDebts;
   const isTableDebt = Form.useWatch('isTableDebt', form) ?? false;
   const isBarDebt = Form.useWatch('isBarDebt', form) ?? false;
@@ -498,6 +525,52 @@ const CheckoutDrawer = ({
     () => ({ isDebt, isTableDebt, isBarDebt }),
     [isDebt, isTableDebt, isBarDebt],
   );
+
+  /**
+   * INTERNETSIZ QARZ — faqat kassada saqlangan «Mijozlar» ro'yxatidagi MAVJUD
+   * mijozga (offline/customer-directory.ts). Ro'yxat oflayn rejimda ochilganda
+   * keshdan o'qiladi; server navbatni qabul qilganda mijozni qayta tekshiradi.
+   */
+  const [directory, setDirectory] = useState<DirectoryState>({ status: 'idle', data: null });
+  const needDirectory = !!table && !result && offlineMode && canDebts && canCustomers;
+  useEffect(() => {
+    if (!needDirectory) return undefined;
+    let alive = true;
+    setDirectory({ status: 'loading', data: null });
+    loadCustomerDirectory()
+      .then((data) => {
+        if (alive) setDirectory({ status: 'ready', data });
+      })
+      .catch(() => {
+        if (alive) setDirectory({ status: 'unavailable', data: null });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [needDirectory]);
+  const customerById = useMemo(
+    () => new Map<number, Customer>((directory.data?.customers ?? []).map((c) => [c.id, c])),
+    [directory.data],
+  );
+  const customerOptions = useMemo(
+    () => (directory.data?.customers ?? []).map((c) => ({ value: c.id, label: customerLabel(c) })),
+    [directory.data],
+  );
+  /** Internetsiz qarz nega mumkin emas (null — mumkin) — aniq sababi bilan */
+  const offlineDebtBlock: string | null = !offlineMode
+    ? null
+    : !canCustomers
+      ? t('offline.debtNeedsCustomersFeature')
+      : directory.status === 'unavailable'
+        ? t('offline.debtNoCustomerCache')
+        : null;
+  /** Keshdagi ro'yxat qachongi va to'liqmi — kassir bilsin */
+  const directoryNote = [
+    directory.data?.fromCache && directory.data.cachedAt
+      ? t('offline.debtListAsOf', { time: formatDateTime(directory.data.cachedAt) })
+      : null,
+    directory.data && !directory.data.complete ? t('offline.debtListPartial') : null,
+  ].filter(Boolean).join(' · ') || undefined;
 
   /**
    * Chekni yuklash. `silent` — fon yangilanishi (skeleton ko'rsatilmaydi,
@@ -598,8 +671,10 @@ const CheckoutDrawer = ({
    * Bar summasi o'zgarsa ekranda ogohlantirish chiqadi.
    */
   // Oflayn boshlangan sessiya serverda hali yo'q — so'rash 404 beradi xolos.
-  // Oddiy sessiyada esa internet qaytsa poll lokal chekni server chekiga almashtiradi.
-  const localOnly = Boolean(session?.offlineLocalId);
+  // Navbatda shu stol amallari bo'lsa server cheki ESKI (masalan ko'chirishsiz)
+  // bo'ladi — ular yuborilguncha lokal chek qoladi. Oddiy sessiyada esa
+  // internet qaytsa poll lokal chekni server chekiga almashtiradi.
+  const localOnly = Boolean(session?.offlineLocalId) || pendingOps;
   useEffect(() => {
     if (!sessionId || result || localOnly) return;
     const poll = setInterval(() => void loadReceipt(true), RECEIPT_POLL_MS);
@@ -703,12 +778,24 @@ const CheckoutDrawer = ({
     // ishlatadi — "server bajardi, javob yo'qoldi" holatida pul ikki marta yozilmaydi
     const actionKey = newActionKey();
 
-    // Internet yo'q yoki sessiya hali serverda yo'q — to'g'ridan-to'g'ri navbatga
+    // Internet yo'q, sessiya hali serverda yo'q yoki stol navbatida amal bor —
+    // to'g'ridan-to'g'ri navbatga
     if (offlineModeRef.current) {
       const adjustmentInput = isAdmin && values.adjustmentAmount ? round2(values.adjustmentAmount) : 0;
-      if (values.isDebt || adjustmentInput !== 0) {
-        message.warning(t('offline.checkoutOfflineDebt'));
+      if (adjustmentInput !== 0) {
+        message.warning(t('offline.checkoutOfflineAdjust'));
         return;
+      }
+      if (values.isDebt && canDebts) {
+        // Qarz faqat ro'yxatdagi mijozga — sababi aniq aytiladi
+        if (offlineDebtBlock) {
+          message.warning(offlineDebtBlock);
+          return;
+        }
+        if (!values.customerId || !customerById.has(values.customerId)) {
+          message.warning(t('offline.debtPickCustomer'));
+          return;
+        }
       }
       await finishOffline(values, actionKey, Date.now() + offsetMs);
       return;
@@ -794,6 +881,12 @@ const CheckoutDrawer = ({
         await finishOffline(values, actionKey, submittedAt);
         return;
       }
+      // Qarz (erkin yozilgan ism) va qo'lda tuzatish navbatga o'tmaydi —
+      // umumiy "xatolik" o'rniga kassir nima qilishini aniq bilsin
+      if (isNetworkError(err)) {
+        message.warning(t(adjustment !== 0 ? 'offline.checkoutOfflineAdjust' : 'offline.debtConnectionLost'));
+        return;
+      }
       // 409 = bar summasi o'zgardi: chekni yangilab, kassirdan qayta tasdiq so'raymiz
       if (isConflict(err)) {
         const updated = await loadReceipt(true);
@@ -809,9 +902,24 @@ const CheckoutDrawer = ({
    * Oflayn yakunlash: navbatga yozish + ekranda/chekda lokal natija.
    * `endedAtMs` — summa AYNAN shu payt bo'yicha hisoblanadi va serverga ham
    * shu payt yuboriladi (server o'sha paytga qayta hisoblaydi).
+   *
+   * QARZ (ixtiyoriy): faqat ro'yxatdan tanlangan mijozga. Qarz ulushi server
+   * bilan bir xil formulada (computeTotals); to'lov ro'yxatiga faqat hozir
+   * OLINGAN qism tushadi — 100% qarzda ro'yxat bo'sh ("hech narsa olinmadi").
    */
   const finishOffline = async (values: EndFormValues, key: string, endedAtMs: number) => {
     if (!timing || !receipt || !table || !session) return;
+    const debtOn = Boolean(values.isDebt) && canDebts;
+    const debtor = debtOn && values.customerId ? customerById.get(values.customerId) ?? null : null;
+    if (debtOn && !debtor) {
+      message.warning(t('offline.debtPickCustomer'));
+      return;
+    }
+    const debtFlags: DebtFlags = {
+      isDebt: debtOn,
+      isTableDebt: debtOn && Boolean(values.isTableDebt),
+      isBarDebt: debtOn && Boolean(values.isBarDebt),
+    };
     const totals = computeTotals(
       timing,
       segments,
@@ -819,7 +927,7 @@ const CheckoutDrawer = ({
       fallbackPrice,
       values.discount ?? 0,
       0,
-      { isDebt: false, isTableDebt: false, isBarDebt: false },
+      debtFlags,
       endedAtMs,
     );
     let rows: Array<{ method: PaymentMethod; amount: number }>;
@@ -844,19 +952,30 @@ const CheckoutDrawer = ({
         table,
         session,
         {
+          // Kassada HAQIQATDA olingan pul — bo'sh ro'yxat ham aniq yuboriladi
           payments: rows,
           discount: totals.discount,
           expectedBarAmount: receipt.barAmount,
           notes: values.notes?.trim() || undefined,
-          customerName: values.customerName?.trim() || undefined,
-          customerPhone: values.customerPhone?.trim() || undefined,
+          // Qarzda ism/telefon ro'yxatdagi yozuvdan (server ham shundan oladi)
+          customerName: debtor ? debtor.name : values.customerName?.trim() || undefined,
+          customerPhone: debtor ? debtor.phone ?? undefined : values.customerPhone?.trim() || undefined,
+          ...(debtor
+            ? {
+                isDebt: true,
+                isTableDebt: debtFlags.isTableDebt,
+                isBarDebt: debtFlags.isBarDebt,
+                customerId: debtor.id,
+              }
+            : {}),
         },
         totals.toPay,
         key,
         endedAtMs,
+        totals.debt,
       );
-    } catch {
-      message.error(t('common.error'));
+    } catch (err) {
+      message.error(errorMessage(err, t('common.error')));
       return;
     } finally {
       setSubmitting(false);
@@ -874,9 +993,10 @@ const CheckoutDrawer = ({
       totalAmount: totals.total,
       paidNow: round2(rows.reduce((acc, r) => acc + r.amount, 0)),
       payments: rows,
-      totalDebt: 0,
+      // Chekda qarz ulushi ko'rinadi (server aloqa tiklanganda qayta tekshiradi)
+      totalDebt: debtor ? totals.debt : 0,
       debtId: null,
-      isDebt: false,
+      isDebt: Boolean(debtor) && totals.debt > 0,
       segments: null,
       session,
       serverNow: new Date(endedAtMs).toISOString(),
@@ -940,7 +1060,7 @@ const CheckoutDrawer = ({
   const isPausedNow = timing?.status === 'paused';
 
   // Klaviatura yorliqlari (POS tezligi): Enter — yakunlash (End tugmasi ruxsat
-  // bergandagina, TEXTAREA dan tashqari), 1/2/3 — naqd/karta/o'tkazma (faqat
+  // bergandagina, TEXTAREA va ochiladigan ro'yxatdan tashqari), 1/2/3 — naqd/karta/o'tkazma (faqat
   // bo'linmagan to'lov va matn maydonidan tashqarida — summa yozishni buzmaydi).
   // Eng so'nggi holat ref orqali o'qiladi — listener bir marta bog'lanadi.
   const kbdRef = useRef<{ canConfirm: boolean; confirm: () => void; split: boolean }>({
@@ -961,7 +1081,11 @@ const CheckoutDrawer = ({
       const typing =
         tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el?.isContentEditable;
       const s = kbdRef.current;
-      if (e.key === 'Enter' && tag !== 'TEXTAREA' && !e.isComposing) {
+      // Ochiladigan ro'yxat (mijoz, to'lov usuli) ichidagi Enter faqat variantni
+      // tanlaydi — hisob-kitobni yakunlab yubormaydi (masalan oflayn qarzda
+      // mijozni tanlash bilan birga noto'g'ri mijozga qarz yozilib ketmasin)
+      const inSelect = Boolean(el?.closest('.ant-select'));
+      if (e.key === 'Enter' && tag !== 'TEXTAREA' && !e.isComposing && !inSelect) {
         if (s.canConfirm) {
           e.preventDefault();
           s.confirm();
@@ -1166,14 +1290,15 @@ const CheckoutDrawer = ({
         <Alert type="warning" showIcon message={t('tables.alreadyEnded')} />
       ) : timing && receipt ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Internetsiz hisob-kitob — kassir summa qayerdan kelganini bilsin */}
+          {/* Internetsiz (yoki navbat orqali) hisob-kitob — kassir summa qayerdan
+              kelganini va nega navbatga ketishini bilsin */}
           {offlineMode && (
             <Alert
               type="info"
               showIcon
               icon={<CloudSyncOutlined />}
-              message={t('offline.checkoutOfflineTitle')}
-              description={t('offline.checkoutOfflineDesc')}
+              message={t(online && pendingOps ? 'offline.checkoutQueuedTitle' : 'offline.checkoutOfflineTitle')}
+              description={t(online && pendingOps ? 'offline.checkoutQueuedDesc' : 'offline.checkoutOfflineDesc')}
             />
           )}
 
@@ -1249,7 +1374,13 @@ const CheckoutDrawer = ({
             </Row>
 
             {/* Qo'lda tuzatish — faqat admin */}
-            {/* Oflaynda yashiriladi: tuzatish huquqi va sababi serverda tekshiriladi */}
+            {/* Oflaynda yashiriladi: tuzatish huquqi va sababi serverda tekshiriladi —
+                admin nega maydon yo'qligini bilsin */}
+            {isAdmin && offlineMode && (
+              <Text type="secondary" style={{ display: 'block', fontSize: 12.5, marginBottom: 12 }}>
+                {t('offline.checkoutOfflineAdjust')}
+              </Text>
+            )}
             {isAdmin && !offlineMode && (
               <Row gutter={12}>
                 <Col span={12}>
@@ -1404,16 +1535,19 @@ const CheckoutDrawer = ({
               </div>
             )}
 
-            {/* Qarz — "Qarzlar daftari" tarif imkoniyati; yo'q bo'lsa tanlov ko'rinmaydi */}
+            {/* Qarz — "Qarzlar daftari" tarif imkoniyati; yo'q bo'lsa tanlov ko'rinmaydi.
+                Internetsiz — faqat ro'yxatdagi mijozga; mumkin bo'lmasa sababi yoziladi */}
             {canDebts && <Form.Item
               name="isDebt"
               valuePropName="checked"
               label={t('tables.debtQuestion')}
-              extra={offlineMode ? t('offline.checkoutOfflineDebt') : undefined}
+              extra={offlineMode ? (offlineDebtBlock ?? t('offline.debtOfflineHint')) : undefined}
               style={{ marginBottom: 12 }}
             >
+              {/* Yoqilgan holatda hech qachon qulflanmaydi: kassir uni o'chirib,
+                  to'liq to'lovga o'ta olishi shart */}
               <Switch
-                disabled={offlineMode}
+                disabled={offlineMode && offlineDebtBlock !== null && !isDebt}
                 checkedChildren={t('status.debt')}
                 unCheckedChildren={t('status.paid')}
               />
@@ -1443,17 +1577,60 @@ const CheckoutDrawer = ({
                     </Form.Item>
                   </Col>
                 </Row>
-                <Form.Item
-                  name="customerName"
-                  label={t('tables.customerName')}
-                  rules={[{ required: true, whitespace: true, message: t('tables.nameRequired') }]}
-                  style={{ marginBottom: 12 }}
-                >
-                  <Input maxLength={100} />
-                </Form.Item>
-                <Form.Item name="customerPhone" label={t('common.phone')} style={{ marginBottom: 12 }}>
-                  <Input maxLength={20} placeholder="+998" />
-                </Form.Item>
+                {offlineMode ? (
+                  /* Internetsiz: faqat saqlangan ro'yxatdagi MAVJUD mijoz. Ro'yxatda
+                     yo'q (yangi yoki internetsiz qo'shilgan) mijoz tanlanmaydi —
+                     qidiruv natijasi bo'sh bo'lsa sababi aniq yoziladi */
+                  <Form.Item
+                    name="customerId"
+                    label={t('offline.debtCustomer')}
+                    rules={[{ required: true, message: t('offline.debtPickCustomer') }]}
+                    extra={directoryNote}
+                    style={{ marginBottom: 12 }}
+                  >
+                    <Select<number>
+                      showSearch
+                      allowClear
+                      loading={directory.status === 'loading'}
+                      placeholder={t('offline.debtCustomerPlaceholder')}
+                      options={customerOptions}
+                      filterOption={(input, option) => {
+                        const customer = option ? customerById.get(Number(option.value)) : undefined;
+                        return customer ? customerMatches(customer, input) : false;
+                      }}
+                      notFoundContent={
+                        directory.status === 'loading' ? null : (
+                          <Text type="secondary" style={{ whiteSpace: 'normal', fontSize: 12.5 }}>
+                            {t('offline.debtCustomerNotListed')}
+                          </Text>
+                        )
+                      }
+                      onChange={(id?: number) => {
+                        // Ism/telefon ham to'ldiriladi: aloqa tiklanib forma onlayn
+                        // rejimga o'tsa, kassir o'sha mijozni ko'rib turadi
+                        const customer = id !== undefined ? customerById.get(id) : undefined;
+                        form.setFieldsValue({
+                          customerName: customer?.name ?? '',
+                          customerPhone: customer?.phone ?? '',
+                        });
+                      }}
+                    />
+                  </Form.Item>
+                ) : (
+                  <>
+                    <Form.Item
+                      name="customerName"
+                      label={t('tables.customerName')}
+                      rules={[{ required: true, whitespace: true, message: t('tables.nameRequired') }]}
+                      style={{ marginBottom: 12 }}
+                    >
+                      <Input maxLength={100} />
+                    </Form.Item>
+                    <Form.Item name="customerPhone" label={t('common.phone')} style={{ marginBottom: 12 }}>
+                      <Input maxLength={20} placeholder="+998" />
+                    </Form.Item>
+                  </>
+                )}
               </>
             )}
 

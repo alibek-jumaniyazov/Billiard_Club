@@ -217,7 +217,9 @@ async function readSingleLight(
       case LightDriver.TASMOTA: {
         if (!host) return null;
         const index = target.channel + 1;
-        const data = await fetchJson(`http://${host}/cm?cmnd=Power${index}`, target, timeoutMs);
+        const data = await fetchJson(
+          `http://${host}/cm?${tasmotaAuthQuery(target.auth)}cmnd=Power${index}`, target, timeoutMs,
+        );
         // Ko'p kanalli qurilmada {"POWER2":"ON"}, bir kanallida {"POWER":"ON"}
         const value = data?.[`POWER${index}`] ?? data?.['POWER'];
         physical = parseOnOff(value);
@@ -547,11 +549,12 @@ function buildCommandRequest(target: LightTarget, physical: boolean): DeviceRequ
       };
 
     case LightDriver.TASMOTA:
-      // %20 allaqachon kodlangan — URLSearchParams ishlatilmaydi
+      // %20 allaqachon kodlangan — URLSearchParams ishlatilmaydi.
+      // Parol eski proshivkalar uchun URL da ham yuboriladi (Basic sarlavha bilan birga)
       return {
         url:
           `http://${requireHost(host)}/cm` +
-          `?cmnd=Power${target.channel + 1}%20${physical ? 'ON' : 'OFF'}`,
+          `?${tasmotaAuthQuery(target.auth)}cmnd=Power${target.channel + 1}%20${physical ? 'ON' : 'OFF'}`,
         method: 'GET',
       };
 
@@ -621,7 +624,7 @@ async function deviceFetch(
   const headers = buildHeaders(target);
   if (request.contentType) headers['Content-Type'] = request.contentType;
 
-  const res = await fetch(request.url, {
+  const res = await hideUrlSecrets(request.url, () => fetch(request.url, {
     method: request.method,
     headers,
     body: request.body,
@@ -629,7 +632,7 @@ async function deviceFetch(
     // boshqa (tashqi) manzilga jo'natib yuborishi mumkin edi — 3xx xato hisoblanadi
     redirect: 'manual',
     signal: AbortSignal.timeout(timeoutMs),
-  });
+  }));
 
   // Bearer tokenli qurilmada (home_assistant) digest bo'lmaydi — qayta urinilmaydi
   if (res.status !== 401 || !target.auth || target.driver === LightDriver.HOME_ASSISTANT) {
@@ -646,7 +649,7 @@ async function deviceFetch(
   const password = separator === -1 ? '' : target.auth.slice(separator + 1);
   const parsed = new URL(request.url);
 
-  return fetch(request.url, {
+  return hideUrlSecrets(request.url, () => fetch(request.url, {
     method: request.method,
     headers: {
       ...headers,
@@ -662,7 +665,40 @@ async function deviceFetch(
     redirect: 'manual',
     // Qayta urinish uchun YANGI timeout — birinchisi allaqachon sarflangan
     signal: AbortSignal.timeout(timeoutMs),
-  });
+  }));
+}
+
+/**
+ * Tasmota /cm uchun "user=..&password=..&" (parol bo'lmasa bo'sh satr).
+ * Tasmota sarlavhadagi Basic auth ni faqat yangi proshivkalarda tekshiradi, URL
+ * parametrlarini esa HAMMA versiyalar qabul qiladi (bridge/lib/http-device.js
+ * bilan bir xil qoida). Foydalanuvchi bo'lmasa — "admin".
+ */
+function tasmotaAuthQuery(auth: string | null | undefined): string {
+  const raw = auth?.trim();
+  if (!raw) return '';
+  const separator = raw.indexOf(':');
+  const username = (separator === -1 ? '' : raw.slice(0, separator)) || 'admin';
+  const password = separator === -1 ? raw : raw.slice(separator + 1);
+  return `user=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&`;
+}
+
+/**
+ * URL ida parol bor so'rov (Tasmota) xatosi jurnalga/panelga chiqishidan oldin
+ * tekshiriladi: xato matnida URL bo'lsa — umumiy matn bilan almashtiriladi.
+ */
+async function hideUrlSecrets<T>(url: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (!url.includes('password=')) throw err;
+    const error = err as { message?: string; cause?: { message?: string } };
+    const text = `${error?.message ?? ''} ${error?.cause?.message ?? ''}`;
+    if (text.includes('password=') || text.includes('/cm?')) {
+      throw new Error("so'rov yuborilmadi (tafsilot yashirildi)");
+    }
+    throw err;
+  }
 }
 
 /**

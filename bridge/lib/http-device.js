@@ -6,13 +6,16 @@
  * Qo'llab-quvvatlanadi:
  *   shelly_gen1     — /relay/{kanal}?turn=on|off              (Basic auth)
  *   shelly_gen2     — /rpc/Switch.Set?id={kanal}&on=true|false (Digest auth, SHA-256)
- *   tasmota         — /cm?cmnd=Power{kanal+1}%20ON|OFF        (Basic auth)
+ *   tasmota         — /cm?user=..&password=..&cmnd=Power{kanal+1}%20ON|OFF
  *   esphome         — POST /switch/{entity}/turn_on|turn_off  (Basic auth)
  *   home_assistant  — POST /api/services/{domain}/turn_on|turn_off (Bearer token)
  *   http            — foydalanuvchi kiritgan onUrl/offUrl shabloni
  *
  * Barcha funksiyalar FIZIK holat bilan ishlaydi (inverted ni chaqiruvchi hisoblaydi).
- * Parol/token HECH QACHON URL ga yozilmaydi va logga chiqmaydi — faqat sarlavhada ketadi.
+ * Parol/token logga va xato matniga HECH QACHON chiqmaydi — sarlavhada ketadi.
+ * Yagona istisno — Tasmota: /cm parolni URL parametrlarida kutadi (eski proshivkalar
+ * Basic sarlavhani umuman tekshirmaydi). Shuning uchun so'rov URL i hech qayerda
+ * loglanmaydi va xato matniga qo'shilmaydi.
  */
 
 const crypto = require('node:crypto');
@@ -39,7 +42,9 @@ const HTTP_DRIVERS = new Set([
 async function apply(device, physical, channel, ctx) {
   const request = buildCommandRequest(device, physical, channel);
   ctx.log('debug', `${deviceLabel(device)}: ${request.method} (${device.driver})`);
-  const res = await send(request, device, ctx);
+  const res = await send(request, device, ctx).catch((err) => {
+    throw hideUrlSecrets(err, request);
+  });
 
   if (!res.ok) {
     // Javob tanasi o'qib bo'shatiladi, lekin xato matniga QO'SHILMAYDI (panelga chiqadi)
@@ -102,7 +107,8 @@ function buildCommandRequest(device, physical, channel) {
       // %20 allaqachon kodlangan — qo'shimcha kodlash kerak emas
       return {
         method: 'GET',
-        url: `http://${requireHost(device)}/cm?cmnd=Power${ch + 1}%20${physical ? 'ON' : 'OFF'}`,
+        url: `http://${requireHost(device)}/cm?${tasmotaAuthQuery(device)}cmnd=Power${ch + 1}%20${physical ? 'ON' : 'OFF'}`,
+        secret: Boolean(device.auth),
       };
 
     case 'esphome': {
@@ -161,7 +167,8 @@ function buildReadRequest(device, channel) {
     case 'tasmota':
       return {
         method: 'GET',
-        url: `http://${requireHost(device)}/cm?cmnd=Power${ch + 1}`,
+        url: `http://${requireHost(device)}/cm?${tasmotaAuthQuery(device)}cmnd=Power${ch + 1}`,
+        secret: Boolean(device.auth),
         // Ko'p kanalli qurilmada {"POWER2":"ON"}, bir kanallida {"POWER":"ON"}
         pick: (text) => pickJson(text, [`POWER${ch + 1}`, 'POWER']),
       };
@@ -247,6 +254,31 @@ async function send(request, device, ctx) {
     ctx.timeoutMs,
     ctx.signal,
   );
+}
+
+/**
+ * Tasmota /cm uchun "user=..&password=..&" (parol bo'lmasa bo'sh satr).
+ * Tasmota sarlavhadagi Basic auth ni faqat yangi proshivkalarda tekshiradi, URL
+ * parametrlarini esa HAMMA versiyalar qabul qiladi. Foydalanuvchi doim "admin":
+ * `auth` — "user:parol" yoki faqat "parol".
+ */
+function tasmotaAuthQuery(device) {
+  if (!device.auth) return '';
+  const auth = String(device.auth);
+  const separator = auth.indexOf(':');
+  const username = (separator === -1 ? '' : auth.slice(0, separator)) || 'admin';
+  const password = separator === -1 ? auth : auth.slice(separator + 1);
+  return `user=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&`;
+}
+
+/**
+ * URL ida parol bor so'rov (Tasmota) xatosi panelga chiqishidan oldin tekshiriladi:
+ * xato matnida URL bo'lsa (masalan "Failed to parse URL from ...") — umumiy matn.
+ */
+function hideUrlSecrets(err, request) {
+  if (!request.secret) return err;
+  const text = `${err && err.message ? err.message : ''} ${err && err.cause && err.cause.message ? err.cause.message : ''}`;
+  return text.includes('password=') || text.includes('/cm?') ? new Error("so'rov yuborilmadi (tafsilot yashirildi)") : err;
 }
 
 /**

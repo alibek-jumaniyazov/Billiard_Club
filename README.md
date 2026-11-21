@@ -89,10 +89,21 @@ Bu sozlamalar bo‘lmasa, tasdiqlanmagan foydalanuvchiga bepul sinov ochilmaydi.
 ## Stol chiroqlarini avtomatik boshqarish
 
 Kassir o'yinni boshlaganda stol chirog'i o'zi yonadi, yakunlanganda o'zi o'chadi — odatda **1 soniyadan kam**
-kechikish bilan. Klubdagi doim yoqiq kompyuterda kichik **bridge agent** ishlaydi: u serverga o'zi chiqadi
-(chiquvchi HTTPS, uzun-polling), shuning uchun port forwarding ham, statik IP ham kerak emas.
-Agent lokal tarmoqdagi Wi-Fi/DIN relelarga (Shelly, Tasmota) HTTP so'rov yuboradi.
+kechikish bilan. Relelarni klubdagi kompyuter boshqaradi: **kassadagi kompyuter dasturi (1.4.0+) —
+«chiroq markazi»** yoki boshqa doim yoqiq kompyuterdagi **bridge agent** (Raspberry Pi). Ikkalasi ham
+serverga o'zi chiqadi (chiquvchi HTTPS, uzun-polling), shuning uchun port forwarding ham, statik IP ham kerak emas.
 Server bir tarmoqda bo'lsa `DIRECT` rejimi ham bor (faqat xususiy IP lar — SSRF himoyasi).
+
+**Internetsiz ham ishlaydi (24 soatgacha).** Server stollarning xom holatini (o'yin, pauza, oxirgi
+tugash, qo'lda boshqaruv, bronlar) va klub qoidalarini beradi; markaz kerakli holatni o'zi hisoblaydi,
+kassadagi oflayn amallarni darhol oladi, holatni diskda (DPAPI bilan shifrlab) saqlaydi va aloqa
+tiklangach natijalarni yuboradi (`bridge/lib/hub.js`, `bridge/lib/rules.js`, `desktop/lights.js`).
+
+**Relelar:** Tuya/Smart Life (lokal protokol, kalitni Tuya bulutidan olish), Sonoff (DIY/eWeLink LAN),
+Shelly, Tasmota, ESPHome, Home Assistant, MQTT/Zigbee, Modbus TCP va RS485 (RTU), USB platalar
+(CH340/LCUS, USBRelay HID), xom TCP/COM. Sozlash — **qurilma ustasi** orqali (turi → ulanish →
+kanal/stol jadvali → sinov), bitta plata bir nechta stolga bitta tranzaksiyada biriktiriladi
+(`client/src/pages/tables/lights/`, `PUT /api/lights/tables`).
 
 Funksiya butunlay **ixtiyoriy va standart holatda o'chiq**: yoqilmasa dastur bugungidek ishlaydi,
 yoqilganda ham chiroqdagi har qanday xato sessiya va pul hisobiga **hech qachon** ta'sir qilmaydi.
@@ -120,10 +131,19 @@ Klub Wi-Fi si uzilganda kassa **to'xtamaydi**. Uch qatlam:
    (`client/src/offline/cache.ts`) va yuqorida "Internet yo'q — ma'lumot 14:32 holatida"
    chizig'i turadi. **Taymer to'g'ri yuradi** (u `startTime` dan qayta hisoblanadi), shuning
    uchun uzilish qancha davom etsa ham vaqt va summa yo'qolmaydi.
-3. **Amallar saqlanadi.** O'yin boshlash, pauza/davom ettirish, bar buyurtmasi va
-   **hisob-kitob (to'liq to'lov)** navbatga yoziladi (`client/src/offline/queue.ts`),
-   ekranda darhol ko'rinadi va aloqa tiklanishi bilan **yozilgan tartibda, asl vaqti bilan**
-   yuboriladi.
+3. **Amallar saqlanadi.** Navbatga yoziladi (`client/src/offline/queue.ts`), ekranda darhol
+   ko'rinadi va aloqa tiklanishi bilan **yozilgan tartibda, asl vaqti bilan** (`offlineAt`) yuboriladi:
+   - **stollar:** o'yin boshlash, pauza/davom ettirish, bar buyurtmasi, vaqt/limitni o'zgartirish,
+     boshqa stolga ko'chirish (narx bosilgan paytda bo'linadi), bekor qilish, hisob-kitob — to'liq
+     to'lov yoki ro'yxatdagi mijoz qarziga (`client/src/offline/pos.ts`);
+   - **qarz to'lovi, bronlar** (yaratish, tasdiqlash, "o'tirdi", "kelmadi", bekor qilish),
+     **yangi mijoz**, **smena ochish/yopish** (`client/src/offline/ops.ts`).
+   Oflayn kiritilgan savdo, to'lov va qarz yozuvlari "Yakunlash" bosilgan vaqt bilan saqlanadi —
+   tushum o'sha kun va smenaga tushadi; smena Z-hisoboti o'yin tugagan vaqt bo'yicha yig'iladi.
+
+   Oflayn ko'rinadigan sahifalar (oxirgi ma'lumot bilan): stollar, mahsulotlar, mijozlar, bronlar,
+   qarzlar va to'lov tarixi, joriy smena, buyurtmalar, xarajatlar. Moliyaviy hisobotlar ataylab
+   keshlanmaydi — oflaynda "Hisobotlar uchun internet kerak" xabari chiqadi.
 
 **Oflayn hisob-kitob.** Internet uzilsa ham mijoz kutib qolmaydi: summa shu kassadagi
 ma'lumotdan hisoblanadi, chek chop etiladi ("OFLAYN" belgisi bilan), stol darhol bo'shaydi.
@@ -134,8 +154,11 @@ bo'lsa, server **rad etmaydi** (pul allaqachon olingan): haqiqatda olingan summa
 farq "Oflayn hisob-kitob farqi" tuzatishi sifatida muhrlanadi, audit jurnaliga tushadi va
 kassirga darhol ogohlantirish chiqadi. Onlayn hisob-kitobdagi 409 himoyasi o'zgarmagan.
 
-**Nima oflayn ishlamaydi:** qarzga yozish va qo'lda tuzatish (mijoz/huquq tekshiruvi serverda),
-qarz to'lovi, sessiyani bekor qilish va ko'chirish — tugmalar sababi ko'rsatilgan holda o'chiq.
+**Nima oflayn ishlamaydi (sababi bilan):** summani qo'lda tuzatish, qarzni hisobdan chiqarish,
+mijozni tahrirlash/o'chirish, oflayn qo'shilgan (hali yuborilmagan) mijozga qarz yozish, biladigan
+holda ustma-ust bron, hisobotlar va smena tarixi. Bunday tugmalar o'chiq va sababi ko'rsatiladi.
+Oflayn ishlash muddati — **24 soat** (litsenziya ijarasi); undan eski navbat server tomonidan rad
+etiladi va ko'rinadigan xato bo'lib qoladi.
 
 **Server qayta ishga tushayotganda ham.** Javob umuman bo'lmasa yoki faqat proksi javob bersa
 (nginx 502/504, deploy paytida) — bu ham "aloqa yo'q" deb hisoblanadi: kassa amallari xato
@@ -149,8 +172,15 @@ summa kassadagidek (220,83 so'm), farq yo'q.
 server esa uni eslab qoladi (`server/src/common/idempotency/`). Javob yo'lda yo'qolib, amal
 qayta yuborilsa ham pul ikki marta yozilmaydi.
 
-**Yuborilmagan amal hech qachon jimgina yo'qolmaydi:** u ro'yxatda ko'rinadi, xato bo'lsa
-navbat to'xtaydi va foydalanuvchidan hal qilish so'raladi.
+**Yuborilmagan amal hech qachon jimgina yo'qolmaydi:** u ro'yxatda ko'rinadi. Server rad etgan
+amal faqat o'ziga BOG'LIQ amallarni (o'sha stol, seans, mijoz, bron yoki smena) to'xtatadi —
+mustaqil amallar yuborilaveradi (`meta.deps`). Tarmoq/obuna sababli urinishlar tugasa butun navbat
+to'xtaydi. Chiqishda yuborilmagan amallar bo'lsa yoki internet yo'q bo'lsa, avval ogohlantiriladi.
+
+**Sinov (brauzerda, production yig'masi, API va sahifa serverlari o'chirilgan holda):** ilova
+service worker keshidan ochildi, stollar va bronlar keshdan ko'rindi; oflayn o'yin boshlandi va
+bron yaratildi → serverlar yoqilgach navbat o'zi yuborildi, o'yin oflayn bosilgan vaqt bilan,
+bron esa o'z vaqtida saqlandi.
 
 ### Obuna oflaynda ham aniq vaqtida tugaydi
 

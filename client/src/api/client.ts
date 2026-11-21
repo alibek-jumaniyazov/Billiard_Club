@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { cacheGet, cachePut, fullScope, isCacheable } from '../offline/cache';
+import { cacheGet, cachePut, fullScope, isCacheable, noteServedFromCache } from '../offline/cache';
 import { clearLicense, noteServerTime, requireOfflineLease } from '../offline/license';
 import { markOffline, markOnline } from '../offline/net-status';
 
@@ -234,9 +234,8 @@ client.interceptors.response.use(
     // cache.ts dagi CACHEABLE bilan cheklangan; xatolar jimgina yutiladi)
     if (response.config.method?.toLowerCase() === 'get') {
       const url = response.config.url ?? '';
-      if (isCacheable(url)) {
-        void cachePut(url, response.config.params as object | undefined, response.data);
-      }
+      const params = response.config.params as object | undefined;
+      if (isCacheable(url, params)) void cachePut(url, params, response.data);
     }
     return response;
   },
@@ -255,12 +254,17 @@ client.interceptors.response.use(
       // shunda kassir bo'sh ekran o'rniga stollarni ko'rib turaveradi
       if (original && original.method?.toLowerCase() === 'get') {
         const url = original.url ?? '';
-        if (isCacheable(url)) {
+        const params = original.params as object | undefined;
+        if (isCacheable(url, params)) {
           const scope = fullScope();
           if (!scope) return Promise.reject(error);
           try { await requireOfflineLease(scope); } catch { return Promise.reject(error); }
-          const hit = await cacheGet(url, original.params as object | undefined);
-          if (hit) return cachedResponse(original, hit.payload, hit.at);
+          const hit = await cacheGet(url, params);
+          if (hit) {
+            // Oflayn chizig'i ekrandagi ma'lumot QACHONGI ekanini aniq aytsin
+            noteServedFromCache(url, params, hit.at);
+            return cachedResponse(original, hit.payload, hit.at);
+          }
         }
       }
     }

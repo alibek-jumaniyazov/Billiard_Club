@@ -14,6 +14,8 @@ dist-ssr
 
 # Desktop qobiq: electron-builder chiqaradigan o'rnatgichlar (yuzlab MB)
 desktop/release
+# chiroq markazi dvigatelining yig'ishdagi nusxasi (manba: bridge/lib)
+desktop/bridge-lib
 
 # Environment secrets
 .env

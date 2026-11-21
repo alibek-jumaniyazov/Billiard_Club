@@ -11,12 +11,18 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { OfflineStampDto } from '../../../common/offline/offline-at';
 import { PaymentMethod } from '../../../entities/enums';
 
 /** Pul ustunlari numeric(14,2) — bitta yozuvdagi eng katta mumkin summa */
 const MAX_MONEY = 999_999_999_999;
 
-export class PayDebtDto {
+/**
+ * `offlineAt` (OfflineStampDto) — internetsiz paytda to'lov qabul qilingan
+ * HAQIQIY vaqt. Berilsa to'lov o'sha vaqt bilan yoziladi (smena va kunlik
+ * hisobot shu vaqtga qarab hisoblaydi), aks holda server vaqti.
+ */
+export class PayDebtDto extends OfflineStampDto {
   /** Faqat musbat summa — manfiy to'lov qarzni oshirish teshigi edi */
   @IsNumber()
   @IsPositive()

@@ -1,7 +1,28 @@
-# Billiard Club — Bridge agenti (chiroq boshqaruvi) — v2.2
+# Billiard Club — Bridge agenti (chiroq boshqaruvi) — v3.0
 
 Bu kichik dastur **klubning o'z tarmog'ida** ishlaydi va bulutdagi server (`billiardclub.uz`) bilan
-lokal relelar (Shelly, Tasmota, ESPHome, MQTT, Modbus, USB rele) o'rtasida ko'prik vazifasini bajaradi.
+lokal relelar (Tuya/Smart Life, Sonoff, Shelly, Tasmota, ESPHome, MQTT, Modbus TCP/RTU, USB rele)
+o'rtasida ko'prik vazifasini bajaradi.
+
+> **Tavsiya:** kassa kompyuterida Billiard Club **kompyuter dasturi** o'rnatilgan bo'lsa, alohida agent
+> shart emas — dasturdagi «Chiroq markazi» aynan shu dvigatel bilan ishlaydi (Stollar → Chiroq
+> boshqaruvi → Ulash → «Chiroq markazini yoqish»). Bu agent Raspberry Pi yoki boshqa doim yoqiq
+> kompyuter uchun.
+
+## v3.0 — internetsiz ishlash va yangi relelar
+
+- **Qoidalar lokal hisoblanadi.** Server endi har stolning XOM holatini (o'yin, pauza, oxirgi tugash,
+  qo'lda boshqaruv, 24 soatlik bronlar) va klub qoidalarini yuboradi. Internet uzilsa agent kerakli
+  holatni o'zi hisoblaydi: o'yin tugagach kechikish, bron oldidan yoqish va qo'lda boshqaruv muddatlari
+  vaqtida bajariladi. Ma'lumot 24 soatdan eskirsa yangi buyruq berilmaydi.
+- **Yangi drayverlar:** `tuya` (lokal protokol 3.1/3.3/3.4/3.5), `sonoff` (DIY va eWeLink LAN),
+  `modbus_rtu` (RS485), `modbus_tcp` registr rejimi va RTU-over-TCP, `usb_hid` (USBRelay platalar),
+  `serial` uchun tayyor LCUS (CH340) shabloni.
+- **Qidiruv kengaydi:** mDNS (Sonoff, Shelly, ESPHome), Tuya UDP e'lonlari, COM portlar va USB HID
+  platalar; natija (Tuya/Sonoff ID, versiya, COM port, plata ID bilan) saytdagi qurilma ustasiga keladi.
+- Ixtiyoriy native paketlar: `serialport` (COM/RS485, LCUS) va `node-hid` (USB HID). Kerak bo'lsa:
+  `npm install` (ikkalasi ham `optionalDependencies` — o'rnatilmasa qolgan drayverlar ishlayveradi).
+- Tekshiruv: `npm run check` (barcha fayllar sintaksisi), `npm test` (110 ta test, relesiz).
 
 ## v2.2 — tez javob va tez tiklanish
 
@@ -346,15 +367,24 @@ Qurilma turi, IP manzili va qo'shimcha maydonlar **saytdagi stol sozlamalarida**
 | `mqtt`           | `topic` ga `onPayload`/`offPayload` xabari                    | `stateTopic` bo'lsa |
 | `modbus_tcp`     | FC5 — `coil` ga yozish                                        | bor (FC1)      |
 | `tcp`            | `onHex`/`offHex` baytlari xom TCP orqali                      | yo'q           |
-| `serial`         | `onHex`/`offHex` baytlari USB (COM) portga                    | yo'q           |
+| `serial`         | `onHex`/`offHex` baytlari USB (COM) portga; `preset: lcus` — CH340 platalar | yo'q   |
 | `http`           | Sizning `onUrl` / `offUrl` shablonlaringiz                    | yo'q           |
+| `tuya`           | Tuya lokal protokoli (TCP 6668), `deviceId` + local key (`auth`), DPS = kanal+1 | bor |
+| `sonoff`         | `POST http://{host}:8081/zeroconf/switch(es)` (DIY yoki shifrlangan LAN) | DIY da bor |
+| `modbus_rtu`     | RS485 (COM port) orqali FC5/FC6, CRC16                         | coil — bor     |
+| `usb_hid`        | USBRelay HID feature report (0xFF/0xFD)                        | bor            |
+
+Bu drayverlarni saytdagi **qurilma ustasi** (Chiroq boshqaruvi → Ulash → «Qurilma qo'shish») sozlaydi —
+kanal → stol jadvali bilan, bitta so'rovda.
 
 Umumiy qoidalar:
 
 - **`http` shablonlarida** `{channel}` (kanal raqami) va `{state}` (`on` / `off`) o'rinbosarlari ishlaydi.
 - **Teskari (inverted)** belgisi — NC (normally closed) relelar uchun: buyruq teskari yuboriladi.
-- **Login/parol** kerak bo'lsa — `Authorization: Basic` sarlavhasi orqali yuboriladi,
-  parol URL manzilida ochiq ketmaydi. **Shelly Gen2/Plus/Pro** esa `Digest` (SHA-256) usulini
+- **Login/parol** kerak bo'lsa — `Authorization: Basic` sarlavhasi orqali yuboriladi.
+  Istisno — **Tasmota**: eski proshivkalar sarlavhani tekshirmaydi, shuning uchun parol `/cm?user=..&password=..`
+  parametrlari bilan ham yuboriladi (lokal tarmoq ichida); xato matnlari va loglarda bu URL yashiriladi.
+  **Shelly Gen2/Plus/Pro** esa `Digest` (SHA-256) usulini
   ishlatadi — agent 401 javobini olgach digestni o'zi hisoblaydi va so'rovni qayta yuboradi.
   Foydalanuvchi nomi Shelly da odatda `admin` (`admin:parol` deb kiritiladi).
 - **Home Assistant** da `auth` maydoniga *long-lived access token* yoziladi (login:parol EMAS),

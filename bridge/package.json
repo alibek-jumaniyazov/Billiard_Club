@@ -1,6 +1,6 @@
 {
   "name": "billiardclub-bridge",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Billiard Club — klub tarmog'ida ishlaydigan chiroq boshqaruvi bridge agenti (majburiy npm bog'liqliklarsiz)",
   "type": "commonjs",
@@ -8,9 +8,10 @@
   "scripts": {
     "start": "node agent.js",
     "test": "node --test test/*.test.cjs",
-    "check": "node --check agent.js && node --check lib/control.js && node --check lib/common.js && node --check lib/http-device.js && node --check lib/mqtt.js && node --check lib/modbus.js && node --check lib/rawtcp.js && node --check lib/serial.js && node --check lib/discover.js"
+    "check": "node -e \"const fs=require('fs');const path=require('path');const {execFileSync}=require('child_process');const files=['agent.js',...fs.readdirSync('lib').filter(f=>f.endsWith('.js')).map(f=>path.join('lib',f)),...fs.readdirSync('lib/drivers').filter(f=>f.endsWith('.js')).map(f=>path.join('lib','drivers',f))];for(const f of files)execFileSync(process.execPath,['--check',f],{stdio:'inherit'});console.log('check ok: '+files.length+' fayl')\""
   },
   "optionalDependencies": {
+    "node-hid": "^3.4.0",
     "serialport": "^12.0.0"
   },
   "engines": {

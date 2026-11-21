@@ -4,7 +4,7 @@ import type { LightDeviceConfig, LightDriver, TableLightConfig } from '../../../
 
 /**
  * Chiroq panelining umumiy yordamchilari — Drawer va uning kichik
- * panellari (TableLightCard, LightDiscoverPanel, LightEventsPanel)
+ * panellari (TableLightCard, LightEventsPanel, qurilmalar ustasi)
  * shu yerdagi uslub, drayver ro'yxati va qoralama mantiqidan foydalanadi.
  */
 
@@ -36,26 +36,18 @@ export const numberStyle: CSSProperties = {
 /* --------------------------------------------------------------- Drayver */
 
 /** Faqat lokal agent (bridge) bajara oladigan drayverlar */
-export const BRIDGE_ONLY_DRIVERS: readonly LightDriver[] = ['mqtt', 'tcp', 'modbus_tcp', 'serial'];
+export const BRIDGE_ONLY_DRIVERS: readonly LightDriver[] = [
+  'mqtt', 'tcp', 'modbus_tcp', 'serial', 'tuya', 'sonoff', 'modbus_rtu', 'usb_hid',
+];
+
+/**
+ * Qurilmalar ustasida (Ulash bo'limi) sozlanadigan drayverlar — stol kartasida
+ * ularning maydonlari ko'rsatilmaydi, faqat "Ulash bo'limida tahrirlang" eslatmasi.
+ */
+export const WIZARD_DRIVERS: readonly LightDriver[] = ['tuya', 'sonoff', 'modbus_rtu', 'usb_hid'];
 
 export const isBridgeOnly = (driver: LightDriver): boolean =>
   BRIDGE_ONLY_DRIVERS.includes(driver);
-
-/**
- * Serverga saqlash uchun FAQAT `host` yetarli bo'lgan drayverlar.
- * Qolganlari qo'shimcha maydon talab qiladi (esphome — `config.entity`,
- * home_assistant — `config.entityId`, http — onUrl/offUrl, mqtt/tcp/... — o'z
- * maydonlari), shuning uchun ular topilgan qurilmadan TO'G'RIDAN-TO'G'RI
- * biriktirilmaydi — avval stol kartasida to'ldiriladi (aks holda PUT 400 beradi).
- */
-export const HOST_ONLY_DRIVERS: readonly LightDriver[] = [
-  'shelly_gen1',
-  'shelly_gen2',
-  'tasmota',
-];
-
-export const canAssignDirectly = (driver: LightDriver): boolean =>
-  HOST_ONLY_DRIVERS.includes(driver);
 
 /**
  * Drayver ro'yxati. Brend nomlari (Shelly/Tasmota/ESPHome/Home Assistant)
@@ -73,6 +65,10 @@ export const DRIVER_OPTIONS: readonly { value: LightDriver; i18nKey?: string; br
   { value: 'modbus_tcp', i18nKey: 'tables.lightsDriverModbus' },
   { value: 'serial', i18nKey: 'tables.lightsDriverSerial' },
   { value: 'http', i18nKey: 'tables.lightsDriverHttp' },
+  { value: 'tuya', brand: 'Tuya / Smart Life' },
+  { value: 'sonoff', brand: 'Sonoff (eWeLink)' },
+  { value: 'modbus_rtu', brand: 'Modbus RTU (RS485)' },
+  { value: 'usb_hid', brand: 'USB rele (HID)' },
 ];
 
 /** Diagnostika hodisasi sababining tarjima kaliti */
@@ -85,9 +81,6 @@ export const EVENT_SOURCE_KEYS: Readonly<Record<string, string>> = {
   drift: 'tables.lightsEventSourceDrift',
   settings: 'tables.lightsEventSourceSettings',
 };
-
-/** Master boshqaruv muddati (daqiqa) */
-export const MASTER_DURATIONS: readonly number[] = [30, 60, 120];
 
 /** Drayverga MOS maydonlar — kartada faqat shular ko'rsatiladi */
 export interface DriverFields {
@@ -200,9 +193,6 @@ export const toDraft = (row: TableLightConfig): TableDraft => ({
   config: { ...(row.config ?? {}) },
   channelsText: channelsToText(row.config?.channels),
 });
-
-export const buildDrafts = (tables: TableLightConfig[]): Record<number, TableDraft> =>
-  Object.fromEntries(tables.map((row) => [row.tableId, toDraft(row)]));
 
 const text = (value: string | undefined): string | undefined => {
   const s = (value ?? '').trim();

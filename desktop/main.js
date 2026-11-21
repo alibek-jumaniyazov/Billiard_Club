@@ -31,11 +31,12 @@
  * qo'shib qayta yig'ing. Ishlab chiqishda: BILLIARDCLUB_URL yoki config.json.
  */
 
-const { app, BrowserWindow, Menu, dialog, shell, ipcMain, nativeTheme } = require('electron');
+const { app, BrowserWindow, Menu, Tray, Notification, dialog, shell, ipcMain, nativeTheme } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { offlineFallbackHtml } = require('./offline');
 const { initUpdater, stopUpdater } = require('./updater');
+const { initLights } = require('./lights');
 const { findDangerousSwitch, resolveAppUrl, sameOrigin, safeExternal, trustedSender } = require('./security');
 
 /** Ichiga yig'ilgan server manzili: package.json "billiardclubServer" yoki ishlab turgan xizmat */
@@ -124,6 +125,19 @@ let closeConfirmed = false;
 
 let mainWindow = null;
 
+/**
+ * FON REJIMI (chiroq markazi yoqilgan bo'lsa): oyna yopilganda dastur soat
+ * yonidagi belgida ishlashda davom etadi — kassir oynani yopib qo'ysa ham
+ * chiroqlar o'yinga ergashadi. Kompyuter yoqilganda dastur o'zi (yashirin)
+ * ishga tushadi. Butunlay chiqish — belgining menyusidagi "Chiqish".
+ */
+let lights = null;
+let tray = null;
+let quitting = false;
+let backgroundHintShown = false;
+/** Avtoyuklashda (Windows ishga tushganda) oyna ko'rsatilmaydi */
+const startHidden = process.argv.includes('--hidden');
+
 const createWindow = () => {
   const state = loadWindowState();
 
@@ -160,8 +174,12 @@ const createWindow = () => {
 
   if (state.maximized) mainWindow.maximize();
 
-  // Oq miltillash bo'lmasin — oyna faqat kontent tayyor bo'lgach ko'rinadi
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  // Oq miltillash bo'lmasin — oyna faqat kontent tayyor bo'lgach ko'rinadi.
+  // Windows bilan birga (fon rejimida) ishga tushganda oyna yashirin qoladi:
+  // sahifa baribir yuklanadi — kassa navbati yuboriladi, chiroq holati keladi.
+  mainWindow.once('ready-to-show', () => {
+    if (!(startHidden && lights?.isEnabled())) mainWindow.show();
+  });
 
   /* --- Navigatsiya cheklovlari: qobiq FAQAT o'z ilovasini ko'rsatadi --- */
 
@@ -226,6 +244,20 @@ const createWindow = () => {
    * buni bilishi va aloqa tiklanguncha kutishi kerak.
    */
   mainWindow.on('close', (event) => {
+    // Chiroq markazi yoqilgan: dastur yopilmaydi, fonda ishlashda davom etadi
+    if (!quitting && lights?.isEnabled()) {
+      event.preventDefault();
+      saveWindowState(mainWindow);
+      mainWindow.hide();
+      if (!backgroundHintShown && Notification.isSupported()) {
+        backgroundHintShown = true;
+        new Notification({
+          title: 'Billiard Club fonda ishlayapti',
+          body: "Chiroqlar boshqarilmoqda. Ochish yoki chiqish — soat yonidagi belgidan.",
+        }).show();
+      }
+      return;
+    }
     if (closeConfirmed || pendingActions <= 0) {
       saveWindowState(mainWindow);
       return;
@@ -253,6 +285,57 @@ const createWindow = () => {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+};
+
+/* ------------------------------------------------- Fon rejimi (tray) */
+
+const showWindow = () => {
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+};
+
+const quitFully = () => {
+  quitting = true;
+  app.quit();
+};
+
+/**
+ * Chiroq markazi yoqilsa/o'chirilsa: soat yonidagi belgi va Windows bilan birga
+ * ishga tushish shunga moslanadi.
+ */
+const applyBackgroundMode = (enabled) => {
+  if (enabled && !tray) {
+    const icon = path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+    try {
+      tray = new Tray(icon);
+      tray.setToolTip('Billiard Club — chiroq markazi ishlamoqda');
+      tray.setContextMenu(Menu.buildFromTemplate([
+        { label: 'Billiard Club ni ochish', click: showWindow },
+        { label: 'Chiroq markazi ishlamoqda', enabled: false },
+        { type: 'separator' },
+        { label: 'Chiqish (chiroqlar boshqarilmaydi)', click: quitFully },
+      ]));
+      tray.on('click', showWindow);
+    } catch {
+      tray = null; // belgi chiqmasa ham dastur ishlayveradi
+    }
+  } else if (!enabled && tray) {
+    tray.destroy();
+    tray = null;
+  }
+  // Avtoyuklash faqat o'rnatilgan dasturda (ishlab chiqishda tizimga yozilmasin)
+  if (app.isPackaged && process.platform !== 'linux') {
+    try {
+      app.setLoginItemSettings({ openAtLogin: enabled, args: enabled ? ['--hidden'] : [] });
+    } catch {
+      /* tizim ruxsat bermasa — qo'lda ochiladi */
+    }
+  }
 };
 
 /* ------------------------------------------------------------------ Menyu */
@@ -309,7 +392,7 @@ const buildMenu = () => {
           click: () => require('./updater').checkForUpdates(),
         },
         { type: 'separator' },
-        { role: 'quit', label: 'Chiqish' },
+        { label: 'Chiqish', accelerator: 'CmdOrCtrl+Q', click: quitFully },
       ],
     },
     {
@@ -388,14 +471,22 @@ if (dangerousSwitch) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+    // Fonda (yashirin) ishlayotgan bo'lsa ham — oyna ko'rsatiladi
+    showWindow();
   });
 
   app.whenReady().then(() => {
     nativeTheme.themeSource = 'dark';
     buildMenu();
+    // Chiroq markazi oynadan OLDIN: yashirin ishga tushishda kerak bo'ladi va
+    // u oynaga bog'liq emas (internetsiz, oyna yopiq bo'lsa ham ishlaydi)
+    lights = initLights({
+      appUrl: APP_URL,
+      getWindow: () => mainWindow,
+      isTrusted: (event) => trustedSender(event, mainWindow, APP_ORIGIN),
+      onEnabledChange: applyBackgroundMode,
+    });
+    applyBackgroundMode(lights.isEnabled());
     createWindow();
 
     initUpdater({
@@ -435,9 +526,20 @@ if (dangerousSwitch) {
     });
   });
 
+  app.on('before-quit', () => {
+    quitting = true;
+  });
+
   app.on('window-all-closed', () => {
+    // Fon rejimida oyna yopiq bo'lishi normal holat — dastur ishlashda davom etadi
+    if (!quitting && lights?.isEnabled()) return;
     stopUpdater();
     if (process.platform !== 'darwin') app.quit();
+  });
+
+  app.on('will-quit', () => {
+    // Chiroq holati diskka yoziladi (qayta ochilganda internetsiz ham tiklanadi)
+    void lights?.stop();
   });
 
   /** Renderer yuborilmagan amallar sonini xabar qiladi (preload orqali) */

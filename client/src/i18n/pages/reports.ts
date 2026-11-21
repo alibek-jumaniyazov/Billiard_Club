@@ -48,6 +48,10 @@ export default {
       "Davr ichida HAQIQATDA olingan pul: sotuvlar + qarz to'lovlari (to'lov sanasi bo'yicha).",
     hintBilled: "Hisoblangan umumiy summa — to'lanmagan qarzlar ham kiradi.",
     hintProfit: 'Olingan tushum − Xarajatlar.',
+    // Internetsiz holat
+    offlineTitle: 'Hisobotlar uchun internet kerak',
+    offlineHint:
+      "Hisobot serverda hisoblanadi va internetsiz ko'rsatilmaydi — eskirgan raqam noto'g'ri qarorga olib kelishi mumkin. Aloqa tiklanishi bilan hisobot o'zi yangilanadi.",
   },
   ru: {
     title: 'Финансовые отчёты',
@@ -98,5 +102,9 @@ export default {
       'РЕАЛЬНО полученные за период деньги: продажи + погашение долгов (по дате оплаты).',
     hintBilled: 'Общая начисленная сумма — включает непогашенные долги.',
     hintProfit: 'Полученная выручка − Расходы.',
+    // Без интернета
+    offlineTitle: 'Для отчётов нужен интернет',
+    offlineHint:
+      'Отчёт рассчитывается на сервере и без интернета не показывается — устаревшие цифры могут привести к неверному решению. Как только связь восстановится, отчёт обновится сам.',
   },
 };

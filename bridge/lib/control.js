@@ -2,6 +2,14 @@
 
 // A successful write means delivery; only a complete readback confirms state.
 function supportsReadback(device) {
+  // Drayverlar reyestri o'zi biladi (Tuya, Sonoff DIY, Modbus RTU/registr, USB HID ...).
+  // Kechiktirilgan require — reyestr bu modulni yuklamaydi, lekin aylana bog'liqlik bo'lmasin
+  try {
+    const driver = require('./drivers').getDriver(device.driver);
+    if (driver && typeof driver.readback === 'function') return Boolean(driver.readback(device));
+  } catch {
+    /* reyestr yuklanmasa — quyidagi eski ro'yxat */
+  }
   return ['shelly_gen1', 'shelly_gen2', 'tasmota', 'esphome', 'home_assistant', 'modbus_tcp'].includes(device.driver)
     || (device.driver === 'mqtt' && Boolean(device.config?.stateTopic?.trim()));
 }
@@ -18,10 +26,14 @@ function logicalState(values, inverted, desired) {
  * `delays` — retry schedule; a relay that failed last cycle gets a single attempt
  * so one dead device cannot stall every other table's command for ~10 s.
  */
-async function executeDevice(device, { verify, forced, write, read, sleep, now = Date.now, delays = [0, 400, 1200] }) {
+async function executeDevice(device, {
+  verify, forced, write, read, sleep, now = Date.now, delays = [0, 400, 1200], readback,
+}) {
   const desired = device.desired === true;
   const physical = device.inverted === true ? !desired : desired;
-  const shouldVerify = verify && supportsReadback(device);
+  // `readback` — drayverlar reyestridan (lib/drivers): yangi drayverlar ham shu
+  // yerda hisobga olinadi. Berilmasa eski ro'yxat ishlatiladi (moslik uchun).
+  const shouldVerify = verify && (typeof readback === 'boolean' ? readback : supportsReadback(device));
   let actual = null;
   let attempts = 0;
   let error = null;

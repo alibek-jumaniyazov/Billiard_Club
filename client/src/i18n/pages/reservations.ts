@@ -42,6 +42,23 @@ export default {
     reservationsCount: 'bron',
     emptyTitle: "Bu kunga bronlar yo'q",
     emptyHint: "Yangi bron yaratish uchun yuqoridagi tugmani bosing",
+    // Oflayn (internetsiz) amallar — navbat oynasidagi tavsif va belgilar
+    offlineCreate: '{{table}} — bron {{time}}',
+    offlineConfirm: '{{name}}, {{time}} — bron tasdiqlandi',
+    offlineSeat: '{{name}}, {{time}} — mijoz o‘tirdi',
+    offlineNoShow: '{{name}}, {{time}} — mijoz kelmadi',
+    offlineCancel: '{{name}}, {{time}} — bron bekor qilindi',
+    offlinePending: 'Yuborilmagan',
+    offlinePendingHint:
+      'Internetsiz kiritildi — aloqa tiklanganda serverga yuboriladi. Shu vaqt boshqa kassada band qilingan bo‘lsa, bron rad etiladi va «Yuborilmagan amallar» oynasida ko‘rinadi.',
+    offlineStatusHint: 'Holat o‘zgarishi internetsiz saqlandi — aloqa tiklanganda yuboriladi',
+    queuedBehind: 'Navbatga qo‘shildi — shu bron bo‘yicha oldingi amallar yuborilgach serverga ketadi',
+    queuedBehindCustomer: 'Bron navbatga qo‘shildi — mijoz serverga yetib borgach u ham yuboriladi',
+    offlineFailed: 'Qabul qilinmadi',
+    offlineFailedHint: 'Server rad etdi: {{reason}}. «Yuborilmagan amallar» oynasida hal qiling.',
+    offlineDayUnavailable: 'Internet yo‘q: bu kunning bronlari oldindan yuklanmagan. Shu kompyuterda kiritilgan, hali yuborilmagan bronlar ko‘rsatilmoqda.',
+    offlineConflictLocal:
+      'Bu vaqtda stol band ({{time}}, {{name}}). Internetsiz ustma-ust bron yozilmaydi — boshqa vaqt yoki stolni tanlang.',
   },
   ru: {
     title: 'Брони',
@@ -86,5 +103,22 @@ export default {
     reservationsCount: 'брон.',
     emptyTitle: 'На этот день броней нет',
     emptyHint: 'Нажмите кнопку выше, чтобы создать новую бронь',
+    // Офлайн-действия (без интернета) — описание в очереди и отметки
+    offlineCreate: '{{table}} — бронь {{time}}',
+    offlineConfirm: '{{name}}, {{time}} — бронь подтверждена',
+    offlineSeat: '{{name}}, {{time}} — клиент сел за стол',
+    offlineNoShow: '{{name}}, {{time}} — клиент не пришёл',
+    offlineCancel: '{{name}}, {{time}} — бронь отменена',
+    offlinePending: 'Не отправлено',
+    offlinePendingHint:
+      'Создано без интернета — будет отправлено на сервер при восстановлении связи. Если это время уже заняли на другой кассе, бронь будет отклонена и появится в окне «Неотправленные действия».',
+    offlineStatusHint: 'Смена статуса сохранена без интернета — отправится при восстановлении связи',
+    queuedBehind: 'Добавлено в очередь — уйдёт на сервер после предыдущих действий по этой брони',
+    queuedBehindCustomer: 'Бронь добавлена в очередь — отправится сразу после того, как на сервер попадёт клиент',
+    offlineFailed: 'Не принято',
+    offlineFailedHint: 'Сервер отклонил: {{reason}}. Решите в окне «Неотправленные действия».',
+    offlineDayUnavailable: 'Нет интернета: брони на этот день не были загружены заранее. Показаны брони, введённые на этом компьютере и ещё не отправленные.',
+    offlineConflictLocal:
+      'На это время стол занят ({{time}}, {{name}}). Без интернета нельзя создать пересекающуюся бронь — выберите другое время или стол.',
   },
 };

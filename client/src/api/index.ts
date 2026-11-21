@@ -80,6 +80,7 @@ import type {
   SubscriptionStatus,
   TableLightConfig,
   TableLightPayload,
+  TableLightBulkItem,
   TelegramSettings,
   TokenPair,
   User,
@@ -153,6 +154,9 @@ export const lightsApi = {
   /** Faqat yuborilgan maydonlar yangilanadi; bo'sh satr — qiymatni tozalaydi */
   updateTable: (id: number, body: TableLightPayload) =>
     put<TableLightConfig>(`/lights/tables/${id}`, body),
+  /** Bir nechta stol BIR tranzaksiyada (plata kanallari -> stollar) */
+  updateTables: (tables: TableLightBulkItem[]) =>
+    put<TableLightConfig[]>('/lights/tables', { tables }),
   /** Relega sinov buyrug'i; BRIDGE rejimida javobda queued: true */
   test: (id: number, on: boolean) => post<LightTestResult>(`/lights/tables/${id}/test`, { on }),
   /** Qo'lda yoqish/o'chirish; on=null — override bekor qilinadi */
@@ -195,12 +199,13 @@ export const sessionsApi = {
    * O'yin vaqti cheklovini o'zgartirish: belgilangan vaqt, summa limiti yoki
    * `{ plannedMinutes: null }` — cheklovni olib tashlash (SessionPlanPayload)
    */
-  updatePlan: (id: number, plan: SessionPlanPayload) =>
-    put<Session>(`/sessions/${id}/plan`, plan),
+  updatePlan: (id: number, plan: SessionPlanPayload, key?: string) =>
+    put<Session>(`/sessions/${id}/plan`, plan, key),
   /** Faol sessiyani boshqa stolga ko'chirish */
-  transfer: (id: number, tableId: number) =>
-    post<Session>(`/sessions/${id}/transfer`, { tableId }),
-  cancel: (id: number) => put<Session>(`/sessions/${id}/cancel`),
+  transfer: (id: number, tableId: number, key?: string) =>
+    post<Session>(`/sessions/${id}/transfer`, { tableId }, key),
+  /** `key` — tarmoq uzilsa navbatdagi takror ham AYNAN shu kalit bilan boradi */
+  cancel: (id: number, key?: string) => put<Session>(`/sessions/${id}/cancel`, undefined, key),
 };
 
 export const categoriesApi = {
@@ -236,8 +241,9 @@ export const ordersApi = {
 export const debtsApi = {
   list: (params?: object) => get<Debt[]>('/debts', params),
   payments: (id: number) => get<DebtPayment[]>(`/debts/${id}/payments`),
-  pay: (id: number, amount: number, paymentMethod: PaymentMethod) =>
-    post<Debt>(`/debts/${id}/pay`, { amount, paymentMethod }),
+  /** `key` — bir martalik amal kaliti: tarmoq uzilsa AYNAN SHU kalit bilan navbatga tushadi */
+  pay: (id: number, amount: number, paymentMethod: PaymentMethod, key?: string) =>
+    post<Debt>(`/debts/${id}/pay`, { amount, paymentMethod }, key),
   /**
    * Undirilmagan qarzni HISOBDAN CHIQARISH. Sabab audit jurnaliga tushadi —
    * bu pulni yo'q qiladigan amal, uning izi qolishi shart.
@@ -291,7 +297,9 @@ export const customersApi = {
     get<Customer[]>('/customers', params),
   /** Mijoz profili: statistika + so'nggi sessiyalar */
   profile: (id: number) => get<CustomerProfile>(`/customers/${id}`),
-  create: (body: CustomerPayload & { name: string }) => post<Customer>('/customers', body),
+  /** `key` — oflayn navbatga o'tsa ham shu kalit (ikki marta yaratilmasin) */
+  create: (body: CustomerPayload & { name: string }, key?: string) =>
+    post<Customer>('/customers', body, key),
   update: (id: number, body: CustomerPayload) => put<Customer>(`/customers/${id}`, body),
   remove: (id: number) => del<void>(`/customers/${id}`),
 };
@@ -319,10 +327,12 @@ export const reservationsApi = {
     limit?: number;
   }) => get<Reservation[]>('/reservations', params),
   detail: (id: number) => get<Reservation>(`/reservations/${id}`),
-  create: (body: ReservationPayload & { tableId: number; startsAt: string }) =>
-    post<Reservation>('/reservations', body),
-  update: (id: number, body: ReservationPayload) => put<Reservation>(`/reservations/${id}`, body),
-  cancel: (id: number) => post<Reservation>(`/reservations/${id}/cancel`),
+  /** `key` — bir martalik amal kaliti (oflayn navbatga o'tsa ham shu kalit) */
+  create: (body: ReservationPayload & { tableId: number; startsAt: string }, key?: string) =>
+    post<Reservation>('/reservations', body, key),
+  update: (id: number, body: ReservationPayload, key?: string) =>
+    put<Reservation>(`/reservations/${id}`, body, key),
+  cancel: (id: number, key?: string) => post<Reservation>(`/reservations/${id}/cancel`, {}, key),
 };
 
 /** Klub egasi (admin) obuna sahifasi — LOCKED holatda ham ishlaydi */
@@ -409,9 +419,11 @@ export const shiftsApi = {
   current: () => get<ShiftReport>('/shifts/current'),
   list: (params?: { page?: number; limit?: number }) => get<CashShift[]>('/shifts', params),
   detail: (id: number) => get<ShiftReport>(`/shifts/${id}`),
-  open: (body: { openingCash?: number; note?: string }) => post<CashShift>('/shifts/open', body),
-  close: (id: number, body: { countedCash: number; cashOut?: number; note?: string }) =>
-    post<CashShift>(`/shifts/${id}/close`, body),
+  /** `key` — bir martalik amal kaliti (tarmoq uzilsa shu kalit bilan navbatga tushadi) */
+  open: (body: { openingCash?: number; note?: string }, key?: string) =>
+    post<CashShift>('/shifts/open', body, key),
+  close: (id: number, body: { countedCash: number; cashOut?: number; note?: string }, key?: string) =>
+    post<CashShift>(`/shifts/${id}/close`, body, key),
 };
 
 /** Landing arizalari (savdo voronkasi) — faqat superadmin. `totals` — holatlar soni */
