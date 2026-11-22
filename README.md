@@ -49,7 +49,7 @@ stol taymerlari, bar POS, qarzlar daftari, hisobotlar va platforma egasi uchun k
   bog'lanish taklif qilinadi.
 
 ### Rollar
-`superadmin` (platforma egasi) · `admin` (klub egasi) · `kassir` (hisob-kitob, qarzlar, hisobotlar) · `operator` (o'yin boshlash, bar buyurtma)
+`superadmin` (platforma egasi) · `admin` (klub egasi) · `kassir` (hisob-kitob, qarzlar, hisobotlar) · `operator` (o'yin boshlash, bar buyurtma, hisob-kitob — qarzga yozish bilan; o'yinni bekor qilish, kassa smenasi va "Qarzlar daftari" sahifasi — yo'q)
 
 ## Ishga tushirish (development)
 

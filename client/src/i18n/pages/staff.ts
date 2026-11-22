@@ -28,7 +28,7 @@ export default {
     passwordHint: "Bo'sh qoldirilsa parol o'zgarmaydi",
     roleAdmin: 'Admin — barcha huquqlar',
     roleKassir: 'Kassir — sotuv va hisobotlar',
-    roleOperator: "Operator — o'yinlarni boshqarish",
+    roleOperator: "Operator — o'yinlar va hisob-kitob",
     selfEditHint: "O'z lavozimingiz va holatingizni o'zgartira olmaysiz",
     // Faolsizlantirish
     deactivate: 'Faolsizlantirish',
@@ -74,7 +74,7 @@ export default {
     passwordHint: 'Оставьте пустым, чтобы не менять пароль',
     roleAdmin: 'Админ — все права',
     roleKassir: 'Кассир — продажи и отчёты',
-    roleOperator: 'Оператор — управление играми',
+    roleOperator: 'Оператор — игры и расчёт',
     selfEditHint: 'Вы не можете изменить свою должность и статус',
     // Деактивация
     deactivate: 'Деактивировать',

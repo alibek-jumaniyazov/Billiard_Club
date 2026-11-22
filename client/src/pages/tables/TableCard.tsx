@@ -122,7 +122,13 @@ export interface TableCardProps {
   lightLocal?: boolean;
   pending: boolean;
   lightPending?: boolean;
+  /** Hisob-kitob tugmasi (admin, kassir, operator) */
   canCheckout: boolean;
+  /**
+   * O'yinni bekor qilish menyusi — admin va kassir (operatorga server ham ruxsat bermaydi).
+   * Berilmasa `canCheckout` ga teng.
+   */
+  canCancelGames?: boolean;
   canManage: boolean;
   /** Eng yaqin bron yorlig'i ("Bron 21:00 · Aziza") — bo'lsa kartada ko'rinadi */
   reservation?: string;
@@ -145,7 +151,8 @@ export interface TableCardProps {
 }
 
 const TableCard = memo(({
-  variant = 'card', table, focused, session, segments, offsetMs, online, lightLocal, pending, lightPending, canCheckout, canManage, reservation,
+  variant = 'card', table, focused, session, segments, offsetMs, online, lightLocal, pending, lightPending, canCheckout,
+  canCancelGames = canCheckout, canManage, reservation,
   onStart, onOrder, onTransfer, onCheckout, onPauseResume, onCancel, onLightToggle, onLightAuto, onPlanChange, onLimitEdit,
 }: TableCardProps) => {
   const { t, i18n } = useTranslation();
@@ -182,7 +189,7 @@ const TableCard = memo(({
     : t(lightTarget ? 'tables.lightsToggleOff' : 'tables.lightsToggleOn');
 
   const confirmCancel = () => {
-    if (!session || !canCheckout || !canCancel || pending) return;
+    if (!session || !canCancelGames || !canCancel || pending) return;
     modal.confirm({
       title: t('tables.cancelConfirmTitle'),
       content: online ? t('tables.cancelConfirmDesc') : `${t('tables.cancelConfirmDesc')} ${t('offline.cancelOfflineNote')}`,
@@ -241,7 +248,7 @@ const TableCard = memo(({
           disabled: pending, onClick: () => onPlanChange(session, { plannedMinutes: null }) }] : []),
       ];
     })() : []),
-    ...(isBusy && session && canCheckout ? [{ key: 'cancel', icon: <CloseCircleOutlined />, danger: true,
+    ...(isBusy && session && canCancelGames ? [{ key: 'cancel', icon: <CloseCircleOutlined />, danger: true,
       label: <Tooltip title={!canCancel ? t('tables.cancelNeedsAdmin') : undefined}><span>{t('tables.cancelTooltip')}</span></Tooltip>,
       disabled: !canCancel || pending, onClick: confirmCancel }] : []),
   ];

@@ -116,7 +116,10 @@ const TablesPage = () => {
   }, { replace: true });
 
   const currency = useCurrency();
-  const canCheckout = hasRole('admin', 'kassir', 'superadmin');
+  /** Hisob-kitob (o'yinni yakunlash): admin, kassir va operator — server ham shunday */
+  const canCheckout = hasRole('admin', 'kassir', 'operator', 'superadmin');
+  /** Kassa smenasi va o'yinni bekor qilish — faqat admin va kassir (serverda operatorga yopiq) */
+  const canCashDesk = hasRole('admin', 'kassir', 'superadmin');
   const canManage = hasRole('admin', 'superadmin');
   // Tarif (Standart / Pro / VIP): yo'q imkoniyat so'ralmaydi va tugmasi ko'rinmaydi
   const { can } = useEntitlements();
@@ -845,6 +848,7 @@ const TablesPage = () => {
         pending={!!session && pendingIds.has(session.id)}
         lightPending={pendingLights.has(table.id)}
         canCheckout={canCheckout}
+        canCancelGames={canCashDesk}
         canManage={canManage}
         reservation={reservationByTable.get(table.id)}
         onStart={openStart}
@@ -906,7 +910,7 @@ const TablesPage = () => {
           segmentsMap={viewSegments}
           offsetMs={offsetMs}
           currency={currency}
-          showShift={canCheckout && canShifts}
+          showShift={canCashDesk && canShifts}
           online={online}
         />
       )}

@@ -70,8 +70,12 @@ export class SessionsController {
     return { success: true, message: t(lang, 'sessions.started'), data };
   }
 
-  /** Hisob-kitob — faqat kassir va admin */
-  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
+  /**
+   * Hisob-kitob (o'yinni yakunlash) — admin, kassir va operator.
+   * Operator kassir bilan bir xil: summani qo'lda tuzatish faqat admin uchun
+   * (sessions.service.ts: end), o'yinni bekor qilish va smena — admin/kassir.
+   */
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
   @HttpCode(200)
   @Put(':id/end')
   async end(
