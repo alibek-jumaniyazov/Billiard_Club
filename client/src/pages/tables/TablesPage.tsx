@@ -125,6 +125,12 @@ const TablesPage = () => {
   const { can } = useEntitlements();
   const canBar = can('bar');
   const canLights = can('lights');
+  /**
+   * Chiroqni qo'lda yoqish/o'chirish va «Chiroq boshqaruvi» — admin va kassir.
+   * Operator chiroqqa tegmaydi: chiroq o'yin bilan avtomatik yonadi/o'chadi, kartada
+   * esa faqat holat belgisi ko'rinadi (server ham operatorga chiroq API larini yopgan).
+   */
+  const canLightControl = canLights && hasRole('admin', 'kassir', 'superadmin');
   const canReservations = can('reservations');
   const canShifts = can('shifts');
   // Internetsiz qarz «Mijozlar» ro'yxatidagi mijozga yoziladi — ikkala imkoniyat kerak
@@ -857,8 +863,9 @@ const TablesPage = () => {
         onCheckout={openCheckout}
         onPauseResume={handlePauseResume}
         onCancel={handleCancel}
-        onLightToggle={canLights ? handleLightToggle : undefined}
-        onLightAuto={canLights ? handleLightAuto : undefined}
+        onLightToggle={canLightControl ? handleLightToggle : undefined}
+        onLightAuto={canLightControl ? handleLightAuto : undefined}
+        lightReadOnly={canLights && !canLightControl}
         onPlanChange={handlePlanChange}
         onLimitEdit={openLimit}
       />
@@ -881,10 +888,10 @@ const TablesPage = () => {
                 {t('tables.manage')}
               </Button>
             )}
-            {/* Chiroq boshqaruvi — ixtiyoriy imkoniyat. Kassir/operatorga ham
-                ochiq: server ularga ko'rish, qo'lda boshqarish, master va
-                jurnalni bergan; ichkarida `canEdit` sozlashni bloklaydi */}
-            {canLights && (
+            {/* Chiroq boshqaruvi — ixtiyoriy imkoniyat. Kassirga ham ochiq (ko'rish,
+                qo'lda boshqarish, master, jurnal; sozlashni ichkarida `canEdit`
+                bloklaydi). Operatorga ko'rinmaydi */}
+            {canLightControl && (
               <Tooltip title={t('tables.lightsTitle')}>
                 <Button
                   icon={<BulbOutlined />}
@@ -1071,7 +1078,7 @@ const TablesPage = () => {
 
       {/* Chiroq boshqaruvi (ixtiyoriy imkoniyat) — barcha xodimlarga ochiq,
           sozlash huquqi javobdagi `canEdit` bilan cheklanadi */}
-      {canLights && (
+      {canLightControl && (
         <LightSettingsDrawer
           open={lightsOpen}
           onClose={() => setLightsOpen(false)}

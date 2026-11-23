@@ -1139,8 +1139,22 @@ chiroq boshqaruvini **darhol** to'xtatadi (agentni o'chirish yoki tokenni bekor 
 
 ### 6.2 Qo'lda override (vaqtinchalik qo'l boshqaruvi)
 
-Kassir dasturdan istalgan stol chirog'ini **majburan** yoqishi/o'chirishi mumkin
+Kassir (yoki admin) dasturdan istalgan stol chirog'ini **majburan** yoqishi/o'chirishi mumkin
 (masalan: tozalash uchun yoqish, yoki sessiya bor bo'lsa ham o'chirish).
+
+**Operator chiroqqa umuman tegmaydi.** U o'yinni boshlaydi va yakunlaydi — chiroq shu bilan
+avtomatik yonadi/o'chadi (6.1). Operatorda «Chiroq boshqaruvi» tugmasi va stol kartasidagi qo'lda
+yoqish/o'chirish tugmasi yo'q; buning o'rniga stol ustida faqat holat belgisi turadi:
+
+| Belgi | Ma'nosi |
+|---|---|
+| oltin «💡 Yoniq» | rele chiroq yoniqligini tasdiqladi |
+| xira lampochka | chiroq o'chiq |
+| chiziqli lampochka | holat hozircha noma'lum (javob hali kelmagan) |
+| qizil lampochka | nosozlik — operator administratorga aytadi |
+
+Server ham operatorga chiroq API larini yopgan (`GET /lights`, `override`, `all`, `events`,
+sozlash va sinov — 403); stol kartasidagi holat oddiy `GET /tables` javobidan olinadi.
 
 - Override ma'lum muddatga beriladi (`lightOverrideUntil`), masalan 30 daqiqa.
 - Shu muddat davomida sessiya holati **e'tiborga olinmaydi** — `lightOverrideOn` qiymati ishlaydi.
@@ -1668,7 +1682,7 @@ J: Relega parol qo'ying (`auth` maydonida dasturga kiritiladi) va relelar uchun 
 Wi-Fi tarmog'i/VLAN ajrating. Baribir `forceSyncMs` bo'yicha tizim har daqiqada kerakli holatni
 qayta qo'llaydi — qo'lda o'zgartirish uzoqqa bormaydi.
 Rele **paroli va manzili** dastur javoblarida hech qachon ko'rinmaydi: oddiy stol/sessiya
-so'rovlari (kassir, operator ham chaqiradi) ularni umuman qaytarmaydi, klub egasi paneli esa
+so'rovlari (kassir va operator ham chaqiradi) ularni umuman qaytarmaydi, klub egasi paneli esa
 faqat "parol o'rnatilgan" belgisini ko'rsatadi. Parol serverda saqlanadi va faqat relega
 buyruq yuborishda ishlatiladi.
 

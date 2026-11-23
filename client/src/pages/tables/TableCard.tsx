@@ -1,7 +1,7 @@
 import { memo, useEffect, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { App, Button, Dropdown, Tooltip } from 'antd';
 import {
-  BellOutlined, BulbOutlined, CalendarOutlined, CaretRightOutlined, ClockCircleOutlined, CloseCircleOutlined,
+  BellOutlined, BulbFilled, BulbOutlined, CalendarOutlined, CaretRightOutlined, ClockCircleOutlined, CloseCircleOutlined,
   CloudSyncOutlined, CoffeeOutlined, DollarOutlined, EllipsisOutlined, FieldTimeOutlined,
   HistoryOutlined, HourglassOutlined, PauseCircleOutlined, PlayCircleOutlined, StopOutlined, SwapOutlined,
   SyncOutlined, UserOutlined, WalletOutlined,
@@ -143,6 +143,11 @@ export interface TableCardProps {
   onLightToggle?: (table: BilliardTable, on: boolean) => void;
   onLightAuto?: (table: BilliardTable) => void;
   /**
+   * Chiroq holati FAQAT ko'rsatiladi (operator): qo'lda boshqaruv tugmasi yo'q, stol
+   * ustida yoniq/o'chiq belgisi chiqadi — chiroq o'yin bilan avtomatik boshqariladi
+   */
+  lightReadOnly?: boolean;
+  /**
    * O'yin vaqti cheklovini o'zgartirish: "+30 daqiqa", summa limitini oshirish
    * yoki `{ plannedMinutes: null }` — cheklovni olib tashlash
    */
@@ -155,6 +160,7 @@ const TableCard = memo(({
   variant = 'card', table, focused, session, segments, offsetMs, online, lightLocal, pending, lightPending, canCheckout,
   canCancelGames = canCheckout, canManage, reservation,
   onStart, onOrder, onTransfer, onCheckout, onPauseResume, onCancel, onLightToggle, onLightAuto, onPlanChange, onLimitEdit,
+  lightReadOnly,
 }: TableCardProps) => {
   const { t, i18n } = useTranslation();
   const ru = i18n.language.startsWith('ru');
@@ -188,6 +194,11 @@ const TableCard = memo(({
   const lightHint = lightState === null && !lightError
     ? t(lightTarget ? 'tables.lightsStateUnknownOffHint' : 'tables.lightsStateUnknownOnHint')
     : t(lightTarget ? 'tables.lightsToggleOff' : 'tables.lightsToggleOn');
+  // Faqat ko'rsatkich (operator): bosilmaydi, chiroq o'yin bilan avtomatik boshqariladi
+  const showLamp = lightReadOnly === true && !hasLight && table.lightControl === true;
+  const lampState: 'on' | 'off' | 'unknown' | 'error' = lightError && lightOnline ? 'error'
+    : lightState === true ? 'on' : lightState === false ? 'off' : 'unknown';
+  const lampTitle = `${t(`tables.lamp_${lampState}`)} · ${t('tables.lampAuto')}`;
 
   const confirmCancel = () => {
     if (!session || !canCancelGames || !canCancel || pending) return;
@@ -256,6 +267,11 @@ const TableCard = memo(({
 
   const stateClass = isBusy ? isPaused ? 'is-paused' : 'is-busy' : 'is-free';
   const displayName = table.name || `${t('common.table')} ${table.number}`;
+  const rowLamp = showLamp && (lampState === 'on' || lampState === 'error') && <Tooltip title={lampTitle}>
+    <em className={`table-lamp is-${lampState}`} role="img" aria-label={lampTitle}>
+      {lampState === 'on' ? <BulbFilled /> : <BulbOutlined />}{t(`tables.lamp_${lampState}`)}
+    </em>
+  </Tooltip>;
   const lightButton = hasLight && <Tooltip title={`${lightLabel} · ${lightHint}`}><Button type="text" icon={<BulbOutlined />}
     loading={lightPending} disabled={!lightOnline}
     className={lightError ? 'has-light-error' : lightState ? 'is-light-on' : ''}
@@ -276,9 +292,11 @@ const TableCard = memo(({
             {session.limitAmount != null && <em className="is-limit"><WalletOutlined />{t('tables.limitBadge', { amount: formatNumber(session.limitAmount) })}</em>}
             {hasPlan ? <PlannedBadge session={session} segments={segments} fallbackPrice={table.pricePerHour} offsetMs={offsetMs} /> : null}
             {reservation && <em className="is-reservation"><CalendarOutlined />{reservation}</em>}
+            {rowLamp}
           </span> : <span>
             {formatNumber(table.pricePerHour)} {currency} / {t('tables.perHour')}
             {reservation && <em className="is-reservation"><CalendarOutlined />{reservation}</em>}
+            {rowLamp}
           </span>}
         </div>
         <div className="table-row__live">
@@ -342,6 +360,12 @@ const TableCard = memo(({
               <h2 title={displayName}>{displayName}</h2>
               <span>{formatNumber(table.pricePerHour)} {currency} / {t('tables.perHour')}</span>
             </div>
+            {showLamp && <Tooltip title={lampTitle}>
+              <span className={`pool-lamp is-${lampState}`} role="img" aria-label={lampTitle}>
+                {lampState === 'on' ? <BulbFilled /> : <BulbOutlined />}
+                {lampState === 'on' && <b>{t('tables.lightsStateOn')}</b>}
+              </span>
+            </Tooltip>}
             <span className="pool-chip">{t(isBusy ? isPaused ? 'status.paused' : 'status.active' : 'status.free')}</span>
           </div>
 

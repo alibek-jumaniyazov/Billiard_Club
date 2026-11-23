@@ -282,6 +282,11 @@ export default {
     lightsToggleOn: "Qo'lda yoqish",
     lightsToggleOff: "Qo'lda o'chirish",
     lightsOverrideAuto: 'Avtomatikaga qaytarish',
+    lamp_on: 'Chiroq yoniq',
+    lamp_off: "Chiroq o'chiq",
+    lamp_unknown: "Chiroq holati hozircha noma'lum",
+    lamp_error: 'Chiroqda nosozlik — administratorga ayting',
+    lampAuto: "o'yin boshlanganda o'zi yonadi, tugaganda o'chadi",
     // Klub sozlamalari (PRO)
     lightsOffDelay: "Sessiya tugagach yoniq qolsin",
     lightsOffDelayHint:
@@ -662,6 +667,11 @@ export default {
     lightsToggleOn: 'Включить вручную',
     lightsToggleOff: 'Выключить вручную',
     lightsOverrideAuto: 'Вернуть в автоматику',
+    lamp_on: 'Свет горит',
+    lamp_off: 'Свет выключен',
+    lamp_unknown: 'Состояние света пока неизвестно',
+    lamp_error: 'Неисправность света — сообщите администратору',
+    lampAuto: 'включается сам при начале игры и выключается после неё',
     // Настройки клуба (PRO)
     lightsOffDelay: 'Оставлять свет после игры',
     lightsOffDelayHint:

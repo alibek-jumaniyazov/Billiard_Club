@@ -114,6 +114,12 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 .pool-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .is-busy .pool-chip { color: #8ff0b8; }
 .is-paused .pool-chip { color: #f3c674; }
+/* Chiroq holati — faqat ko'rsatkich (operator): yoniq — oltin nur, o'chiq — xira, nosoz — qizil */
+.pool-lamp { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 22px; min-width: 22px; padding: 0 6px; border-radius: 999px; background: rgba(0, 0, 0, .3); color: rgba(242, 237, 225, .45); font-size: 12px; cursor: default; }
+.pool-lamp b { font-size: 11px; font-weight: 700; }
+.pool-lamp.is-on { color: #2a2003; background: radial-gradient(circle at 35% 30%, #fff6cf 0%, #f2cf6a 55%, #c99a2e 100%); box-shadow: 0 0 0 1px rgba(255, 226, 140, .6), 0 0 14px 3px rgba(255, 214, 102, .45); }
+.pool-lamp.is-unknown { background: transparent; box-shadow: inset 0 0 0 1px rgba(242, 237, 225, .3); }
+.pool-lamp.is-error { color: #fff; background: var(--error); }
 
 .pool-card__live { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; margin-top: auto; }
 .pool-card__timer { font-size: 27px; font-weight: 600; color: var(--ivory); text-shadow: 0 1px 0 rgba(0, 0, 0, .35); }
@@ -164,6 +170,8 @@ button.tables-overview__metric:hover { background: var(--bg2); }
 .table-row__info > span > .anticon { margin-right: -6px; }
 .table-row__info em { display: inline-flex; align-items: center; gap: 5px; font-style: normal; color: var(--text-tertiary); }
 .table-row__info em.is-warning { color: var(--warning); }
+.table-row__info em.table-lamp.is-on { color: var(--gold); font-weight: 600; }
+.table-row__info em.table-lamp.is-error { color: var(--error); }
 .table-row__live { grid-area: live; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; white-space: nowrap; }
 .table-row__muted { font-size: 12px; color: var(--text-tertiary); }
 .table-row__actions { grid-area: actions; display: flex; align-items: center; gap: 6px; }

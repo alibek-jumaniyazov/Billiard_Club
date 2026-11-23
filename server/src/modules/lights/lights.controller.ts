@@ -38,9 +38,13 @@ import { RequireFeature } from '../../common/decorators/require-feature.decorato
  *  - sozlash (settings / stol sozlamalari / sinov / qidiruv / token) — faqat
  *    egaga (ADMIN) va SUPERADMIN ga;
  *  - ko'rish (`GET /`), qo'lda boshqaruv (`override`, `all`) va diagnostika
- *    jurnali — kassir va operatorga ham ochiq: zal boshqaruvi ularning ishi.
+ *    jurnali — kassirga ham ochiq: zal boshqaruvi uning ishi;
+ *  - OPERATORGA chiroq bilan bog'liq hech narsa ochiq emas (klub egasi talabi):
+ *    u o'yinni boshlaydi va yakunlaydi, chiroq esa o'yin holatiga qarab
+ *    avtomatik yonadi/o'chadi. Stol kartasidagi "chiroq yoniq" belgisi uchun
+ *    holat `GET /tables` javobida (`lightState`) keladi — bu yerga kerak emas.
  *
- * MAXFIYLIK: kassir/operatorga stolning `host`, `onUrl`/`offUrl`, `config` va
+ * MAXFIYLIK: kassirga stolning `host`, `onUrl`/`offUrl`, `config` va
  * `hasAuth` maydonlari qaytarilmaydi (null/false) — klubning lokal tarmoq
  * tafsilotlari faqat sozlash huquqi borlarga ko'rinadi. Javobdagi `canEdit`
  * bayrog'i klientga qaysi bo'limlarni ko'rsatishni aytadi.
@@ -48,15 +52,16 @@ import { RequireFeature } from '../../common/decorators/require-feature.decorato
  */
 /*
  * Tarif: chiroqni BOSHQARISH ("lights" imkoniyati) — har boshqaruv amalida
- * @RequireFeature. Umumiy ko'rinish (GET /lights) esa hammaga ochiq: boshqaruv
- * panelidagi zal ko'rinishi (bo'sh/band/pauza) shu javobdan chiziladi.
+ * @RequireFeature. Umumiy ko'rinish (GET /lights) esa tarifdan qat'i nazar egaga
+ * va kassirga ochiq: boshqaruv panelidagi zal ko'rinishi (bo'sh/band/pauza) shu
+ * javobdan chiziladi (operator boshqaruv panelini ko'rmaydi).
  */
 @Controller('lights')
 export class LightsController {
   constructor(private readonly lightsService: LightsService) {}
 
   /** Klub rejimi + agent holati + barcha stollarning chiroq sozlamalari/holati */
-  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
   @Get()
   async overview(@ClubId() clubId: number, @CurrentUser() user: User) {
     const data = await this.lightsService.overview(clubId);
@@ -159,7 +164,7 @@ export class LightsController {
   }
 
   /** Qo'lda yoqish/o'chirish; on=null (yoki yuborilmasa) — override bekor qilinadi */
-  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
   @HttpCode(200)
   @RequireFeature('lights')
   @Post('tables/:id/override')
@@ -191,7 +196,7 @@ export class LightsController {
    * yoki avtomatikaga qaytarish (on yuborilmasa yoki null bo'lsa).
    * Zalni ochish/yopish paytida bitta tugma bilan boshqarish uchun.
    */
-  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
   @HttpCode(200)
   @RequireFeature('lights')
   @Post('all')
@@ -214,9 +219,9 @@ export class LightsController {
    * Diagnostika jurnali: "nega bu stolda chiroq yonmadi?"
    * Xato MATNI faqat sozlash huquqi borlarga ko'rsatiladi — unda texnik
    * tafsilotlar (qurilma javobi, manzil formati va h.k.) bo'lishi mumkin.
-   * Kassir/operator uchun `ok=false` bayrog'ining o'zi yetarli.
+   * Kassir uchun `ok=false` bayrog'ining o'zi yetarli.
    */
-  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR, UserRole.OPERATOR)
+  @Roles(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.KASSIR)
   @RequireFeature('lights')
   @Get('events')
   async events(
