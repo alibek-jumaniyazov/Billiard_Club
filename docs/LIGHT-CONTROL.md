@@ -57,7 +57,7 @@ o'yinga mos yonib-o'chaveradi — **24 soatgacha**. Aloqa tiklangach barcha nati
 | Bo'lim | Nima uchun |
 |---|---|
 | **Holat** | Kim boshqaryapti (shu kompyuter / agent / server), har stol chirog'i, qo'lda yoqish/o'chirish, hammasini birdan boshqarish. Internet yo'q bo'lsa ham shu kompyuterdagi markaz orqali ishlaydi. |
-| **Ulash** | Boshqaruv usuli, chiroq markazi, **qurilma qo'shish ustasi**, tarmoqdan qidirish, alohida agent tokeni, stollar bo'yicha qo'lda sozlash (MQTT, HTTP, Home Assistant). |
+| **Ulash** | Boshqaruv usuli, chiroq markazi, **stollar ro'yxati** (har stol — alohida «Ulash»/«Tahrirlash»), **Tuya: hammasini birdan ulash**, **qurilma qo'shish ustasi**, tarmoqdan qidirish, alohida agent tokeni, stollar bo'yicha qo'lda sozlash (MQTT, HTTP, Home Assistant). |
 | **Qoidalar** | Pauzada o'chirish, o'yin tugagach kechikish, bron oldidan yoqish, qayta tekshirish oralig'i, holatni o'qib tekshirish. Qoidalar markazga ham yuboriladi. |
 | **Jurnal** | Chiroq qachon va nima sababdan o'zgargani. |
 
@@ -84,6 +84,44 @@ o'yinga mos yonib-o'chaveradi — **24 soatgacha**. Aloqa tiklangach barcha nati
 | **Modbus RTU (RS485)** | COM port, tezlik, juftlik, Unit ID | Ha | USB-RS485 adapter orqali; bitta shinadagi platalar navbat bilan so'raladi. |
 | **USB rele (CH340 / LCUS)** | COM port | Ha | LCUS-1/2/4/8 platalar, buyruq `A0 kanal holat summa`. |
 | **USB rele (HID, USBRelay)** | Plata ID (bitta plata bo'lsa shart emas) | Ha | Windows da drayver kerak emas. Zadig/WinUSB o'rnatmang. |
+
+### Stollar ro'yxati — har stolga alohida ulanish
+
+«Ulash» bo'limida klubning barcha faol stollari turadi: har stol — o'z qatori, unda qaysi qurilma
+ulangani (masalan, «Tuya · 192.168.1.51 · DP 16») va holat nuqtasi ko'rinadi.
+
+- **Ulash** (ulanmagan stolda) — qurilma ustasi shu stol oldindan tanlangan holda ochiladi. Tarmoqda
+  ulanmagan Tuya qurilmasi bo'lsa, usta darhol Tuya bilan ochiladi. Bulutdan olingan ro'yxat 30 daqiqa
+  (faqat xotirada) saqlanadi: tarmoqda topilgan qurilma tanlansa Device ID, Local key va DP o'zi
+  to'ladi — Access ID/Secret ni har stol uchun qayta kiritish shart emas.
+- **Tahrirlash** (ulangan stolda) — shu stolning qurilmasini ochadi.
+
+### Tuya: hammasini birdan ulash (har automat — alohida stol)
+
+Bir nechta Wi‑Fi automat yoki rele bo'lsa (masalan, 8 stolga 8 ta JGQW01), hammasini bitta oynada
+ulang — «Stollar» bo'limidagi **«Tuya: hammasini birdan ulash»** tugmasi:
+
+1. **Ma'lumot** — iot.tuya.com loyihasining Access ID va Access Secret ini **bir marta** kiriting
+   (kompyuter dasturida). Barcha qurilmalarning nomi, local key va boshqaruv DP i bulutdan, IP manzil va
+   protokol versiyasi esa tarmoq qidiruvidan olinadi. Access Secret saqlanmaydi. Bulutsiz ham davom
+   etish mumkin — unda tarmoqda topilgan qurilmalarning kalitlari qo'lda kiritiladi.
+2. **Stollarga moslash** — har qurilma bitta qator: stol, IP, versiya, DP, local key. Stol Smart Life
+   dagi nomdan o'zi tanlanadi («Stol 3», «3-stol», «стол 3», «3»); qolganlariga «Bo'sh stollarni tartib
+   bilan to'ldirish» bo'sh stollarni beradi. «Hammasiga DP» — barcha qatorlarga bir xil DP (JGQW01
+   uchun 16). «IP larni yangilash» tarmoqni qayta qidiradi (kiritilgan kalit va stollar o'zgarmaydi).
+   Belgisi olib qo'yilgan qurilma o'zgartirilmaydi; ko'p kanalli qurilmalar bu yerda emas, ustada
+   sozlanadi.
+3. **Saqlash** — hammasi **bitta so'rov** (bitta tranzaksiya) bilan: yoki hammasi saqlanadi, yoki hech
+   narsa o'zgarmaydi. Xato bo'lsa (IP yo'q, kalit 16 belgi emas, bitta stol ikki qurilmada) saqlanmaydi
+   va xatoli qator qizil bilan ko'rsatiladi. Qurilma boshqa stolga ko'chirilsa, eski stoli «ulanmagan»
+   bo'ladi.
+4. **Sinov** — har stolni yoqib-o'chiring yoki **«Ketma-ket sinash»** ni bosing: stollar navbat bilan
+   yonib-o'chadi, sinalayotgan stol ajratib ko'rsatiladi. Lampa boshqa stolda yonsa — «Orqaga» qaytib
+   ikki qurilmaning stollarini almashtiring va qayta saqlang. «Tayyor» bosilganda sinalgan stollar
+   avtomatik boshqaruvga qaytadi.
+
+> Maslahat: Smart Life ilovasida automatlarni stol raqami bilan nomlang («Stol 1» … «Stol 8») — shunda
+> moslash o'zi bo'ladi. Routerda har automatga doimiy IP bering.
 
 ### Sinash va nosozliklar
 

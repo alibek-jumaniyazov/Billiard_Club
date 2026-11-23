@@ -14,7 +14,7 @@ import { EmptyState } from '../../components/ui';
 import { desktopLights, type LightHubStatus } from '../../offline/desktop';
 import type { LightSettingsPayload, LightsOverview, TableLightConfig } from '../../types';
 import { buildBoardRows, hubControlsHere, lightController } from './lights/board';
-import { groupDevices, type DeviceGroup } from './lights/devices';
+import { groupDevices, isFoundConnected, type DeviceGroup } from './lights/devices';
 import { lightErrorText } from './lights/hub-errors';
 import LightAdvancedTables from './lights/LightAdvancedTables';
 import LightControllerCard from './lights/LightControllerCard';
@@ -23,6 +23,8 @@ import LightDeviceList from './lights/LightDeviceList';
 import LightEventsPanel from './lights/LightEventsPanel';
 import LightRulesPanel from './lights/LightRulesPanel';
 import LightStatusBoard, { type BoardBusy } from './lights/LightStatusBoard';
+import LightTableConnections from './lights/LightTableConnections';
+import LightTuyaBulk from './lights/LightTuyaBulk';
 import { lightCopy } from './lights/light-copy';
 import { useLightDiscovery } from './lights/useLightDiscovery';
 import './lights/lights.css';
@@ -73,6 +75,8 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
   const [minutes, setMinutes] = useState(30);
   const [boardBusy, setBoardBusy] = useState<BoardBusy>(null);
   const [editor, setEditor] = useState<DeviceEditorRequest | null>(null);
+  /** Tuya qurilmalarini birdan ulash oynasi */
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [removingKey, setRemovingKey] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [clock, setClock] = useState(Date.now);
@@ -130,6 +134,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
     tabChosen.current = false;
     setTab('status');
     setEditor(null);
+    setBulkOpen(false);
     setAdvancedOpen(false);
     void loadRef.current('full');
     return () => {
@@ -282,6 +287,13 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
     if (group) setEditor({ group });
   };
 
+  /** Tarmoqda topilgan, hali ulanmagan Tuya qurilmalari */
+  const tuyaUnconnected = discovery.found.filter((item) => item.kind === 'tuya' && !isFoundConnected(item, groups)).length;
+
+  /** Ulanmagan stolni ulash: usta shu stol bilan ochiladi (tarmoqda Tuya bo'lsa — darhol Tuya) */
+  const connectTable = (tableId: number) =>
+    setEditor({ group: null, kind: tuyaUnconnected > 0 ? 'tuya' : null, prefill: { channels: [tableId] } });
+
   /* -------------------------------------------------------------- Render */
 
   const goConnect = canEdit ? () => setTab('connect') : undefined;
@@ -337,6 +349,16 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
             onChanged={reloadAfterChange}
           />
           {data.mode === 'direct' && <Alert type="info" showIcon message={copy.direct} />}
+          <LightTableConnections
+            tables={data.tables}
+            groups={groups}
+            rowState={rowState}
+            canEdit={canEdit}
+            tuyaUnconnected={tuyaUnconnected}
+            onConnect={connectTable}
+            onOpenDevice={openDeviceOfTable}
+            onBulk={() => setBulkOpen(true)}
+          />
           <LightDeviceList
             groups={groups}
             canEdit={canEdit}
@@ -414,6 +436,9 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
       title={t('tables.lightsTitle')}
       open={open}
       onClose={onClose}
+      // Usta yoki ommaviy ulash oynasi ochiq bo'lsa Esc (masalan, ro'yxatni yopish uchun)
+      // butun oynani yopib, kiritilganlarni yo'qotmasin
+      keyboard={editor === null && !bulkOpen}
       width="min(880px, 100vw)"
       destroyOnHidden
       extra={
@@ -457,7 +482,7 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
 
       {data && (
         <LightDeviceEditor
-          request={editor}
+          request={open ? editor : null}
           tables={data.tables}
           groups={groups}
           found={discovery.found}
@@ -471,6 +496,28 @@ const LightSettingsDrawer = ({ open, onClose, onChanged }: LightSettingsDrawerPr
           }}
           onClose={() => {
             setEditor(null);
+            reloadAfterChange();
+          }}
+        />
+      )}
+
+      {data && (
+        <LightTuyaBulk
+          // Oyna yopilib qayta ochilganda eski holat bir lahza ham ko'rinmasin
+          open={open && bulkOpen}
+          tables={data.tables}
+          groups={groups}
+          discovery={discovery}
+          mode={data.mode}
+          hubStatus={hubStatus}
+          agentOnline={data.bridge.online}
+          onSaved={(saved) => {
+            invalidate();
+            mergeRows(saved);
+            onChanged();
+          }}
+          onClose={() => {
+            setBulkOpen(false);
             reloadAfterChange();
           }}
         />

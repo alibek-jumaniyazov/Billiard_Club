@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Alert,
   App,
@@ -19,12 +19,8 @@ import {
 } from 'antd';
 import {
   BulbOutlined,
-  CheckCircleFilled,
-  CloseCircleFilled,
   CloudDownloadOutlined,
   ClusterOutlined,
-  InfoCircleFilled,
-  LoadingOutlined,
   PoweroffOutlined,
   UsbOutlined,
   WifiOutlined,
@@ -33,7 +29,6 @@ import { useTranslation } from 'react-i18next';
 import { lightsApi } from '../../../api';
 import { desktopLights, type LightHubStatus, type TuyaCloudDevice } from '../../../offline/desktop';
 import type { LightMode, TableLightConfig } from '../../../types';
-import { hubControlsHere } from './board';
 import {
   buildBulkPayload,
   DEVICE_KINDS,
@@ -47,8 +42,10 @@ import {
   type DeviceKindId,
   type FoundDevice,
 } from './devices';
-import { hubErrorText, isHubConfigPending, lightErrorText } from './hub-errors';
+import { hubErrorText, lightErrorText } from './hub-errors';
 import { DRIVER_OPTIONS } from './shared';
+import { TestResult, TUYA_DP_ERROR_RE, useLightTester } from './useLightTester';
+import { cachedTuyaDevice, cloudDp, getTuyaCloudCache, setTuyaCloudCache } from './tuyaCloudCache';
 
 const { Text } = Typography;
 
@@ -69,26 +66,8 @@ export interface DeviceEditorRequest {
   kinds?: DeviceKindId[];
 }
 
-interface TestState {
-  status: 'running' | 'waiting' | 'ok' | 'sent' | 'queued' | 'error';
-  on: boolean;
-  actual?: boolean;
-  text?: string;
-  /** Buyruq yuborilgan vaqt (agent orqali sinovda natijani kutish uchun) */
-  at?: number;
-  /** Sinovdan oldingi stol yozuvi — agent javobi kelganini shu bilan bilamiz */
-  prevSyncedAt?: string | null;
-  prevError?: string | null;
-}
-
-/** Agent orqali sinovda javob shuncha vaqt ichida kelmasa, saqlangan xato ko'rsatiladi (ms) */
-const AGENT_RESULT_GRACE_MS = 8000;
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const BAUD_RATES = [2400, 4800, 9600, 19200, 38400, 57600, 115200];
 const TUYA_VERSIONS = ['3.1', '3.3', '3.4', '3.5'] as const;
-/** Tuya sinovidagi "buyruq bordi, holat o'zgarmadi / DP noto'g'ri" xatolari (markaz matnlari o'zbekcha) */
-const TUYA_DP_ERROR_RE = /mos kelmadi|tasdiqlab bo|DP \d+/i;
 
 export const kindIcon = (kind: DeviceKindId): ReactNode =>
   deviceKind(kind).wireless ? <WifiOutlined /> : kind.startsWith('usb') ? <UsbOutlined /> : <ClusterOutlined />;
@@ -110,7 +89,9 @@ const TuyaCloudImport = ({ onPick }: { onPick: (device: TuyaCloudDevice) => void
   const [accessSecret, setAccessSecret] = useState('');
   const [region, setRegion] = useState('eu');
   const [loading, setLoading] = useState(false);
-  const [devices, setDevices] = useState<TuyaCloudDevice[] | null>(null);
+  // Avval olingan ro'yxat (30 daqiqa, faqat xotirada) — Access ID / Secret qayta kerak emas
+  const [devices, setDevices] = useState<TuyaCloudDevice[] | null>(() => getTuyaCloudCache());
+  const [fromCache, setFromCache] = useState(() => getTuyaCloudCache() !== null);
   const [error, setError] = useState<string | null>(null);
 
   if (!hub) return <Text type="secondary">{t('lights.tuyaDesktopOnly')}</Text>;
@@ -121,6 +102,8 @@ const TuyaCloudImport = ({ onPick }: { onPick: (device: TuyaCloudDevice) => void
     try {
       const list = await hub.tuyaCloud({ accessId: accessId.trim(), accessSecret: accessSecret.trim(), region });
       setDevices(list);
+      setFromCache(false);
+      setTuyaCloudCache(list);
       // Sir faqat shu so'rov uchun kerak edi — xotirada ushlab turmaymiz
       setAccessSecret('');
     } catch (err) {
@@ -162,6 +145,7 @@ const TuyaCloudImport = ({ onPick }: { onPick: (device: TuyaCloudDevice) => void
         {t('lights.tuyaFetch')}
       </Button>
       {error && <Alert type="error" showIcon message={error} />}
+      {devices && fromCache && <Text type="secondary" className="light-form-hint">{t('lights.tuyaCached')}</Text>}
       {devices &&
         (devices.length === 0 ? (
           <Text type="secondary">{t('lights.tuyaNone')}</Text>
@@ -232,22 +216,25 @@ const LightDeviceEditor = ({
   const [saving, setSaving] = useState(false);
   const [showIssue, setShowIssue] = useState(false);
   const [fillStart, setFillStart] = useState<number | null>(null);
-  const [results, setResults] = useState<Record<number, TestState>>({});
-  /** Sinalgan stollar va qaysi yo'l bilan — "Tayyor"da avtomatikaga qaytariladi */
-  const tested = useRef(new Map<number, 'hub' | 'server'>());
-  /** Oxirgi saqlash boshlangan vaqt — markaz yangi sozlamani olganini bilish uchun */
-  const savedAt = useRef(0);
-  const hubRef = useRef(hubStatus);
-  useEffect(() => {
-    hubRef.current = hubStatus;
-  }, [hubStatus]);
+  /** Sinov (markaz, server yoki agent orqali) — ommaviy ulash bilan umumiy */
+  const tester = useLightTester({ mode, hubStatus, agentOnline, tables });
+  const { reset: resetTester, canTest } = tester;
 
   useEffect(() => {
     if (!request) return;
     const kind = request.group?.kind ?? request.kind ?? null;
     const prefill = request.prefill ?? {};
     const base = request.group ? draftFromGroup(request.group) : emptyDraft(kind ?? 'tuya', prefill.channels?.length ?? 1);
-    setDraft({ ...base, ...prefill, ...(kind ? { kind } : {}) });
+    // Qidiruvdan kelgan yangi Tuya qurilma: kalit va DP avval olingan bulut ro'yxatidan (bo'lsa)
+    const cloud = !request.group && kind === 'tuya' && !prefill.secret ? cachedTuyaDevice(prefill.deviceId) : null;
+    const dp = cloudDp(cloud);
+    setDraft({
+      ...base,
+      ...prefill,
+      ...(kind ? { kind } : {}),
+      ...(cloud?.localKey ? { secret: cloud.localKey } : {}),
+      ...(dp ? { tuyaDp: dp } : {}),
+    });
     setStep(request.step ?? (kind ? 'connection' : 'kind'));
     setSavedIds(request.group ? request.group.tables.map((item) => item.row.tableId) : []);
     setSaved(request.group !== null);
@@ -255,17 +242,13 @@ const LightDeviceEditor = ({
     setSaving(false);
     setShowIssue(false);
     setFillStart(null);
-    setResults({});
-    tested.current.clear();
-    savedAt.current = 0;
-  }, [request]);
+    resetTester();
+  }, [request, resetTester]);
 
   const kind = deviceKind(draft.kind);
   const issue = draftIssue(draft, savedIds);
   const tableIssue = issue === 'noTables' || issue === 'secretAgain';
   const connectionIssue = issue && !tableIssue ? issue : null;
-  const hubLocal = mode === 'bridge' && hubControlsHere(hubStatus);
-  const canTest = hubLocal || mode === 'direct' || (mode === 'bridge' && agentOnline);
 
   const activeTables = useMemo(
     () => tables.filter((row) => row.isActive).sort((a, b) => a.tableNumber - b.tableNumber),
@@ -344,13 +327,12 @@ const LightDeviceEditor = ({
     const startedAt = Date.now();
     try {
       const res = await lightsApi.updateTables(buildBulkPayload(draft, savedIds));
-      savedAt.current = startedAt;
+      tester.markSaved(startedAt);
       setSavedIds(Array.from(new Set(draft.channels.filter((id): id is number => id !== null))));
       setDraft((prev) => ({ ...prev, secret: '', hasSecret: prev.hasSecret || prev.secret.trim().length > 0 }));
       setSaved(true);
       setDirty(false);
       setShowIssue(false);
-      setResults({});
       onSaved(res.data);
       message.success(t('lights.saved'));
       setStep('test');
@@ -363,82 +345,8 @@ const LightDeviceEditor = ({
 
   /* -------------------------------------------------------------- Sinov */
 
-  const setResult = (tableId: number, state: TestState) => setResults((prev) => ({ ...prev, [tableId]: state }));
-
-  /** Saqlangandan keyin markaz serverdan yangi sozlamani olguncha (≤8 s) kutamiz */
-  const waitHubSync = async () => {
-    if (!savedAt.current) return;
-    const deadline = Date.now() + 8000;
-    while (Date.now() < deadline) {
-      const cloud = hubRef.current?.hub?.cloud;
-      const last = cloud?.lastOkAt ? Date.parse(cloud.lastOkAt) : 0;
-      if (last >= savedAt.current || !cloud?.online) return;
-      // eslint-disable-next-line no-await-in-loop
-      await sleep(300);
-    }
-  };
-
-  const runTest = async (tableId: number, on: boolean) => {
-    const hub = desktopLights();
-    try {
-      if (hubLocal && hub) {
-        setResult(tableId, { status: 'waiting', on });
-        await waitHubSync();
-        setResult(tableId, { status: 'running', on });
-        for (let attempt = 0; ; attempt += 1) {
-          try {
-            // eslint-disable-next-line no-await-in-loop
-            const res = await hub.test(tableId, on);
-            tested.current.set(tableId, 'hub');
-            if (!res.ok) setResult(tableId, { status: 'error', on, text: res.error ?? t('common.error') });
-            else if (res.actual === null) setResult(tableId, { status: 'sent', on });
-            else setResult(tableId, { status: 'ok', on, actual: res.actual });
-            return;
-          } catch (err) {
-            if (attempt < 6 && isHubConfigPending(hubErrorText(err))) {
-              setResult(tableId, { status: 'waiting', on });
-              // eslint-disable-next-line no-await-in-loop
-              await sleep(1000);
-              continue;
-            }
-            throw err;
-          }
-        }
-      }
-      setResult(tableId, { status: 'running', on });
-      const before = tableById.get(tableId);
-      const at = Date.now();
-      const res = await lightsApi.test(tableId, on);
-      tested.current.set(tableId, 'server');
-      if (res.data.queued) {
-        setResult(tableId, {
-          status: 'queued', on, at, prevSyncedAt: before?.syncedAt ?? null, prevError: before?.error ?? null,
-        });
-      }
-      else if (res.data.ok) setResult(tableId, { status: 'sent', on });
-      else setResult(tableId, { status: 'error', on, text: res.data.error || res.message });
-    } catch (err) {
-      const text = lightErrorText(err, t('common.error'));
-      setResult(tableId, { status: 'error', on, text: isHubConfigPending(text) ? t('lights.testNotReady') : text });
-    }
-  };
-
-  /** Sinalgan stollarni avtomatik boshqaruvga qaytarish */
-  const restoreAuto = async () => {
-    const entries = Array.from(tested.current.entries());
-    tested.current.clear();
-    if (entries.length === 0) return;
-    const hub = desktopLights();
-    const hubIds = entries.filter(([, via]) => via === 'hub').map(([id]) => id);
-    const serverIds = entries.filter(([, via]) => via === 'server').map(([id]) => id);
-    await Promise.allSettled([
-      ...(hubIds.length > 0 && hub ? [hub.override({ tableIds: hubIds, on: null })] : []),
-      ...serverIds.map((id) => lightsApi.override(id, null)),
-    ]);
-  };
-
   const close = () => {
-    void restoreAuto();
+    void tester.restoreAuto();
     onClose();
   };
 
@@ -453,7 +361,10 @@ const LightDeviceEditor = ({
     const item = found.find((entry) => entry.key === key);
     if (!item) return;
     const { channels, ...rest } = item.prefill;
-    patch(rest);
+    const cloud = item.kind === 'tuya' ? cachedTuyaDevice(item.prefill.deviceId) : null;
+    const dp = cloudDp(cloud);
+    patch({ ...rest, ...(cloud?.localKey ? { secret: cloud.localKey } : {}), ...(dp ? { tuyaDp: dp } : {}) });
+    if (cloud?.localKey) message.success(dp ? t('lights.tuyaFilledDp', { dp }) : t('lights.tuyaFilled'));
     if (channels && channels.length > draft.channels.length) setChannelCount(channels.length);
   };
 
@@ -810,46 +721,6 @@ const LightDeviceEditor = ({
     return Array.from(byTable.entries()).map(([tableId, channels]) => ({ tableId, channels }));
   }, [draft.channels]);
 
-  /**
-   * Agent orqali sinov: buyruq navbatga qo'yilgan, natija agent hisobotidan
-   * keladi (oyna ma'lumoti har 5 soniyada yangilanadi). Muvaffaqiyatda stolning
-   * `syncedAt` i yangilanadi, xatoda `error` paydo bo'ladi.
-   */
-  const liveResult = (tableId: number, state: TestState | undefined): TestState | undefined => {
-    if (!state || state.status !== 'queued') return state;
-    const row = tableById.get(tableId);
-    if (!row) return state;
-    if (row.syncedAt && row.syncedAt !== state.prevSyncedAt && !row.error) {
-      return row.state === null ? { ...state, status: 'sent' } : { ...state, status: 'ok', actual: row.state };
-    }
-    if (row.error && (row.error !== state.prevError || Date.now() - (state.at ?? 0) > AGENT_RESULT_GRACE_MS)) {
-      return { ...state, status: 'error', text: row.error };
-    }
-    return state;
-  };
-
-  const resultView = (state: TestState | undefined) => {
-    if (!state) return null;
-    switch (state.status) {
-      case 'waiting':
-        return <span className="light-test-result"><LoadingOutlined /> {t('lights.testWaiting')}</span>;
-      case 'running':
-        return <span className="light-test-result"><LoadingOutlined /></span>;
-      case 'ok':
-        return (
-          <span className="light-test-result is-ok">
-            <CheckCircleFilled /> {t('lights.testOk', { state: state.actual ? t('lights.stateOn') : t('lights.stateOff') })}
-          </span>
-        );
-      case 'sent':
-        return <span className="light-test-result is-info"><InfoCircleFilled /> {t('lights.testSent')}</span>;
-      case 'queued':
-        return <span className="light-test-result is-info"><InfoCircleFilled /> {t('lights.testQueued')}</span>;
-      default:
-        return <span className="light-test-result is-error"><CloseCircleFilled /> {t('lights.testFailed', { error: state.text ?? '' })}</span>;
-    }
-  };
-
   const testStep = (
     <div className="light-form">
       <Text>{t('lights.testIntro')}</Text>
@@ -857,7 +728,7 @@ const LightDeviceEditor = ({
       <div className="light-test-list">
         {testRows.map(({ tableId, channels }) => {
           const row = tableById.get(tableId);
-          const state = liveResult(tableId, results[tableId]);
+          const state = tester.resultOf(tableId);
           const running = state?.status === 'running' || state?.status === 'waiting';
           return (
             <div className="light-test-row" key={tableId}>
@@ -875,7 +746,7 @@ const LightDeviceEditor = ({
                     icon={<BulbOutlined />}
                     disabled={!canTest || (running && state?.on !== true)}
                     loading={running && state?.on === true}
-                    onClick={() => void runTest(tableId, true)}
+                    onClick={() => void tester.runTest(tableId, true)}
                   >
                     {t('lights.on')}
                   </Button>
@@ -884,13 +755,13 @@ const LightDeviceEditor = ({
                     icon={<PoweroffOutlined />}
                     disabled={!canTest || (running && state?.on !== false)}
                     loading={running && state?.on === false}
-                    onClick={() => void runTest(tableId, false)}
+                    onClick={() => void tester.runTest(tableId, false)}
                   >
                     {t('lights.off')}
                   </Button>
                 </div>
               </div>
-              {resultView(state)}
+              <TestResult state={state} />
               {draft.kind === 'tuya' && state?.status === 'error' && TUYA_DP_ERROR_RE.test(state.text ?? '') && (
                 <Alert className="light-test-hint" type="info" showIcon message={t('lights.testTuyaDpHint')} />
               )}

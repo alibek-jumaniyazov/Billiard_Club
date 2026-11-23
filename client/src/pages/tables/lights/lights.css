@@ -136,7 +136,47 @@
 .light-dp-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .light-dp-row .ant-input-number { width:96px; }
 .light-test-hint { margin-top:8px; }
+
+/* Stollar bo'yicha ulash */
+.light-table-conn-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:8px; margin-top:10px; }
+.light-table-conn { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border-subtle, rgba(127,127,127,.2)); border-radius:12px; min-width:0; }
+.light-table-conn.is-empty { border-style:dashed; }
+.light-table-conn-body { display:flex; flex-direction:column; min-width:0; flex:1; }
+.light-table-conn-body .light-form-hint { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.light-table-conn .light-dot { flex:none; }
+
+/* Tuya: hammasini birdan ulash */
+.light-bulk-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.light-bulk-lan { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.light-bulk-manual { align-self:flex-start; padding-inline:0; }
+.light-bulk-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px 12px; flex-wrap:wrap; }
+.light-bulk-tools { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.light-bulk-dpall { display:inline-flex; align-items:center; gap:6px; }
+.light-bulk-dpall .ant-input-number { width:72px; }
+.light-bulk-list { display:flex; flex-direction:column; gap:10px; max-height:min(58vh, 640px); overflow:auto; padding-right:2px; }
+.light-bulk-row { border:1px solid var(--border-subtle, rgba(127,127,127,.2)); border-radius:14px; padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
+.light-bulk-row.is-off { opacity:.55; }
+.light-bulk-row.has-issue { border-color:var(--color-error, #ec5a4f); }
+.light-bulk-head { display:flex; align-items:center; gap:10px; min-width:0; }
+.light-bulk-title { display:flex; flex-direction:column; min-width:0; flex:1; }
+.light-bulk-title .light-form-hint { overflow-wrap:anywhere; }
+.light-bulk-tags { display:flex; flex-wrap:wrap; gap:4px; justify-content:flex-end; }
+.light-bulk-tags .ant-tag { margin-inline-end:0; }
+.light-bulk-fields { display:grid; grid-template-columns:minmax(150px, 1.3fr) minmax(130px, 1fr) 118px 104px minmax(150px, 1.1fr); gap:8px; align-items:end; }
+.light-bulk-field { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.light-bulk-field > span { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.light-bulk-field .ant-select, .light-bulk-field .ant-input-number { width:100%; }
+.light-bulk-notes { display:flex; flex-wrap:wrap; gap:4px 12px; }
+@media (max-width: 760px) {
+  .light-bulk-head { flex-wrap:wrap; }
+  .light-bulk-title { flex-basis:calc(100% - 34px); }
+  .light-bulk-tags { flex-basis:100%; justify-content:flex-start; padding-left:26px; }
+  .light-bulk-fields { grid-template-columns:1fr 1fr; }
+  .light-bulk-field.is-table, .light-bulk-field.is-key { grid-column:1 / -1; }
+}
 .light-test-list { display:flex; flex-direction:column; gap:8px; }
+.light-bulk-modal .light-test-list { max-height:min(52vh, 560px); overflow:auto; padding-right:2px; }
+.light-test-row.is-current { border-color:var(--primary); box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 22%, transparent); }
 .light-test-row { display:flex; flex-direction:column; gap:6px; padding:10px 12px; border-radius:10px; border:1px solid var(--border-subtle); background:var(--bg1); }
 .light-test-head { display:flex; align-items:center; gap:10px; min-width:0; }
 .light-test-name { flex:1; min-width:0; display:flex; flex-direction:column; }

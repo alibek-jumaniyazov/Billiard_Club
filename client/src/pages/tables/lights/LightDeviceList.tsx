@@ -32,7 +32,7 @@ export interface LightDeviceListProps {
 }
 
 /** Kanal belgisi rangi: yoniq / o'chiq / tekshirish kerak / noma'lum */
-const dotClass = (state: BoardRow | undefined): string => {
+export const dotClass = (state: BoardRow | undefined): string => {
   if (!state) return 'is-unknown';
   if (state.authMissing || (needsLightAttention(state.health) && state.health !== 'unconfirmed')) return 'is-attention';
   if (state.shown === true) return 'is-on';

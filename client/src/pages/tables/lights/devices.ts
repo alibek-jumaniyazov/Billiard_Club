@@ -275,7 +275,7 @@ export type DraftIssue =
   | 'serialPort'
   | 'noTables';
 
-const HOST_RE = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$/;
+export const HOST_RE = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$/;
 
 /** Qurilmaga avval ulanmagan stol qo'shilyaptimi */
 const addsTables = (draft: DeviceDraft, savedIds: readonly number[]) =>
