@@ -10,9 +10,12 @@ const zlib = require('node:zlib');
 
 const protocol = require('../lib/tuya-protocol');
 const tuyaDriver = require('../lib/drivers/tuya');
+const { LightHub } = require('../lib/hub');
 const drivers = require('../lib/drivers');
 const { discoverTuya, decodeBroadcast, toDevice, buildDevInfoRequest } = require('../lib/tuya-discover');
-const { fetchTuyaCloudDevices, signRequest } = require('../lib/tuya-cloud');
+const {
+  fetchTuyaCloudDevices, signRequest, pickSwitchDp, entriesFromModel, entriesFromSpecs,
+} = require('../lib/tuya-cloud');
 
 /**
  * TUYA LOKAL PROTOKOLI — soxta (mock) qurilma bilan uchdan-uchgacha testlar.
@@ -430,8 +433,13 @@ class MockTuya {
     }
     this.controls.push(dps);
     if (this.options.maxDps && Object.keys(dps).length > this.options.maxDps) return; // javobsiz
-    Object.assign(this.dps, dps);
-    this.send(socket, [this.ackFrame(state, seq, cmd), this.statusFrame(state, dps)]);
+    // Faqat o'qiladigan DP (masalan, automatdagi kVt·soat hisoblagichi): qurilma tasdiqlaydi, lekin qiymat o'zgarmaydi
+    const applied = { ...dps };
+    for (const dp of this.options.readOnly || []) delete applied[String(dp)];
+    Object.assign(this.dps, applied);
+    this.send(socket, Object.keys(applied).length
+      ? [this.ackFrame(state, seq, cmd), this.statusFrame(state, applied)]
+      : [this.ackFrame(state, seq, cmd)]);
   }
 
   query(socket, state, seq, cmd, json) {
@@ -724,6 +732,8 @@ test('payload talqini: oddiy matn o‘tadi, boshqaruv belgilari/U+FFFD — ochil
   assert.deepEqual(parsed.dps, { 20: 'true' });
   assert.equal(protocol.interpretText('json obj data unvalid').invalid, true);
   assert.deepEqual([true, 'ON', 'false', 1, 0, 'memory', null].map(protocol.dpBoolean), [true, true, false, true, false, null, null]);
+  // Hisoblagich qiymati (masalan, automatning DP 1 — kVt·soat) "yoniq" deb o'qilmaydi
+  assert.deepEqual([2011, -1, 0.5, Number.NaN].map(protocol.dpBoolean), [null, null, null, null]);
 });
 
 test('kadr ajratgich: har qanday bo‘linish nuqtasi, ketma-ket kadrlar va axlat baytlar', () => {
@@ -768,6 +778,73 @@ test('drayver reyestrda: readback bor, navbat kaliti qurilma bo‘yicha', () => 
     tuyaDriver.lockKey({ host: '192.168.1.50', config: { deviceId: 'bf1234567890abcdefgh' } }),
     'tuya:192.168.1.50:bf1234567890abcdefgh',
   );
+});
+
+/** Tuya JGQW01-63 (PowBay) energiya hisoblagichli automat: DP 1 — kVt·soat, yoqish — DP 16 */
+const BREAKER_DPS = { 1: 2011, 9: 0, 11: false, 12: true, 13: 0, 16: true, 19: 'JRXLB_Protector', 61: 'on', 101: true };
+
+test('automat (JGQW01): standart DP 1 hisoblagich — aniq xato; config.dps [16] bilan yoqiladi va o‘chiriladi', async (t) => {
+  const mock = await startMock(t, '3.5', { dps: { ...BREAKER_DPS }, readOnly: [1, 9, 13, 19] });
+  const ctx = makeCtx();
+  // Eski sozlama (DP ko'rsatilmagan): qiymat "yoniq" deb o'qilmaydi, sababi `reason` da
+  const legacy = await tuyaDriver.read(tableFor(mock), ctx);
+  assert.deepEqual(legacy, [null]);
+  assert.match(legacy.reason, /DP 1 bu qurilmada yoqish-o'chirish kanali emas \(qiymati: 2011\).*odatda 16/);
+  // Chiroq markazi sinovi: "holat mos kelmadi" emas — aniq sabab
+  const hub = new LightHub({ sleep: async () => {} });
+  const result = await hub.testDevice(tableFor(mock), false);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /DP 1 bu qurilmada yoqish-o'chirish kanali emas/);
+  assert.equal(mock.dps['1'], 2011, 'hisoblagich DP siga yozuv qiymatni o‘zgartirmaydi');
+  mock.controls.length = 0;
+  const device = tableFor(mock, { dps: [16] });
+  await tuyaDriver.write(device, false, ctx);
+  assert.deepEqual(await tuyaDriver.read(device, ctx), [false]);
+  await tuyaDriver.write(device, true, ctx);
+  assert.deepEqual(await tuyaDriver.read(device, ctx), [true]);
+  assert.deepEqual(mock.controls, [{ 16: false }, { 16: true }]);
+  // Boshqa DP larga (12 — energiyani nolga tushirish, 11 — oldindan to'lov) tegilmadi
+  assert.equal(mock.dps['12'], true);
+  assert.equal(mock.dps['11'], false);
+  assert.equal(mock.dps['1'], 2011);
+  assert.deepEqual(mock.violations, []);
+});
+
+test('Tuya bulut: yoqish DP — model va spetsifikatsiyadan, xavfli mantiqiy DP lar tanlanmaydi', () => {
+  // JGQW01-63 ning bulutdagi "thing model"i (qisqartirilgan): switch — 16, lekin 11/12/34/101 ham mantiqiy
+  const model = {
+    model: JSON.stringify({
+      services: [{
+        properties: [
+          { abilityId: 1, code: 'forward_energy_total', accessMode: 'ro', typeSpec: { type: 'value' } },
+          { abilityId: 11, code: 'prepayment_switch', accessMode: 'rw', typeSpec: { type: 'bool' } },
+          { abilityId: 12, code: 'clear_energy', accessMode: 'rw', typeSpec: { type: 'bool' } },
+          { abilityId: 16, code: 'switch', accessMode: 'rw', typeSpec: { type: 'bool' } },
+          { abilityId: 34, code: 'factory_reset', accessMode: 'rw', typeSpec: { type: 'bool' } },
+          { abilityId: 61, code: 'relay_status', accessMode: 'rw', typeSpec: { type: 'enum' } },
+          { abilityId: 101, code: 'lcd_switch', accessMode: 'rw', typeSpec: { type: 'bool' } },
+        ],
+      }],
+    }),
+  };
+  assert.equal(pickSwitchDp(entriesFromModel(model)), 16);
+  // Ko'p kanalli rele spetsifikatsiyasi: switch_1 = DP 1
+  const specs = {
+    category: 'kg',
+    functions: [
+      { code: 'switch_2', dp_id: 2, type: 'Boolean' },
+      { code: 'switch_1', dp_id: 1, type: 'Boolean' },
+      { code: 'countdown_1', dp_id: 9, type: 'Integer' },
+    ],
+  };
+  assert.equal(pickSwitchDp(entriesFromSpecs(specs)), 1);
+  // Faqat o'qiladigan "switch" yoki noma'lum kodlar — taxmin qilinmaydi
+  assert.equal(pickSwitchDp(entriesFromModel({ model: { services: [{ properties: [
+    { abilityId: 5, code: 'switch', accessMode: 'ro', typeSpec: { type: 'bool' } },
+    { abilityId: 12, code: 'clear_energy', accessMode: 'rw', typeSpec: { type: 'bool' } },
+  ] }] } })), undefined);
+  assert.equal(pickSwitchDp(entriesFromModel({ model: 'buzuq json' })), undefined);
+  assert.equal(pickSwitchDp(entriesFromSpecs(null)), undefined);
 });
 
 test('DP xaritasi: kanal + 1 yoki config.dps; noto‘g‘ri DP — aniq xato', () => {
@@ -1134,7 +1211,7 @@ async function fakeCloud(t, { skewMs = 0 } = {}) {
       return;
     }
     const d1 = {
-      id: 'bf1111111111aaaaaaaa', name: ' 1-stol ', local_key: 'k1k1k1k1k1k1k1k1', ip: '84.54.70.12', product_name: 'Smart Switch', online: true,
+      id: 'bf1111111111aaaaaaaa', name: ' 1-stol ', local_key: 'k1k1k1k1k1k1k1k1', ip: '84.54.70.12', product_name: 'Smart Switch', online: true, category: 'dlq',
     };
     const d2 = {
       id: 'bf2222222222bbbbbbbb', name: '2-stol', local_key: 'k2k2k2k2k2k2k2k2', ip: '192.168.1.42', product_name: '2CH Relay', online: false,
@@ -1156,6 +1233,25 @@ async function fakeCloud(t, { skewMs = 0 } = {}) {
       reply({ success: true, result: [d2] });
       return;
     }
+    // d1 — energiya hisoblagichli automat (model: switch = DP 16); d2 — 2 kanalli rele (spetsifikatsiya)
+    if (url.pathname === '/v2.0/cloud/thing/bf1111111111aaaaaaaa/model') {
+      reply({
+        success: true,
+        result: {
+          modelId: 'e1mq6ysc',
+          model: JSON.stringify({ services: [{ properties: [
+            { abilityId: 1, code: 'forward_energy_total', accessMode: 'ro', typeSpec: { type: 'value' } },
+            { abilityId: 12, code: 'clear_energy', accessMode: 'rw', typeSpec: { type: 'bool' } },
+            { abilityId: 16, code: 'switch', accessMode: 'rw', typeSpec: { type: 'bool' } },
+          ] }] }),
+        },
+      });
+      return;
+    }
+    if (url.pathname === '/v1.1/devices/bf2222222222bbbbbbbb/specifications') {
+      reply({ success: true, result: { category: 'kg', functions: [{ code: 'switch_1', dp_id: 1, type: 'Boolean' }] } });
+      return;
+    }
     reply({ success: false, code: 1108, msg: 'uri path invalid' });
   });
   await new Promise((resolve) => {
@@ -1174,14 +1270,24 @@ test('Tuya bulut: token, sahifalash, LAN IP filtri va takrorlarni birlashtirish'
     accessId: ACCESS_ID, accessSecret: ACCESS_SECRET, region: 'eu', baseUrl: cloud.baseUrl,
   });
   assert.deepEqual(devices, [
-    { id: 'bf1111111111aaaaaaaa', name: '1-stol', localKey: 'k1k1k1k1k1k1k1k1', productName: 'Smart Switch', online: true },
     {
-      id: 'bf2222222222bbbbbbbb', name: '2-stol', localKey: 'k2k2k2k2k2k2k2k2', productName: '2CH Relay', online: false, ip: '192.168.1.42',
+      id: 'bf1111111111aaaaaaaa', name: '1-stol', localKey: 'k1k1k1k1k1k1k1k1', productName: 'Smart Switch', online: true, category: 'dlq', switchDp: 16,
+    },
+    {
+      id: 'bf2222222222bbbbbbbb', name: '2-stol', localKey: 'k2k2k2k2k2k2k2k2', productName: '2CH Relay', online: false, ip: '192.168.1.42', switchDp: 1,
     },
     { id: 'bf3333333333cccccccc', name: '3-stol', localKey: 'k3k3k3k3k3k3k3k3', productName: 'Relay', online: false },
   ]);
-  assert.deepEqual(cloud.calls.map((call) => call.path), [
+  assert.deepEqual(cloud.calls.slice(0, 3).map((call) => call.path), [
     '/v1.0/token', '/v1.0/iot-01/associated-users/devices', '/v1.0/iot-01/associated-users/devices',
+  ]);
+  // DP aniqlash: model, kerak bo'lsa spetsifikatsiya (parallel, tartib muhim emas)
+  assert.deepEqual(cloud.calls.slice(3).map((call) => call.path).sort(), [
+    '/v1.1/devices/bf2222222222bbbbbbbb/specifications',
+    '/v1.1/devices/bf3333333333cccccccc/specifications',
+    '/v2.0/cloud/thing/bf1111111111aaaaaaaa/model',
+    '/v2.0/cloud/thing/bf2222222222bbbbbbbb/model',
+    '/v2.0/cloud/thing/bf3333333333cccccccc/model',
   ]);
   assert.equal(cloud.calls[0].token, '');
   assert.equal(cloud.calls[2].query.last_row_key, 'ROW2');
@@ -1191,7 +1297,7 @@ test('Tuya bulut: token, sahifalash, LAN IP filtri va takrorlarni birlashtirish'
   }
 
   const byUser = await fetchTuyaCloudDevices({
-    accessId: ACCESS_ID, accessSecret: ACCESS_SECRET, region: 'eu', userId: 'az1234uid', baseUrl: cloud.baseUrl,
+    accessId: ACCESS_ID, accessSecret: ACCESS_SECRET, region: 'eu', userId: 'az1234uid', baseUrl: cloud.baseUrl, detectDp: false,
   });
   assert.deepEqual(byUser.map((device) => device.id), ['bf2222222222bbbbbbbb']);
 });

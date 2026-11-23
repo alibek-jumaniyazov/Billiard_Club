@@ -128,6 +128,18 @@ function discoveredForServer(item) {
   return out;
 }
 
+/**
+ * Drayver qiymatlaridan mantiqiy holat. Holat aniqlanmasa va drayver sababini aytgan bo'lsa
+ * (`values.reason`, masalan Tuya: "DP 1 — yoqish kanali emas"), u o'qish xatosi sifatida
+ * qaytadi — sinov oynasida umumiy "tasdiqlab bo'lmadi" o'rniga aniq sabab ko'rinadi.
+ */
+function stateOrReason(values, inverted, desired) {
+  const list = Array.isArray(values) ? values : [];
+  const state = logicalState(list, inverted === true, desired === true);
+  if (state === null && list.length && typeof values.reason === 'string' && values.reason) throw new Error(values.reason);
+  return state;
+}
+
 class LightHub extends EventEmitter {
   /**
    * @param {object} options
@@ -648,7 +660,7 @@ class LightHub extends EventEmitter {
       },
       read: async (options) => {
         const values = await driver.read(entry, ctx, options || {});
-        return logicalState(Array.isArray(values) ? values : [], entry.inverted === true, entry.desired === true);
+        return stateOrReason(values, entry.inverted === true, entry.desired === true);
       },
     }));
     const message = result.error ? String(result.error).replace(/\s+/g, ' ').trim().slice(0, 200) : null;
@@ -724,7 +736,7 @@ class LightHub extends EventEmitter {
       forced: false,
       sleep: (ms) => this.sleep(ms),
       write: (physical) => driver.write(entry, physical, ctx),
-      read: async (options) => logicalState(
+      read: async (options) => stateOrReason(
         await driver.read(entry, ctx, options || {}), entry.inverted, entry.desired,
       ),
     }));

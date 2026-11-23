@@ -9,6 +9,13 @@
  *   [{ id, name, localKey, ip?, productName, online }]
  * Shundan keyin chiroqlar to'liq LOKAL (internetsiz) boshqariladi (lib/tuya-protocol.js).
  *
+ * Har qurilma uchun YOQISH DP raqami ham aniqlanadi (`switchDp`): avval qurilmaning "thing model"i
+ * (/v2.0/cloud/thing/{id}/model — abilityId + code), bo'lmasa spetsifikatsiyasi
+ * (/v1.1/devices/{id}/specifications — dp_id + code). Faqat yozish mumkin bo'lgan mantiqiy
+ * xususiyat va aniq kodlar (switch, switch_1, switch_led …) olinadi — taxmin qilinmaydi:
+ * masalan, JGQW01 automatida DP 12 (clear_energy) va DP 34 (factory_reset) ham mantiqiy,
+ * ularni hech qachon tanlamaslik kerak. Topilmasa `switchDp` bo'lmaydi (standart DP 1 qoladi).
+ *
  * Imzo (Tuya OpenAPI "new signature" algoritmi):
  *   token so'rovi:   str = client_id + t + nonce + stringToSign
  *   boshqa so'rovlar: str = client_id + access_token + t + nonce + stringToSign
@@ -197,9 +204,102 @@ function mapDevice(raw) {
     productName: typeof raw.product_name === 'string' ? raw.product_name.trim().slice(0, 100) : '',
     online: raw.online === true,
   };
+  if (typeof raw.category === 'string' && /^[a-z0-9_]{1,16}$/i.test(raw.category.trim())) device.category = raw.category.trim();
   // Bulut bergan `ip` ko'pincha routerning tashqi manzili — faqat LAN manzil bo'lsa qaytaramiz
   if (isPrivateIpv4(raw.ip)) device.ip = raw.ip.trim();
   return device;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Yoqish DP raqami                                                   */
+/* ------------------------------------------------------------------ */
+
+/** Ustuvorlik tartibida yoqish-o'chirish kodlari (Tuya standart instruksiyalari) */
+const SWITCH_CODES = Object.freeze(['switch', 'switch_1', 'switch_led', 'switch_led_1', 'switch_on', 'switch_main']);
+
+/** Bulut yozuvlaridan ({ dp, code, bool, writable }) yoqish DP ini tanlaydi */
+function pickSwitchDp(entries) {
+  for (const code of SWITCH_CODES) {
+    const hit = entries.find((item) => item.code === code && item.bool && item.writable !== false
+      && Number.isInteger(item.dp) && item.dp >= 1 && item.dp <= 255);
+    if (hit) return hit.dp;
+  }
+  return undefined;
+}
+
+/** /v2.0/cloud/thing/{id}/model javobi: { model: "<JSON>" } — services[].properties[] */
+function entriesFromModel(result) {
+  let model = result && result.model;
+  if (typeof model === 'string') {
+    try {
+      model = JSON.parse(model);
+    } catch {
+      return [];
+    }
+  }
+  const services = model && Array.isArray(model.services) ? model.services : [];
+  const out = [];
+  for (const service of services) {
+    const properties = service && Array.isArray(service.properties) ? service.properties : [];
+    for (const prop of properties) {
+      if (!prop || typeof prop !== 'object') continue;
+      const type = prop.typeSpec && typeof prop.typeSpec.type === 'string' ? prop.typeSpec.type.toLowerCase() : '';
+      const mode = typeof prop.accessMode === 'string' ? prop.accessMode.toLowerCase() : '';
+      out.push({
+        dp: Number(prop.abilityId),
+        code: typeof prop.code === 'string' ? prop.code.trim().toLowerCase() : '',
+        bool: type === 'bool' || type === 'boolean',
+        writable: mode ? mode.includes('w') : undefined,
+      });
+    }
+  }
+  return out;
+}
+
+/** /v1.1/devices/{id}/specifications javobi: functions[] (yoziladigan) — { code, dp_id, type } */
+function entriesFromSpecs(result) {
+  const list = result && Array.isArray(result.functions) ? result.functions : [];
+  return list
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      dp: Number(item.dp_id),
+      code: typeof item.code === 'string' ? item.code.trim().toLowerCase() : '',
+      bool: /^bool/i.test(String(item.type || '')),
+      writable: true,
+    }));
+}
+
+/** Bitta qurilmaning yoqish DP i (topilmasa yoki ruxsat bo'lmasa — undefined) */
+async function deviceSwitchDp(session, id) {
+  const safe = encodeURIComponent(id);
+  try {
+    const dp = pickSwitchDp(entriesFromModel(await call(session, `/v2.0/cloud/thing/${safe}/model`, {})));
+    if (dp) return dp;
+  } catch {
+    /* zaxira yo'l: spetsifikatsiya */
+  }
+  try {
+    return pickSwitchDp(entriesFromSpecs(await call(session, `/v1.1/devices/${safe}/specifications`, {})));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Qurilmalar uchun yoqish DP larini cheklangan parallellikda to'ldiradi */
+async function fillSwitchDps(session, devices, { limit = 4, max = 60 } = {}) {
+  const queue = devices.slice(0, max);
+  let index = 0;
+  const worker = async () => {
+    for (;;) {
+      const current = index;
+      index += 1;
+      if (current >= queue.length) return;
+      // eslint-disable-next-line no-await-in-loop
+      const dp = await deviceSwitchDp(session, queue[current].id);
+      if (dp) queue[current].switchDp = dp;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, queue.length) }, () => worker()));
 }
 
 function requireCredential(value, label) {
@@ -216,7 +316,8 @@ function requireCredential(value, label) {
  *   region                  'eu' | 'us' | 'cn' | 'in' (shuningdek 'eu-w', 'us-e', 'sg')
  *   userId                  ixtiyoriy: faqat shu ilova foydalanuvchisi (uid) qurilmalari
  *   signal, timeoutMs       to'xtatish signali va har so'rov uchun muddat (standart 10 s)
- * @returns {Promise<Array<{ id, name, localKey, ip?, productName, online }>>}
+ *   detectDp                yoqish DP ini aniqlash (standart true)
+ * @returns {Promise<Array<{ id, name, localKey, ip?, productName, online, category?, switchDp? }>>}
  */
 async function fetchTuyaCloudDevices(options = {}) {
   const accessId = requireCredential(options.accessId, 'Access ID');
@@ -259,11 +360,16 @@ async function fetchTuyaCloudDevices(options = {}) {
     const device = mapDevice(item);
     if (!unique.has(device.id)) unique.set(device.id, device);
   }
-  return Array.from(unique.values());
+  const list = Array.from(unique.values());
+  if (options.detectDp !== false) await fillSwitchDps(session, list);
+  return list;
 }
 
 module.exports = {
   fetchTuyaCloudDevices,
+  pickSwitchDp,
+  entriesFromModel,
+  entriesFromSpecs,
   signRequest,
   sortedQuery,
   isPrivateIpv4,

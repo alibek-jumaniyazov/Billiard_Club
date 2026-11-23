@@ -534,7 +534,9 @@ function interpretText(text) {
 /** DP qiymatini boolean ga aylantiradi; tushunilmasa null */
 function dpBoolean(value) {
   if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return Number.isFinite(value) ? value !== 0 : null;
+  // Faqat 0/1 — mantiqiy qiymat. Boshqa son (masalan, hisoblagich 2011) yoqish kanali EMAS:
+  // uni "yoniq" deb o'qish noto'g'ri DP ni yashirib, chalkash "holat mos kelmadi" xatosini berardi
+  if (typeof value === 'number') return value === 1 ? true : value === 0 ? false : null;
   if (typeof value === 'string') {
     const text = value.trim().toLowerCase();
     if (text === 'true' || text === 'on' || text === '1') return true;

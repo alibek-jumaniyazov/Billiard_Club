@@ -139,6 +139,10 @@ export interface TuyaCloudDevice {
   ip?: string;
   productName?: string;
   online?: boolean;
+  /** Tuya turkumi (masalan "dlq" — automat, "kg" — rele) */
+  category?: string;
+  /** Bulut modelidan aniqlangan yoqish DP raqami (kompyuter dasturi 1.4.3+) */
+  switchDp?: number;
 }
 
 export interface DesktopLightsBridge {

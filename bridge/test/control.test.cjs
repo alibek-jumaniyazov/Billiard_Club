@@ -111,3 +111,17 @@ test('a relay that failed last cycle gets a single attempt instead of three', as
   assert.equal(result.attempts, 1);
   assert.match(result.error, /ECONNREFUSED/);
 });
+
+test('read error text (e.g. a wrong Tuya DP) is reported instead of a generic unconfirmed state', async () => {
+  const result = await executeDevice({ tableId: 1, driver: 'tuya', channel: 0, desired: false }, {
+    verify: true,
+    readback: true,
+    forced: false,
+    sleep: fastSleep,
+    write: async () => {},
+    read: async () => { throw new Error('Tuya: DP 1 bu qurilmada yoqish-o\'chirish kanali emas (qiymati: 2011)'); },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.actual, null);
+  assert.match(result.error, /DP 1 bu qurilmada yoqish-o'chirish kanali emas/);
+});

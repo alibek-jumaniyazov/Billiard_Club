@@ -37,8 +37,16 @@ async function executeDevice(device, {
   let actual = null;
   let attempts = 0;
   let error = null;
+  // O'qish xatosining aniq matni (masalan, Tuya: "DP 1 — yoqish kanali emas") —
+  // umumiy "tasdiqlab bo'lmadi" o'rniga foydalanuvchiga ko'rsatiladi
+  let readError = null;
   const readSafely = async (options) => {
-    try { return await read(options); } catch { return null; }
+    try {
+      return await read(options);
+    } catch (err) {
+      readError = err instanceof Error ? err.message : String(err);
+      return null;
+    }
   };
 
   if (forced && shouldVerify) actual = await readSafely();
@@ -48,6 +56,7 @@ async function executeDevice(device, {
     if (delay) await sleep(delay);
     attempts += 1;
     actual = null;
+    readError = null;
     try {
       const since = now();
       await write(physical);
@@ -60,7 +69,7 @@ async function executeDevice(device, {
         actual = await readSafely({ since });
       }
       if (actual === desired) return { ok: true, on: desired, actual, attempts, error: null };
-      error = actual === null ? 'Rele holatini tasdiqlab bo‘lmadi' : 'Rele holati buyruqqa mos kelmadi';
+      error = actual === null ? readError || 'Rele holatini tasdiqlab bo‘lmadi' : 'Rele holati buyruqqa mos kelmadi';
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }

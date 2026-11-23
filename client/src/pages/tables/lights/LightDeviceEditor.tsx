@@ -87,6 +87,8 @@ const AGENT_RESULT_GRACE_MS = 8000;
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const BAUD_RATES = [2400, 4800, 9600, 19200, 38400, 57600, 115200];
 const TUYA_VERSIONS = ['3.1', '3.3', '3.4', '3.5'] as const;
+/** Tuya sinovidagi "buyruq bordi, holat o'zgarmadi / DP noto'g'ri" xatolari (markaz matnlari o'zbekcha) */
+const TUYA_DP_ERROR_RE = /mos kelmadi|tasdiqlab bo|DP \d+/i;
 
 export const kindIcon = (kind: DeviceKindId): ReactNode =>
   deviceKind(kind).wireless ? <WifiOutlined /> : kind.startsWith('usb') ? <UsbOutlined /> : <ClusterOutlined />;
@@ -535,6 +537,24 @@ const LightDeviceEditor = ({
               onChange={(value) => patch({ tuyaVersion: value as DeviceDraft['tuyaVersion'] })}
             />
           </Row>
+          <Row label={t('lights.fieldTuyaDp')} hint={t('lights.tuyaDpHint')}>
+            <div className="light-dp-row">
+              <InputNumber
+                min={1}
+                max={255}
+                precision={0}
+                value={draft.tuyaDp}
+                aria-label={t('lights.fieldTuyaDp')}
+                onChange={(value) => patch({ tuyaDp: typeof value === 'number' ? value : 1 })}
+              />
+              <Button size="small" type={draft.tuyaDp === 1 ? 'primary' : 'default'} onClick={() => patch({ tuyaDp: 1 })}>
+                {t('lights.tuyaDpSwitch')}
+              </Button>
+              <Button size="small" type={draft.tuyaDp === 16 ? 'primary' : 'default'} onClick={() => patch({ tuyaDp: 16 })}>
+                {t('lights.tuyaDpBreaker')}
+              </Button>
+            </div>
+          </Row>
           <Alert type="info" showIcon message={t('lights.tuyaHelp')} />
           <Collapse
             ghost
@@ -548,13 +568,18 @@ const LightDeviceEditor = ({
                     // bo'lmasa bulut bergan lokal IP (bulut faqat lokal manzilni qaytaradi)
                     const local = found.find((item) => item.kind === 'tuya' && item.prefill.deviceId === device.id);
                     const host = local?.address ?? device.ip;
+                    // Yoqish DP i — bulut modelidan (kompyuter dasturi 1.4.3+); yo'q bo'lsa qo'lda tanlanadi
+                    const dp = typeof device.switchDp === 'number' && device.switchDp >= 1 && device.switchDp <= 255
+                      ? device.switchDp
+                      : null;
                     patch({
                       deviceId: device.id,
                       secret: device.localKey,
                       ...(host ? { host } : {}),
                       ...(local?.prefill.tuyaVersion ? { tuyaVersion: local.prefill.tuyaVersion } : {}),
+                      ...(dp ? { tuyaDp: dp } : {}),
                     });
-                    message.success(t('lights.tuyaFilled'));
+                    message.success(dp ? t('lights.tuyaFilledDp', { dp }) : t('lights.tuyaFilled'));
                   }}
                 />
               ),
@@ -866,6 +891,9 @@ const LightDeviceEditor = ({
                 </div>
               </div>
               {resultView(state)}
+              {draft.kind === 'tuya' && state?.status === 'error' && TUYA_DP_ERROR_RE.test(state.text ?? '') && (
+                <Alert className="light-test-hint" type="info" showIcon message={t('lights.testTuyaDpHint')} />
+              )}
             </div>
           );
         })}

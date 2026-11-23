@@ -94,6 +94,12 @@ function tableLabel(device) {
   return `stol #${device.tableNumber ?? device.tableId}`;
 }
 
+/** Xato matni uchun qisqa qiymat */
+function shortValue(value) {
+  const text = typeof value === 'string' ? JSON.stringify(value) : String(value);
+  return text.length > 24 ? `${text.slice(0, 24)}…` : text;
+}
+
 function logDebug(ctx, message) {
   if (ctx && typeof ctx.log === 'function') {
     try {
@@ -139,6 +145,17 @@ module.exports = {
     if (values.some((value) => value === null)) {
       const known = Object.keys(reported).slice(0, 20).join(',') || '—';
       logDebug(ctx, `${tableLabel(device)}: tuya javobida DP ${dpList.join(',')} to'liq emas (qurilmadagi DP lar: ${known})`);
+      // DP bor, lekin mantiqiy emas — bu yoqish kanali emas (masalan, energiya hisoblagichli
+      // automatda DP 1 — kVt·soat, yoqish esa DP 16). Qiymatlar shartnomasi o'zgarmaydi (null),
+      // aniq sabab esa `reason` da (sanalmaydigan xossa) — markaz uni sinov oynasiga chiqaradi.
+      const index = values.findIndex((value, i) => value === null && reported[String(dpList[i])] !== undefined
+        && reported[String(dpList[i])] !== null);
+      const reason = index >= 0
+        ? `Tuya: DP ${dpList[index]} bu qurilmada yoqish-o'chirish kanali emas (qiymati: ${shortValue(reported[String(dpList[index])])}). `
+          + "Qurilma sozlamasida «Boshqaruv DP» raqamini to'g'rilang — energiya hisoblagichli Wi‑Fi automatlarda odatda 16"
+        : `Tuya: DP ${dpList[values.findIndex((value) => value === null)]} qurilma javobida yo'q (qurilmadagi DP lar: ${known}). `
+          + '«Boshqaruv DP» raqamini tekshiring';
+      Object.defineProperty(values, 'reason', { value: reason, enumerable: false });
     }
     return values;
   },

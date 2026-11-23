@@ -75,7 +75,7 @@ o'yinga mos yonib-o'chaveradi — **24 soatgacha**. Aloqa tiklangach barcha nati
 
 | Tur | Ulanish | Internetsiz | Eslatma |
 |---|---|---|---|
-| **Tuya / Smart Life** | Wi‑Fi, IP + Device ID + Local key + versiya | Ha | Local key ni «Tuya bulutidan olish» (iot.tuya.com loyihasining Access ID/Secret) bilan bir marta olasiz. Qurilma ilovada qayta ulansa kalit o'zgaradi. Bir vaqtda faqat bitta lokal ulanish — Smart Life ilovasini LAN rejimida ochiq qoldirmang. |
+| **Tuya / Smart Life** | Wi‑Fi, IP + Device ID + Local key + versiya + **boshqaruv DP** | Ha | Local key ni «Tuya bulutidan olish» (iot.tuya.com loyihasining Access ID/Secret) bilan bir marta olasiz. Qurilma ilovada qayta ulansa kalit o'zgaradi. Bir vaqtda faqat bitta lokal ulanish — Smart Life ilovasini LAN rejimida ochiq qoldirmang. **Boshqaruv DP**: oddiy rele va rozetkalarda 1, energiya hisoblagichli Wi‑Fi automatlarda (masalan, JGQW01-63: DP 1 — kVt·soat, yoqish — DP 16) — 16; kompyuter dasturi 1.4.3+ uni bulut modelidan o'zi aniqlaydi (faqat `switch`/`switch_1` kabi kodlar, xavfli DP lar — `clear_energy`, `factory_reset` — hech qachon tanlanmaydi). DP noto'g'ri bo'lsa sinovda aniq sabab chiqadi. |
 | **Sonoff (eWeLink)** | Wi‑Fi, IP; DIY rejimi yoki eWeLink LAN (Device ID + Device key) | Ha | DIY rejimini yoqish: tugmani 5 s bosib turish, `ITEAD-xxxx` tarmog'i orqali. 4CH/MINIR3 — ko'p kanalli (outlet) API. |
 | **Shelly** | Wi‑Fi, IP (Gen1 yoki Gen2+) | Ha | Parol qo'yilgan bo'lsa `login:parol`. |
 | **Tasmota** | Wi‑Fi, IP | Ha | Parol (WebPassword) bo'lsa `admin:parol` — barcha proshivkalar uchun URL va sarlavha bilan yuboriladi. |

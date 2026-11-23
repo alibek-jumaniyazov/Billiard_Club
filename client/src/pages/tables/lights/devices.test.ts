@@ -9,6 +9,7 @@ import {
   foundDevice,
   groupDevices,
   isFoundConnected,
+  tuyaDpOf,
 } from './devices';
 
 /**
@@ -146,5 +147,51 @@ describe('foundDevice / isFoundConnected', () => {
     // ID siz sozlangan yagona plata — topilgan plata shu
     const single = groupDevices([row(4, { driver: 'usb_hid', channel: 0 })]).devices;
     expect(isFoundConnected(foundDevice({ driver: 'usb_hid', serialNumber: 'QAAMZ' })!, single)).toBe(true);
+  });
+});
+
+describe('Tuya boshqaruv DP', () => {
+  it('automat (DP 16): har stolga config.dps yuboriladi; standart 1 da dps yo‘q', () => {
+    const draft = {
+      ...emptyDraft('tuya', 1),
+      host: '192.168.100.14',
+      deviceId: 'bf41049d74f1dd07625nle',
+      secret: '0123456789abcdef',
+      tuyaVersion: '3.5' as const,
+      tuyaDp: 16,
+      channels: [2],
+    };
+    expect(draftIssue(draft)).toBeNull();
+    const [item] = buildBulkPayload(draft);
+    expect(item.config).toEqual({ deviceId: 'bf41049d74f1dd07625nle', version: '3.5', dps: [16] });
+    const [plain] = buildBulkPayload({ ...draft, tuyaDp: 1 });
+    expect(plain.config).toEqual({ deviceId: 'bf41049d74f1dd07625nle', version: '3.5' });
+  });
+
+  it('ko‘p kanalli qurilma: kanal k → DP + k; saqlangandan qayta tiklanadi', () => {
+    const draft = {
+      ...emptyDraft('tuya', 3),
+      host: '192.168.1.40',
+      deviceId: 'bf1111111111aaaaaaaa',
+      secret: '0123456789abcdef',
+      tuyaDp: 20,
+      channels: [5, 6, 5],
+    };
+    const items = buildBulkPayload(draft);
+    const table5 = items.find((item) => item.tableId === 5);
+    const table6 = items.find((item) => item.tableId === 6);
+    expect(table5?.config).toMatchObject({ channels: [2], dps: [20, 22] });
+    expect(table6?.config).toMatchObject({ dps: [21] });
+    expect(tuyaDpOf({ channel: 1, config: { dps: [21] } })).toBe(20);
+    expect(tuyaDpOf({ channel: 0, config: {} })).toBe(1);
+    expect(tuyaDpOf({ channel: 3, config: { dps: [2] } })).toBe(1);
+  });
+
+  it('noto‘g‘ri DP — aniq muammo', () => {
+    const base = { ...emptyDraft('tuya', 1), host: '192.168.1.5', deviceId: 'bf41049d74f1dd07625nle', secret: '0123456789abcdef', channels: [1] };
+    expect(draftIssue({ ...base, tuyaDp: 0 })).toBe('tuyaDp');
+    expect(draftIssue({ ...base, tuyaDp: 256 })).toBe('tuyaDp');
+    expect(draftIssue({ ...base, tuyaDp: 1.5 })).toBe('tuyaDp');
+    expect(draftIssue({ ...base, tuyaDp: 255 })).toBeNull();
   });
 });

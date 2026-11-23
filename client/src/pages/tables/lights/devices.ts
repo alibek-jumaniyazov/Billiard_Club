@@ -85,6 +85,11 @@ export interface DeviceDraft {
   /** Serverda maxfiy qiymat allaqachon saqlangan */
   hasSecret: boolean;
   tuyaVersion: '3.1' | '3.3' | '3.4' | '3.5';
+  /**
+   * Tuya: 1-kanalni yoqib-o'chiradigan DP raqami (keyingi kanallar DP+1, DP+2 …).
+   * Oddiy rele va rozetka — 1; energiya hisoblagichli Wi‑Fi automat (masalan JGQW01) — 16.
+   */
+  tuyaDp: number;
   sonoffEncrypt: boolean;
   /** Ko'p kanalli Sonoff (4CH, Dual) — /zeroconf/switches (outlet) API */
   sonoffOutlets: boolean;
@@ -109,6 +114,7 @@ export const emptyDraft = (kind: DeviceKindId, channelCount = 1): DeviceDraft =>
   secret: '',
   hasSecret: false,
   tuyaVersion: '3.3',
+  tuyaDp: 1,
   sonoffEncrypt: false,
   sonoffOutlets: kind === 'sonoff' && channelCount > 1,
   shellyGen: 2,
@@ -211,6 +217,13 @@ export const groupDevices = (rows: TableLightConfig[]): { devices: DeviceGroup[]
   return { devices: list, advanced };
 };
 
+/** Saqlangan stol sozlamasidan 1-kanal DP i: config.dps[0] − kanal (berilmagan bo'lsa 1) */
+export const tuyaDpOf = (row: Pick<TableLightConfig, 'channel' | 'config'>): number => {
+  const first = row.config?.dps?.[0];
+  const channel = Number.isInteger(row.channel) ? row.channel : 0;
+  return typeof first === 'number' && Number.isInteger(first) && first - channel >= 1 ? first - channel : 1;
+};
+
 /** Mavjud qurilma guruhidan tahrir qoralamasi */
 export const draftFromGroup = (group: DeviceGroup): DeviceDraft => {
   const base = group.base;
@@ -231,6 +244,7 @@ export const draftFromGroup = (group: DeviceGroup): DeviceDraft => {
     deviceId: config.deviceId ?? '',
     hasSecret: group.tables.some((item) => item.row.hasAuth),
     tuyaVersion: config.version ?? '3.3',
+    tuyaDp: tuyaDpOf(base),
     sonoffEncrypt: config.encrypt === true,
     sonoffOutlets: config.outlets === true,
     shellyGen: base.driver === 'shelly_gen1' ? 1 : 2,
@@ -254,6 +268,7 @@ export type DraftIssue =
   | 'host'
   | 'tuyaId'
   | 'tuyaKey'
+  | 'tuyaDp'
   | 'sonoffKey'
   | 'secretAgain'
   | 'entity'
@@ -285,6 +300,8 @@ export const draftIssue = (draft: DeviceDraft, savedIds: readonly number[] = [])
     // Tuya ID odatda 20–22 belgi; lokal kalit — aniq 16 ta belgi
     if (!/^[A-Za-z0-9]{10,40}$/.test(draft.deviceId.trim())) return 'tuyaId';
     if (typed ? typed.length !== 16 : !draft.hasSecret) return 'tuyaKey';
+    // Oxirgi kanal DP i ham 255 dan oshmasin (kanal k → DP + k)
+    if (!Number.isInteger(draft.tuyaDp) || draft.tuyaDp < 1 || draft.tuyaDp + draft.channels.length - 1 > 255) return 'tuyaDp';
     if (secretAgain) return 'secretAgain';
   }
   if (draft.kind === 'sonoff' && draft.sonoffEncrypt) {
@@ -360,7 +377,9 @@ export const buildBulkPayload = (draft: DeviceDraft, previous: number[] = []): T
   const items: TableLightBulkItem[] = [];
   for (const [tableId, channels] of byTable) {
     const sorted = [...channels].sort((a, b) => a - b);
-    const config = { ...baseConfig(draft), ...(sorted.length > 1 ? { channels: sorted.slice(1) } : {}) };
+    // Tuya: DP standartdan (kanal + 1) farq qilsa — har kanal uchun aniq DP (stol kanallari tartibida)
+    const dps = draft.kind === 'tuya' && draft.tuyaDp !== 1 ? { dps: sorted.map((channel) => draft.tuyaDp + channel) } : {};
+    const config = { ...baseConfig(draft), ...(sorted.length > 1 ? { channels: sorted.slice(1) } : {}), ...dps };
     items.push({
       tableId,
       driver,
