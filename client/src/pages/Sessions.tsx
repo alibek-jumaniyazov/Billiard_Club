@@ -41,7 +41,8 @@ import type {
   SessionStatus,
 } from '../types';
 import { formatDuration, formatElapsed, formatNumber } from '../utils/format';
-import { clockOffsetMs, sessionElapsedMs } from '../utils/session';
+import { roundingForDisplay } from '../utils/rounding';
+import { clockOffsetMs, round2, sessionElapsedMs } from '../utils/session';
 
 const { Text, Title } = Typography;
 
@@ -515,6 +516,17 @@ const Sessions = () => {
 
     const liveTable = liveReceipt?.tableAmount;
     const liveBar = liveReceipt?.barAmount ?? detail.barAmount;
+    // Yaxlitlash: qo'llangan qadam, farq va aniq sekundlik summa (bo'lsa).
+    // Ko'rsatish butun so'mda — "aniq 46 913" + "+87" = 47 000 (utils/rounding.ts)
+    const roundingStep = (drawerLive ? liveReceipt?.roundingStep : detail.roundingStep) ?? 0;
+    const tableRounding = (drawerLive ? liveReceipt?.tableRounding : detail.tableRounding) ?? 0;
+    const chargedTable = drawerLive ? (liveTable ?? 0) : detail.tableAmount;
+    const roundingShown = roundingForDisplay(
+      chargedTable,
+      drawerLive
+        ? liveReceipt?.tableAmountExact ?? round2(chargedTable - tableRounding)
+        : round2(detail.tableAmount - tableRounding),
+    );
 
     return (
       <div
@@ -548,6 +560,17 @@ const Sessions = () => {
                 currency={currency}
               />,
             )}
+            {roundingStep > 0 && tableRounding !== 0 &&
+              receiptRow(
+                t('sessions.roundingRow', {
+                  step: formatNumber(roundingStep),
+                  amount: formatNumber(roundingShown.exact),
+                }),
+                <Text type="secondary" className="tabular-nums" style={{ fontSize: 13 }}>
+                  {roundingShown.delta > 0 ? '+' : ''}
+                  {formatNumber(roundingShown.delta)} {currency}
+                </Text>,
+              )}
             {receiptRow(
               t('sessions.barAmount'),
               <MoneyText

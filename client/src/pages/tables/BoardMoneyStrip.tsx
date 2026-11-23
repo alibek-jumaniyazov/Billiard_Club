@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { shiftsApi } from '../../api';
 import { MoneyText, useNow } from '../../components/ui';
 import type { BilliardTable, ShiftReport } from '../../types';
-import { sessionTableAmount, type SegmentLike } from '../../utils/session';
+import { sessionChargeAmount, type SegmentLike } from '../../utils/session';
 
 /** Smena ma'lumotini jimgina yangilash davri */
 const SHIFT_REFRESH_MS = 60_000;
@@ -26,8 +26,9 @@ const LiveExpected = memo(({ tables, segmentsMap, offsetMs, currency }: {
   const total = tables.reduce((sum, table) => {
     const session = table.sessions?.[0];
     if (table.status !== 'busy' || !session) return sum;
+    // Kartadagi bilan bir xil: yaxlitlash yoqilgan bo'lsa yaxlit stol summasi
     return sum
-      + sessionTableAmount(session, table.pricePerHour, now + offsetMs, segmentsMap[session.id] ?? null)
+      + sessionChargeAmount(session, table.pricePerHour, now + offsetMs, segmentsMap[session.id] ?? null)
       + (session.barAmount || 0);
   }, 0);
   return <MoneyText amount={total} currency={currency} size="lg" />;

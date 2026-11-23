@@ -517,7 +517,15 @@ export interface Session {
   durationMinutes: number | null;
   /** Faol o'yin davomiyligi soniyalarda (sekundlik hisob) */
   durationSeconds: number | null;
+  /** Kassaga yozilgan stol summasi (yaxlitlash yoqilgan bo'lsa — yaxlit) */
   tableAmount: number;
+  /**
+   * Stol summasini yaxlitlash qadami — o'yin boshlanganda klub sozlamasidan
+   * muhrlanadi (0 yoki yo'q — aniq summa). Jonli summa shu bilan ko'rsatiladi.
+   */
+  roundingStep?: number;
+  /** Yakunda qo'llangan yaxlitlash farqi: yaxlit − aniq (aniq = tableAmount − tableRounding) */
+  tableRounding?: number;
   barAmount: number;
   totalAmount: number;
   status: SessionStatus;
@@ -579,7 +587,14 @@ export interface SessionReceipt {
   durationMinutes: number | null;
   /** Faqat live chekda: joriy segment narxi */
   pricePerHour?: number;
+  /** Stol summasi (yaxlitlash yoqilgan bo'lsa — yaxlit) */
   tableAmount: number;
+  /** O'yinga muhrlangan yaxlitlash qadami (0 — o'chiq) */
+  roundingStep?: number;
+  /** Yaxlitlash farqi: yaxlit − aniq */
+  tableRounding?: number;
+  /** Aniq sekundlik stol summasi */
+  tableAmountExact?: number;
   barAmount: number;
   /** Faqat yakunlangan chekda */
   adjustmentAmount?: number;
@@ -594,7 +609,14 @@ export interface EndSessionResult {
   sessionId: number;
   durationSeconds: number;
   durationMinutes: number;
+  /** Kassaga yozilgan stol summasi (yaxlitlash yoqilgan bo'lsa — yaxlit) */
   tableAmount: number;
+  /** Aniq sekundlik stol summasi */
+  tableAmountExact?: number;
+  /** Yaxlitlash farqi: yaxlit − aniq */
+  tableRounding?: number;
+  /** Qo'llangan yaxlitlash qadami (0 — o'chiq) */
+  roundingStep?: number;
   barAmount: number;
   discount: number;
   adjustmentAmount: number;
@@ -728,6 +750,11 @@ export interface Settings {
   currency: string;
   currencySymbol: string;
   defaultTablePrice: number;
+  /**
+   * "Stolda yig'ilgan pulni yaxlitlash": 0 — o'chiq, aks holda qadam
+   * (100 / 500 / 1000 / 5000). Eski serverda maydon bo'lmasligi mumkin.
+   */
+  tableRoundingStep?: number;
   workingHoursStart: string;
   workingHoursEnd: string;
   /** Klub vaqt mintaqasi — "bugun/hafta/oy" chegaralari shu bo'yicha */
@@ -784,6 +811,8 @@ export interface ReportSummary {
   collectedRevenue: number;
   billedRevenue: number;
   tableRevenue: number;
+  /** Yaxlitlash natijasi (yaxlit − aniq) — stol tushumiga shuncha qo'shilgan/ayirilgan */
+  tableRounding?: number;
   barRevenue: number;
   totalSessions: number;
   avgSessionDuration: number;
@@ -1321,6 +1350,12 @@ export interface EndSessionPayload {
    * qo'shilgan ichimlik tufayli noto'g'ri pul olinib ketmasligi uchun.
    */
   expectedBarAmount?: number;
+  /**
+   * Yaxlitlash yoqilgan o'yinda kassir ekranida ko'rsatilgan YAXLIT stol
+   * summasi: "Yakunlash" bosilgandan server yozguncha taymer yaxlitlash
+   * chegarasidan o'tib ketsa ham kassaga ekrandagi summa yoziladi.
+   */
+  expectedTableAmount?: number;
   notes?: string;
   isDebt?: boolean;
   isTableDebt?: boolean;

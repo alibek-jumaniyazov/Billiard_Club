@@ -98,7 +98,7 @@ export class DashboardService {
         this.dataSource.query(
           `(
              WITH completed AS (
-               SELECT s.id, s."tableId", s."tableAmount", s."endTime"
+               SELECT s.id, s."tableId", s."tableAmount", s."tableRounding", s."endTime"
                FROM sessions s
                WHERE s."clubId" = $1 AND s.status = 'completed'
                  AND s."endTime" >= now() - interval '30 days'
@@ -134,6 +134,15 @@ export class DashboardService {
                WHERE NOT EXISTS (
                  SELECT 1 FROM session_segments seg2 WHERE seg2."sessionId" = c.id
                )
+               UNION ALL
+               -- Stol summasini YAXLITLASH farqi (yaxlit − aniq) segmentli
+               -- sessiyada segmentlar hisobiga kirmaydi — kassaga aynan yaxlit
+               -- summa tushgani uchun o'yin yakunlangan stolga qo'shiladi.
+               -- Segmentsiz sessiyada tableAmount allaqachon yaxlit — qo'shilmaydi
+               SELECT c."tableId", c.id, c."tableRounding"
+               FROM completed c
+               WHERE c."tableRounding" <> 0
+                 AND EXISTS (SELECT 1 FROM session_segments seg3 WHERE seg3."sessionId" = c.id)
                UNION ALL
                -- BAR savdosi buyurtma QAYSI STOLDA berilgan bo'lsa o'sha stolga
                -- yoziladi (orders."tableId"). Shu tufayli korsatkich avvalgidek

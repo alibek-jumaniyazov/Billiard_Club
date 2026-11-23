@@ -12,6 +12,7 @@ export default {
     // Tafsilotlar draweri
     detailTitle: "O'yin tafsilotlari",
     tableAmount: 'Stol summasi',
+    roundingRow: 'Yaxlitlash ({{step}} gacha) · aniq {{amount}}',
     barAmount: 'Bar summasi',
     totalAmount: 'Jami summa',
     barOrders: 'Bar buyurtmalari',
@@ -53,6 +54,7 @@ export default {
     // Детали
     detailTitle: 'Детали игры',
     tableAmount: 'Сумма за стол',
+    roundingRow: 'Округление (до {{step}}) · точно {{amount}}',
     barAmount: 'Сумма бара',
     totalAmount: 'Общая сумма',
     barOrders: 'Заказы бара',

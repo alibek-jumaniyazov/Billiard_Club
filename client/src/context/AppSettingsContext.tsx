@@ -21,6 +21,7 @@ import { onAccessTokenChange, tokenStore } from '../api/client';
 import i18n, { getStoredLang, Lang } from '../i18n';
 import { applyTheme, buildAntdTheme, type ThemeMode } from '../theme/tokens';
 import { setDefaultCurrencySymbol } from '../utils/format';
+import { normalizeRoundingStep } from '../utils/rounding';
 
 interface AppSettingsValue {
   lang: Lang;
@@ -29,6 +30,13 @@ interface AppSettingsValue {
   currencySymbol: string | null;
   /** Sozlamalar saqlangandan keyin belgini darhol yangilash uchun */
   setCurrencySymbol: (symbol: string | null) => void;
+  /**
+   * Klub sozlamasi: stol summasini yaxlitlash qadami (0 — o'chiq). Server
+   * o'yinlarida qadam sessiyaning o'zida keladi; bu qiymat INTERNETSIZ
+   * boshlangan o'yinga muhrlanadi (server ham boshlashda aynan shuni qo'yadi).
+   */
+  roundingStep: number;
+  setRoundingStep: (step: number) => void;
   /** Och ("fil suyagi") yoki qorong'i ("tungi zal") rejim */
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
@@ -116,6 +124,10 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('lang', getStoredLang());
   }, []);
   const [currencySymbol, setCurrencySymbolState] = useState<string | null>(null);
+  const [roundingStep, setRoundingStepState] = useState(0);
+  const setRoundingStep = useCallback((step: number) => {
+    setRoundingStepState(normalizeRoundingStep(step));
+  }, []);
 
   useEffect(() => {
     dayjs.locale(lang === 'ru' ? 'ru' : 'uz-latn');
@@ -145,12 +157,18 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
     let cancelled = false;
     const load = async () => {
       if (!tokenStore.getAccess()) {
-        if (!cancelled) setCurrencySymbol(null);
+        if (!cancelled) {
+          setCurrencySymbol(null);
+          setRoundingStep(0);
+        }
         return;
       }
       try {
         const res = await settingsApi.get();
-        if (!cancelled) setCurrencySymbol(res.data.currencySymbol);
+        if (!cancelled) {
+          setCurrencySymbol(res.data.currencySymbol);
+          setRoundingStep(res.data.tableRoundingStep ?? 0);
+        }
       } catch {
         // Sozlama olinmadi (rol/klub konteksti yo'q) — zaxira belgi qoladi
       }
@@ -161,7 +179,7 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
       cancelled = true;
       off();
     };
-  }, [setCurrencySymbol]);
+  }, [setCurrencySymbol, setRoundingStep]);
 
   // Til almashganda zaxira belgi ham o'sha tilga o'tadi ("so'm" / "сум")
   useEffect(() => {
@@ -169,8 +187,12 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
   }, [lang, currencySymbol]);
 
   const value = useMemo(
-    () => ({ lang, setLang, currencySymbol, setCurrencySymbol, themeMode, setThemeMode, toggleTheme }),
-    [lang, setLang, currencySymbol, setCurrencySymbol, themeMode, setThemeMode, toggleTheme],
+    () => ({
+      lang, setLang, currencySymbol, setCurrencySymbol, roundingStep, setRoundingStep,
+      themeMode, setThemeMode, toggleTheme,
+    }),
+    [lang, setLang, currencySymbol, setCurrencySymbol, roundingStep, setRoundingStep,
+      themeMode, setThemeMode, toggleTheme],
   );
 
   return (

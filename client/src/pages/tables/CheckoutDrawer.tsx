@@ -51,6 +51,7 @@ import { hasPendingOps } from '../../offline/overlay';
 import { newActionKey, queueEndSession } from '../../offline/pos';
 import { TOKENS } from '../../theme/tokens';
 import { escapeHtml, printHtml } from '../../utils/print';
+import { normalizeRoundingStep, roundingForDisplay, roundToStep } from '../../utils/rounding';
 import type {
   BilliardTable,
   Customer,
@@ -81,6 +82,9 @@ import { useEntitlements } from '../../hooks/useEntitlements';
 
 const { Text, Title } = Typography;
 
+/** "+87" / "-300" — yaxlitlash farqi neytral rangda (xato emas, ma'lumot) */
+const signedNumber = (n: number): string => `${n > 0 ? '+' : ''}${formatNumber(n)}`;
+
 /** Kassa oynasi ochiq turganda chek fonda shu davr bilan yangilanadi (ms) */
 const RECEIPT_POLL_MS = 10_000;
 
@@ -101,13 +105,16 @@ const isConflict = (err: unknown): boolean =>
 const splitTolerance = (
   receipt: SessionReceipt | null,
   segments: SegmentLike[],
+  roundingStep = 0,
 ): number => {
   const price = Math.max(
     receipt?.pricePerHour ?? 0,
     ...segments.map((s) => s.pricePerHour ?? 0),
     0,
   );
-  return round2((price * PAYMENT_DRIFT_SECONDS) / 3600 + 0.01);
+  // Yaxlitlash yoqilgan bo'lsa summa vaqt bilan birga BIR QADAMGACHA sakrab
+  // o'sadi (46 000 → 47 000) — serverdagi oyna ham shu qadamga kengaytirilgan
+  return round2((price * PAYMENT_DRIFT_SECONDS) / 3600 + 0.01 + roundingStep);
 };
 
 /* ------------------------------------------------------------------ Hisob */
@@ -120,7 +127,12 @@ interface DebtFlags {
 
 interface Totals {
   seconds: number;
+  /** Kassaga tushadigan stol summasi (yaxlitlash yoqilgan bo'lsa — yaxlit) */
   tableAmount: number;
+  /** Aniq sekundlik stol summasi */
+  tableExact: number;
+  /** Yaxlitlash farqi: yaxlit − aniq */
+  tableRounding: number;
   barAmount: number;
   gross: number;
   discount: number;
@@ -160,12 +172,18 @@ const localReceipt = (
     durationMinutes: null,
     pricePerHour: session.pricePerHour ?? table.pricePerHour,
     tableAmount: 0,
+    // Yaxlitlash qadami — o'yinga muhrlangan (oflayn boshlanganda — sozlamadan)
+    roundingStep: normalizeRoundingStep(session.roundingStep),
     barAmount: session.barAmount || 0,
     segments: (segments ?? []) as SessionReceipt['segments'],
   };
 };
 
-/** Serverdagi end() bilan bir xil tartibda yakuniy summalarni hisoblaydi */
+/**
+ * Serverdagi end() bilan bir xil tartibda yakuniy summalarni hisoblaydi.
+ * `roundingStep` — o'yinga muhrlangan yaxlitlash qadami (0 — aniq summa):
+ * stol summasi yaxlitlanadi, qarz/chegirma/to'lov shu yaxlit summadan.
+ */
 const computeTotals = (
   timing: SessionTiming,
   segments: SegmentLike[],
@@ -175,8 +193,10 @@ const computeTotals = (
   adjustment: number,
   flags: DebtFlags,
   nowMs: number,
+  roundingStep = 0,
 ): Totals => {
-  const tableAmount = sessionTableAmount(timing, fallbackPrice, nowMs, segments);
+  const tableExact = sessionTableAmount(timing, fallbackPrice, nowMs, segments);
+  const tableAmount = roundToStep(tableExact, roundingStep);
   const bar = round2(barAmount);
   const gross = round2(tableAmount + bar);
   const safeDiscount = Math.min(Math.max(discount || 0, 0), gross);
@@ -190,6 +210,8 @@ const computeTotals = (
   return {
     seconds: sessionDurationSeconds(timing, nowMs),
     tableAmount,
+    tableExact,
+    tableRounding: round2(tableAmount - tableExact),
     barAmount: bar,
     gross,
     discount: safeDiscount,
@@ -218,6 +240,8 @@ interface LiveReceiptProps {
    * kelishgan summani va undan qancha oshganini hisob-kitob paytida ko'rsin
    */
   limitAmount?: number | null;
+  /** O'yinga muhrlangan yaxlitlash qadami (0 — aniq summa) */
+  roundingStep: number;
 }
 
 const rowStyle: CSSProperties = {
@@ -244,6 +268,7 @@ const LiveReceipt = memo(
     offsetMs,
     currency,
     limitAmount,
+    roundingStep,
   }: LiveReceiptProps) => {
     const { t } = useTranslation();
     const now = useNow();
@@ -258,6 +283,7 @@ const LiveReceipt = memo(
       adjustment,
       flags,
       shifted,
+      roundingStep,
     );
     const segmentLines =
       segments.length > 1 ? sessionSegmentBilling(timing, segments, shifted).items : null;
@@ -319,6 +345,21 @@ const LiveReceipt = memo(
           <Text type="secondary">{t('tables.tableAmount')}</Text>
           <MoneyText amount={totals.tableAmount} currency={currency} size="md" />
         </div>
+        {/* Yaxlitlash (Sozlamalar): aniq sekundlik summa va farq — kassir
+            mijozga nega 47 000 ekanini ko'rsata olsin */}
+        {roundingStep > 0 && (() => {
+          const shown = roundingForDisplay(totals.tableAmount, totals.tableExact);
+          return (
+            <div style={{ ...rowStyle, fontSize: 12.5 }}>
+              <Text type="secondary" className="tabular-nums">
+                {t('tables.roundingRow', { step: formatNumber(roundingStep) })}
+                {' · '}
+                {t('tables.roundingExact', { amount: formatNumber(shown.exact) })}
+              </Text>
+              <Text type="secondary" className="tabular-nums">{signedNumber(shown.delta)}</Text>
+            </div>
+          );
+        })()}
         {/* Summa limiti — faqat ma'lumot: hisob haqiqiy vaqt bo'yicha qoladi */}
         {limitAmount != null && (
           <div style={{ ...rowStyle, fontSize: 12.5 }}>
@@ -527,6 +568,13 @@ const CheckoutDrawer = ({
   );
 
   /**
+   * YAXLITLASH QADAMI — o'yinga muhrlangan qiymat. Onlayn: server chekidan (fon
+   * so'rovi bilan yangilanadi — egasi sozlamani shu payt o'zgartirsa ham kassa
+   * oynasi serverga ergashadi); oflayn: sahifadagi sessiyadan (localReceipt).
+   */
+  const roundingStep = normalizeRoundingStep(receipt?.roundingStep ?? session?.roundingStep);
+
+  /**
    * INTERNETSIZ QARZ — faqat kassada saqlangan «Mijozlar» ro'yxatidagi MAVJUD
    * mijozga (offline/customer-directory.ts). Ro'yxat oflayn rejimda ochilganda
    * keshdan o'qiladi; server navbatni qabul qilganda mijozni qayta tekshiradi.
@@ -693,8 +741,9 @@ const CheckoutDrawer = ({
       adjustmentAmount,
       flags,
       Date.now() + offsetMs,
+      roundingStep,
     );
-  }, [timing, receipt, segments, fallbackPrice, discount, adjustmentAmount, flags, offsetMs]);
+  }, [timing, receipt, segments, fallbackPrice, discount, adjustmentAmount, flags, offsetMs, roundingStep]);
 
   const paymentsSum = round2(
     (payments ?? []).reduce((acc, r) => acc + (r?.amount || 0), 0),
@@ -716,7 +765,7 @@ const CheckoutDrawer = ({
   // ishlatilib, ortiqcha summa ham "yashil" ko'rinar, so'ng server 400 qaytarib
   // kassirga chalkash "mos kelmadi" xatosi chiqardi.
   const splitOk =
-    splitRemaining >= -0.01 && splitRemaining <= splitTolerance(receipt, segments);
+    splitRemaining >= -0.01 && splitRemaining <= splitTolerance(receipt, segments, roundingStep);
 
   // Chegirma / qo'lda tuzatish / qarz belgilari YOKI BAR SUMMASI o'zgarsa nishon
   // qayta muhrlanadi. Bar summasi ro'yxatda bo'lishi SHART: aks holda kassa
@@ -727,8 +776,9 @@ const CheckoutDrawer = ({
     if (!split) return;
     setSplitTargetSnapshot(staticTotals?.toPay ?? 0);
     // staticTotals har tikda emas, faqat shu kiritmalar o'zgarganda qayta muhrlaymiz
+    // (yaxlitlash qadami ham: egasi sozlamani shu payt o'zgartirsa nishon yangilanadi)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [split, discount, adjustmentAmount, isDebt, isTableDebt, isBarDebt, receipt?.barAmount]);
+  }, [split, discount, adjustmentAmount, isDebt, isTableDebt, isBarDebt, receipt?.barAmount, roundingStep]);
 
   /**
    * Bo'lib to'lash yoqilganda birinchi qator qoldiq bilan to'ldiriladi.
@@ -828,12 +878,16 @@ const CheckoutDrawer = ({
         isBarDebt: !!values.isBarDebt,
       },
       Date.now() + offsetMs,
+      roundingStep,
     );
 
     const payload: EndSessionPayload = {
       discount: totals.discount,
       // Server o'zi hisoblagan bar summasi bilan solishtiradi (409 himoyasi)
       expectedBarAmount: receipt.barAmount,
+      // Yaxlitlash: ekrandagi yaxlit stol summasi — tugma bosilgandan server
+      // yozguncha taymer chegaradan o'tsa ham kassaga AYNAN shu summa yoziladi
+      ...(roundingStep > 0 ? { expectedTableAmount: totals.tableAmount } : {}),
       notes: values.notes?.trim() || undefined,
       isDebt: values.isDebt || undefined,
       isTableDebt: values.isDebt ? values.isTableDebt : undefined,
@@ -856,7 +910,7 @@ const CheckoutDrawer = ({
       // to'lov drifti (drift > 0) tolerans ichida singadi, ORTIQCHA to'lov
       // (drift < -0.01) rad etiladi — server end() dagi shart bilan aynan bir xil.
       const drift = round2(totals.toPay - sum);
-      if (drift < -0.01 || drift > splitTolerance(receipt, segments)) {
+      if (drift < -0.01 || drift > splitTolerance(receipt, segments, roundingStep)) {
         message.error(t('tables.splitMismatch'));
         return;
       }
@@ -929,6 +983,7 @@ const CheckoutDrawer = ({
       0,
       debtFlags,
       endedAtMs,
+      roundingStep,
     );
     let rows: Array<{ method: PaymentMethod; amount: number }>;
     if (values.split) {
@@ -938,7 +993,7 @@ const CheckoutDrawer = ({
         )
         .map((r) => ({ method: r.method, amount: round2(r.amount) }));
       const drift = round2(totals.toPay - rows.reduce((acc, r) => acc + r.amount, 0));
-      if (drift < -0.01 || drift > splitTolerance(receipt, segments)) {
+      if (drift < -0.01 || drift > splitTolerance(receipt, segments, roundingStep)) {
         message.error(t('tables.splitMismatch'));
         return;
       }
@@ -956,6 +1011,8 @@ const CheckoutDrawer = ({
           payments: rows,
           discount: totals.discount,
           expectedBarAmount: receipt.barAmount,
+          // Yaxlitlash: kassada olingan yaxlit summa (server shu paytga qayta hisoblaydi)
+          ...(roundingStep > 0 ? { expectedTableAmount: totals.tableAmount } : {}),
           notes: values.notes?.trim() || undefined,
           // Qarzda ism/telefon ro'yxatdagi yozuvdan (server ham shundan oladi)
           customerName: debtor ? debtor.name : values.customerName?.trim() || undefined,
@@ -986,6 +1043,9 @@ const CheckoutDrawer = ({
       durationSeconds: totals.seconds,
       durationMinutes: Math.ceil(totals.seconds / 60),
       tableAmount: totals.tableAmount,
+      tableAmountExact: totals.tableExact,
+      tableRounding: totals.tableRounding,
+      roundingStep,
       barAmount: totals.barAmount,
       discount: totals.discount,
       adjustmentAmount: 0,
@@ -1035,6 +1095,19 @@ const CheckoutDrawer = ({
       }
     }
     row(t('tables.tableAmount'), `${formatNumber(result.tableAmount)} ${currency}`);
+    // Yaxlitlash: chekda aniq sekundlik summa va farq ham ko'rinadi (shaffoflik).
+    // Butun so'mda: "aniq 46 913" + "+87" = 47 000 — chekdagi arifmetika to'g'ri
+    const printRounding = result.tableRounding ?? 0;
+    if (printRounding !== 0) {
+      const shown = roundingForDisplay(
+        result.tableAmount,
+        result.tableAmountExact ?? round2(result.tableAmount - printRounding),
+      );
+      row(
+        t('tables.roundingPrint', { amount: formatNumber(shown.exact) }),
+        `${signedNumber(shown.delta)} ${currency}`,
+      );
+    }
     row(t('tables.barAmount'), `${formatNumber(result.barAmount)} ${currency}`);
     if (result.discount > 0) row(t('common.discount'), `-${formatNumber(result.discount)} ${currency}`);
     if (result.adjustmentAmount !== 0) {
@@ -1151,6 +1224,24 @@ const CheckoutDrawer = ({
           <Text type="secondary">{t('tables.tableAmount')}</Text>
           <MoneyText amount={result.tableAmount} currency={currency} size="md" />
         </div>
+        {(result.tableRounding ?? 0) !== 0 && (() => {
+          const shown = roundingForDisplay(
+            result.tableAmount,
+            result.tableAmountExact ?? round2(result.tableAmount - (result.tableRounding ?? 0)),
+          );
+          return (
+            <div style={{ ...rowStyle, fontSize: 12.5 }}>
+              <Text type="secondary" className="tabular-nums">
+                {result.roundingStep
+                  ? t('tables.roundingRow', { step: formatNumber(result.roundingStep) })
+                  : t('tables.rounding')}
+                {' · '}
+                {t('tables.roundingExact', { amount: formatNumber(shown.exact) })}
+              </Text>
+              <Text type="secondary" className="tabular-nums">{signedNumber(shown.delta)}</Text>
+            </div>
+          );
+        })()}
         <div style={rowStyle}>
           <Text type="secondary">{t('tables.barAmount')}</Text>
           <MoneyText amount={result.barAmount} currency={currency} size="md" />
@@ -1247,7 +1338,7 @@ const CheckoutDrawer = ({
           <div>
           {receipt && <LiveReceipt compact timing={timing} segments={segments} barAmount={receipt.barAmount}
             fallbackPrice={fallbackPrice} discount={discount} adjustment={adjustmentAmount} flags={flags}
-            offsetMs={offsetMs} currency={currency} />}
+            offsetMs={offsetMs} currency={currency} roundingStep={roundingStep} />}
           <Row gutter={8}>
             <Col span={10}>
               <Button block onClick={handleClose} disabled={submitting}>
@@ -1338,6 +1429,7 @@ const CheckoutDrawer = ({
             offsetMs={offsetMs}
             currency={currency}
             limitAmount={session?.limitAmount ?? null}
+            roundingStep={roundingStep}
           />
 
           <Form form={form} layout="vertical" requiredMark={false}>

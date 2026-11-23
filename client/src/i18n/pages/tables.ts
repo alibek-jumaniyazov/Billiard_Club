@@ -155,6 +155,11 @@ export default {
     pausedBanner: "Sessiya pauzada — vaqt va summa to'xtatilgan",
     segmentsTitle: 'Stol vaqti',
     tableAmount: 'Stol summasi',
+    // Stolda yig'ilgan pulni yaxlitlash (Sozlamalar)
+    rounding: 'Yaxlitlash',
+    roundingRow: 'Yaxlitlash ({{step}} gacha)',
+    roundingExact: 'aniq {{amount}}',
+    roundingPrint: 'Yaxlitlash (aniq {{amount}})',
     barAmount: 'Bar summasi',
     gross: 'Oraliq jami',
     toPayNow: "Hozir to'lanadi",
@@ -530,6 +535,11 @@ export default {
     pausedBanner: 'Сессия на паузе — время и сумма остановлены',
     segmentsTitle: 'Время стола',
     tableAmount: 'Сумма за стол',
+    // Округление суммы за стол (Настройки)
+    rounding: 'Округление',
+    roundingRow: 'Округление (до {{step}})',
+    roundingExact: 'точно {{amount}}',
+    roundingPrint: 'Округление (точно {{amount}})',
     barAmount: 'Сумма бара',
     gross: 'Промежуточный итог',
     toPayNow: 'К оплате сейчас',

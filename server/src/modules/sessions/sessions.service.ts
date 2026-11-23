@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
+import { normalizeRoundingStep, settleTableRounding } from '../../common/money/table-rounding';
 import { clubTimezone, parseDateParts, zonedMidnight } from '../../common/time/club-day';
 import { clampOfflineAt } from '../../common/time/offline-at';
 import { Customer } from '../../entities/customer.entity';
@@ -27,6 +28,7 @@ import { Sale } from '../../entities/sale.entity';
 import { Session } from '../../entities/session.entity';
 import { SessionPayment } from '../../entities/session-payment.entity';
 import { SessionSegment } from '../../entities/session-segment.entity';
+import { Settings } from '../../entities/settings.entity';
 import { Table } from '../../entities/table.entity';
 import { User } from '../../entities/user.entity';
 import { normalizePhone } from '../customers/customers.service';
@@ -58,6 +60,15 @@ const formatAmount = (n: number) => new Intl.NumberFormat('ru-RU').format(n);
  * hisobdan KO'PROQ summa kiritsa (ortiqcha to'lov) hech qachon qabul qilinmaydi.
  */
 const PAYMENT_DRIFT_SECONDS = 900;
+
+/**
+ * YAXLITLASH: kassir ekranidagi yaxlit stol summasi (expectedTableAmount)
+ * qabul qilinadigan oyna. "Yakunlash" bosilgan oni bilan server yozgan oni
+ * orasidagi kechikish (chekni oxirgi tekshirish, tarmoq) — soniyalar; 2 daqiqa
+ * sekin mobil tarmoqda ham yetarli, shu bilan birga soxta "eski" summa bilan
+ * pul kamaytirishga yo'l qo'ymaydigan darajada qisqa.
+ */
+const ROUNDING_GRACE_SECONDS = 120;
 
 /**
  * Kassir (KASSIR roli) admin ruxsatisiz bekor qila oladigan sessiya chegarasi.
@@ -236,6 +247,10 @@ export class SessionsService {
         durationMinutes: session.durationMinutes,
         totalPausedMs: session.totalPausedMs,
         tableAmount: session.tableAmount,
+        // Yaxlitlash: kassaga yozilgan summa + aniq sekundlik summa va farq
+        roundingStep: normalizeRoundingStep(session.roundingStep),
+        tableRounding: session.tableRounding,
+        tableAmountExact: round2(session.tableAmount - session.tableRounding),
         barAmount: session.barAmount,
         adjustmentAmount: session.adjustmentAmount,
         adjustmentReason: session.adjustmentReason,
@@ -274,6 +289,10 @@ export class SessionsService {
     // barAmount buyurtmalar modulida jonli yangilanadi (sessiya qulfi ostida)
     const barAmount = round2(session.barAmount);
 
+    // Yaxlitlash (o'yinga muhrlangan qadam) — kassa oynasi bilan bir xil qiymat
+    const roundingStep = normalizeRoundingStep(session.roundingStep);
+    const settled = settleTableRounding(tableAmount, roundingStep);
+
     return {
       serverNow: now.toISOString(),
       sessionId: session.id,
@@ -285,9 +304,12 @@ export class SessionsService {
       durationSeconds,
       durationMinutes: Math.ceil(durationSeconds / 60),
       pricePerHour: currentPricePerHour,
-      tableAmount,
+      tableAmount: settled.amount,
+      roundingStep,
+      tableRounding: settled.rounding,
+      tableAmountExact: tableAmount,
       barAmount,
-      grossAmount: round2(tableAmount + barAmount),
+      grossAmount: round2(settled.amount + barAmount),
       segments: segmentItems ?? segments,
     };
   }
@@ -340,6 +362,15 @@ export class SessionsService {
       const customerName = dto.customerName?.trim() || null;
       const customerPhone = normalizePhone(dto.customerPhone);
 
+      // YAXLITLASH qadami o'yinga muhrlanadi (klub sozlamasidan): barcha
+      // kassalar jonli summani shu bilan ko'rsatadi, yakun ham shu bilan.
+      // Sozlama qatori hali yaratilmagan klubda — 0 (aniq summa)
+      const clubSettings = await manager.findOne(Settings, {
+        where: { clubId },
+        select: { id: true, tableRoundingStep: true },
+      });
+      const roundingStep = normalizeRoundingStep(clubSettings?.tableRoundingStep);
+
       // OFLAYN: o'yin internetsiz boshlangan bo'lsa HAQIQIY boshlanish vaqti
       // klientdan keladi (chegaralangan — clampOfflineAt izohiga qarang).
       // Bo'lmasa avvalgidek server vaqti ishlatiladi.
@@ -372,6 +403,7 @@ export class SessionsService {
         notes: dto.notes ?? null,
         plannedMinutes,
         limitAmount,
+        roundingStep,
       });
 
       // Birinchi segment: hisob segmentlar bo'yicha yuritiladi (transfer tarixi)
@@ -722,6 +754,8 @@ export class SessionsService {
   /**
    * O'yinni yakunlash va hisob-kitob (SEKUNDLIK ANIQLIK).
    * - Stol summasi segmentlar bo'yicha; segmentlarsiz eski sessiyalar — legacy yo'l
+   * - Yaxlitlash (sozlamada yoqilgan bo'lsa): stol summasi o'yinga muhrlangan
+   *   qadamga yaxlitlanadi, farq tableRounding da saqlanadi
    * - Chegirma tekshiriladi (0 <= discount <= stol+bar)
    * - Qo'lda tuzatish (adjustment): totalAmount = max(0, jami - chegirma + tuzatish)
    * - Qarz: umumiy summadan oshmaydigan qilib chegaralanadi
@@ -816,6 +850,25 @@ export class SessionsService {
         const pricePerHour = session.pricePerHour ?? (table ? table.pricePerHour : 0);
         tableAmount = round2((pricePerHour * durationSeconds) / 3600);
       }
+
+      /**
+       * STOL SUMMASINI YAXLITLASH (Sozlamalar → Hisob-kitob). Qadam o'yinga
+       * muhrlangan — kassa ekrani ham AYNAN shu qadam bilan ko'rsatgan.
+       * Kassaga, qarzga va hisobotlarga yaxlit summa yoziladi; aniq sekundlik
+       * summa yo'qolmaydi: tableRounding = yaxlit − aniq (chekda va tarixda).
+       * Kassir ko'rgan yaxlit summa qisqa oynada qabul qilinadi
+       * (common/money/table-rounding.ts: settleTableRounding izohi).
+       */
+      const roundingStep = normalizeRoundingStep(session.roundingStep);
+      const tableAmountExact = tableAmount;
+      const settledTable = settleTableRounding(
+        tableAmountExact,
+        roundingStep,
+        dto.expectedTableAmount,
+        (this.maxPricePerHour(segments, session) * ROUNDING_GRACE_SECONDS) / 3600,
+      );
+      tableAmount = settledTable.amount;
+      const tableRounding = settledTable.rounding;
 
       // Ochiq buyurtmalarni yopamiz va bar summasini yig'amiz
       const openOrders = await manager.find(Order, {
@@ -958,8 +1011,10 @@ export class SessionsService {
         // bir-biridan uzib qo'yar, hisobotdagi to'lov taqsimoti to'g'ri kelmasdi).
         // Hisobdan KO'P kiritilgan bo'lsa (diff < 0) — bu kassirning xatosi,
         // singdirilmaydi, darhol rad etiladi.
+        // Yaxlitlash yoqilgan bo'lsa summa vaqt bilan birga BIR QADAMGACHA
+        // sakrab o'sadi (46 000 → 47 000) — oyna shu qadamga kengaytiriladi
         const driftAllowance = round2(
-          (this.maxPricePerHour(segments, session) * PAYMENT_DRIFT_SECONDS) / 3600 + 0.01,
+          (this.maxPricePerHour(segments, session) * PAYMENT_DRIFT_SECONDS) / 3600 + 0.01 + roundingStep,
         );
         // Bo'sh ro'yxatda farqni singdiradigan to'lov satri YO'Q: server
         // hisobida to'lanadigan summa chiqsa, u olinmagan pul — farq sifatida
@@ -1016,6 +1071,7 @@ export class SessionsService {
         durationSeconds,
         totalPausedMs,
         tableAmount,
+        tableRounding,
         barAmount,
         totalAmount,
         status: SessionStatus.COMPLETED,
@@ -1074,6 +1130,9 @@ export class SessionsService {
         durationSeconds,
         durationMinutes,
         tableAmount,
+        tableAmountExact,
+        tableRounding,
+        roundingStep,
         barAmount,
         discount,
         adjustmentAmount,

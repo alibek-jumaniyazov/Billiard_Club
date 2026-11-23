@@ -9,13 +9,17 @@ import {
   Input,
   InputNumber,
   Row,
+  Segmented,
   Select,
   Skeleton,
   Space,
+  Switch,
   TimePicker,
   Typography,
 } from 'antd';
 import {
+  ArrowRightOutlined,
+  CalculatorOutlined,
   ClockCircleOutlined,
   DollarOutlined,
   GlobalOutlined,
@@ -32,7 +36,13 @@ import { EmptyState, PageHeader, PageTransition } from '../components/ui';
 import { useAppSettings, useCurrency } from '../context/AppSettingsContext';
 import { TOKENS } from '../theme/tokens';
 import type { Settings as ClubSettings } from '../types';
-import { moneyFormatter, moneyParser } from '../utils/format';
+import { formatNumber, moneyFormatter, moneyParser } from '../utils/format';
+import {
+  DEFAULT_ROUNDING_STEP,
+  normalizeRoundingStep,
+  roundToStep,
+  TABLE_ROUNDING_STEPS,
+} from '../utils/rounding';
 
 const { Text } = Typography;
 
@@ -80,23 +90,41 @@ interface SettingsFormValues {
   currency: string;
   currencySymbol: string;
   defaultTablePrice: number;
+  /** Stolda yig'ilgan pulni yaxlitlash — kalit */
+  roundingEnabled: boolean;
+  /** Tanlangan qadam (kalit o'chiq bo'lsa ham eslab qolinadi, serverga 0 ketadi) */
+  tableRoundingStep: number;
   timezone: string;
   workingHoursStart: Dayjs | null;
   workingHoursEnd: Dayjs | null;
 }
 
 /** Serverdagi 'HH:mm' satrlarini forma uchun dayjs ga aylantiradi */
-const toFormValues = (s: ClubSettings): SettingsFormValues => ({
-  clubName: s.clubName,
-  phone: s.phone,
-  address: s.address,
-  currency: s.currency,
-  currencySymbol: s.currencySymbol,
-  defaultTablePrice: s.defaultTablePrice,
-  timezone: s.timezone,
-  workingHoursStart: s.workingHoursStart ? dayjs(s.workingHoursStart, 'HH:mm') : null,
-  workingHoursEnd: s.workingHoursEnd ? dayjs(s.workingHoursEnd, 'HH:mm') : null,
-});
+const toFormValues = (s: ClubSettings): SettingsFormValues => {
+  const step = normalizeRoundingStep(s.tableRoundingStep);
+  return {
+    clubName: s.clubName,
+    phone: s.phone,
+    address: s.address,
+    currency: s.currency,
+    currencySymbol: s.currencySymbol,
+    defaultTablePrice: s.defaultTablePrice,
+    roundingEnabled: step > 0,
+    tableRoundingStep: step > 0 ? step : DEFAULT_ROUNDING_STEP,
+    timezone: s.timezone,
+    workingHoursStart: s.workingHoursStart ? dayjs(s.workingHoursStart, 'HH:mm') : null,
+    workingHoursEnd: s.workingHoursEnd ? dayjs(s.workingHoursEnd, 'HH:mm') : null,
+  };
+};
+
+/**
+ * Tanlangan qadam uchun ikkita jonli misol — biri yuqoriga, biri pastga
+ * yaxlitlanadi (1 000 da aynan egasining misoli: 46 800 → 47 000, 46 300 → 46 000).
+ */
+const roundingSamples = (step: number): Array<{ from: number; to: number }> => {
+  const base = Math.floor(46000 / step) * step;
+  return [base + step * 0.8, base + step * 0.3].map((from) => ({ from, to: roundToStep(from, step) }));
+};
 
 /** Karta sarlavhasi — ikonka oltin urg'u bilan */
 const cardTitle = (icon: ReactNode, label: string) => (
@@ -109,7 +137,7 @@ const cardTitle = (icon: ReactNode, label: string) => (
 const Settings = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const { setCurrencySymbol } = useAppSettings();
+  const { setCurrencySymbol, setRoundingStep } = useAppSettings();
   const currency = useCurrency();
   const [form] = Form.useForm<SettingsFormValues>();
   const [loading, setLoading] = useState(true);
@@ -117,11 +145,19 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [initialValues, setInitialValues] = useState<SettingsFormValues | null>(null);
   const [timezones, setTimezones] = useState<readonly string[]>(FALLBACK_TIMEZONES);
+  /**
+   * Server yaxlitlashni qo'llab-quvvatlaydimi (javobda maydon bor). Yangi
+   * sayt eski serverga tushib qolgan oraliqda karta ko'rinmaydi — aks holda
+   * kalit "saqlandi" deb ko'rinib, server uni jimgina tashlab yuborardi.
+   */
+  const [roundingSupported, setRoundingSupported] = useState(false);
 
   // Narx maydonidagi belgi formadagi jonli qiymatga ergashadi (hali
   // saqlanmagan bo'lsa ham), aks holda ilovadagi joriy belgi ishlatiladi
   const watchedSymbol = Form.useWatch('currencySymbol', form);
   const priceCurrency = (watchedSymbol ?? '').trim() || currency;
+  const roundingEnabled = Form.useWatch('roundingEnabled', form) ?? false;
+  const watchedStep = normalizeRoundingStep(Form.useWatch('tableRoundingStep', form)) || DEFAULT_ROUNDING_STEP;
 
   // `t` yuklash callbackining bog'liqligi EMAS: til almashganda forma qayta
   // yaratilib, saqlanmagan o'zgarishlar yo'qolib ketmasin (xabar chaqirilgan
@@ -134,6 +170,7 @@ const Settings = () => {
     setLoadError(false);
     try {
       const res = await settingsApi.get();
+      setRoundingSupported(res.data.tableRoundingStep !== undefined);
       setInitialValues(toFormValues(res.data));
     } catch (err) {
       // Xato holati saqlanadi — aks holda sahifa abadiy skeletda qolardi
@@ -161,9 +198,14 @@ const Settings = () => {
 
   const handleSave = async (values: SettingsFormValues) => {
     setSaving(true);
+    // Kalit va qadam serverda BITTA maydon: 0 — o'chiq, aks holda qadam
+    const { roundingEnabled: roundingOn, tableRoundingStep: chosenStep, ...rest } = values;
     try {
       const res = await settingsApi.update({
-        ...values,
+        ...rest,
+        ...(roundingSupported
+          ? { tableRoundingStep: roundingOn ? normalizeRoundingStep(chosenStep) || DEFAULT_ROUNDING_STEP : 0 }
+          : {}),
         // dayjs -> 'HH:mm' (server satr kutadi). Serverda "ish vaqti yo'q"
         // holati YO'Q (ustun NOT NULL) — bo'sh maydon null emas, undefined
         // bo'lib ketadi, ya'ni qiymat umuman o'zgartirilmaydi.
@@ -178,6 +220,8 @@ const Settings = () => {
       form.setFieldsValue(toFormValues(res.data));
       // Valyuta belgisi butun ilovada darhol yangilanadi
       setCurrencySymbol(res.data.currencySymbol);
+      // Yaxlitlash qadami — internetsiz boshlanadigan o'yinlar ham shu bilan
+      setRoundingStep(res.data.tableRoundingStep ?? 0);
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
     } finally {
@@ -281,6 +325,83 @@ const Settings = () => {
                   </Col>
                 </Row>
               </Card>
+
+              {/* Hisob-kitob: stolda yig'ilgan pulni yaxlitlash */}
+              {roundingSupported && (
+                <Card title={cardTitle(<CalculatorOutlined />, t('settings.billing'))}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <Text strong style={{ display: 'block', marginBottom: 4 }}>
+                        {t('settings.tableRounding')}
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: 13 }}>
+                        {t('settings.tableRoundingHint')}
+                      </Text>
+                    </div>
+                    <Form.Item name="roundingEnabled" valuePropName="checked" noStyle>
+                      <Switch aria-label={t('settings.tableRounding')} style={{ flexShrink: 0, marginTop: 2 }} />
+                    </Form.Item>
+                  </div>
+
+                  {/* Qadam o'chiq kalitda ham formada saqlanadi (yashirin) */}
+                  <div style={{ display: roundingEnabled ? 'block' : 'none', marginTop: 16 }}>
+                    {/* Valyuta yorliqda (narx maydoni bilan bir xil) — telefonda
+                        to'rtta qadam ham to'liq ko'rinsin */}
+                    <Form.Item
+                      name="tableRoundingStep"
+                      label={`${t('settings.tableRoundingStep')} (${priceCurrency})`}
+                      style={{ marginBottom: 12 }}
+                    >
+                      <Segmented
+                        block
+                        options={TABLE_ROUNDING_STEPS.map((step) => ({
+                          value: step,
+                          label: formatNumber(step),
+                        }))}
+                      />
+                    </Form.Item>
+                    <div
+                      style={{
+                        background: TOKENS.color.bg.bg2,
+                        border: `1px solid ${TOKENS.color.border.subtle}`,
+                        borderRadius: TOKENS.radius.md,
+                        padding: '10px 14px',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        gap: '6px 20px',
+                      }}
+                    >
+                      <Text type="secondary" style={{ fontSize: 13 }}>
+                        {t('settings.tableRoundingExample')}:
+                      </Text>
+                      {roundingSamples(watchedStep).map(({ from, to }) => (
+                        <span key={from} className="tabular-nums" style={{ fontSize: 14, whiteSpace: 'nowrap' }}>
+                          {formatNumber(from)}
+                          <ArrowRightOutlined
+                            aria-hidden
+                            style={{ fontSize: 11, margin: '0 8px', color: TOKENS.color.gold.base }}
+                          />
+                          <Text strong>{formatNumber(to)}</Text> {priceCurrency}
+                        </span>
+                      ))}
+                    </div>
+                    <ul
+                      style={{
+                        margin: '12px 0 0',
+                        paddingInlineStart: 18,
+                        color: TOKENS.color.text.secondary,
+                        fontSize: 13,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      <li>{t('settings.tableRoundingNoteBar')}</li>
+                      <li>{t('settings.tableRoundingNoteLive')}</li>
+                      <li>{t('settings.tableRoundingNoteAudit')}</li>
+                    </ul>
+                  </div>
+                </Card>
+              )}
 
               {/* Vaqt mintaqasi */}
               <Card title={cardTitle(<GlobalOutlined />, t('settings.regional'))}>

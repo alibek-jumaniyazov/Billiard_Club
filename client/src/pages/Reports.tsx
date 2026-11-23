@@ -474,6 +474,14 @@ const Reports = () => {
             value={money(summary?.tableRevenue)}
             icon={<TableOutlined />}
             loading={loading}
+            // Yaxlitlash yoqilgan klubda: stol tushumiga yaxlitlashdan qancha qo'shildi/ayirildi
+            footnote={
+              summary?.tableRounding
+                ? t('reports.tableRoundingNote', {
+                    amount: `${summary.tableRounding > 0 ? '+' : ''}${formatNumber(summary.tableRounding)} ${currency}`,
+                  })
+                : undefined
+            }
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>

@@ -9,7 +9,7 @@ import type { BilliardTable, Session } from '../../types';
 import { isFormValidationError } from '../../utils/formErrors';
 import { formatClock, formatMoney } from '../../utils/format';
 import { limitProblem, quickLimitAmounts } from '../../utils/limit';
-import { sessionLimitLeftMs, sessionTableAmount, type SegmentLike } from '../../utils/session';
+import { sessionChargeAmount, sessionLimitLeftMs, type SegmentLike } from '../../utils/session';
 import LimitInput, { LimitQuick } from './LimitInput';
 import { formatLimitDuration, limitErrorText } from './limit-text';
 
@@ -38,7 +38,7 @@ const PlayedAmount = memo(({ session, segments, fallbackPrice, offsetMs, currenc
   const now = useNow();
   return (
     <MoneyText
-      amount={sessionTableAmount(session, fallbackPrice, now + offsetMs, segments)}
+      amount={sessionChargeAmount(session, fallbackPrice, now + offsetMs, segments)}
       currency={currency}
       size="md"
       color={TOKENS.color.text.primary}

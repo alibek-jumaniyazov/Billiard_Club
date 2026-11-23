@@ -39,6 +39,8 @@ import { SessionPayment } from './session-payment.entity';
   'chk_sessions_limit_amount',
   '"limitAmount" IS NULL OR ("limitAmount" > 0 AND "plannedMinutes" IS NULL)',
 )
+// Yaxlitlash qadami — sozlamadagi ro'yxat bilan bir xil (1784249500000-TableRounding)
+@Check('chk_sessions_rounding_step', '"roundingStep" IN (0, 100, 500, 1000, 5000)')
 // Bitta stolda bir vaqtda faqat bitta faol/pauzadagi sessiya (poyga himoyasi)
 @Index('uq_sessions_one_active_per_table', ['tableId'], {
   unique: true,
@@ -157,8 +159,27 @@ export class Session {
   @Column({ type: 'int', nullable: true })
   durationSeconds: number | null;
 
+  /**
+   * Stol summasi — KASSAGA YOZILGAN qiymat. Yaxlitlash yoqilgan bo'lsa
+   * yaxlit summa (47 000); aniq sekundlik summa = tableAmount - tableRounding.
+   */
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 0, transformer: new NumericTransformer() })
   tableAmount: number;
+
+  /**
+   * Stol summasini yaxlitlash qadami — o'yin boshlanganda klub sozlamasidan
+   * muhrlanadi (0 — o'chiq). Barcha kassalar jonli summani SHU qiymat bilan
+   * ko'rsatadi; sozlama o'zgarsa davom etayotgan o'yinlarda ham yangilanadi.
+   */
+  @Column({ type: 'int', default: 0 })
+  roundingStep: number;
+
+  /**
+   * Yakunda qo'llangan yaxlitlash farqi: yaxlit − aniq (+200 yoki −300).
+   * Aniq summa yo'qolmaydi — chekda, tarixda va hisobotda ko'rsatiladi.
+   */
+  @Column({ type: 'decimal', precision: 14, scale: 2, default: 0, transformer: new NumericTransformer() })
+  tableRounding: number;
 
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 0, transformer: new NumericTransformer() })
   barAmount: number;

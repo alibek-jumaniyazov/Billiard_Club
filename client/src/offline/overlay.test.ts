@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyQueueToTables, hasPendingOps, sessionRefOf, withOfflineTransfers } from './overlay';
 import type { QueueEntry } from './queue';
 import type { BilliardTable, Session } from '../types';
-import { sessionTableAmount } from '../utils/session';
+import { sessionChargeAmount, sessionTableAmount } from '../utils/session';
 
 /**
  * OFLAYN QOPLAMA TESTLARI.
@@ -182,6 +182,26 @@ describe('applyQueueToTables', () => {
     expect(result[0].sessions?.[0].plannedMinutes).toBeNull();
     expect(result[1].sessions?.[0].limitAmount).toBeNull();
     expect(result[1].sessions?.[0].plannedMinutes).toBe(60);
+  });
+
+  it('oflayn boshlangan o‘yin klubning yaxlitlash qadamini oladi — kartadagi summa yaxlit', () => {
+    // 60 000/soat × 46 daqiqa 48 soniya = aniq 46 800 so'm
+    const startTime = new Date(NOW - 2808 * 1000).toISOString();
+    const result = applyQueueToTables(
+      [makeTable(1, 1), makeTable(2, 2)],
+      [
+        makeEntry(1, 'session.start', { tableId: 1, startTime, pricePerHour: 60000, roundingStep: 1000 }),
+        makeEntry(2, 'session.start', { tableId: 2, startTime, pricePerHour: 60000 }),
+      ],
+      NOW,
+    );
+    const rounded = result[0].sessions![0];
+    const exact = result[1].sessions![0];
+    expect(rounded.roundingStep).toBe(1000);
+    expect(sessionChargeAmount(rounded, 60000, NOW)).toBe(47000);
+    // Eski navbat yozuvi (qadamsiz) — avvalgidek aniq summa
+    expect(exact.roundingStep).toBe(0);
+    expect(sessionChargeAmount(exact, 60000, NOW)).toBe(46800);
   });
 
   it('kirish massivini O‘ZGARTIRMAYDI', () => {

@@ -372,6 +372,30 @@ taxminan 21:45 gacha"*. Stol summasi limitga yetganda xuddi belgilangan vaqtdagi
 - Hisob-kitob oynasida limit va undan qancha oshgani ko'rinadi. Hisob baribir
   haqiqiy vaqt bo'yicha — limit pulni cheklamaydi.
 
+## Stol summasini yaxlitlash
+
+**Sozlamalar → Hisob-kitob → "Stolda yig'ilgan pulni yaxlitlash"** (admin). Stol vaqti
+avvalgidek **sekundigacha aniq** hisoblanadi; yoqilganda faqat STOL SUMMASI eng yaqin yaxlit
+summaga yaxlitlanadi (yarmi — yuqoriga). 1 000 qadamda: `46 800 → 47 000`,
+`46 300 → 46 000`, `46 500 → 47 000`. Qadamlar: 100 / 500 / 1 000 / 5 000.
+
+- **Hamma joyda bir xil summa**: stol kartasi, "Ochiq stollarda" paneli, dashboarddagi faol
+  o'yinlar, kassa oynasi, chek, qarz va kassaga yozilgan pul. Bar summasi yaxlitlanmaydi.
+- **Qadam o'yinga muhrlanadi** (`sessions.roundingStep`) — barcha kassalar bir xil summani
+  ko'radi. Sozlama o'zgartirilsa davom etayotgan o'yinlarga ham darhol qo'llanadi,
+  yakunlangan o'yinlar o'zgarmaydi; o'zgarish audit jurnaliga yoziladi
+  (`settings.table_rounding`: kim, qachon, nimadan nimaga).
+- **Aniq summa yo'qolmaydi**: farq `sessions.tableRounding` da (yaxlit − aniq) saqlanadi va
+  kassa oynasida, chekda, o'yinlar tarixida ("aniq 46 913 · +87") hamda hisobotda
+  ("Yaxlitlash natijasi") ko'rinadi. Ko'rsatish butun so'mda — chekdagi yig'indi aniq to'g'ri.
+- **Chegara holati**: "Yakunlash" bosilgandan server yozguncha taymer yaxlitlash chegarasidan
+  o'tib ketsa (46 499 → 46 501), kassir ekranda ko'rgan yaxlit summa yoziladi
+  (`expectedTableAmount`, 2 daqiqalik oyna) — kassadagi pul ekrandagi bilan bir xil.
+- **Summa limiti** aniq summa bo'yicha qoladi — mijoz kelishgan pulning to'liq vaqtini o'ynaydi.
+- Internetsiz ham ishlaydi: oflayn boshlangan o'yinga sozlamadagi qadam muhrlanadi.
+- Formula server va klientda aynan bir xil: `server/src/common/money/table-rounding.ts` va
+  `client/src/utils/rounding.ts` (ikkala tomonda bir xil test jadvali).
+
 ## Stollar paneli
 
 - **Haqiqiy stol ko'rinishi** — har bir karta yog'och bortli, cho'ntakli billiard stoli:
@@ -549,10 +573,12 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
 2. **`npm run migrate`** — MAJBURIY. Kutilayotgan migratsiyalar:
    `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`, `TrialClaims`,
    `TrialTelegramVerification`, `Leads`, `CashShifts`, `SessionPlannedMinutes`,
-   `TableZones`, `AndroidReleases`, `TierPlans`, `ClubBlockReason` va `SessionLimitAmount`.
+   `TableZones`, `AndroidReleases`, `TierPlans`, `ClubBlockReason`, `SessionLimitAmount`,
+   `LightDriversLocalHub` va `TableRounding`.
    Ularsiz qarzni hisobdan chiqarish, yangi foydalanuvchini ro‘yxatdan o‘tkazish,
    landing arizalari, kassa smenalari, belgilangan vaqtli o‘yin, stol zonalari,
-   Android relizlari, tarif darajalari, blok sababi va summa limiti ishlamaydi. `TierPlans` dan keyin hamma
+   Android relizlari, tarif darajalari, blok sababi, summa limiti, chiroq markazi va
+   stol summasini yaxlitlash ishlamaydi. `TierPlans` dan keyin hamma
    mavjud klublar **VIP** bo'ladi — hech kimning bo'limi to'satdan yopilmaydi
    ([docs/TARIFFS.md](docs/TARIFFS.md)).
 3. Chiroqning `DIRECT` rejimidan foydalanadigan klub bo'lsa —

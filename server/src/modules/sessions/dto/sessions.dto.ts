@@ -220,6 +220,21 @@ export class EndSessionDto extends OfflineAtDto {
   @Type(() => Number)
   expectedBarAmount?: number;
 
+  /**
+   * YAXLITLASH yoqilgan o'yinda kassir ekranida KO'RSATILGAN (va mijozdan
+   * olingan) yaxlit stol summasi. "Yakunlash" bosilgan oni bilan server
+   * hisobi orasida taymer yaxlitlash chegarasidan o'tib ketsa (46 499 → 46 501),
+   * server shu qiymatni qabul qiladi — kassadagi pul ekrandagi bilan bir xil
+   * qolsin. Faqat qisqa oynada va qadamga karrali qiymat qabul qilinadi
+   * (sessions.service.ts: ROUNDING_GRACE_SECONDS); aks holda e'tiborsiz.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(MAX_MONEY)
+  @Type(() => Number)
+  expectedTableAmount?: number;
+
   @IsOptional()
   @IsString()
   @MaxLength(2000)

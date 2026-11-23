@@ -48,6 +48,8 @@ interface OpMeta {
   plannedMinutes?: number | null;
   /** session.start / session.plan uchun — summa limiti (plannedMinutes bilan birga bo'lmaydi) */
   limitAmount?: number | null;
+  /** session.start uchun — klub sozlamasidagi yaxlitlash qadami (0 — aniq summa) */
+  roundingStep?: number;
   /** order.create uchun — buyurtma summasi */
   amount?: number;
   at?: string;
@@ -105,6 +107,9 @@ const makeSession = (
   durationMinutes: null,
   durationSeconds: null,
   tableAmount: 0,
+  // Jonli summa shu qadam bilan yaxlitlanadi (utils/session.ts: sessionChargeAmount)
+  roundingStep: meta.roundingStep ?? 0,
+  tableRounding: 0,
   barAmount: 0,
   totalAmount: 0,
   status: 'active',

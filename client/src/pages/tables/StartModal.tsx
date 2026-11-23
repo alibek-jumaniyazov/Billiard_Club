@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { errorMessage, isNetworkError, reservationsApi, sessionsApi } from '../../api';
 import { useNow } from '../../components/ui';
 import { useConnection } from '../../context/ConnectionContext';
-import { useCurrency } from '../../context/AppSettingsContext';
+import { useAppSettings, useCurrency } from '../../context/AppSettingsContext';
 import { hasPendingOps } from '../../offline/overlay';
 import { newActionKey, queueStartSession } from '../../offline/pos';
 import { isFormValidationError } from '../../utils/formErrors';
@@ -132,6 +132,8 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
   const { message } = App.useApp();
   const { online, entries } = useConnection();
   const currency = useCurrency();
+  // Internetsiz boshlangan o'yinga klubning yaxlitlash qadami muhrlanadi
+  const { roundingStep } = useAppSettings();
   const [form] = Form.useForm<StartValues>();
   const [submitting, setSubmitting] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -191,7 +193,7 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
       // aks holda server stolni hali band deb rad etardi
       const pendingOps = hasPendingOps(entries, null, [table.id]);
       if (!online || pendingOps) {
-        await queueStartSession(table, values, key, offsetMs);
+        await queueStartSession(table, values, key, offsetMs, roundingStep);
         message.success(t(online ? 'offline.savedQueued' : 'offline.savedOffline'));
         onQueuedOffline();
         onClose();
@@ -208,7 +210,7 @@ const StartModal = ({ table, onClose, onStarted, onQueuedOffline, offsetMs }: St
       if (isNetworkError(err)) {
         try {
           const values = toStartValues(form.getFieldsValue());
-          await queueStartSession(table, values, key, offsetMs);
+          await queueStartSession(table, values, key, offsetMs, roundingStep);
           message.success(t('offline.savedOffline'));
           onQueuedOffline();
           onClose();

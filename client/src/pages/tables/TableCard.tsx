@@ -13,16 +13,17 @@ import { TOKENS } from '../../theme/tokens';
 import type { BilliardTable, Session, SessionPlanPayload } from '../../types';
 import { formatClock, formatElapsed, formatNumber } from '../../utils/format';
 import {
-  round2, sessionElapsedMs, sessionLimitLeftMs, sessionTableAmount, type SegmentLike,
+  round2, sessionChargeAmount, sessionElapsedMs, sessionLimitLeftMs, type SegmentLike,
 } from '../../utils/session';
 
 // Only these leaf components tick; card order and page state stay stable.
+// Stol summasi yaxlitlash yoqilgan bo'lsa yaxlit (kassaga tushadigan) qiymatda
 const LiveAmount = memo(({ session, fallbackPrice, segments, offsetMs, currency, size = 'lg' }: {
   session: Session; fallbackPrice: number; segments: SegmentLike[] | null; offsetMs: number; currency: string;
   size?: 'md' | 'lg';
 }) => {
   const now = useNow();
-  const amount = sessionTableAmount(session, fallbackPrice, now + offsetMs, segments) + (session.barAmount || 0);
+  const amount = sessionChargeAmount(session, fallbackPrice, now + offsetMs, segments) + (session.barAmount || 0);
   return <MoneyText amount={amount} currency={currency} size={size} color={TOKENS.color.text.primary} />;
 });
 LiveAmount.displayName = 'LiveAmount';

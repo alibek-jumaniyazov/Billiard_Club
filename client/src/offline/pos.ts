@@ -127,6 +127,11 @@ export const queueStartSession = async (
   },
   idempotencyKey?: string,
   offsetMs = 0,
+  /**
+   * Klub sozlamasidagi yaxlitlash qadami — internetsiz o'yinning jonli summasi
+   * shu bilan ko'rsatiladi (server ham boshlashda sozlamadagi qadamni muhrlaydi)
+   */
+  roundingStep = 0,
 ): Promise<string> => {
   const startTime = nowIso(offsetMs);
   const localId = newId();
@@ -150,6 +155,7 @@ export const queueStartSession = async (
       plannedMinutes: values.plannedMinutes ?? null,
       // Qolgan vaqt kartada shu qiymat va narxdan hisoblanadi — oflayn ham ishlaydi
       limitAmount: values.limitAmount ?? null,
+      roundingStep,
       deps: [dep.table(table.id), dep.session(`$local:${localId}`)],
     },
   });
@@ -346,6 +352,8 @@ export interface OfflineEndBody {
   payments: Array<{ method: string; amount: number }>;
   discount?: number;
   expectedBarAmount: number;
+  /** Yaxlitlash yoqilgan o'yinda kassada olingan YAXLIT stol summasi */
+  expectedTableAmount?: number;
   notes?: string;
   customerName?: string;
   customerPhone?: string;

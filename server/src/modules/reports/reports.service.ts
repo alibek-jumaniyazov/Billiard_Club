@@ -118,12 +118,15 @@ export class ReportsService {
         .select('COUNT(*)::int', 'totalSessions')
         .addSelect('COALESCE(SUM(session.totalAmount), 0)::float', 'billedRevenue')
         .addSelect('COALESCE(SUM(session.tableAmount), 0)::float', 'tableRevenue')
+        // Yaxlitlash natijasi (yaxlit − aniq): stol tushumiga shuncha qo'shildi/ayirildi
+        .addSelect('COALESCE(SUM(session.tableRounding), 0)::float', 'tableRounding')
         .addSelect('COALESCE(SUM(session.barAmount), 0)::float', 'barRevenue')
         .addSelect('COALESCE(AVG(session.durationMinutes), 0)::float', 'avgSessionDuration')
         .getRawOne<{
           totalSessions: number;
           billedRevenue: number;
           tableRevenue: number;
+          tableRounding: number;
           barRevenue: number;
           avgSessionDuration: number;
         }>(),
@@ -187,6 +190,7 @@ export class ReportsService {
         collectedRevenue,
         billedRevenue: round2(agg?.billedRevenue ?? 0),
         tableRevenue: round2(agg?.tableRevenue ?? 0),
+        tableRounding: round2(agg?.tableRounding ?? 0),
         barRevenue: round2(agg?.barRevenue ?? 0),
         totalSessions: agg?.totalSessions ?? 0,
         avgSessionDuration: agg?.avgSessionDuration ?? 0,

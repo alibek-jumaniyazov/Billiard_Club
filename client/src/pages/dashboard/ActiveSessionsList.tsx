@@ -7,7 +7,7 @@ import { ElapsedTime, StatusTag, useNow } from '../../components/ui';
 import { TOKENS } from '../../theme/tokens';
 import type { Session } from '../../types';
 import { formatMoney } from '../../utils/format';
-import { sessionElapsedMs, sessionTableAmount } from '../../utils/session';
+import { sessionChargeAmount, sessionElapsedMs } from '../../utils/session';
 import ChartCard from './ChartCard';
 
 const { Text } = Typography;
@@ -38,7 +38,8 @@ const LiveAmount = ({
   const now = useNow() + clockOffset;
   const pricePerHour = session.pricePerHour ?? session.table?.pricePerHour ?? 0;
   const total =
-    sessionTableAmount(session, pricePerHour, now, session.segments) +
+    // Stollar kartasi bilan bir xil: yaxlitlash yoqilgan bo'lsa yaxlit summa
+    sessionChargeAmount(session, pricePerHour, now, session.segments) +
     (session.barAmount || 0);
   const hasMoney = pricePerHour > 0 || (session.barAmount || 0) > 0;
 

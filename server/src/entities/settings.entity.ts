@@ -20,6 +20,8 @@ import { Club } from './club.entity';
 @Check('chk_settings_light_off_delay', '"lightOffDelaySec" >= 0 AND "lightOffDelaySec" <= 3600')
 @Check('chk_settings_light_pre_on', '"lightPreOnMinutes" >= 0 AND "lightPreOnMinutes" <= 120')
 @Check('chk_settings_light_force_sync', '"lightForceSyncSec" >= 10 AND "lightForceSyncSec" <= 3600')
+// Yaxlitlash qadami faqat ruxsat etilgan ro'yxatdan (1784249500000-TableRounding)
+@Check('chk_settings_table_rounding_step', '"tableRoundingStep" IN (0, 100, 500, 1000, 5000)')
 export class Settings {
   @PrimaryGeneratedColumn()
   id: number;
@@ -49,6 +51,16 @@ export class Settings {
 
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 15000, transformer: new NumericTransformer() })
   defaultTablePrice: number;
+
+  /**
+   * "Stolda yig'ilgan pulni yaxlitlash": stol summasi shu qadamga yaxlitlanadi
+   * (1000 → 46 800 = 47 000, 46 300 = 46 000). 0 — o'chiq (aniq summa).
+   * Har o'yinga boshlanganda muhrlanadi (sessions.roundingStep); sozlama
+   * o'zgarsa davom etayotgan o'yinlarga ham darhol qo'llanadi (settings.service).
+   * Formula: common/money/table-rounding.ts
+   */
+  @Column({ type: 'int', default: 0 })
+  tableRoundingStep: number;
 
   @Column({ type: 'varchar', length: 5, default: '10:00' })
   workingHoursStart: string;

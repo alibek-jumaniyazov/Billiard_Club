@@ -1,4 +1,5 @@
 import type { Session, SessionReceipt, SessionStatus } from '../types';
+import { normalizeRoundingStep, roundToStep } from './rounding';
 
 /**
  * SESSIYA HISOBI — server (sessions.service.ts) formulasining AYNAN nusxasi.
@@ -170,6 +171,26 @@ export const sessionTableAmount = (
   const price = session.pricePerHour ?? fallbackPricePerHour;
   return secondsAmount(price, sessionDurationSeconds(session, now));
 };
+
+/**
+ * KO'RSATILADIGAN va KASSAGA TUSHADIGAN stol summasi: aniq sekundlik summa
+ * o'yinga muhrlangan qadam bilan yaxlitlanadi (Sozlamalar → "Stolda yig'ilgan
+ * pulni yaxlitlash"). Qadam 0 bo'lsa — aniq summa, ya'ni avvalgi xatti-harakat.
+ * Server end() ham aynan shu formula bilan yozadi.
+ *
+ * Summa limiti (sessionLimitLeftMs) esa ANIQ summa bo'yicha qoladi: mijoz
+ * kelishgan pulning to'liq vaqtini o'ynaydi, yaxlitlash uni qisqartirmaydi.
+ */
+export const sessionChargeAmount = (
+  session: SessionTiming & { roundingStep?: number | null },
+  fallbackPricePerHour: number,
+  now: number = Date.now(),
+  segments?: SegmentLike[] | null,
+): number =>
+  roundToStep(
+    sessionTableAmount(session, fallbackPricePerHour, now, segments),
+    normalizeRoundingStep(session.roundingStep),
+  );
 
 /** Limit hisobi uchun sessiya ko'rinishi: vaqt maydonlari + summa limiti */
 export interface LimitTiming extends SessionTiming {
