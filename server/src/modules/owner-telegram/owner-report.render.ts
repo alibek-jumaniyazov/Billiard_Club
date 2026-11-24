@@ -652,15 +652,31 @@ export function renderStockAlert(
 
 /* --------------------------------------------------------- xizmat xabarlari */
 
+export type WelcomeVariant = 'linked' | 'registered' | 'intro';
+
+/**
+ * Salomlashuv:
+ *  - linked     — ilovadagi QR/havola orqali ulandi;
+ *  - registered — saytda ro'yxatdan o'tishi bilan avtomatik ulandi (shu botda Start bosgan);
+ *  - intro      — avval ro'yxatdan o'tgan egasi avtomatik ulandi (birinchi hisobotdan oldin).
+ */
 export function renderWelcome(
-  input: { club: string; reportTime: string; chatType: string },
+  input: { club: string; reportTime: string; chatType: string; variant?: WelcomeVariant },
   lang: BotLang,
 ): string {
+  const variant = input.variant ?? 'linked';
+  const club = esc(input.club);
   if (lang === 'ru') {
+    const head =
+      variant === 'registered'
+        ? [`🎉 <b>Клуб «${club}» зарегистрирован!</b>`, '', 'Этот бот теперь — личный бот отчётов вашего клуба.']
+        : variant === 'intro'
+          ? [`👋 <b>Здравствуйте! Теперь отчёты клуба «${club}» приходят сюда.</b>`, '', 'Вы подтверждали номер в этом боте при регистрации, поэтому он подключён автоматически.']
+          : [`✅ <b>Подключено: ${club}</b>`];
     return [
-      `✅ <b>Подключено: ${esc(input.club)}</b>`,
+      ...head,
       '',
-      `Каждый день в <b>${input.reportTime}</b> пришлю отчёт за вчерашний день: выручка, игры, касса, долги, расходы.`,
+      `Каждый день в <b>${input.reportTime}</b> — отчёт за вчерашний день: выручка, игры, касса, долги, расходы.`,
       'Сразу сообщу о важном: отмена игры, скидка, закрытие смены с расхождением кассы, изменение цен.',
       '',
       'Команды:',
@@ -670,21 +686,27 @@ export function renderWelcome(
       '/hafta — последние 7 дней',
       '/stop — остановить уведомления',
       '',
-      'Время отчёта и типы уведомлений настраиваются в приложении: раздел «Telegram бот».',
+      'Время отчёта и типы уведомлений настраиваются в приложении: раздел «Telegram-бот».',
     ].join('\n');
   }
+  const head =
+    variant === 'registered'
+      ? [`🎉 <b>«${club}» klubi ro'yxatdan o'tdi!</b>`, '', 'Bu bot endi klubingizning shaxsiy hisobot boti.']
+      : variant === 'intro'
+        ? [`👋 <b>Assalomu alaykum! Endi «${club}» klubi hisobotlari shu yerga keladi.</b>`, '', "Ro'yxatdan o'tishda telefoningizni shu botda tasdiqlagansiz — shuning uchun bot avtomatik ulandi."]
+        : [`✅ <b>Ulandi: ${club}</b>`];
   return [
-    `✅ <b>Ulandi: ${esc(input.club)}</b>`,
+    ...head,
     '',
-    `Har kuni soat <b>${input.reportTime}</b> da kechagi kun hisobotini yuboraman: tushum, o'yinlar, kassa, qarzlar, xarajatlar.`,
+    `Har kuni soat <b>${input.reportTime}</b> da — kechagi kun hisoboti: tushum, o'yinlar, kassa, qarzlar, xarajatlar.`,
     "Muhim hodisalarni darhol aytaman: o'yin bekor qilinsa, chegirma berilsa, smena kassa farqi bilan yopilsa, narx o'zgarsa.",
     '',
     'Buyruqlar:',
     '/hisobot — kechagi hisobot',
     '/bugun — bugun hozirgacha',
     '/hozir — hozir qaysi stollar band',
-    '/hafta — so\'nggi 7 kun',
-    '/stop — xabarlarni to\'xtatish',
+    "/hafta — so'nggi 7 kun",
+    "/stop — xabarlarni to'xtatish",
     '',
     "Hisobot vaqti va xabar turlarini ilovadagi «Telegram bot» bo'limida sozlaysiz.",
   ].join('\n');
@@ -694,14 +716,16 @@ export function renderHelp(lang: BotLang, linked: boolean): string {
   if (!linked) {
     return lang === 'ru'
       ? [
-          '👋 Это бот отчётов <b>Billiard Club</b> для владельцев клубов.',
+          '👋 Это бот <b>Billiard Club</b>.',
           '',
-          'Чтобы подключить клуб: в приложении откройте раздел «Telegram бот» и нажмите «Подключить Telegram». Ссылка действует 15 минут.',
+          '• Регистрируетесь на сайте — нажмите на сайте кнопку подтверждения через Telegram.',
+          '• Вы владелец клуба — отчёты подключаются в приложении: раздел «Telegram-бот» → «Подключить Telegram».',
         ].join('\n')
       : [
-          "👋 Bu — klub egalari uchun <b>Billiard Club</b> hisobot boti.",
+          '👋 Bu — <b>Billiard Club</b> boti.',
           '',
-          "Klubni ulash uchun: ilovada «Telegram bot» bo'limini ochib «Telegram'ni ulash» tugmasini bosing. Havola 15 daqiqa amal qiladi.",
+          "• Saytda ro'yxatdan o'tayotgan bo'lsangiz — saytdagi «Telegram orqali tasdiqlash» tugmasini bosing.",
+          "• Klub egasi bo'lsangiz — hisobotlar ilovada ulanadi: «Telegram bot» bo'limi → «Telegram'ni ulash».",
         ].join('\n');
   }
   return lang === 'ru'

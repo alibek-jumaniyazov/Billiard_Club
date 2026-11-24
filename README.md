@@ -88,8 +88,11 @@ Bu sozlamalar bo‘lmasa, tasdiqlanmagan foydalanuvchiga bepul sinov ochilmaydi.
 
 ### Klub egasi uchun Telegram bot
 
-Klub egasi ilovadagi **Boshqaruv → Telegram bot** bo'limida QR kod orqali o'z
-Telegramini (yoki sheriklar guruhini) ulaydi. Bot quyidagilarni yuboradi:
+Platformaning **mavjud boti** ishlatiladi (yangi bot shart emas). Ega saytda
+ro'yxatdan o'tayotganda telefonini shu botda tasdiqlaydi va shu payt avtomatik ulanadi.
+Avval ro'yxatdan o'tganlar ham bir marta avtomatik ulanadi. Qo'shimcha chat yoki sheriklar
+guruhini ilovadagi **Boshqaruv → Telegram bot** bo'limida QR orqali ulash mumkin. Platforma
+xabarlari avvalgidek faqat `TELEGRAM_CHAT_ID` guruhiga boradi. Bot quyidagilarni yuboradi:
 
 - **Har kuni kechagi kun hisoboti.** Tushum (naqd/karta), o'yinlar, eng band stollar,
   kassirlar, qarz, xarajat, smena kassa farqi. Dushanba kuni hafta yakuni, oyning 1-kuni
@@ -98,7 +101,7 @@ Telegramini (yoki sheriklar guruhini) ulaydi. Bot quyidagilarni yuboradi:
   qarzni hisobdan chiqarish, narx o'zgarishi.
 - **Buyruqlarga javob:** `/bugun`, `/hozir`, `/hafta`.
 
-Raqamlar «Hisobotlar» sahifasi bilan bir xil. Alohida bot va bir martalik sozlash kerak:
+Raqamlar «Hisobotlar» sahifasi bilan bir xil. Sozlash (bir buyruq) va tafsilot:
 **[docs/TELEGRAM-BOT.md](docs/TELEGRAM-BOT.md)**.
 
 ## Stol chiroqlarini avtomatik boshqarish
@@ -589,7 +592,7 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
    `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`, `TrialClaims`,
    `TrialTelegramVerification`, `Leads`, `CashShifts`, `SessionPlannedMinutes`,
    `TableZones`, `AndroidReleases`, `TierPlans`, `ClubBlockReason`, `SessionLimitAmount`,
-   `LightDriversLocalHub`, `TableRounding` va `OwnerTelegram`.
+   `LightDriversLocalHub`, `TableRounding`, `OwnerTelegram` va `OwnerTelegramIntro`.
    Ularsiz qarzni hisobdan chiqarish, yangi foydalanuvchini ro‘yxatdan o‘tkazish,
    landing arizalari, kassa smenalari, belgilangan vaqtli o‘yin, stol zonalari,
    Android relizlari, tarif darajalari, blok sababi, summa limiti, chiroq markazi va
@@ -601,9 +604,11 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
    aks holda DIRECT rejim ishlamaydi. `BRIDGE` rejimi ta'sirlanmaydi.
 4. Serverni qayta ishga tushiring.
 5. Ommaviy registratsiya uchun [Telegram tekshiruv botini sozlang](docs/TRIAL-PROTECTION.md).
-6. Klub egalari boti (kunlik hisobot): `.env` ga `OWNER_TELEGRAM_*` ni qo'shing va
+6. Klub egalari hisobotlari mavjud botda ishlaydi — `.env` ga hech narsa qo'shish
+   shart emas. Deploy'dan keyin
    `npm --prefix server run owner:telegram:setup -- https://API_DOMEN` ni bir marta ishga
-   tushiring ([docs/TELEGRAM-BOT.md](docs/TELEGRAM-BOT.md)).
+   tushiring: u buyruqlar menyusini va tavsifni o'rnatadi
+   ([docs/TELEGRAM-BOT.md](docs/TELEGRAM-BOT.md)).
 
 ## Production eslatmalari
 

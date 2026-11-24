@@ -101,6 +101,18 @@ export class TrialVerificationService {
     return row.phone;
   }
 
+  /**
+   * Tasdiqlangan Telegram akkaunti (claim bilan BIR tranzaksiyada chaqiriladi) — klub egasi
+   * botini avtomatik ulash uchun. Webhook shu akkauntning o'z kontaktini tasdiqlagan.
+   */
+  async claimedTelegramUser(manager: EntityManager, id: string): Promise<string | null> {
+    const [row] = (await manager.query(
+      `SELECT "telegramUserId" FROM trial_telegram_challenges WHERE id = $1 AND "consumedAt" IS NOT NULL`,
+      [id],
+    )) as Array<{ telegramUserId: string | null }>;
+    return row?.telegramUserId ?? null;
+  }
+
   /** Only trusted Telegram webhook updates can assert ownership of a contact. */
   async webhook(secret: string | undefined, update: { message?: TelegramMessage } | null) {
     const expected = this.config.get<string>('TRIAL_TELEGRAM_WEBHOOK_SECRET') ?? '';

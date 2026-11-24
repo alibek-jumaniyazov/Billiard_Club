@@ -105,7 +105,8 @@ async function setupTelegramWebhook(origin, env = process.env, fetchImpl = fetch
   const configured = await telegram('setWebhook', {
     url,
     secret_token: secret,
-    allowed_updates: ['message'],
+    // my_chat_member — umumiy botda klub egasi botni bloklasa, chat darhol faolsizlanadi
+    allowed_updates: ['message', 'my_chat_member'],
     max_connections: 10,
   });
   if (configured !== true) {

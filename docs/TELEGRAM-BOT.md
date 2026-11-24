@@ -10,6 +10,14 @@ Klub egasi klubda bo'lmasa ham hammasini bilib turadi. Bot uch narsani qiladi:
 Raqamlar ilovadagi **«Hisobotlar»** sahifasi bilan bir xil manbadan olinadi
 (`ReportsService.getReport`). Shu sababli Telegramdagi tushum ilovadagi tushumga aynan teng.
 
+**Yangi bot shart emas.** Platformaning mavjud boti ishlatiladi — egalar saytda ro'yxatdan
+o'tayotganda telefonini tasdiqlash uchun aynan shu botga Start bosadi. Shuning uchun:
+
+- yangi ega ro'yxatdan o'tishi bilan uning Telegrami klubga **avtomatik ulanadi**;
+- avval ro'yxatdan o'tgan egalar ham bir marta avtomatik ulanadi (6-bo'lim);
+- platforma xabarlari (yangi klub, to'lov va h.k.) avvalgidek faqat sizning guruhingizga
+  (`TELEGRAM_CHAT_ID`) boradi. Egalar faqat o'z klubi haqidagi xabarni oladi.
+
 ---
 
 ## 1. Egasi nimani oladi
@@ -66,6 +74,13 @@ keladi, chunki sheriklar ko'rishi kerak.
 
 ## 2. Egasi qanday ulaydi
 
+**Avtomatik (asosiy yo'l).** Saytda ro'yxatdan o'tishda ega botga Start bosib, telefonini
+tasdiqlaydi. Ro'yxatdan o'tish tugashi bilan bot unga «🎉 Klub ro'yxatdan o'tdi» xabarini
+yuboradi, ertasi kuni ertalab esa birinchi kunlik hisobot keladi. Egaga hech narsa qilish
+shart emas.
+
+**Qo'lda (qo'shimcha chat, sherik yoki guruh uchun):**
+
 1. Ilovada **Boshqaruv → Telegram bot** bo'limini oching. Bo'lim faqat klub egasiga
    (admin) ko'rinadi; kassir va operator uni ko'rmaydi, serverda ham yopiq.
 2. **«Telegram'ni ulash»** tugmasini bosing. QR kod va bir martalik havola chiqadi
@@ -93,37 +108,43 @@ Har chatda yana:
 Sahifaning o'ng tomonida **hisobot namunasi** turadi. U Telegram'dagi ko'rinishning o'zi,
 klubning haqiqiy raqamlari bilan.
 
-## 3. Platformada botni sozlash (bir marta)
+## 3. Platformada sozlash (bir marta)
 
-Klub egalari boti **alohida** bot bo'lishi shart. U ro'yxatdan o'tish boti
-(`TRIAL_TELEGRAM_*`) bilan ham, platforma xabarnomalari boti (`TELEGRAM_BOT_TOKEN`) bilan
-ham bir xil bo'lmasin, chunki Telegram'da bitta botda faqat bitta webhook bo'ladi.
+### Standart: mavjud bot (tavsiya etiladi)
 
-1. [@BotFather](https://t.me/BotFather) da `/newbot` buyrug'ini bering. Masalan:
-   nomi `Billiard Club Hisobot`, username `BilliardClubHisobotBot`.
-2. `server/.env` ga quyidagilarni qo'shing (secret yaratish:
-   `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`):
-   ```
-   OWNER_TELEGRAM_BOT_TOKEN=<BotFather bergan token>
-   OWNER_TELEGRAM_BOT_USERNAME=BilliardClubHisobotBot
-   OWNER_TELEGRAM_WEBHOOK_SECRET=<yaratilgan secret>
-   ```
-3. Deploy qiling. Tartib: `npm run migrate` (migratsiya: `OwnerTelegram`), keyin serverni
-   qayta ishga tushirish.
-4. Server papkasida bir marta ishga tushiring:
+Ro'yxatdan o'tish boti (`TRIAL_TELEGRAM_BOT_TOKEN`, bo'lmasa `TELEGRAM_BOT_TOKEN`,
+`TRIAL_TELEGRAM_BOT_USERNAME`, `TRIAL_TELEGRAM_WEBHOOK_SECRET`) allaqachon sozlangan bo'lsa,
+yangi bot ham, yangi `.env` qiymati ham kerak emas. `OWNER_TELEGRAM_*` bo'sh qoladi.
+
+1. Deploy qiling. Tartib: `npm run migrate` (migratsiyalar: `OwnerTelegram`,
+   `OwnerTelegramIntro`), keyin serverni qayta ishga tushirish.
+2. Server papkasida bir marta ishga tushiring:
    ```
    npm run owner:telegram:setup -- https://SIZNING-API-DOMENINGIZ
    ```
    Skript quyidagilarni bajaradi:
-   - deploy qilingan marshrut va secret mosligini tekshiradi;
-   - webhookni o'rnatadi (`message`, `my_chat_member`);
-   - buyruqlar menyusini (uz/ru) va bot tavsifini o'rnatadi.
+   - webhook manzilini o'zgartirmaydi (ro'yxatdan o'tish marshruti qoladi);
+   - unga `my_chat_member` hodisasini qo'shadi — ega botni bloklasa, ilovada darhol
+     ko'rinadi;
+   - buyruqlar menyusini (uz/ru) va botning umumiy tavsifini o'rnatadi.
+3. Ilovada «Telegram bot» bo'limini oching — o'zingizning chatingiz ko'rinadi (agar siz
+   ham saytda ro'yxatdan o'tgan bo'lsangiz). «Sinov xabari»ni bosib tekshiring.
 
-   Botda boshqa webhook bo'lsa, skript uni o'zgartirmaydi va to'xtaydi.
-5. Ilovada «Telegram bot» bo'limidan o'zingizni ulab, «Sinov xabari»ni bosing.
+Webhook bitta: Telegram yuborgan har bir yangilanish server ichida ikkiga ajratiladi.
+Telefonni tasdiqlash (`/start trial_…` va kontakt) ro'yxatdan o'tish xizmatiga boradi.
+Klub egasi buyruqlari, guruhlar va botni bloklash esa hisobot xizmatiga boradi.
 
-Uchala sozlama to'g'ri bo'lmaguncha bo'lim «bot hali sozlanmagan» deydi. Hisobot namunasi
-esa baribir ko'rinadi.
+### Ixtiyoriy: alohida bot
+
+Egalar uchun alohida bot kerak bo'lsa, quyidagilarni bajaring:
+
+1. [@BotFather](https://t.me/BotFather) da yangi bot yarating.
+2. `.env` ga `OWNER_TELEGRAM_BOT_TOKEN`, `OWNER_TELEGRAM_BOT_USERNAME` va
+   `OWNER_TELEGRAM_WEBHOOK_SECRET` ni yozing.
+3. Yuqoridagi buyruqni ishga tushiring — u alohida botga o'z webhookini o'rnatadi.
+
+Bu rejimda avtomatik ulash ishlamaydi: ega u botga hech qachon Start bosmagan. Egalar
+ilovadagi QR orqali ulanadi.
 
 ## 4. Nosozliklar
 
@@ -133,9 +154,23 @@ esa baribir ko'rinadi.
 | **«To'xtatilgan»** | `/stop` bosilgan. `/start` bosilsa qayta yoqiladi |
 | Hisobot kelmadi | Klub vaqt mintaqasini tekshiring (Sozlamalar). Obuna faol bo'lishi kerak: muddati tugagan yoki bloklangan klubga hisobot ketmaydi. Chatda «Oxirgi xato» ko'rinadi |
 | «Havola eskirgan» | Havola 15 daqiqa va bir marta amal qiladi. Ilovadan yangisini oling |
+| Bo'lim «bot hali sozlanmagan» deydi | Ro'yxatdan o'tish boti sozlanmagan: `TRIAL_TELEGRAM_BOT_USERNAME`, `TRIAL_TELEGRAM_WEBHOOK_SECRET` va token (`TRIAL_TELEGRAM_BOT_TOKEN` yoki `TELEGRAM_BOT_TOKEN`) |
+| Yangi ega avtomatik ulanmadi | Ega telefonini bot orqali tasdiqlaganini tekshiring (ro'yxatdan o'tishning majburiy qadami). Alohida bot (`OWNER_TELEGRAM_*`) sozlangan bo'lsa, avtomatik ulash o'chadi |
 | Setup skripti «Server webhooki tayyor emas» deydi | Deploy va migratsiyani, HTTPS/nginx va `.env` dagi `OWNER_TELEGRAM_*` qiymatlarini tekshiring |
 
 ## 5. Texnik tafsilotlar
+
+- **Bot tanlash** (`owner-bot.config.ts`):
+  - `OWNER_TELEGRAM_*` bo'sh bo'lsa, ro'yxatdan o'tish boti ishlatiladi (`shared: true`);
+  - bu holatda webhook tekshiruvi ham ro'yxatdan o'tish siri bilan bo'ladi;
+  - yangilanishlarni `isOwnerUpdate` ajratadi, controller esa
+    `public.controller.ts` → `trialTelegramWebhook`.
+- **Ro'yxatdan o'tishda ulash** — `PublicService.register` ichida, klub va admin bilan bitta
+  tranzaksiyada:
+  - chat ID — telefonini tasdiqlagan Telegram akkaunti
+    (`TrialVerificationService.claimedTelegramUser`);
+  - ulash bo'lmasa, ro'yxatdan o'tish ham bekor bo'ladi (va aksincha);
+  - salomlashuv tranzaksiyadan keyin, kutmasdan yuboriladi.
 
 - **Modul**: `server/src/modules/owner-telegram/`.
 - **Bir marta yuborish**:
@@ -157,6 +192,28 @@ esa baribir ko'rinadi.
   - guruh supergroup'ga aylanganda yangi ID avtomatik saqlanadi;
   - 4096 belgidan uzun xabar qatorlar chegarasida bo'linadi.
 - **Testlar**:
-  - `server/test/owner-telegram.test.ts` — matnlar, formatlar, API xatolari;
+  - `server/test/owner-telegram.test.ts` — matnlar, formatlar, API xatolari, bot tanlash va
+    yangilanishlar taqsimoti;
+  - `server/test/15-owner-telegram-autolink.postgres.test.cjs` — ro'yxatdan o'tishda ulash,
+    alohida bot rejimi, eski egalarni ulash va tanishtiruv;
   - `server/test/owner-telegram-setup.test.ts` — sozlash skripti;
   - `server/test/14-owner-telegram.postgres.test.cjs` — to'liq oqim haqiqiy Postgres bilan.
+
+## 6. Avval ro'yxatdan o'tgan egalar
+
+Server yangi versiya bilan birinchi marta ishga tushganda (faqat mavjud bot rejimida), bir
+marta va avtomatik ravishda, saytda o'zi ro'yxatdan o'tgan barcha egalar ulanadi.
+
+- **Bog'lash usuli.** Ro'yxatdan o'tishda klub, tasdiqlangan telefon (`trial_claims`) va
+  Telegram akkaunti (`telegram_trial_claims`) bitta tranzaksiyada yoziladi. Shuning uchun
+  ularning vaqt belgisi aynan bir xil. Klub shu vaqt bilan **va** telefon raqami bilan
+  bog'lanadi. Bitta vaqtga bir nechta akkaunt to'g'ri kelsa, klub ulanmaydi.
+- **Kim ulanmaydi.** Superadmin qo'lda yaratgan klublar (telefon tasdig'i yo'q). Ular QR
+  orqali ulanadi.
+- **Birinchi xabar.** Ulangan egaga birinchi kunlik hisobotdan oldin qisqa tanishtiruv
+  boradi: bot nima uchun yozayotgani va `/stop` bilan to'xtatish mumkinligi. Hisobot
+  keyingi ertalab soat 09:00 da keladi (klub vaqti bo'yicha).
+- **Faqat bir marta.** Ish bajarilgani `platform_settings` (`owner_telegram_autolink_v1`)
+  ga yoziladi. Ega chatni ilovadan o'chirsa, u qayta paydo bo'lmaydi.
+- **Ko'p instansiya.** Bir nechta server nusxasi bo'lsa ham, ishni faqat bittasi bajaradi
+  (`withCronLock`).

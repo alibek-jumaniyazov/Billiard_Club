@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { OwnerBotApi } from '../src/modules/owner-telegram/owner-bot.api';
-import { ownerBotConfig } from '../src/modules/owner-telegram/owner-bot.config';
+import { isOwnerUpdate, ownerBotConfig } from '../src/modules/owner-telegram/owner-bot.config';
 import {
   DailyReportData,
   PeriodSummary,
@@ -193,15 +193,52 @@ test('uzun xabar qator chegarasida bo‘linadi', () => {
   assert.equal(parts.join('\n'), html);
 });
 
-test('bot sozlamasi: uchala qiymat to‘g‘ri bo‘lmasa — «sozlanmagan»', () => {
-  const env: Record<string, string> = {
-    OWNER_TELEGRAM_BOT_TOKEN: `123456:${'a'.repeat(35)}`,
-    OWNER_TELEGRAM_BOT_USERNAME: '@billiard_owner_bot',
-    OWNER_TELEGRAM_WEBHOOK_SECRET: 's'.repeat(40),
+test('bot sozlamasi: standart — mavjud (ro‘yxatdan o‘tish) boti; alohida bot ixtiyoriy', () => {
+  const trial: Record<string, string> = {
+    TRIAL_TELEGRAM_BOT_TOKEN: `123456:${'a'.repeat(35)}`,
+    TRIAL_TELEGRAM_BOT_USERNAME: '@billiard_club_bot',
+    TRIAL_TELEGRAM_WEBHOOK_SECRET: 't'.repeat(40),
   };
-  assert.deepEqual(ownerBotConfig((k) => env[k]), { token: env.OWNER_TELEGRAM_BOT_TOKEN, username: 'billiard_owner_bot', secret: 's'.repeat(40) });
-  assert.equal(ownerBotConfig((k) => ({ ...env, OWNER_TELEGRAM_WEBHOOK_SECRET: 'short' })[k]), null);
-  assert.equal(ownerBotConfig((k) => ({ ...env, OWNER_TELEGRAM_BOT_TOKEN: '' })[k]), null);
+  assert.deepEqual(ownerBotConfig((k) => trial[k]), {
+    token: trial.TRIAL_TELEGRAM_BOT_TOKEN, username: 'billiard_club_bot', secret: 't'.repeat(40), shared: true,
+  });
+  // Ro'yxatdan o'tish tokeni bo'lmasa — platforma boti tokeni (ular bitta bot)
+  const platform = { ...trial, TRIAL_TELEGRAM_BOT_TOKEN: '', TELEGRAM_BOT_TOKEN: `999:${'p'.repeat(30)}` };
+  assert.equal(ownerBotConfig((k) => platform[k as keyof typeof platform])?.token, platform.TELEGRAM_BOT_TOKEN);
+  // Alohida bot: o'z tokeni, username va siri
+  const separate: Record<string, string> = {
+    ...trial,
+    OWNER_TELEGRAM_BOT_TOKEN: `654321:${'b'.repeat(35)}`,
+    OWNER_TELEGRAM_BOT_USERNAME: 'billiard_owner_bot',
+    OWNER_TELEGRAM_WEBHOOK_SECRET: 'o'.repeat(40),
+  };
+  assert.deepEqual(ownerBotConfig((k) => separate[k]), {
+    token: separate.OWNER_TELEGRAM_BOT_TOKEN, username: 'billiard_owner_bot', secret: 'o'.repeat(40), shared: false,
+  });
+  // OWNER tokeni ro'yxatdan o'tish botiniki bilan bir xil — baribir umumiy (webhook bitta)
+  assert.equal(ownerBotConfig((k) => ({ ...separate, OWNER_TELEGRAM_BOT_TOKEN: trial.TRIAL_TELEGRAM_BOT_TOKEN })[k])?.shared, true);
+  assert.equal(ownerBotConfig((k) => ({ ...trial, TRIAL_TELEGRAM_WEBHOOK_SECRET: 'short' })[k]), null);
+});
+
+test('umumiy botda yangilanishlar taqsimoti: tasdiqlash oqimi va egasi buyruqlari aralashmaydi', () => {
+  const msg = (text: string | undefined, extra: Record<string, unknown> = {}) => ({
+    message: { chat: { id: 5, type: 'private' }, from: { id: 5 }, ...(text === undefined ? {} : { text }), ...extra },
+  });
+  // Ro'yxatdan o'tish (telefonni tasdiqlash) — o'z joyida qoladi
+  assert.equal(isOwnerUpdate(msg('/start trial_0b9c7a6e-1111-4222-8333-444455556666')), false);
+  assert.equal(isOwnerUpdate(msg(undefined, { contact: { user_id: 5, phone_number: '+998901234567' } })), false);
+  assert.equal(isOwnerUpdate(msg('salom')), false);
+  // Klub egasi
+  assert.equal(isOwnerUpdate(msg('/start own_abcdefghijklmnopqrstuvwxyz012345')), true);
+  assert.equal(isOwnerUpdate(msg('/start')), true);
+  for (const command of ['/hisobot', '/bugun', '/hozir@billiard_club_bot', '/hafta', '/stop', '/yordam']) {
+    assert.equal(isOwnerUpdate(msg(command)), true, command);
+  }
+  assert.equal(isOwnerUpdate({ message: { chat: { id: -100, type: 'supergroup' }, text: 'hello' } }), true);
+  assert.equal(isOwnerUpdate({ message: { chat: { id: -5, type: 'group' }, migrate_to_chat_id: -100 } }), true);
+  assert.equal(isOwnerUpdate({ my_chat_member: { chat: { id: 5 }, new_chat_member: { status: 'kicked' } } }), true);
+  assert.equal(isOwnerUpdate({}), false);
+  assert.equal(isOwnerUpdate(null), false);
 });
 
 test('Telegram API: ko‘chish, bloklash, 429 va tarmoq xatosi to‘g‘ri ajratiladi', async () => {

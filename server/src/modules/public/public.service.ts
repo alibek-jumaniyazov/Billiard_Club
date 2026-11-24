@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { DataSource, Repository } from 'typeorm';
@@ -10,6 +10,7 @@ import { User } from '../../entities/user.entity';
 import { PlatformConfigService } from '../../common/platform-config/platform-config.service';
 import { TelegramService } from '../../telegram/telegram.service';
 import { AuthService, RequestContext } from '../auth/auth.service';
+import { OwnerTelegramService } from '../owner-telegram/owner-telegram.service';
 import { RegisterDto } from './dto/register.dto';
 import { TrialVerificationService } from './trial-verification.service';
 
@@ -25,7 +26,11 @@ export class PublicService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
     private readonly trialVerification: TrialVerificationService,
+    // Ixtiyoriy: klub egasi Telegram boti (umumiy botda ro'yxatdan o'tgan egasi avtomatik ulanadi)
+    @Optional() private readonly ownerTelegram?: OwnerTelegramService,
   ) {}
+
+  private readonly logger = new Logger(PublicService.name);
 
   /**
    * Landing sahifa uchun faol tariflar katalogi — superadmin boshqaradigan
@@ -46,7 +51,7 @@ export class PublicService {
    * ro'yxatdan o'tgan PAYTdan boshlanadi. Sizga Telegram xabar ketadi,
    * foydalanuvchi darhol tizimga kiritiladi (avto-login).
    */
-  async register(dto: RegisterDto, ctx: RequestContext) {
+  async register(dto: RegisterDto, ctx: RequestContext, lang: 'uz' | 'ru' = 'uz') {
     // Honeypot: yashirin maydon to'ldirilgan bo'lsa — bot. Jimgina rad etamiz
     // (429 emas, 400 ham emas — botga muvaffaqiyat/xato farqini bildirmaymiz).
     if (dto.website && dto.website.trim().length > 0) {
@@ -63,7 +68,7 @@ export class PublicService {
     // Expensive password work happens before acquiring identity/club locks.
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    const { club, admin } = await this.dataSource.transaction(async (manager) => {
+    const { club, admin, ownerChatId } = await this.dataSource.transaction(async (manager) => {
       const phone = await this.trialVerification.claim(
         manager, dto.trialVerificationId, dto.trialVerificationToken, dto.phone,
       );
@@ -98,8 +103,31 @@ export class PublicService {
         address: dto.address.trim(),
       });
 
-      return { club: newClub, admin: newAdmin };
+      // Egasi telefonini shu botda tasdiqladi (Start bosdi) — hisobotlar uchun Telegram
+      // chati shu yerning o'zida klubga ulanadi (umumiy botda). Ro'yxatdan o'tish bilan
+      // bir tranzaksiya: biri bo'lmasa ikkinchisi ham bo'lmaydi.
+      const telegramUserId = this.ownerTelegram
+        ? await this.trialVerification.claimedTelegramUser(manager, dto.trialVerificationId)
+        : null;
+      const linkedChat = this.ownerTelegram
+        ? await this.ownerTelegram.linkRegisteredOwner(manager, {
+            clubId: newClub.id,
+            userId: newAdmin.id,
+            telegramUserId,
+            title: dto.ownerName.trim(),
+            lang,
+          })
+        : null;
+
+      return { club: newClub, admin: newAdmin, ownerChatId: linkedChat };
     });
+
+    // Salomlashuv — kutmasdan; xatosi ro'yxatdan o'tishga ta'sir qilmaydi
+    if (ownerChatId && this.ownerTelegram) {
+      void this.ownerTelegram
+        .welcomeRegisteredOwner(club.id, ownerChatId)
+        .catch((err: Error) => this.logger.error(`Telegram salomlashuvi yuborilmadi: ${err.message}`));
+    }
 
     // Xabar mantig'i TelegramService.notifyNewTrial da YAGONA manba (avval bu
     // yerda takrorlanib, ikki nusxa bir-biridan uzoqlashib ketgan edi). Hodisa

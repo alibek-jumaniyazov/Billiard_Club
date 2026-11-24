@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Optional, Post, Req, Res } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
@@ -11,6 +11,7 @@ import { AuthService } from '../auth/auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { PublicService } from './public.service';
 import { TrialVerificationService } from './trial-verification.service';
+import { OwnerTelegramService } from '../owner-telegram/owner-telegram.service';
 import { StartTrialVerificationDto, TrialVerificationStatusDto } from './dto/trial-verification.dto';
 
 @Controller('public')
@@ -22,6 +23,7 @@ export class PublicController {
     private readonly platformConfig: PlatformConfigService,
     private readonly trialVerification: TrialVerificationService,
     private readonly tiers: PlanTiersService,
+    @Optional() private readonly ownerTelegram?: OwnerTelegramService,
   ) {}
 
   @Public()
@@ -49,6 +51,11 @@ export class PublicController {
     @Headers('x-telegram-bot-api-secret-token') secret: string | undefined,
     @Body() update: unknown,
   ) {
+    // Umumiy bot: klub egasi buyruqlari, guruhlar va botni bloklash — egasi xizmatiga;
+    // telefonni tasdiqlash (/start trial_..., kontakt) — ro'yxatdan o'tish xizmatiga.
+    if (this.ownerTelegram?.isSharedUpdate(update)) {
+      return this.ownerTelegram.handleWebhook(secret, update);
+    }
     // Validate the nested Telegram shape inside the service; never accept browser contact assertions.
     return this.trialVerification.webhook(secret, update as Parameters<TrialVerificationService['webhook']>[1]);
   }
@@ -64,10 +71,14 @@ export class PublicController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { refreshToken, ...data } = await this.publicService.register(dto, {
-      ip: req.ip ?? null,
-      userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
-    });
+    const { refreshToken, ...data } = await this.publicService.register(
+      dto,
+      {
+        ip: req.ip ?? null,
+        userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
+      },
+      lang,
+    );
     // Avto-login login bilan bir xil: refresh FAQAT httpOnly cookie orqali
     this.authService.setRefreshCookie(res, refreshToken);
     return { success: true, message: t(lang, 'clubs.created'), data };

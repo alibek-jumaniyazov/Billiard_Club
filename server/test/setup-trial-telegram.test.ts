@@ -67,7 +67,7 @@ test('setup preserves pending updates, sends the secret, then verifies the webho
   assert.deepEqual(mock.calls[3].payload, {
     url: expectedUrl,
     secret_token: env.TRIAL_TELEGRAM_WEBHOOK_SECRET,
-    allowed_updates: ['message'],
+    allowed_updates: ['message', 'my_chat_member'],
     max_connections: 10,
   });
   assert.ok(!('drop_pending_updates' in mock.calls[3].payload));

@@ -35,7 +35,8 @@ export const envValidationSchema = Joi.object({
   TRIAL_TELEGRAM_BOT_TOKEN: Joi.string().allow('').optional(),
   TRIAL_TELEGRAM_BOT_USERNAME: Joi.string().pattern(/^[A-Za-z][A-Za-z0-9_]{4,31}$/).allow('').optional(),
   TRIAL_TELEGRAM_WEBHOOK_SECRET: Joi.string().pattern(/^[A-Za-z0-9_-]{32,256}$/).allow('').optional(),
-  // Klub egalari uchun bot (kunlik hisobot, darhol xabarlar) — ALOHIDA bot
+  // Klub egalari boti — IXTIYORIY alohida bot. Bo'sh bo'lsa ro'yxatdan o'tish boti
+  // (TRIAL_TELEGRAM_*) ishlatiladi va egalar ro'yxatdan o'tishda avtomatik ulanadi
   OWNER_TELEGRAM_BOT_TOKEN: Joi.string().allow('').optional(),
   OWNER_TELEGRAM_BOT_USERNAME: Joi.string().pattern(/^[A-Za-z][A-Za-z0-9_]{4,31}$/).allow('').optional(),
   OWNER_TELEGRAM_WEBHOOK_SECRET: Joi.string().pattern(/^[A-Za-z0-9_-]{32,256}$/).allow('').optional(),

@@ -3,20 +3,21 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnApplicationBootstrap,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { CRON_LOCK, withCronLock } from '../../common/cron/cron-lock';
 import { returningRows } from '../../common/db/returning-rows';
 import { localDayKey } from '../../common/time/club-day';
 import { ClubStatus } from '../../entities/enums';
-import { safeTimezone } from '../settings/timezones';
+import { DEFAULT_TIMEZONE, safeTimezone, SUPPORTED_TIMEZONES } from '../settings/timezones';
 import { FetchLike, OwnerBotApi, SendResult } from './owner-bot.api';
-import { OwnerBotConfig, ownerBotConfig } from './owner-bot.config';
+import { isOwnerUpdate, OwnerBotConfig, ownerBotConfig } from './owner-bot.config';
 import { renderHelp, renderWelcome, TEXTS } from './owner-report.render';
 import { ClubContext, OwnerReportService } from './owner-report.service';
 import { BotLang, botLang, localMinutes, parseClock, splitMessage } from './owner-telegram.format';
@@ -42,6 +43,8 @@ const MAX_OPEN_LINKS = 20;
 const COMMAND_GAP_MS = 3000;
 /** Kunlik hisobot vaqtinchalik xato bilan yuborilmasa — shuncha urinishdan keyin bugunga to'xtaymiz */
 const MAX_REPORT_ATTEMPTS = 5;
+/** platform_settings: avval ro'yxatdan o'tgan egalarni bir martalik ulash bajarilganmi */
+export const AUTOLINK_SETTING_KEY = 'owner_telegram_autolink_v1';
 
 export type ReportKind = 'yesterday' | 'today' | 'week' | 'live';
 
@@ -63,13 +66,16 @@ export interface OwnerChatRow {
   lastReportDate: string | null;
   lastSentAt: Date | null;
   lastError: string | null;
+  /** Avtomatik ulangan eski ega: birinchi hisobotdan oldin tanishtiruv xabari ketadi */
+  introPending: boolean;
   createdAt: Date;
 }
 
 /** `lastReportDate` MATN sifatida o'qiladi — pg `date` ni mahalliy yarim tun Date qilib, kunni surib yuborishi mumkin */
 const CHAT_COLUMNS = `c.id, c."clubId", c."chatId", c."chatType", c.title, c."linkedById", c."isActive",
   c."inactiveReason", c.lang, c."dailyReport", c."reportTime", c."periodReports", c.alerts,
-  to_char(c."lastReportDate", 'YYYY-MM-DD') AS "lastReportDate", c."lastSentAt", c."lastError", c."createdAt"`;
+  to_char(c."lastReportDate", 'YYYY-MM-DD') AS "lastReportDate", c."lastSentAt", c."lastError", c."introPending",
+  c."createdAt"`;
 
 interface TgUser {
   id?: number;
@@ -145,7 +151,7 @@ export interface UpdateOwnerChatInput {
  * Bot bloklansa yoki guruhdan chiqarilsa chat faolsizlanadi (ilovada ko'rinadi).
  */
 @Injectable()
-export class OwnerTelegramService {
+export class OwnerTelegramService implements OnApplicationBootstrap {
   private readonly logger = new Logger(OwnerTelegramService.name);
 
   /** Tarmoq chaqiruvi — testlarda soxta Telegram bilan almashtiriladi */
@@ -165,6 +171,11 @@ export class OwnerTelegramService {
 
   get botConfig(): OwnerBotConfig | null {
     return ownerBotConfig((key) => this.config.get<string>(key));
+  }
+
+  /** Umumiy botda (ro'yxatdan o'tish boti bilan bitta) bu yangilanish egasi xizmatinikimi */
+  isSharedUpdate(update: unknown): boolean {
+    return this.botConfig?.shared === true && isOwnerUpdate(update);
   }
 
   private api(): OwnerBotApi | null {
@@ -336,6 +347,100 @@ export class OwnerTelegramService {
       default:
         return this.reports.renderYesterday(ctx, lang, { periodBlocks });
     }
+  }
+
+  /* ============================================== avtomatik ulash (umumiy bot) */
+
+  /**
+   * Saytda ro'yxatdan o'tish bilan BIR tranzaksiyada: telefonini shu botda tasdiqlagan
+   * egasining shaxsiy chati klubga ulanadi. U botga Start bosgani uchun bot unga yoza oladi.
+   * Faqat umumiy botda (alohida egalar botiga u hali Start bosmagan bo'ladi).
+   * Birinchi kunlik hisobot ertaga ertalab keladi.
+   * @returns ulangan chat ID yoki null
+   */
+  async linkRegisteredOwner(
+    manager: EntityManager,
+    input: { clubId: number; userId: number; telegramUserId: string | null; title: string; lang: BotLang },
+  ): Promise<string | null> {
+    if (!this.botConfig?.shared) return null;
+    const chatId = (input.telegramUserId ?? '').trim();
+    if (!/^[1-9][0-9]{0,19}$/.test(chatId)) return null;
+    await manager.query(
+      `INSERT INTO owner_telegram_chats ("clubId", "chatId", "chatType", title, "linkedById", lang, "lastReportDate")
+       VALUES ($1, $2, 'private', $3, $4, $5, $6::date)
+       ON CONFLICT ("clubId", "chatId") DO NOTHING`,
+      [
+        input.clubId,
+        chatId,
+        input.title.trim().slice(0, 128) || null,
+        input.userId,
+        input.lang,
+        localDayKey(DEFAULT_TIMEZONE, new Date()),
+      ],
+    );
+    return chatId;
+  }
+
+  /** Ro'yxatdan o'tgach salomlashuv (tranzaksiya yakunlangach, kutmasdan) */
+  async welcomeRegisteredOwner(clubId: number, chatId: string): Promise<void> {
+    const rows = (await this.db.query(
+      `SELECT ${CHAT_COLUMNS} FROM owner_telegram_chats c WHERE c."clubId" = $1 AND c."chatId" = $2 AND c."isActive" = true`,
+      [clubId, chatId],
+    )) as OwnerChatRow[];
+    const row = rows[0];
+    if (!row) return;
+    const ctx = await this.reports.clubContext(clubId);
+    await this.deliver(
+      row,
+      renderWelcome({ club: ctx?.info.name ?? '', reportTime: row.reportTime, chatType: row.chatType, variant: 'registered' }, botLang(row.lang)),
+    );
+  }
+
+  /**
+   * BIR MARTALIK: avval saytda ro'yxatdan o'tgan egalarni ulash. Ro'yxatdan o'tishda klub,
+   * tasdiqlangan telefon (trial_claims) va Telegram akkaunti (telegram_trial_claims) bitta
+   * tranzaksiyada yoziladi — vaqt belgisi aynan bir xil (`now()`). Bog'lash shu vaqt VA
+   * telefon mosligi bilan; bitta vaqtga bir nechta akkaunt to'g'ri kelsa — ulanmaydi.
+   * Faqat umumiy botda; natija platform_settings ga yoziladi (qayta ishlamaydi —
+   * egasi o'chirgan chat qayta paydo bo'lmasin).
+   */
+  async autoLinkRegisteredOwners(): Promise<number | null> {
+    if (!this.botConfig?.shared) return null;
+    const done = (await this.db.query(`SELECT 1 FROM platform_settings WHERE key = $1`, [AUTOLINK_SETTING_KEY])) as unknown[];
+    if (done.length) return null;
+    const inserted = (await this.db.query(
+      `INSERT INTO owner_telegram_chats ("clubId", "chatId", "chatType", title, "linkedById", lang, "introPending", "lastReportDate")
+       SELECT c.id, t."telegramUserId", 'private', left(COALESCE(NULLIF(btrim(c."ownerName"), ''), c.name), 128), a.id, 'uz', true,
+              (now() AT TIME ZONE (CASE WHEN s.timezone = ANY($1) THEN s.timezone ELSE $2 END))::date
+       FROM clubs c
+       JOIN trial_claims p ON p."claimedAt" = c."createdAt" AND c.phone = '+' || p.phone
+       JOIN telegram_trial_claims t ON t."claimedAt" = c."createdAt"
+       LEFT JOIN settings s ON s."clubId" = c.id
+       LEFT JOIN LATERAL (
+         SELECT u.id FROM users u WHERE u."clubId" = c.id AND u.role = 'admin' ORDER BY u."createdAt", u.id LIMIT 1
+       ) a ON true
+       WHERE t."telegramUserId" ~ '^[1-9][0-9]{0,19}$'
+         AND (SELECT count(*) FROM telegram_trial_claims t2 WHERE t2."claimedAt" = c."createdAt") = 1
+         AND (SELECT count(*) FROM owner_telegram_chats o WHERE o."clubId" = c.id) < $3
+       ON CONFLICT ("clubId", "chatId") DO NOTHING
+       RETURNING id`,
+      [[...SUPPORTED_TIMEZONES], DEFAULT_TIMEZONE, MAX_CHATS_PER_CLUB],
+    )) as unknown[];
+    await this.db.query(
+      `INSERT INTO platform_settings (key, value) VALUES ($1, $2::jsonb)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      [AUTOLINK_SETTING_KEY, JSON.stringify({ at: new Date().toISOString(), linked: inserted.length })],
+    );
+    if (inserted.length) this.logger.log(`Avval ro'yxatdan o'tgan ${inserted.length} ta klub egasi Telegram'ga ulandi`);
+    return inserted.length;
+  }
+
+  /** Ishga tushganda (kutmasdan) — bir martalik ulash; ko'p instansiyada bittasi bajaradi */
+  onApplicationBootstrap(): void {
+    if (!this.botConfig?.shared) return;
+    void withCronLock(this.db, CRON_LOCK.ownerTelegramAutolink, async () => {
+      await this.autoLinkRegisteredOwners();
+    }).catch((err: Error) => this.logger.error(`Avtomatik ulash bajarilmadi: ${err.message}`));
   }
 
   /* ========================================================= yetkazib berish */
@@ -694,6 +799,22 @@ export class OwnerTelegramService {
           if (!ctx) continue;
           html = await this.reports.renderYesterday(ctx, lang, { periodBlocks: row.periodReports }, now);
           cache.set(cacheKey, html);
+        }
+
+        if (row.introPending) {
+          // Avtomatik ulangan eski ega: avval bot nima uchun yozayotganini tushuntiramiz
+          const ctx = await this.reports.clubContext(row.clubId, now);
+          const intro = await this.deliver(
+            row,
+            renderWelcome({ club: ctx?.info.name ?? '', reportTime: row.reportTime, chatType: row.chatType, variant: 'intro' }, lang),
+          );
+          if (!intro.ok) {
+            if (intro.permanent) {
+              await this.db.query(`UPDATE owner_telegram_chats SET "lastReportDate" = $2::date WHERE id = $1`, [row.id, today]);
+            }
+            continue;
+          }
+          await this.db.query(`UPDATE owner_telegram_chats SET "introPending" = false WHERE id = $1`, [row.id]);
         }
 
         const result = await this.deliver(row, html);
