@@ -82,6 +82,12 @@ import type {
   TableLightPayload,
   TableLightBulkItem,
   TelegramSettings,
+  OwnerReportKind,
+  OwnerTelegramChat,
+  OwnerTelegramChatPayload,
+  OwnerTelegramLink,
+  OwnerTelegramSendResult,
+  OwnerTelegramStatus,
   TokenPair,
   User,
   TiersConfig,
@@ -112,6 +118,24 @@ const put = async <T>(url: string, body?: object, key?: string): Promise<ApiResp
 /** DELETE tanasi axios da `config.data` orqali yuboriladi (ommaviy o'chirish) */
 const del = async <T>(url: string, body?: object): Promise<ApiResponse<T>> =>
   (await client.delete<ApiResponse<T>>(url, { data: body })).data;
+const patch = async <T>(url: string, body?: object): Promise<ApiResponse<T>> =>
+  (await client.patch<ApiResponse<T>>(url, body)).data;
+
+/** Klub egasi uchun Telegram bot (faqat admin): ulash, sozlash, sinov va namuna */
+export const ownerTelegramApi = {
+  status: () => get<OwnerTelegramStatus>('/owner-telegram'),
+  /** Bir martalik 15 daqiqalik havola (QR va «Telegram'da ochish» uchun) */
+  link: () => post<OwnerTelegramLink>('/owner-telegram/link', {}),
+  update: (id: number, body: OwnerTelegramChatPayload) =>
+    patch<OwnerTelegramChat>(`/owner-telegram/chats/${id}`, body),
+  remove: (id: number) => del<null>(`/owner-telegram/chats/${id}`),
+  test: (id: number) => post<OwnerTelegramSendResult>(`/owner-telegram/chats/${id}/test`, {}),
+  sendReport: (id: number, kind: OwnerReportKind) =>
+    post<OwnerTelegramSendResult>(`/owner-telegram/chats/${id}/report`, { kind }),
+  /** Telegram'ga yubormasdan hisobot matni (Telegram HTML) */
+  preview: (kind: OwnerReportKind, lang: 'uz' | 'ru') =>
+    get<{ text: string }>('/owner-telegram/preview', { kind, lang }),
+};
 
 export const authApi = {
   login: (username: string, password: string) =>

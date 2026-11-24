@@ -19,6 +19,7 @@ import {
   NotificationOutlined,
   PieChartOutlined,
   PlayCircleOutlined,
+  SendOutlined,
   SettingOutlined,
   ShopOutlined,
   SolutionOutlined,
@@ -206,6 +207,8 @@ const Sidebar = ({ collapsed, inDrawer = false, onNavigate }: SidebarProps) => {
                 { key: '/notifications', icon: <BellOutlined />, label: t('menu.notifications') },
                 { key: '/subscription', icon: <CrownOutlined />, label: t('menu.subscription') },
                 { key: '/feedback', icon: <CommentOutlined />, label: t('menu.feedback') },
+                // Klub egasining Telegram hisobotlari — superadmin ko'rishida ochilmaydi
+                { key: '/telegram', icon: <SendOutlined />, label: t('menu.telegram') },
               ]),
           { key: '/settings', icon: <SettingOutlined />, label: t('menu.settings') },
         ],

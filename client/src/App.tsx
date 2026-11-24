@@ -31,6 +31,7 @@ const Debts = lazy(() => import('./pages/Debts'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Staff = lazy(() => import('./pages/Staff'));
 const Settings = lazy(() => import('./pages/Settings'));
+const TelegramBot = lazy(() => import('./pages/TelegramBot'));
 const Customers = lazy(() => import('./pages/Customers'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const Shifts = lazy(() => import('./pages/Shifts'));
@@ -468,6 +469,14 @@ const App = () => {
             element={
               <Protected roles={['admin']}>
                 <Settings />
+              </Protected>
+            }
+          />
+          <Route
+            path="/telegram"
+            element={
+              <Protected roles={['admin']}>
+                <TelegramBot />
               </Protected>
             }
           />

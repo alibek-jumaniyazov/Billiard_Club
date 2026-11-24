@@ -1490,3 +1490,58 @@ export interface ReservationPayload {
   status?: ReservationStatus;
   notes?: string;
 }
+
+/* ----------------------------------------- Klub egasi uchun Telegram bot */
+
+/** Darhol xabar turlari (har chat uchun alohida yoqiladi) */
+export type OwnerAlertKey = 'cancel' | 'discount' | 'shift' | 'debt' | 'prices' | 'stock';
+export const OWNER_ALERT_KEYS: readonly OwnerAlertKey[] = ['cancel', 'discount', 'shift', 'debt', 'prices', 'stock'];
+export type OwnerReportKind = 'yesterday' | 'today' | 'week' | 'live';
+
+export interface OwnerTelegramChat {
+  id: number;
+  chatType: 'private' | 'group' | 'supergroup' | string;
+  title: string | null;
+  isActive: boolean;
+  /** 'stopped' — /stop bosilgan; 'blocked' — bot bloklangan yoki guruhdan chiqarilgan */
+  inactiveReason: string | null;
+  lang: 'uz' | 'ru';
+  dailyReport: boolean;
+  /** Klub vaqti bo'yicha 'HH:mm' */
+  reportTime: string;
+  periodReports: boolean;
+  alerts: Record<OwnerAlertKey, boolean>;
+  lastSentAt: string | null;
+  lastError: string | null;
+  linkedByName: string | null;
+  createdAt: string;
+}
+
+export interface OwnerTelegramStatus {
+  /** Platformada bot sozlanganmi (OWNER_TELEGRAM_* .env da) */
+  available: boolean;
+  botUsername: string | null;
+  maxChats: number;
+  chats: OwnerTelegramChat[];
+}
+
+export interface OwnerTelegramLink {
+  botUsername: string;
+  url: string;
+  groupUrl: string;
+  expiresAt: string;
+}
+
+export interface OwnerTelegramChatPayload {
+  dailyReport?: boolean;
+  reportTime?: string;
+  periodReports?: boolean;
+  lang?: 'uz' | 'ru';
+  alerts?: Partial<Record<OwnerAlertKey, boolean>>;
+}
+
+export interface OwnerTelegramSendResult {
+  ok: boolean;
+  blocked?: boolean;
+  error?: string;
+}

@@ -21,6 +21,9 @@ export interface AuditEntry {
   meta?: Record<string, unknown> | null;
 }
 
+/** Audit hodisasini kuzatuvchi (masalan, klub egasiga Telegram orqali darhol xabar) */
+export type AuditListener = (entry: AuditEntry) => void | Promise<void>;
+
 /**
  * Audit jurnali servisi — hodisalarni fire-and-forget usulida yozadi:
  * jurnal yozuvidagi xato asosiy biznes oqimini hech qachon to'xtatmaydi,
@@ -29,6 +32,9 @@ export interface AuditEntry {
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
+
+  /** Kuzatuvchilar — jurnal bilan bir xil hodisalarni oladi (ularning xatosi oqimga ta'sir qilmaydi) */
+  private readonly listeners = new Set<AuditListener>();
 
   constructor(
     @InjectRepository(AuditLog) private readonly auditRepo: Repository<AuditLog>,
@@ -54,6 +60,26 @@ export class AuditService {
       .catch((err: Error) =>
         this.logger.error(`Audit yozuvi saqlanmadi (${entry.action}): ${err.message}`),
       );
+    for (const listener of this.listeners) {
+      try {
+        void Promise.resolve(listener(entry)).catch((err: Error) =>
+          this.logger.error(`Audit kuzatuvchisi xatosi (${entry.action}): ${err.message}`),
+        );
+      } catch (err) {
+        this.logger.error(`Audit kuzatuvchisi xatosi (${entry.action}): ${(err as Error).message}`);
+      }
+    }
+  }
+
+  /**
+   * Muhim hodisalarga obuna (masalan, bekor qilingan o'yin haqida egaga xabar).
+   * Qaytaradi: obunani bekor qiluvchi funksiya.
+   */
+  subscribe(listener: AuditListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   /** Ustun uzunligidan oshgan qiymatlarni kesish — insert yiqilmasin */

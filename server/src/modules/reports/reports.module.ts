@@ -8,5 +8,7 @@ import { ReportsService } from './reports.service';
   imports: [TypeOrmModule.forFeature([Session])],
   controllers: [ReportsController],
   providers: [ReportsService],
+  // Klub egasining Telegram hisoboti xuddi shu raqamlardan foydalanadi
+  exports: [ReportsService],
 })
 export class ReportsModule {}

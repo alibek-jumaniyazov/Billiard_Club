@@ -86,6 +86,21 @@ Pullik SMS ishlatilmaydi. Botni, webhookni va doimiy sinov tarixini sozlash:
 **[docs/TRIAL-PROTECTION.md](docs/TRIAL-PROTECTION.md)**.
 Bu sozlamalar bo‘lmasa, tasdiqlanmagan foydalanuvchiga bepul sinov ochilmaydi.
 
+### Klub egasi uchun Telegram bot
+
+Klub egasi ilovadagi **Boshqaruv → Telegram bot** bo'limida QR kod orqali o'z
+Telegramini (yoki sheriklar guruhini) ulaydi. Bot quyidagilarni yuboradi:
+
+- **Har kuni kechagi kun hisoboti.** Tushum (naqd/karta), o'yinlar, eng band stollar,
+  kassirlar, qarz, xarajat, smena kassa farqi. Dushanba kuni hafta yakuni, oyning 1-kuni
+  oy yakuni qo'shiladi.
+- **Darhol xabarlar.** Bekor qilingan o'yin, chegirma, smena yopilishi (kamomad bilan),
+  qarzni hisobdan chiqarish, narx o'zgarishi.
+- **Buyruqlarga javob:** `/bugun`, `/hozir`, `/hafta`.
+
+Raqamlar «Hisobotlar» sahifasi bilan bir xil. Alohida bot va bir martalik sozlash kerak:
+**[docs/TELEGRAM-BOT.md](docs/TELEGRAM-BOT.md)**.
+
 ## Stol chiroqlarini avtomatik boshqarish
 
 Kassir o'yinni boshlaganda stol chirog'i o'zi yonadi, yakunlanganda o'zi o'chadi — odatda **1 soniyadan kam**
@@ -574,7 +589,7 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
    `RefreshSessionAndOrderIndexes`, `IdempotencyKeys`, `DebtWriteOff`, `TrialClaims`,
    `TrialTelegramVerification`, `Leads`, `CashShifts`, `SessionPlannedMinutes`,
    `TableZones`, `AndroidReleases`, `TierPlans`, `ClubBlockReason`, `SessionLimitAmount`,
-   `LightDriversLocalHub` va `TableRounding`.
+   `LightDriversLocalHub`, `TableRounding` va `OwnerTelegram`.
    Ularsiz qarzni hisobdan chiqarish, yangi foydalanuvchini ro‘yxatdan o‘tkazish,
    landing arizalari, kassa smenalari, belgilangan vaqtli o‘yin, stol zonalari,
    Android relizlari, tarif darajalari, blok sababi, summa limiti, chiroq markazi va
@@ -586,6 +601,9 @@ Testlar sinov huquqi va pul hisoblash mantiqini tekshiradi:
    aks holda DIRECT rejim ishlamaydi. `BRIDGE` rejimi ta'sirlanmaydi.
 4. Serverni qayta ishga tushiring.
 5. Ommaviy registratsiya uchun [Telegram tekshiruv botini sozlang](docs/TRIAL-PROTECTION.md).
+6. Klub egalari boti (kunlik hisobot): `.env` ga `OWNER_TELEGRAM_*` ni qo'shing va
+   `npm --prefix server run owner:telegram:setup -- https://API_DOMEN` ni bir marta ishga
+   tushiring ([docs/TELEGRAM-BOT.md](docs/TELEGRAM-BOT.md)).
 
 ## Production eslatmalari
 

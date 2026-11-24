@@ -43,6 +43,7 @@ import { LightsModule } from './modules/lights/lights.module';
 import { ReleasesModule } from './modules/releases/releases.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
+import { OwnerTelegramModule } from './modules/owner-telegram/owner-telegram.module';
 import { DbResilienceService } from './common/db/db-resilience.service';
 
 @Module({
@@ -90,6 +91,7 @@ import { DbResilienceService } from './common/db/db-resilience.service';
     ReleasesModule,
     LeadsModule,
     ShiftsModule,
+    OwnerTelegramModule,
   ],
   controllers: [AppController],
   providers: [

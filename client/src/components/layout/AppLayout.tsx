@@ -42,6 +42,7 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
   '/profile': 'menu.profile',
   '/staff': 'menu.staff',
   '/settings': 'menu.settings',
+  '/telegram': 'menu.telegram',
   '/admin': 'menu.adminDashboard',
   '/admin/clubs': 'menu.clubs',
   '/admin/releases': 'menu.adminReleases',

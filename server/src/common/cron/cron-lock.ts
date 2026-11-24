@@ -56,4 +56,5 @@ export async function withCronLock(
  */
 export const CRON_LOCK = {
   subscriptionDaily: 785_001,
+  ownerTelegramReports: 785_002,
 } as const;

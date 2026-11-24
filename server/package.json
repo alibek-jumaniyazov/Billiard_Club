@@ -12,6 +12,7 @@
     "test": "node test/run-unit-tests.cjs",
     "test:integration": "node test/run-postgres-tests.cjs",
     "trial:telegram:setup": "node scripts/setup-trial-telegram.cjs",
+    "owner:telegram:setup": "node scripts/setup-owner-telegram.cjs",
     "typeorm": "typeorm-ts-node-commonjs -d src/database/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",

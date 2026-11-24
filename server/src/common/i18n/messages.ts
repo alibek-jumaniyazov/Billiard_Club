@@ -147,6 +147,16 @@ const messages: Record<Language, Record<string, string>> = {
     'lights.invalidHost':
       "Rele manzili noto'g'ri: IP yoki host ko'rsating, http drayveri uchun esa onUrl va offUrl kerak",
     'lights.notConfigured': "Bu stolda chiroq sozlanmagan yoki boshqaruv o'chirilgan",
+    // Klub egasi Telegram boti
+    'ownerTelegram.notConfigured': "Telegram bot platformada hali sozlanmagan — platforma administratoriga murojaat qiling",
+    'ownerTelegram.chatNotFound': 'Telegram chat topilmadi',
+    'ownerTelegram.chatInactive': "Bu chat faol emas (bot bloklangan yoki to'xtatilgan) — qayta ulang",
+    'ownerTelegram.tooManyLinks': "Juda ko'p ulash havolasi yaratildi — 15 daqiqadan keyin qayta urinib ko'ring",
+    'ownerTelegram.tooManyChats': "Klubga ko'pi bilan {max} ta chat ulanadi — keraksizini o'chiring",
+    'ownerTelegram.sent': 'Telegramga yuborildi',
+    'ownerTelegram.sendFailed': 'Telegramga yuborilmadi: {error}',
+    'ownerTelegram.updated': 'Sozlamalar saqlandi',
+    'ownerTelegram.removed': "Chat o'chirildi",
     'lights.bridgeOffline': "Klub agenti ulanmagan — buyruq u ulangach qo'llanadi",
     'lights.deviceUnreachable': "Relega ulanib bo'lmadi",
     'lights.invalidConfig':
@@ -498,6 +508,16 @@ const messages: Record<Language, Record<string, string>> = {
     'lights.invalidHost':
       'Неверный адрес реле: укажите IP или хост, а для драйвера http — onUrl и offUrl',
     'lights.notConfigured': 'На этом столе освещение не настроено или управление отключено',
+    // Telegram-бот владельца клуба
+    'ownerTelegram.notConfigured': 'Telegram-бот ещё не настроен на платформе — обратитесь к администратору платформы',
+    'ownerTelegram.chatNotFound': 'Telegram-чат не найден',
+    'ownerTelegram.chatInactive': 'Чат не активен (бот заблокирован или остановлен) — подключите заново',
+    'ownerTelegram.tooManyLinks': 'Создано слишком много ссылок — попробуйте через 15 минут',
+    'ownerTelegram.tooManyChats': 'К клубу можно подключить не более {max} чатов — удалите лишний',
+    'ownerTelegram.sent': 'Отправлено в Telegram',
+    'ownerTelegram.sendFailed': 'Не отправлено в Telegram: {error}',
+    'ownerTelegram.updated': 'Настройки сохранены',
+    'ownerTelegram.removed': 'Чат удалён',
     'lights.bridgeOffline': 'Агент клуба не на связи — команда применится после подключения',
     'lights.deviceUnreachable': 'Не удалось подключиться к реле',
     'lights.invalidConfig':

@@ -247,6 +247,7 @@ export const NAV_DESTINATIONS: ReadonlyArray<{
   { path: '/subscription', titleKey: 'menu.subscription', roles: ['admin'] },
   { path: '/staff', titleKey: 'menu.staff', roles: ['admin'] },
   { path: '/settings', titleKey: 'menu.settings', roles: ['admin'] },
+  { path: '/telegram', titleKey: 'menu.telegram', roles: ['admin'] },
   { path: '/profile', titleKey: 'menu.profile', roles: ['superadmin', 'admin', 'kassir', 'operator'] },
   { path: '/admin', titleKey: 'menu.adminDashboard', roles: ['superadmin'] },
   { path: '/admin/clubs', titleKey: 'menu.clubs', roles: ['superadmin'] },

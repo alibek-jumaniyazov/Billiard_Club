@@ -34,6 +34,7 @@ import shifts from './pages/shifts';
 import billiard from './pages/billiard';
 import tiers from './pages/tiers';
 import lights from './pages/lights';
+import telegram from './pages/telegram';
 
 export type Lang = 'uz' | 'ru';
 
@@ -73,6 +74,7 @@ const pages: Record<string, PageDict> = {
   billiard,
   tiers,
   lights,
+  telegram,
 };
 
 const buildLocale = (lang: Lang): Record<string, string> => {
