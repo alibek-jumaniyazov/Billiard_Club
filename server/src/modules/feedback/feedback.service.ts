@@ -62,6 +62,13 @@ const EXT_CONTENT_TYPE: Record<string, string> = {
 const UPLOADS_ROOT = join(process.cwd(), 'uploads');
 
 /**
+ * Bitta fikr-mulohaza biriktirmalari papkasi. Klub butunlay o'chirilganda ham
+ * shu yo'l bilan tozalanadi (clubs/club-purge.service.ts).
+ */
+export const feedbackUploadDir = (feedbackId: number): string =>
+  join(UPLOADS_ROOT, 'feedback', String(feedbackId));
+
+/**
  * Fikr-mulohaza markazi:
  *  - klub tomoni: yuborish (rasm biriktirish bilan) va o'z fikrlarini ko'rish;
  *  - superadmin tomoni: ro'yxat, holat boshqaruvi, javob yozish.
@@ -111,7 +118,7 @@ export class FeedbackService {
 
     if (files.length > 0) {
       try {
-        const dir = join(UPLOADS_ROOT, 'feedback', String(saved.id));
+        const dir = feedbackUploadDir(saved.id);
         await fs.mkdir(dir, { recursive: true });
         const paths: string[] = [];
         for (let i = 0; i < files.length; i++) {

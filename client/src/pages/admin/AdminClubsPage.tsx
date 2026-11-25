@@ -69,6 +69,7 @@ import { formatMoney, formatNumber } from '../../utils/format';
 import { isFormValidationError } from '../../utils/formErrors';
 import { TIER_TAG_COLOR, tierLabel, tierOptions } from '../../utils/tiers';
 import { readClubFilters } from './adminWorkspace';
+import ClubDeleteModal from './ClubDeleteModal';
 import './admin-workspace.css';
 
 const { Text } = Typography;
@@ -164,6 +165,9 @@ const AdminClubsPage = () => {
 
   const [passwordClub, setPasswordClub] = useState<Club | null>(null);
   const [passwordForm] = Form.useForm();
+
+  // Butunlay o'chirish oynasi (klub barcha ma'lumotlari bilan)
+  const [deleteClub, setDeleteClub] = useState<Club | null>(null);
 
   // Bloklash oynasi: sabab va klubga izoh ixtiyoriy; bloklangan klubda — sababni o'zgartirish
   const [blockClub, setBlockClub] = useState<Club | null>(null);
@@ -454,23 +458,11 @@ const AdminClubsPage = () => {
     }
   };
 
-  const confirmDelete = (club: Club) => {
-    modal.confirm({
-      title: t('adminClubs.deleteConfirm'),
-      okText: t('common.yes'),
-      cancelText: t('common.no'),
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        try {
-          const res = await adminApi.removeClub(club.id);
-          message.success(res.message);
-          if (detailClub?.id === club.id) setDetailClub(null);
-          refreshList();
-        } catch (err) {
-          message.error(errorMessage(err, t('common.error')));
-        }
-      },
-    });
+  /** Klub butunlay o'chirildi: ochiq panel yopiladi, shu klub ichini ko'rish rejimi tozalanadi */
+  const handleClubDeleted = (club: Club) => {
+    if (detailClub?.id === club.id) setDetailClub(null);
+    if (viewingClub.get()?.id === club.id) viewingClub.clear();
+    refreshList();
   };
 
   // ---------- Klub panelini ko'rish ----------
@@ -616,7 +608,7 @@ const AdminClubsPage = () => {
           { key: 'block-reason', icon: <EditOutlined />, label: t('adminClubs.blockReasonEdit'), onClick: () => openBlock(club) },
         ]
       : [{ key: 'block', icon: <LockOutlined />, label: t('adminClubs.block'), danger: true, onClick: () => openBlock(club) }]),
-    { key: 'delete', icon: <DeleteOutlined />, label: t('btn.delete'), danger: true, onClick: () => confirmDelete(club) },
+    { key: 'delete', icon: <DeleteOutlined />, label: t('adminClubs.deleteClub'), danger: true, onClick: () => setDeleteClub(club) },
   ];
 
   const paginationChange = (next: number, size: number) => {
@@ -1513,6 +1505,9 @@ const AdminClubsPage = () => {
       >
         <Tabs activeKey={detailTab} onChange={setDetailTab} items={detailTabs} />
       </Drawer>
+
+      {/* Butunlay o'chirish: nima o'chadi / nima saqlanadi + klub nomi bilan tasdiq */}
+      <ClubDeleteModal club={deleteClub} onClose={() => setDeleteClub(null)} onDeleted={handleClubDeleted} />
     </PageTransition>
   );
 };

@@ -10,13 +10,11 @@ import * as bcrypt from 'bcryptjs';
 import { Between, Brackets, DataSource, EntityManager, IsNull, Repository } from 'typeorm';
 import { AuditService } from '../../common/audit/audit.service';
 import { clubTimezone, localDateParts, zonedMidnight } from '../../common/time/club-day';
-import { Category } from '../../entities/category.entity';
 import { Club } from '../../entities/club.entity';
 import { Contract, ContractType } from '../../entities/contract.entity';
 import { Debt } from '../../entities/debt.entity';
 import { DebtPayment } from '../../entities/debt-payment.entity';
 import { ClubStatus, SessionStatus, UserRole } from '../../entities/enums';
-import { Product } from '../../entities/product.entity';
 import { RefreshSession } from '../../entities/refresh-session.entity';
 import { Sale } from '../../entities/sale.entity';
 import { Session } from '../../entities/session.entity';
@@ -641,55 +639,6 @@ export class ClubsService {
       expiringSoon,
       recentContracts,
     };
-  }
-
-  /**
-   * Faqat bo'sh klubni o'chirish mumkin — aks holda bloklanadi.
-   * "Bo'sh" = sessiyalar HAM, shartnomalar HAM, TO'LANGAN fakturalar HAM yo'q
-   * (shartnomalar va to'langan fakturalar platforma daromadi yozuvlari —
-   * cascade bilan jimgina o'chib ketmasligi kerak).
-   */
-  async remove(id: number) {
-    const club = await this.clubRepo.findOne({ where: { id } });
-    if (!club) throw new NotFoundException({ key: 'clubs.notFound' });
-
-    // "Bo'sh" tekshiruvi TO'LIQ bo'lishi shart: aks holda o'chirishga urinish
-    // xom FK xatosiga (RESTRICT) uchrab, chalkash umumiy xato qaytarardi.
-    // sessions > 0 — buyurtma/sotuv/qarz/to'lov yozuvlarining hammasini qamraydi
-    // (ular sessiyasiz bo'lmaydi). customers/expenses/reservations esa sessiyasiz
-    // ham mavjud bo'la oladi — ular ham RESTRICT, shuning uchun alohida sanaladi.
-    // contracts va invoices CASCADE bo'lsa-da, platforma to'lov yozuvlari
-    // jimgina o'chmasin (va faktura raqamlari qayta ishlatilmasin) deb ataylab
-    // bloklanadi. Fakturalarda FAQAT 'paid' sanaladi: bekor qilingan/muddati
-    // o'tgan so'rov daromad yozuvi emas — u tufayli klub abadiy o'chmaydigan
-    // bo'lib qolmasin (removeContract dagi shart bilan bir xil).
-    // club_bridges (clubId RESTRICT) va feedbacks (userId RESTRICT —
-    // klub foydalanuvchilari shu yerda o'chiriladi) ham xom FK xatosini beradi.
-    const [row] = (await this.dataSource.query(
-      `SELECT
-         (SELECT COUNT(*) FROM sessions WHERE "clubId" = $1)
-       + (SELECT COUNT(*) FROM contracts WHERE "clubId" = $1)
-       + (SELECT COUNT(*) FROM invoices WHERE "clubId" = $1 AND status = 'paid')
-       + (SELECT COUNT(*) FROM customers WHERE "clubId" = $1)
-       + (SELECT COUNT(*) FROM expenses WHERE "clubId" = $1)
-       + (SELECT COUNT(*) FROM reservations WHERE "clubId" = $1)
-       + (SELECT COUNT(*) FROM club_bridges WHERE "clubId" = $1)
-       + (SELECT COUNT(*) FROM feedbacks WHERE "clubId" = $1) AS cnt`,
-      [id],
-    )) as Array<{ cnt: string }>;
-    if (Number(row?.cnt ?? 0) > 0) {
-      throw new BadRequestException({ key: 'clubs.hasData' });
-    }
-
-    await this.dataSource.transaction(async (manager) => {
-      await manager.delete(Settings, { clubId: id });
-      await manager.delete(Table, { clubId: id });
-      await manager.delete(Product, { clubId: id });
-      await manager.delete(Category, { clubId: id });
-      await manager.delete(User, { clubId: id });
-      await manager.delete(Club, { id });
-    });
-    return true;
   }
 
   /**

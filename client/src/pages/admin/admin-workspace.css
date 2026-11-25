@@ -65,3 +65,13 @@
 
 /* Arizalar: yangi (qo'ng'iroq kutayotgan) qator — oltin chap chiziq */
 .lead-row-new > td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+
+/* Klubni butunlay o'chirish oynasi: nima o'chadi (ikki ustunli ro'yxat) */
+.club-delete__list { margin: 8px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 16px; }
+.club-delete__row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 8px; background: var(--bg1); border: 1px solid var(--border-subtle); }
+.club-delete__row dt { color: var(--text-secondary); }
+.club-delete__row dd { margin: 0; font-weight: 600; color: var(--text-primary); }
+.club-delete__empty { margin-top: 6px; }
+.club-delete__label { display: block; margin-bottom: 6px; }
+/* To'lov tarixidagi butunlay o'chirilgan klub (havolasiz) */
+.admin-workspace__deleted-club { color: var(--text-secondary); }

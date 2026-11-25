@@ -253,8 +253,9 @@ const messages: Record<Language, Record<string, string>> = {
     'clubs.passwordReset': 'Klub admin paroli yangilandi',
     'clubs.usernameTaken': 'Bu username allaqachon mavjud',
     'clubs.adminNotFound': 'Klub administratori topilmadi',
-    'clubs.hasData': "Klubda ma'lumotlar bor, o'chirib bo'lmaydi. Bloklang",
-    'clubs.deleted': "Klub o'chirildi",
+    'clubs.purged': "«{name}» klubi barcha ma'lumotlari bilan o'chirildi",
+    'clubs.purgeNameMismatch': "Klub nomi mos kelmadi — o'chirish bajarilmadi",
+    'clubs.purgeOwnClub': "O'zingiz biriktirilgan klubni o'chirib bo'lmaydi",
     'clubs.extendChoiceRequired': "Uzaytirish uchun yo oylar sonini, yo aniq sanani bering (aynan bittasini)",
     'clubs.wouldShortenSubscription':
       "Yangi sana joriy obuna muddatidan oldin — to'langan kunlar yo'qoladi. Qisqartirishni aniq tasdiqlang",
@@ -614,8 +615,9 @@ const messages: Record<Language, Record<string, string>> = {
     'clubs.passwordReset': 'Пароль администратора клуба обновлён',
     'clubs.usernameTaken': 'Это имя пользователя уже занято',
     'clubs.adminNotFound': 'Администратор клуба не найден',
-    'clubs.hasData': 'В клубе есть данные, удалить нельзя. Заблокируйте',
-    'clubs.deleted': 'Клуб удалён',
+    'clubs.purged': 'Клуб «{name}» удалён со всеми данными',
+    'clubs.purgeNameMismatch': 'Название клуба не совпадает — удаление не выполнено',
+    'clubs.purgeOwnClub': 'Нельзя удалить клуб, к которому привязана ваша учётная запись',
     'clubs.extendChoiceRequired': 'Укажите либо количество месяцев, либо точную дату (ровно одно)',
     'clubs.wouldShortenSubscription':
       'Новая дата раньше текущего срока подписки — оплаченные дни будут потеряны. Подтвердите сокращение явно',

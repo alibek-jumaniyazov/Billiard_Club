@@ -162,6 +162,14 @@ export class BlockClubDto {
   note?: string;
 }
 
+/** Klubni butunlay o'chirish tasdig'i: klub nomi aynan yozilishi shart */
+export class PurgeClubDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(150)
+  confirmName: string;
+}
+
 export class ResetClubPasswordDto {
   @IsString()
   @MinLength(8)

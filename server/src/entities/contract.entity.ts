@@ -34,13 +34,21 @@ export class Contract {
   @PrimaryGeneratedColumn()
   id: number;
 
+  /**
+   * Klub. Klub butunlay o'chirilganda null bo'ladi — shartnoma platforma daromad
+   * tarixi sifatida qoladi (FK ON DELETE SET NULL; nomi `clubName` ga muhrlanadi).
+   */
   @Index()
-  @Column({ type: 'int' })
-  clubId: number;
+  @Column({ type: 'int', nullable: true })
+  clubId: number | null;
 
-  @ManyToOne(() => Club, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Club, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'clubId' })
-  club: Club;
+  club: Club | null;
+
+  /** O'chirilgan klubning nomi (tarixda ko'rsatish uchun); tirik klubda null */
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  clubName: string | null;
 
   @Column({ type: 'enum', enum: ContractType, enumName: 'contract_type', default: ContractType.MONTHLY })
   type: ContractType;

@@ -336,7 +336,16 @@ const AdminBilling = () => {
     {
       title: t('admin.billing.club'),
       key: 'club',
-      render: (_, inv) => <Text strong>{inv.club?.name ?? `#${inv.clubId}`}</Text>,
+      // Butunlay o'chirilgan klubning to'langan fakturasi tarixda nomi bilan qoladi
+      render: (_, inv) =>
+        inv.club ? (
+          <Text strong>{inv.club.name}</Text>
+        ) : (
+          <Space size={6} wrap>
+            <Text strong type="secondary">{inv.clubName ?? (inv.clubId ? `#${inv.clubId}` : '—')}</Text>
+            {inv.clubId == null && <Tag>{t('adminClubs.deletedClub')}</Tag>}
+          </Space>
+        ),
     },
     {
       title: t('admin.billing.plan'),

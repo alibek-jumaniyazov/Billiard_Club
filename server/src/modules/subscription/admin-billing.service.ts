@@ -219,6 +219,9 @@ export class AdminBillingService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!inv) throw new NotFoundException({ key: 'subscription.invoiceNotFound' });
+      // Butunlay o'chirilgan klubning yozuvi (tarixda faqat to'langanlari qoladi)
+      if (inv.clubId == null) throw new NotFoundException({ key: 'clubs.notFound' });
+      const clubId = inv.clubId;
       // EXPIRED ham qabul qilinadi: cron eski PENDING fakturani yopadi, lekin
       // bank o'tkazmasi kechikib kelishi mumkin — superadmin kech kelgan
       // to'lovni baribir tasdiqlay olishi shart (aks holda faktura muzlab qolardi).
@@ -232,7 +235,7 @@ export class AdminBillingService {
       // beradi, shuning uchun rad etiladi (uni Rad etish tugmasi bilan yopiladi).
       if (inv.status === InvoiceStatus.EXPIRED) {
         const newerPaid = await manager.findOne(Invoice, {
-          where: { clubId: inv.clubId, status: InvoiceStatus.PAID, id: MoreThan(inv.id) },
+          where: { clubId, status: InvoiceStatus.PAID, id: MoreThan(inv.id) },
         });
         if (newerPaid) throw new BadRequestException({ key: 'subscription.staleInvoice' });
       }
@@ -243,7 +246,7 @@ export class AdminBillingService {
       if (!plan) throw new BadRequestException({ key: 'subscription.planNotFound' });
 
       const lockedClub = await manager.findOne(Club, {
-        where: { id: inv.clubId },
+        where: { id: clubId },
         lock: { mode: 'pessimistic_write' },
       });
       if (!lockedClub) throw new NotFoundException({ key: 'clubs.notFound' });
@@ -255,7 +258,7 @@ export class AdminBillingService {
 
       // Shartnoma + klub obunasini uzaytirish — clubs.service dagi umumiy yo'l.
       // Boshlanish sanasi o'sha yerda, klub qatori qulfi ostida hisoblanadi.
-      const contract = await this.clubsService.applyContractInTransaction(manager, inv.clubId, {
+      const contract = await this.clubsService.applyContractInTransaction(manager, clubId, {
         type: contractTypeFromDays(durationDays),
         amount: inv.amount,
         durationDays,

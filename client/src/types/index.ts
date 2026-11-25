@@ -131,14 +131,40 @@ export type ContractType = 'monthly' | 'quarterly' | 'semiannual' | 'yearly' | '
 
 export interface Contract {
   id: number;
-  clubId: number;
+  /** Klub butunlay o'chirilgan bo'lsa null — shartnoma daromad tarixida qoladi */
+  clubId: number | null;
+  /** O'chirilgan klubning nomi (tarixda ko'rsatish uchun) */
+  clubName?: string | null;
   type: ContractType;
   amount: number;
   startDate: string;
   endDate: string;
   notes: string | null;
   createdAt: string;
-  club?: Club;
+  club?: Club | null;
+}
+
+/** Klubni butunlay o'chirishdan oldingi xulosa (GET /admin/clubs/:id/delete-preview) */
+export interface ClubDeletePreview {
+  club: { id: number; name: string };
+  /** Jadval bo'yicha o'chiriladigan yozuvlar soni (kalit — jadval nomi, masalan "sessions") */
+  counts: Record<string, number>;
+  /** Saqlanadigan platforma to'lov tarixi va o'chiriladigan to'lanmagan so'rovlar */
+  billing: {
+    contracts: number;
+    contractsAmount: number;
+    paidInvoices: number;
+    paidInvoicesAmount: number;
+    unpaidInvoices: number;
+  };
+}
+
+/** Butunlay o'chirish natijasi (POST /admin/clubs/:id/delete) */
+export interface ClubDeleteResult {
+  club: { id: number; name: string };
+  deleted: Record<string, number>;
+  kept: { contracts: number; invoices: number };
+  deletedInvoices: number;
 }
 
 export interface PlatformOverview {
@@ -999,7 +1025,10 @@ export interface Coupon {
 /** Hisob-faktura — obuna to'lovi yozuvi */
 export interface Invoice {
   id: number;
-  clubId: number;
+  /** Klub butunlay o'chirilgan bo'lsa null — faqat to'langan faktura tarixda qoladi */
+  clubId: number | null;
+  /** O'chirilgan klubning nomi (tarixda ko'rsatish uchun) */
+  clubName?: string | null;
   planId: number | null;
   contractId: number | null;
   number: string;
@@ -1012,7 +1041,7 @@ export interface Invoice {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
-  club?: Club;
+  club?: Club | null;
   plan?: Plan | null;
   contract?: Contract | null;
   coupon?: Coupon | null;

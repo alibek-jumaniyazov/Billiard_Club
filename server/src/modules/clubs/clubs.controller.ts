@@ -9,7 +9,9 @@ import {
   Post,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Lang, Language } from '../../common/decorators/lang.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -17,6 +19,7 @@ import { SkipSubscription } from '../../common/decorators/skip-subscription.deco
 import { t } from '../../common/i18n/messages';
 import { UserRole } from '../../entities/enums';
 import { User } from '../../entities/user.entity';
+import { ClubPurgeService } from './club-purge.service';
 import { ClubsService } from './clubs.service';
 import {
   BlockClubDto,
@@ -24,6 +27,7 @@ import {
   CreateContractDto,
   ExtendSubscriptionDto,
   ListClubsQueryDto,
+  PurgeClubDto,
   ResetClubPasswordDto,
   UpdateClubDto,
 } from './dto/clubs.dto';
@@ -36,7 +40,10 @@ import {
 @SkipSubscription()
 @Controller('admin/clubs')
 export class ClubsController {
-  constructor(private readonly clubsService: ClubsService) {}
+  constructor(
+    private readonly clubsService: ClubsService,
+    private readonly purgeService: ClubPurgeService,
+  ) {}
 
   /** Klublar ro'yxati: ?search=&status=&page=&limit= (default: limit 50) */
   @Get()
@@ -126,10 +133,34 @@ export class ClubsController {
     return { success: true, message: t(lang, 'clubs.passwordReset'), data };
   }
 
-  @Delete(':id')
-  async remove(@Param('id', ParseIntPipe) id: number, @Lang() lang: Language) {
-    await this.clubsService.remove(id);
-    return { success: true, message: t(lang, 'clubs.deleted') };
+  // ==================== Butunlay o'chirish ====================
+
+  /** O'chirishdan oldin: nima o'chadi va nima saqlanadi (tasdiq oynasi uchun) */
+  @Get(':id/delete-preview')
+  async deletePreview(@Param('id', ParseIntPipe) id: number) {
+    const data = await this.purgeService.preview(id);
+    return { success: true, data };
+  }
+
+  /**
+   * Klubni BARCHA ma'lumotlari bilan butunlay o'chirish — qaytarib bo'lmaydi.
+   * Tasdiq: klub nomi aynan yozilishi shart. Platforma to'lov tarixi
+   * (shartnoma, to'langan faktura) saqlanadi — "o'chirilgan klub" nomi bilan.
+   */
+  @Post(':id/delete')
+  @HttpCode(200)
+  async purge(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: PurgeClubDto,
+    @Req() req: Request,
+    @Lang() lang: Language,
+  ) {
+    const data = await this.purgeService.purge(id, user, dto.confirmName, {
+      ip: req.ip ?? null,
+      userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
+    });
+    return { success: true, message: t(lang, 'clubs.purged', { name: data.club.name }), data };
   }
 
   // ==================== Shartnomalar ====================

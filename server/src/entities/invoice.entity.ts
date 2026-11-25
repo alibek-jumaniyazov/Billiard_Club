@@ -30,12 +30,20 @@ export class Invoice {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int' })
-  clubId: number;
+  /**
+   * Klub. Klub butunlay o'chirilganda TO'LANGAN faktura qoladi (clubId null, nomi
+   * `clubName` da), to'lanmagan so'rovlar esa klub bilan birga o'chiriladi.
+   */
+  @Column({ type: 'int', nullable: true })
+  clubId: number | null;
 
-  @ManyToOne(() => Club, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Club, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'clubId' })
-  club: Club;
+  club: Club | null;
+
+  /** O'chirilgan klubning nomi (tarixda ko'rsatish uchun); tirik klubda null */
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  clubName: string | null;
 
   @Index()
   @Column({ type: 'int', nullable: true })

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Alert, Button, Card, Col, List, Row, Table, Tag, theme } from 'antd';
 import {
   CheckCircleOutlined,
@@ -93,11 +93,28 @@ const AdminDashboard = () => {
 
   const contractTypeLabel = (type: ContractType): string => t(`adminClubs.ct_${type}`);
 
+  /** Shartnoma klubi: tirik klub — havola; butunlay o'chirilgan klub — nomi va belgi (havolasiz) */
+  const contractClub = (c: Contract, linkStyle: CSSProperties) => {
+    const clubId = c.clubId;
+    if (clubId == null) {
+      return (
+        <span className="admin-workspace__deleted-club">
+          {c.clubName ?? '—'} <Tag>{t('adminClubs.deletedClub')}</Tag>
+        </span>
+      );
+    }
+    return (
+      <Button type="link" style={linkStyle} onClick={() => navigate(clubDetailUrl(clubId, c.club?.name ?? '', 'contracts'))}>
+        {c.club?.name ?? `#${clubId}`}
+      </Button>
+    );
+  };
+
   const recentContractColumns: ColumnsType<Contract> = [
     {
       title: t('adminClubs.clubName'),
       key: 'club',
-      render: (_, c) => <Button type="link" style={{ padding: 0 }} onClick={() => navigate(clubDetailUrl(c.clubId, c.club?.name ?? '', 'contracts'))}>{c.club?.name ?? `#${c.clubId}`}</Button>,
+      render: (_, c) => contractClub(c, { padding: 0 }),
     },
     {
       title: t('adminClubs.contractType'),
@@ -444,7 +461,7 @@ const AdminDashboard = () => {
             /></div>
             <div className="admin-workspace__contracts-mobile">
               {!overview?.recentContracts.length ? <EmptyState title={overview ? t('common.noData') : copy('Ma’lumot hali olinmadi', 'Данные ещё не получены')} /> : overview.recentContracts.map(c => <article className="admin-workspace__contract" key={c.id}>
-                <div><Button type="link" style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => navigate(clubDetailUrl(c.clubId, c.club?.name ?? '', 'contracts'))}>{c.club?.name ?? `#${c.clubId}`}</Button><strong className="tabular-nums">{formatMoney(c.amount, t('common.sum'))}</strong></div>
+                <div>{contractClub(c, { padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' })}<strong className="tabular-nums">{formatMoney(c.amount, t('common.sum'))}</strong></div>
                 <div><span>{contractTypeLabel(c.type)}</span><time>{dayjs(c.createdAt).format('DD.MM.YYYY HH:mm')}</time></div>
               </article>)}
             </div>

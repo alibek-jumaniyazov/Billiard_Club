@@ -16,6 +16,8 @@ import type {
   ClubInfo,
   ClubNotification,
   ClubDataOverview,
+  ClubDeletePreview,
+  ClubDeleteResult,
   ClubStaffActivity,
   ClubStats,
   Contract,
@@ -580,7 +582,14 @@ export const adminApi = {
   unblock: (id: number) => post<Club>(`/admin/clubs/${id}/unblock`),
   resetPassword: (id: number, password: string) =>
     post<{ username: string }>(`/admin/clubs/${id}/reset-password`, { password }),
-  removeClub: (id: number) => del<void>(`/admin/clubs/${id}`),
+  /** Butunlay o'chirishdan oldin: nima o'chadi va nima saqlanadi */
+  deletePreview: (id: number) => get<ClubDeletePreview>(`/admin/clubs/${id}/delete-preview`),
+  /**
+   * Klubni BARCHA ma'lumotlari bilan butunlay o'chirish (qaytarib bo'lmaydi).
+   * Tasdiq — klub nomi aynan; platforma to'lov tarixi serverda saqlanadi.
+   */
+  deleteClub: (id: number, confirmName: string) =>
+    post<ClubDeleteResult>(`/admin/clubs/${id}/delete`, { confirmName }),
   contracts: (id: number) => get<Contract[]>(`/admin/clubs/${id}/contracts`),
   addContract: (
     id: number,
