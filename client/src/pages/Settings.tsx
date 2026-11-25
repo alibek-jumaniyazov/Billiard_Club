@@ -137,7 +137,7 @@ const cardTitle = (icon: ReactNode, label: string) => (
 const Settings = () => {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const { setCurrencySymbol, setRoundingStep } = useAppSettings();
+  const { setCurrencySymbol, setRoundingStep, setClubAddress } = useAppSettings();
   const currency = useCurrency();
   const [form] = Form.useForm<SettingsFormValues>();
   const [loading, setLoading] = useState(true);
@@ -222,6 +222,8 @@ const Settings = () => {
       setCurrencySymbol(res.data.currencySymbol);
       // Yaxlitlash qadami — internetsiz boshlanadigan o'yinlar ham shu bilan
       setRoundingStep(res.data.tableRoundingStep ?? 0);
+      // Chekdagi klub manzili ham darhol yangilanadi
+      setClubAddress(res.data.address);
     } catch (err) {
       message.error(errorMessage(err, t('common.error')));
     } finally {

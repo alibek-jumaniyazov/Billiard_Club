@@ -37,6 +37,9 @@ interface AppSettingsValue {
    */
   roundingStep: number;
   setRoundingStep: (step: number) => void;
+  /** Klub manzili (sozlamalardan) — chop etiladigan chekda klub nomi ostida; kiritilmagan bo'lsa null */
+  clubAddress: string | null;
+  setClubAddress: (address: string | null) => void;
   /** Och ("fil suyagi") yoki qorong'i ("tungi zal") rejim */
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
@@ -125,6 +128,10 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   const [currencySymbol, setCurrencySymbolState] = useState<string | null>(null);
   const [roundingStep, setRoundingStepState] = useState(0);
+  const [clubAddress, setClubAddressState] = useState<string | null>(null);
+  const setClubAddress = useCallback((address: string | null) => {
+    setClubAddressState(address?.trim() || null);
+  }, []);
   const setRoundingStep = useCallback((step: number) => {
     setRoundingStepState(normalizeRoundingStep(step));
   }, []);
@@ -160,6 +167,7 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
         if (!cancelled) {
           setCurrencySymbol(null);
           setRoundingStep(0);
+          setClubAddress(null);
         }
         return;
       }
@@ -168,6 +176,7 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
         if (!cancelled) {
           setCurrencySymbol(res.data.currencySymbol);
           setRoundingStep(res.data.tableRoundingStep ?? 0);
+          setClubAddress(res.data.address);
         }
       } catch {
         // Sozlama olinmadi (rol/klub konteksti yo'q) — zaxira belgi qoladi
@@ -179,7 +188,7 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
       cancelled = true;
       off();
     };
-  }, [setCurrencySymbol, setRoundingStep]);
+  }, [setCurrencySymbol, setRoundingStep, setClubAddress]);
 
   // Til almashganda zaxira belgi ham o'sha tilga o'tadi ("so'm" / "сум")
   useEffect(() => {
@@ -189,10 +198,10 @@ export const AppSettingsProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo(
     () => ({
       lang, setLang, currencySymbol, setCurrencySymbol, roundingStep, setRoundingStep,
-      themeMode, setThemeMode, toggleTheme,
+      clubAddress, setClubAddress, themeMode, setThemeMode, toggleTheme,
     }),
     [lang, setLang, currencySymbol, setCurrencySymbol, roundingStep, setRoundingStep,
-      themeMode, setThemeMode, toggleTheme],
+      clubAddress, setClubAddress, themeMode, setThemeMode, toggleTheme],
   );
 
   return (

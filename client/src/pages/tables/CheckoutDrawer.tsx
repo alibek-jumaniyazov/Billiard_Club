@@ -39,7 +39,8 @@ import { useTranslation } from 'react-i18next';
 import { errorMessage, isNetworkError, sessionsApi } from '../../api';
 import { MoneyText, useNow } from '../../components/ui';
 import { PAYMENT_METHODS } from '../../constants';
-import { useCurrency } from '../../context/AppSettingsContext';
+import { useAppSettings, useCurrency } from '../../context/AppSettingsContext';
+import { useAuth } from '../../context/AuthContext';
 import { useConnection } from '../../context/ConnectionContext';
 import {
   customerLabel,
@@ -50,7 +51,14 @@ import {
 import { hasPendingOps } from '../../offline/overlay';
 import { newActionKey, queueEndSession } from '../../offline/pos';
 import { TOKENS } from '../../theme/tokens';
-import { escapeHtml, printHtml } from '../../utils/print';
+import { printHtml } from '../../utils/print';
+import {
+  RECEIPT_CSS,
+  RECEIPT_FONTS,
+  receiptBarLines,
+  renderCheckoutReceipt,
+  type ReceiptBarLine,
+} from '../../utils/receipt';
 import { normalizeRoundingStep, roundingForDisplay, roundToStep } from '../../utils/rounding';
 import type {
   BilliardTable,
@@ -87,6 +95,15 @@ const signedNumber = (n: number): string => `${n > 0 ? '+' : ''}${formatNumber(n
 
 /** Kassa oynasi ochiq turganda chek fonda shu davr bilan yangilanadi (ms) */
 const RECEIPT_POLL_MS = 10_000;
+
+/**
+ * Chop etishda bar pozitsiyalarini kutish chegarasi (ms): ro'yxat yakunlangandan
+ * keyin fonda yuklanadi; tarmoq sekin bo'lsa chek baribir chiqadi — "Bar jami" bilan.
+ */
+const BAR_LINES_WAIT_MS = 2500;
+
+const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([promise, new Promise<T>((resolve) => window.setTimeout(() => resolve(fallback), ms))]);
 
 /**
  * Bo'lib to'lashda yo'l qo'yiladigan farq — SERVERDAGI PAYMENT_DRIFT_SECONDS
@@ -484,10 +501,12 @@ const CheckoutDrawer = ({
   segments: localSegments = null,
   offsetMs: pageOffsetMs = 0,
 }: CheckoutDrawerProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { message } = App.useApp();
   const [form] = Form.useForm<EndFormValues>();
   const { online, entries } = useConnection();
+  const { user } = useAuth();
+  const { clubAddress } = useAppSettings();
 
   const session = table?.sessions?.[0] ?? null;
   const sessionId = session?.id ?? null;
@@ -518,6 +537,11 @@ const CheckoutDrawer = ({
   localSourceRef.current = { segments: localSegments, offsetMs: pageOffsetMs };
   /** Natija oflayn saqlangan — chekda va ekranda belgi ko'rsatiladi */
   const [savedOffline, setSavedOffline] = useState(false);
+  /** Chop etiladigan chek uchun: yakunlash paytidagi mijoz ismi */
+  const [printCustomer, setPrintCustomer] = useState<string | null>(null);
+  /** Bar pozitsiyalari — yakunlangandan keyin fonda yuklanadi (chop etish kutadi) */
+  const barLinesRef = useRef<Promise<ReceiptBarLine[] | null> | null>(null);
+  const [printing, setPrinting] = useState(false);
 
   const [receipt, setReceipt] = useState<SessionReceipt | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
@@ -694,6 +718,8 @@ const CheckoutDrawer = ({
       notes: '',
     });
     setSavedOffline(false);
+    setPrintCustomer(null);
+    barLinesRef.current = null;
     if (offlineModeRef.current && session) {
       // Oflayn: chek shu kassadagi keshdan quriladi (server so'ralmaydi)
       const { segments: segs, offsetMs: offset } = localSourceRef.current;
@@ -926,6 +952,17 @@ const CheckoutDrawer = ({
       const res = await sessionsApi.end(sessionId, payload, actionKey);
       message.success(res.message);
       setResult(res.data);
+      // Ism maydoni faqat qarz bo'limida chiziladi — bo'sh bo'lsa server o'yindagi
+      // ismni saqlaydi, chek ham o'shani ko'rsatadi
+      setPrintCustomer(values.customerName?.trim() || session?.customerName?.trim() || null);
+      // Chek uchun bar pozitsiyalari: yakunda yopilgan buyurtmalar (xato bo'lsa — faqat jami)
+      const ended = res.data;
+      barLinesRef.current = sessionsApi
+        .detail(ended.sessionId)
+        .then((detail) =>
+          receiptBarLines(detail.data.orders, ended.barAmount, (id) => t('orders.unknownProduct', { id })),
+        )
+        .catch(() => null);
       onSettled();
     } catch (err) {
       // Aloqa AYNAN shu so'rovda uzildi: hisob-kitob yo'qolmasin — o'sha kalit
@@ -1062,6 +1099,7 @@ const CheckoutDrawer = ({
       serverNow: new Date(endedAtMs).toISOString(),
     });
     setSavedOffline(true);
+    setPrintCustomer(debtor ? debtor.name : values.customerName?.trim() || session.customerName?.trim() || null);
     message.success(t('offline.checkoutOfflineSaved'));
     onSettled();
   };
@@ -1072,61 +1110,57 @@ const CheckoutDrawer = ({
     onClose();
   };
 
-  const handlePrint = () => {
-    if (!result) return;
-    const lines: string[] = [];
-    const row = (label: string, value: string, bold = false) =>
-      lines.push(`<div class="r${bold ? ' b' : ''}"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`);
-
-    lines.push(`<h1>${escapeHtml(clubName || 'Billiard Club')}</h1>`);
-    lines.push(
-      `<div class="c">${escapeHtml(`${t('common.table')} ${table?.number ?? ''} — ${table?.name ?? ''}`)}<br>${escapeHtml(formatDateTime(result.serverNow ?? new Date()))}</div>`,
-    );
-    // Oflayn chek — internet qaytganda server summani qayta hisoblaydi
-    if (savedOffline) lines.push(`<div class="c">${escapeHtml(t('offline.checkoutOfflineReceipt'))}</div>`);
-    lines.push('<hr>');
-    row(t('common.duration'), formatSeconds(result.durationSeconds));
-    if (result.segments && result.segments.length > 1) {
-      for (const seg of result.segments) {
-        row(
-          `${formatNumber(seg.pricePerHour)}/${t('common.hours')} · ${formatSeconds(seg.billedSeconds)}`,
-          `${formatNumber(seg.amount)} ${currency}`,
-        );
-      }
-    }
-    row(t('tables.tableAmount'), `${formatNumber(result.tableAmount)} ${currency}`);
-    // Yaxlitlash: chekda aniq sekundlik summa va farq ham ko'rinadi (shaffoflik).
-    // Butun so'mda: "aniq 46 913" + "+87" = 47 000 — chekdagi arifmetika to'g'ri
-    const printRounding = result.tableRounding ?? 0;
-    if (printRounding !== 0) {
-      const shown = roundingForDisplay(
-        result.tableAmount,
-        result.tableAmountExact ?? round2(result.tableAmount - printRounding),
+  /**
+   * Chekni chop etish — brendlangan 80 mm maket (utils/receipt.ts): tepada
+   * kichik logo va billiardclub.uz, klub nomi va manzili, o'yin, bar
+   * pozitsiyalari, katta JAMI, to'lovlar; eng pastda "by billiardclub.uz".
+   */
+  const handlePrint = async () => {
+    if (!result || printing) return;
+    setPrinting(true);
+    try {
+      const barLines = barLinesRef.current
+        ? await withTimeout(barLinesRef.current, BAR_LINES_WAIT_MS, null)
+        : null;
+      // Internetsiz boshlangan o'yinning ID si sintetik (manfiy) — chekda raqam chiqmaydi
+      const number = result.sessionId > 0 ? result.sessionId : null;
+      const html = renderCheckoutReceipt(
+        {
+          club: { name: clubName, address: clubAddress },
+          number,
+          table: table ? { number: table.number, name: table.name } : null,
+          startedAt: session?.startTime ?? null,
+          endedAt: result.endTime ?? result.serverNow ?? new Date().toISOString(),
+          durationSeconds: result.durationSeconds,
+          cashier: user?.name ?? null,
+          customer: printCustomer,
+          segments: result.segments,
+          // Yaxlitlash chekda ko'rsatilmaydi: kassaga yozilgan (yaxlit) stol summasi
+          tableAmount: result.tableAmount,
+          barLines,
+          barAmount: result.barAmount,
+          discount: result.discount,
+          adjustment:
+            result.adjustmentAmount !== 0
+              ? { amount: result.adjustmentAmount, reason: result.adjustmentReason }
+              : null,
+          total: result.totalAmount,
+          paidNow: result.paidNow,
+          payments: result.payments,
+          debt: result.totalDebt,
+          offline: savedOffline,
+        },
+        t,
+        currency,
       );
-      row(
-        t('tables.roundingPrint', { amount: formatNumber(shown.exact) }),
-        `${signedNumber(shown.delta)} ${currency}`,
-      );
+      printHtml(number ? `${t('tables.receipt')} #${number}` : t('tables.receipt'), html, {
+        css: RECEIPT_CSS,
+        fonts: RECEIPT_FONTS,
+        lang: i18n.language,
+      });
+    } finally {
+      setPrinting(false);
     }
-    row(t('tables.barAmount'), `${formatNumber(result.barAmount)} ${currency}`);
-    if (result.discount > 0) row(t('common.discount'), `-${formatNumber(result.discount)} ${currency}`);
-    if (result.adjustmentAmount !== 0) {
-      row(
-        `${t('tables.adjustment')}${result.adjustmentReason ? ` (${result.adjustmentReason})` : ''}`,
-        `${formatNumber(result.adjustmentAmount)} ${currency}`,
-      );
-    }
-    lines.push('<hr>');
-    row(t('common.total'), `${formatNumber(result.totalAmount)} ${currency}`, true);
-    if (result.totalDebt > 0) row(t('tables.debtAmount'), `${formatNumber(result.totalDebt)} ${currency}`);
-    row(t('tables.paidNow'), `${formatNumber(result.paidNow)} ${currency}`, true);
-    if (result.payments.length > 1) {
-      lines.push('<hr>');
-      for (const p of result.payments) {
-        row(t(`payment.${p.method}`), `${formatNumber(p.amount)} ${currency}`);
-      }
-    }
-    printHtml(`${t('tables.receipt')} #${result.sessionId}`, lines.join(''));
   };
 
   const live = receipt?.live !== false;
@@ -1309,7 +1343,7 @@ const CheckoutDrawer = ({
       </div>
       <Row gutter={8}>
         <Col span={12}>
-          <Button block icon={<PrinterOutlined />} onClick={handlePrint}>
+          <Button block icon={<PrinterOutlined />} loading={printing} onClick={() => void handlePrint()}>
             {t('tables.printReceipt')}
           </Button>
         </Col>
