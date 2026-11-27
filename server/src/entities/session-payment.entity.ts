@@ -15,15 +15,17 @@ import { Sale } from './sale.entity';
 import { Session } from './session.entity';
 
 /**
- * Sessiya to'lovi — bo'lib to'lash (split payment) uchun: bitta hisob
+ * To'lov satri — bo'lib to'lash (split payment) uchun: bitta hisob
  * bir nechta usulda (naqd + karta) to'lanishi mumkin, har biri alohida yozuv.
  * Sale endi sarlavha (header), summalar shu jadvaldan yig'iladi.
+ * Stolsiz bar savdosida sessionId null — satr sotuvga (saleId) bog'lanadi.
  */
 @Entity('session_payments')
 @Index('IDX_session_payments_club_createdAt', ['clubId', 'createdAt'])
 // DB darajasidagi cheklov migratsiyada yaratilgan, lekin metadatada ham
 // e'lon qilinishi SHART (aks holda `migration:generate` uni DROP qiladi).
 @Check('chk_session_payments_amount_nonneg', '"amount" >= 0')
+@Check('chk_session_payments_source', '"sessionId" IS NOT NULL OR "saleId" IS NOT NULL')
 export class SessionPayment {
   @PrimaryGeneratedColumn()
   id: number;
@@ -36,12 +38,12 @@ export class SessionPayment {
   club: Club;
 
   @Index()
-  @Column({ type: 'int' })
-  sessionId: number;
+  @Column({ type: 'int', nullable: true })
+  sessionId: number | null;
 
-  @ManyToOne(() => Session, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Session, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'sessionId' })
-  session: Session;
+  session: Session | null;
 
   @Index()
   @Column({ type: 'int', nullable: true })

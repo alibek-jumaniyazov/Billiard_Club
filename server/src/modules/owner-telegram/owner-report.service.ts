@@ -139,7 +139,9 @@ export class OwnerReportService {
            WHERE s."clubId" = $1 AND s.status = 'completed' AND s."endTime" >= $2 AND s."endTime" < $3) AS "playSeconds",
          (SELECT COALESCE(SUM(sa.discount), 0)::float FROM sales sa
            JOIN sessions s ON s.id = sa."sessionId"
-           WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3) AS discounts`,
+           WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3)
+         -- Stolsiz bar savdosidagi chegirma ham (sotuv paytiga ko'ra)
+         + (SELECT COALESCE(SUM(sa.discount), 0)::float FROM sales sa WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS discounts`,
       [clubId, from, to],
     )) as Array<{ playSeconds: number; discounts: number }>;
     const s = report.summary;

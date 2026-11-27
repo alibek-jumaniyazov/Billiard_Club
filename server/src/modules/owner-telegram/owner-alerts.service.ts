@@ -21,6 +21,7 @@ export const ACTION_ALERTS: Readonly<Record<string, AlertKey>> = {
   'session.cancel': 'cancel',
   'order.cancel': 'cancel',
   'session.discount': 'discount',
+  'order.discount': 'discount',
   'session.adjust': 'discount',
   'shift.open': 'shift',
   'shift.close': 'shift',
@@ -133,6 +134,19 @@ export class OwnerAlertsService implements OnModuleInit, OnModuleDestroy {
         const input = { totalAmount: num(meta.totalAmount), itemCount: num(meta.itemCount), reason: str(meta.reason) };
         if (input.totalAmount <= 0) return null;
         return (lang) => renderOrderCancelAlert({ ...base, table }, input, lang);
+      }
+      case 'order.discount': {
+        // Stolsiz bar savdosidagi chegirma — stol yo'q, joy sifatida "Bar" ko'rsatiladi
+        const amount = num(meta.discount);
+        if (amount === 0) return null;
+        const input = {
+          amount,
+          totalAmount: meta.totalAmount === undefined ? null : num(meta.totalAmount),
+          reason: null,
+          kind: 'discount' as const,
+        };
+        return (lang) =>
+          renderDiscountAlert({ ...base, table: lang === 'ru' ? 'Бар (без стола)' : 'Bar (stolsiz)' }, input, lang);
       }
       case 'session.discount':
       case 'session.adjust': {

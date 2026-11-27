@@ -488,6 +488,15 @@ const Reports = () => {
           <StatCard
             label={t('reports.barRevenue')}
             value={money(summary?.barRevenue)}
+            // Stolsiz bar savdolari bar tushumiga kiradi — qanchasi ekani ko'rinsin
+            footnote={
+              summary?.barSales && summary.barSales.count > 0
+                ? t('reports.barSalesNote', {
+                    count: summary.barSales.count,
+                    amount: `${formatNumber(summary.barSales.amount)} ${currency}`,
+                  })
+                : undefined
+            }
             icon={<CoffeeOutlined />}
             accent={TOKENS.color.emerald.bright}
             loading={loading}

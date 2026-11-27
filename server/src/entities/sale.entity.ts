@@ -13,11 +13,13 @@ import {
 import { NumericTransformer } from '../common/transformers/numeric.transformer';
 import { PaymentMethod } from './enums';
 import { Club } from './club.entity';
+import { Order } from './order.entity';
 import { Session } from './session.entity';
 import { User } from './user.entity';
 
 /**
- * Hisob-kitob yozuvi — sessiya yakunida HAQIQATDA to'langan pul.
+ * Hisob-kitob yozuvi — HAQIQATDA to'langan pul: o'yin yakunida (sessionId) YOKI
+ * stolsiz bar savdosida (orderId) — aynan bittasi (chk_sales_source).
  * totalAmount = qarzga yozilgan qism chiqarilgan, chegirma qo'llangan summa.
  * Tushum hisobotlari: sales + debt_payments (to'lov sanasiga ko'ra).
  */
@@ -31,6 +33,7 @@ import { User } from './user.entity';
 // Tushum hisobotlari/dashboard clubId + createdAt oralig'i bo'yicha yig'adi —
 // alohida (clubId) va (createdAt) indekslari o'rniga kompozit (1784248200000)
 @Index('IDX_sales_club_createdAt', ['clubId', 'createdAt'])
+@Check('chk_sales_source', '(("sessionId" IS NOT NULL)::int + ("orderId" IS NOT NULL)::int) = 1')
 export class Sale {
   @PrimaryGeneratedColumn()
   id: number;
@@ -43,13 +46,23 @@ export class Sale {
   @JoinColumn({ name: 'clubId' })
   club: Club;
 
+  /** O'yin hisob-kitobi; stolsiz bar savdosida null */
   @Index({ unique: true })
-  @Column({ type: 'int', unique: true })
-  sessionId: number;
+  @Column({ type: 'int', unique: true, nullable: true })
+  sessionId: number | null;
 
-  @OneToOne(() => Session, (session) => session.sale, { onDelete: 'RESTRICT' })
+  @OneToOne(() => Session, (session) => session.sale, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'sessionId' })
-  session: Session;
+  session: Session | null;
+
+  /** Stolsiz bar savdosi (o'yinsiz buyurtma); o'yin hisob-kitobida null */
+  @Index('UQ_sales_orderId', { unique: true })
+  @Column({ type: 'int', nullable: true })
+  orderId: number | null;
+
+  @OneToOne(() => Order, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'orderId', foreignKeyConstraintName: 'FK_sales_order' })
+  order: Order | null;
 
   /** Pulni qabul qilgan kassir (audit) */
   @Index()

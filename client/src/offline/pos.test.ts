@@ -23,11 +23,12 @@ vi.mock('./queue', () => ({
 vi.mock('./cache', () => ({ fullScope: () => 'u1|c1' }));
 
 import {
-  queueCancelSession, queueEndSession, queueOrder, queuePauseResume, queuePlanChange,
+  queueBarSale, queueCancelSession, queueEndSession, queueOrder, queuePauseResume, queuePlanChange,
   queueStartSession, queueTransferSession,
 } from './pos';
 import { applyQueueToTables } from './overlay';
 import { buildLightHubView } from './light-hub';
+import { formatNumber } from '../utils/format';
 
 const NOW = Date.parse('2026-11-21T18:00:00.000Z');
 const OFFSET = 1500; // server soati kassadan 1.5 s oldinda
@@ -136,6 +137,45 @@ describe('navbat yozuvlari: offlineAt, tana va bog‘liqlik kalitlari', () => {
       payments: [], expectedBarAmount: 0, isDebt: true, isTableDebt: true, customerName: 'Erkin ism',
     }, 0, 'k9', NOW)).rejects.toThrow('OFFLINE_DEBT_NEEDS_CUSTOMER');
     expect(state.rows).toHaveLength(0);
+  });
+});
+
+describe('stolsiz bar savdosi — navbat yozuvi', () => {
+  const items = [{ productId: 7, quantity: 2, price: 8000 }];
+
+  it('to‘langan savdo — o‘z kaliti (stol/o‘yinni to‘xtatmaydi), kassada bosilgan vaqt', async () => {
+    const soldAt = NOW - 60_000;
+    const localId = await queueBarSale(
+      { items, payments: [{ method: 'cash', amount: 10000 }, { method: 'card', amount: 6000 }] },
+      16000, 'k10', soldAt,
+    );
+    const row = last();
+    expect(row.localId).toBe(localId);
+    expect(row).toMatchObject({ method: 'post', url: '/orders/sale', labelKey: 'offline.actBarSale' });
+    expect(row.body).toEqual({
+      items,
+      payments: [{ method: 'cash', amount: 10000 }, { method: 'card', amount: 6000 }],
+      offlineAt: new Date(soldAt).toISOString(),
+    });
+    expect(row.labelParams).toEqual({ amount: formatNumber(16000) });
+    expect(row.meta).toEqual({ kind: 'bar.sale', at: new Date(soldAt).toISOString(), amount: 16000, deps: [`bar:${localId}`] });
+  });
+
+  it('qarzga savdo — faqat ro‘yxatdagi mijozga; mijoz va qarz kalitlari qo‘shiladi', async () => {
+    const localId = await queueBarSale(
+      { items, isDebt: true, customerId: 5, customerName: 'Sardor' }, 16000, 'k11', NOW, 16000,
+    );
+    const row = last();
+    expect(row.labelKey).toBe('offline.actBarSaleDebt');
+    expect(row.labelParams).toEqual({ amount: formatNumber(16000), customer: 'Sardor' });
+    expect(row.meta).toMatchObject({
+      kind: 'bar.sale', debt: 16000, customerId: 5,
+      deps: [`bar:${localId}`, 'customer:5', 'debt:5'],
+    });
+
+    await expect(queueBarSale({ items, isDebt: true, customerName: 'Erkin ism' }, 0, 'k12', NOW, 16000))
+      .rejects.toThrow('OFFLINE_DEBT_NEEDS_CUSTOMER');
+    expect(state.rows).toHaveLength(1);
   });
 });
 

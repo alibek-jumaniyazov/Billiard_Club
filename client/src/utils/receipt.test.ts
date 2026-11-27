@@ -265,6 +265,59 @@ describe('stol cheki (chop etish)', () => {
   });
 });
 
+describe('stolsiz bar savdosi cheki', () => {
+  const barSale = (over: Partial<CheckoutReceiptData> = {}) =>
+    base({
+      kind: 'bar',
+      number: 15,
+      table: null,
+      startedAt: null,
+      endedAt: local(2026, 11, 27, 14, 35),
+      durationSeconds: 0,
+      segments: null,
+      tableAmount: 0,
+      barLines: [
+        { name: 'Coca-Cola 0.5 L', quantity: 2, price: 8000, subtotal: 16000 },
+        { name: 'Chipsi', quantity: 1, price: 12000, subtotal: 12000 },
+      ],
+      barAmount: 28000,
+      total: 28000,
+      paidNow: 28000,
+      payments: [{ method: 'card', amount: 28000 }],
+      ...over,
+    });
+
+  it("sarlavha \"Bar cheki\"; stol, o'yin vaqti va O'yin bo'limi yo'q; sotuv vaqti bor", () => {
+    const html = renderCheckoutReceipt(barSale({ customer: 'Sardor' }), uz, "so'm");
+    const text = textOf(html);
+    expect(text).toContain('Bar cheki № 15');
+    expect(text).toContain('Sana 27.11.2026 Vaqt 14:35 Kassir Aziz Mijoz Sardor');
+    expect(text).not.toContain('Davomiylik');
+    expect(text).not.toContain('Stol summasi');
+    expect(text).not.toMatch(/O'yin|soat ×/);
+    expect(text).toContain(`Coca-Cola 0.5 L 2 × ${money(8000)} ${money(16000)}`);
+    expect(text).toContain(`Bar jami ${money(28000)} so'm`);
+    expect(text).toContain(`Jami to'lov ${money(28000)} so'm`);
+    expect(text).toContain(`To'landi · Karta ${money(28000)} so'm`);
+    expect(html).toMatch(/<div class="by">by billiardclub\.uz<\/div><\/footer><\/main>$/);
+  });
+
+  it("chegirmada oraliq jami faqat bar summasidan; qarzga sotilgan; oflayn — raqamsiz", () => {
+    const text = textOf(
+      renderCheckoutReceipt(
+        barSale({ number: null, offline: true, discount: 3000, total: 25000, paidNow: 0, payments: [], debt: 25000 }),
+        uz,
+        "so'm",
+      ),
+    );
+    expect(text).toContain('Bar cheki Sana');
+    expect(text).toContain(`Oraliq jami ${money(28000)} so'm Chegirma -${money(3000)} so'm`);
+    expect(text).toContain(`Qarzga yozildi ${money(25000)} so'm`);
+    expect(text).toContain('OFLAYN');
+    expect(renderCheckoutReceipt(barSale(), ru, 'сум')).toContain('Чек бара');
+  });
+});
+
 describe('chek uchun bar pozitsiyalari', () => {
   const item = (productId: number, quantity: number, price: number, name?: string): OrderItem => ({
     id: productId * 100 + quantity,

@@ -111,6 +111,12 @@ const SummaryBody = ({
           <span>{t('shifts.sessions')}</span>
           <strong>{summary.sessionsCount}</strong>
         </div>
+        {(summary.barSalesCount ?? 0) > 0 && (
+          <div className="shift-kpi">
+            <span>{t('shifts.barSales')}</span>
+            <strong>{summary.barSalesCount}</strong>
+          </div>
+        )}
         <div className="shift-kpi">
           <span>{t('shifts.activeSessions')}</span>
           <strong>{summary.activeSessions}</strong>
@@ -387,6 +393,7 @@ const Shifts = () => {
     if (closed) parts.push(receiptRow(t('shifts.closedBy'), sh.closedByName ?? '—'));
     parts.push('<hr>');
     parts.push(receiptRow(t('shifts.sessions'), String(s.sessionsCount)));
+    if ((s.barSalesCount ?? 0) > 0) parts.push(receiptRow(t('shifts.barSales'), String(s.barSalesCount)));
     parts.push(receiptRow(t('shifts.tableRevenue'), money(s.tableRevenue)));
     parts.push(receiptRow(t('shifts.barRevenue'), money(s.barRevenue)));
     if (s.discounts > 0) parts.push(receiptRow(t('shifts.discounts'), `-${money(s.discounts)}`));

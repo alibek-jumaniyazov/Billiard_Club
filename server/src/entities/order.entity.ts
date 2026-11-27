@@ -13,6 +13,7 @@ import {
 import { NumericTransformer } from '../common/transformers/numeric.transformer';
 import { OrderStatus } from './enums';
 import { Club } from './club.entity';
+import { Customer } from './customer.entity';
 import { Session } from './session.entity';
 import { Table } from './table.entity';
 import { User } from './user.entity';
@@ -57,6 +58,21 @@ export class Order {
   @ManyToOne(() => Table, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'tableId' })
   table: Table | null;
+
+  /**
+   * Stolsiz bar savdosining mijozi (ixtiyoriy): ro'yxatdagi mijoz yoki erkin
+   * yozilgan ism. O'yindagi buyurtmada mijoz sessiyaning o'zida saqlanadi.
+   */
+  @Index('IDX_orders_customerId')
+  @Column({ type: 'int', nullable: true })
+  customerId: number | null;
+
+  @ManyToOne(() => Customer, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'customerId', foreignKeyConstraintName: 'FK_orders_customer' })
+  customer: Customer | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  customerName: string | null;
 
   /** Buyurtmani kiritgan xodim (audit) */
   @Index()

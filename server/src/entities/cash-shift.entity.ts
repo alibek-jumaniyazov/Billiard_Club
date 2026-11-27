@@ -18,6 +18,8 @@ export interface ShiftSummary {
   to: string;
   /** Shu oraliqda yakunlangan o'yinlar */
   sessionsCount: number;
+  /** Stolsiz bar savdolari soni (bar tushumiga kiradi). Eski smena yozuvlarida yo'q */
+  barSalesCount?: number;
   tableRevenue: number;
   barRevenue: number;
   /** Hisoblangan summa (chegirmadan keyin) */

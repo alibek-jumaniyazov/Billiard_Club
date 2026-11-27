@@ -32,6 +32,7 @@ import {
   FieldTimeOutlined,
   ReloadOutlined,
   ShoppingCartOutlined,
+  ShoppingOutlined,
   StopOutlined,
   UpOutlined,
   UserOutlined,
@@ -50,6 +51,7 @@ import {
 } from '../components/ui';
 import { useCurrency } from '../context/AppSettingsContext';
 import { useAuth } from '../context/AuthContext';
+import { useEntitlements } from '../hooks/useEntitlements';
 import { TOKENS } from '../theme/tokens';
 import type { BilliardTable, Order, OrderStatus, OrderTodayStats } from '../types';
 import { formatDateTime, formatNumber } from '../utils/format';
@@ -61,7 +63,11 @@ import {
   type OrderLine,
   type OrdersPageLayout,
 } from '../utils/orders';
+import BarSaleModal from './tables/BarSaleModal';
 import '../styles/orders.css';
+
+/** Stol filtridagi maxsus qiymat: faqat stolsiz (bardan to'g'ridan-to'g'ri) savdolar */
+const WALK_IN_FILTER = -1;
 
 /** Buyurtma holati -> StatusTag semantik kaliti */
 const ORDER_STATUS_KEYS: Record<OrderStatus, string> = {
@@ -130,6 +136,10 @@ const Orders = () => {
   const { list: layout, kpisPerRow, kpiSize } = useOrdersLayout(pageRef);
   // Server bilan bir xil: bekor qilish kassir/admin/superadmin uchun
   const canCancel = hasRole('superadmin', 'admin', 'kassir');
+  // Stolsiz bar savdosi — bar tarifda bo'lsa, server bilan bir xil rollar
+  const { can } = useEntitlements();
+  const canSell = can('bar') && hasRole('superadmin', 'admin', 'kassir', 'operator');
+  const [saleOpen, setSaleOpen] = useState(false);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,7 +169,8 @@ const Orders = () => {
     try {
       const params: Record<string, unknown> = { page, limit: pageSize };
       if (status !== 'all') params.status = status;
-      if (tableId) params.tableId = tableId;
+      if (tableId === WALK_IN_FILTER) params.walkIn = true;
+      else if (tableId) params.tableId = tableId;
       const res = await ordersApi.list(params);
       if (!isCurrent()) return;
       setOrders(res.data);
@@ -265,7 +276,12 @@ const Orders = () => {
     });
 
   const filtersActive = status !== 'all' || tableId !== undefined;
-  const tableName = (order: Order) => order.table?.name ?? t('orders.unknownTable');
+  /** Stolsiz bar savdosi: o'yinsiz va stolsiz buyurtma */
+  const isWalkIn = (order: Order) => order.sessionId === null && order.tableId === null;
+  const tableName = (order: Order) =>
+    isWalkIn(order)
+      ? [t('orders.walkIn'), order.customerName].filter(Boolean).join(' · ')
+      : order.table?.name ?? t('orders.unknownTable');
   const lineName = (line: OrderLine) => line.name || t('orders.unknownProduct', { id: line.productId });
   const timeLabel = (iso: string) =>
     orderTimeLabel(iso, { today: t('orders.today'), yesterday: t('orders.yesterday') });
@@ -521,8 +537,11 @@ const Orders = () => {
   );
 
   const tableOptions = useMemo(
-    () => tables.map((table) => ({ value: table.id, label: table.name })),
-    [tables],
+    () => [
+      { value: WALK_IN_FILTER, label: t('orders.walkInFilter') },
+      ...tables.map((table) => ({ value: table.id, label: table.name })),
+    ],
+    [tables, t],
   );
   const openCount = stats?.openCount ?? 0;
   const statusOptions = [
@@ -556,6 +575,13 @@ const Orders = () => {
           icon={<CoffeeOutlined />}
           title={t('orders.title')}
           subtitle={t('orders.subtitle')}
+          extra={
+            canSell ? (
+              <Button type="primary" icon={<ShoppingOutlined />} onClick={() => setSaleOpen(true)}>
+                {t('orders.newSale')}
+              </Button>
+            ) : undefined
+          }
           stats={
             <Row gutter={[KPI_GAP, KPI_GAP]} className={kpiClass}>
               <Col span={24 / kpisPerRow}>
@@ -725,6 +751,7 @@ const Orders = () => {
           )}
         </section>
       </div>
+      {canSell && <BarSaleModal open={saleOpen} onClose={() => setSaleOpen(false)} onSold={handleRefresh} />}
     </PageTransition>
   );
 };

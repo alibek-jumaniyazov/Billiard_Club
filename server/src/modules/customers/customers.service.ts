@@ -101,6 +101,11 @@ export class CustomersService {
            (SELECT COALESCE(SUM(s."totalAmount"), 0)::float FROM sessions s
              WHERE s."clubId" = $1 AND s.status = 'completed'
                AND (s."customerId" = $2 OR ($3::text IS NOT NULL AND s."customerPhone" = $3))
+           )
+           -- Stolsiz bar xaridlari (chegirmadan keyin)
+           + (SELECT COALESCE(SUM(sa."barAmount" - sa.discount), 0)::float FROM sales sa
+             JOIN orders o ON o.id = sa."orderId"
+             WHERE o."clubId" = $1 AND o."customerId" = $2
            ) AS "totalSpent",
            (SELECT COALESCE(SUM(d."remainingDebt"), 0)::float FROM debts d
              WHERE d."clubId" = $1 AND d."isPaid" = false

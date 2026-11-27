@@ -9,6 +9,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
   SettingOutlined,
+  ShoppingOutlined,
   TableOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
@@ -41,6 +42,7 @@ import CheckoutDrawer from './CheckoutDrawer';
 import LightSettingsDrawer from './LightSettingsDrawer';
 import LimitModal from './LimitModal';
 import ManageTablesDrawer from './ManageTablesDrawer';
+import BarSaleModal from './BarSaleModal';
 import OrderModal from './OrderModal';
 import StartModal from './StartModal';
 import TableCard from './TableCard';
@@ -124,6 +126,7 @@ const TablesPage = () => {
   // Tarif (Standart / Pro / VIP): yo'q imkoniyat so'ralmaydi va tugmasi ko'rinmaydi
   const { can } = useEntitlements();
   const canBar = can('bar');
+  const [barSaleOpen, setBarSaleOpen] = useState(false);
   const canLights = can('lights');
   /**
    * Chiroqni qo'lda yoqish/o'chirish va «Chiroq boshqaruvi» — admin va kassir.
@@ -883,6 +886,12 @@ const TablesPage = () => {
         subtitle={t('tables.subtitle')}
         extra={
           <>
+            {/* Stolsiz bar savdosi — billiard o'ynamaydigan mijozga bardan sotish */}
+            {canBar && (
+              <Button type="primary" icon={<ShoppingOutlined />} onClick={() => setBarSaleOpen(true)}>
+                {t('orders.newSale')}
+              </Button>
+            )}
             {canManage && (
               <Button icon={<SettingOutlined />} aria-label={t('tables.manage')} onClick={() => openManage(false)}>
                 {t('tables.manage')}
@@ -1066,6 +1075,16 @@ const TablesPage = () => {
         segments={checkoutTable?.sessions?.[0] ? (viewSegments[checkoutTable.sessions[0].id] ?? null) : null}
         offsetMs={offsetMs}
       />
+
+      {/* Stolsiz bar savdosi */}
+      {canBar && (
+        <BarSaleModal
+          open={barSaleOpen}
+          onClose={() => setBarSaleOpen(false)}
+          onSold={() => void fetchTables()}
+          offsetMs={offsetMs}
+        />
+      )}
 
       {/* Stollarni boshqarish (admin CRUD) */}
       <ManageTablesDrawer

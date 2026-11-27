@@ -29,6 +29,9 @@
  *       kassadagi o'zgarish tufayli farq chiqsa rad etmaydi — OLINGAN pulni
  *       yozadi (bo'sh to'lov ro'yxati = hech narsa olinmagan) va farqni
  *       belgilaydi, kassirga ogohlantirish chiqadi (sessions.service.ts: end)
+ *     · stolsiz bar savdosi (o'yinsiz mijozga bardan sotish) — pul kassada olingan,
+ *       server rad etmaydi: savdo kassada bosilgan vaqt va O'SHA narx bilan yoziladi,
+ *       ombor yetmasa noldan pastga tushmaydi, farq jurnalga yoziladi
  *     · hisobning bir qismi yoki hammasi QARZGA — faqat shu kassada saqlangan
  *       «Mijozlar» ro'yxatidan tanlangan MAVJUD mijozga (customer-directory.ts).
  *       Server mijozni va qarz qoidalarini qayta tekshiradi; mijoz topilmasa
@@ -54,6 +57,8 @@
  */
 
 import type { BilliardTable, Session, SessionPlanPayload } from '../types';
+import type { BarSalePayload } from '../utils/barSale';
+import { formatNumber } from '../utils/format';
 import { sessionRefOf } from './overlay';
 import { enqueue, newId } from './queue';
 import { fullScope } from './cache';
@@ -99,6 +104,8 @@ const dep = {
   session: (ref: string) => `session:${ref}`,
   customer: (id: number) => `customer:${id}`,
   debt: (customerId: number) => `debt:${customerId}`,
+  /** Stolsiz bar savdosi — har biri o'z kaliti: smena yopilishi ularni kutadi, bir-birini to'smaydi */
+  barSale: (localId: string) => `bar:${localId}`,
 };
 
 /** Sessiya amali uchun standart kalitlar: shu sessiya + u turgan stol */
@@ -413,6 +420,50 @@ export const queueEndSession = async (
       kind: 'session.end',
       sessionRef: ref,
       tableId: table.id,
+      at,
+      amount: total,
+      ...(body.isDebt ? { debt: debtAmount, customerId: body.customerId } : {}),
+      deps,
+    },
+  });
+};
+
+/**
+ * STOLSIZ BAR SAVDOSI — internetsiz (o'yinsiz mijozga bardan sotish).
+ *
+ * Pul kassada ALLAQACHON olingan, shuning uchun server bu amalni rad etmaydi:
+ * savdo kassada "To'lash" bosilgan vaqt va kassirga ko'rsatilgan narx bilan
+ * yoziladi, ombor yetmasa noldan pastga tushmaydi, farq jurnalga yoziladi
+ * (server/src/modules/orders/bar-sale.service.ts). Qarz — faqat ro'yxatdagi
+ * mijozga (`customerId`). Stol yoki o'yinga bog'liq emas: har savdoning o'z
+ * kaliti bor — smena yopilishi uni kutadi, boshqa amallar esa to'xtamaydi.
+ */
+export const queueBarSale = async (
+  body: BarSalePayload,
+  total: number,
+  idempotencyKey: string | undefined,
+  soldAtMs: number,
+  debtAmount = 0,
+): Promise<string> => {
+  if (body.isDebt && !body.customerId) throw new Error('OFFLINE_DEBT_NEEDS_CUSTOMER');
+  const at = new Date(soldAtMs).toISOString();
+  const localId = newId();
+  const deps = [dep.barSale(localId)];
+  if (body.isDebt && body.customerId) deps.push(dep.customer(body.customerId), dep.debt(body.customerId));
+  return enqueue({
+    scope: requireScope(),
+    localId,
+    idempotencyKey,
+    method: 'post',
+    url: '/orders/sale',
+    body: { ...body, offlineAt: at },
+    labelKey: body.isDebt ? 'offline.actBarSaleDebt' : 'offline.actBarSale',
+    labelParams: {
+      amount: formatNumber(total),
+      ...(body.isDebt ? { customer: body.customerName ?? `#${body.customerId}` } : {}),
+    },
+    meta: {
+      kind: 'bar.sale',
       at,
       amount: total,
       ...(body.isDebt ? { debt: debtAmount, customerId: body.customerId } : {}),

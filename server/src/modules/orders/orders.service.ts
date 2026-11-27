@@ -40,6 +40,8 @@ export class OrdersService {
     if (query.sessionId) qb.andWhere('order.sessionId = :sessionId', { sessionId: query.sessionId });
     if (query.tableId) qb.andWhere('order.tableId = :tableId', { tableId: query.tableId });
     if (query.status) qb.andWhere('order.status = :status', { status: query.status });
+    // Stolsiz savdo: o'yinsiz va stolsiz buyurtma (bar-sale.service.ts)
+    if (query.walkIn) qb.andWhere('order.sessionId IS NULL AND order.tableId IS NULL');
 
     const [rows, total] = await qb
       .orderBy('order.createdAt', 'DESC')

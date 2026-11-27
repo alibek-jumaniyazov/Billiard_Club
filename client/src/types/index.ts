@@ -599,6 +599,26 @@ export interface OfflineSessionTransfer {
   totalPausedMs: number;
 }
 
+/** Stolsiz bar savdosi natijasi (POST /orders/sale) — kassa ekrani va chek uchun */
+export interface BarSaleResult {
+  orderId: number;
+  saleId: number;
+  items: Array<{ productId: number; name: string; quantity: number; price: number; subtotal: number }>;
+  /** Pozitsiyalar yig'indisi (chegirmadan oldin) */
+  barAmount: number;
+  discount: number;
+  /** To'lanadigan summa (chegirmadan keyin) */
+  totalAmount: number;
+  paidNow: number;
+  payments: Array<{ method: PaymentMethod; amount: number }>;
+  totalDebt: number;
+  debtId: number | null;
+  customerId: number | null;
+  customerName: string | null;
+  soldAt: string;
+  serverNow: string;
+}
+
 /** Chek oldindan ko'rish (GET /sessions/:id/receipt) — live yoki yakunlangan */
 export interface SessionReceipt {
   serverNow: string;
@@ -698,9 +718,13 @@ export interface OrderItem {
 export interface Order {
   id: number;
   clubId: number;
+  /** O'yindagi buyurtma; stolsiz bar savdosida null */
   sessionId: number | null;
   tableId: number | null;
   userId: number | null;
+  /** Stolsiz bar savdosining mijozi (ixtiyoriy) */
+  customerId?: number | null;
+  customerName?: string | null;
   totalAmount: number;
   status: OrderStatus;
   notes: string | null;
@@ -798,6 +822,8 @@ export interface RecentPayment {
   tableId: number | null;
   tableName: string | null;
   tableNumber: number | null;
+  /** Stolsiz bar savdosi (o'yinsiz sotuv). Eski serverda yo'q */
+  barSale?: boolean;
 }
 
 export interface DashboardStats {
@@ -839,7 +865,10 @@ export interface ReportSummary {
   tableRevenue: number;
   /** Yaxlitlash natijasi (yaxlit − aniq) — stol tushumiga shuncha qo'shilgan/ayirilgan */
   tableRounding?: number;
+  /** Bar tushumi: stoldagi bar + stolsiz bar savdosi */
   barRevenue: number;
+  /** Stolsiz bar savdolari (bar tushumining bir qismi). Eski serverda yo'q */
+  barSales?: { count: number; amount: number };
   totalSessions: number;
   avgSessionDuration: number;
   debtsCreated: number;
@@ -1095,6 +1124,8 @@ export interface ShiftSummary {
   from: string;
   to: string;
   sessionsCount: number;
+  /** Stolsiz bar savdolari soni (bar tushumiga kiradi). Eski yozuvlarda yo'q */
+  barSalesCount?: number;
   tableRevenue: number;
   barRevenue: number;
   billedRevenue: number;

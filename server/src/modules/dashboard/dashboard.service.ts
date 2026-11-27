@@ -202,26 +202,33 @@ export class DashboardService {
           .take(5)
           .getMany(),
         // 7: so'nggi 10 to'lov — session_payments (split) ustuvor, ularsiz sales;
-        //    NOT EXISTS bir sotuvni ikki marta sanashdan saqlaydi
+        //    NOT EXISTS bir sotuvni ikki marta sanashdan saqlaydi; to'liq qarzga
+        //    yozilgan sotuv (totalAmount = 0) to'lov emas — "0 so'm" qatori chiqmasin
         this.dataSource.query(
           `WITH pays AS (
              SELECT sp.amount::float AS amount, sp.method::text AS method,
-                    sp."createdAt", sp."sessionId"
+                    sp."createdAt", sp."sessionId", sp."saleId"
              FROM session_payments sp
              WHERE sp."clubId" = $1 AND sp."createdAt" >= now() - interval '30 days'
              UNION ALL
              SELECT sa."totalAmount"::float, sa."paymentMethod"::text,
-                    sa."createdAt", sa."sessionId"
+                    sa."createdAt", sa."sessionId", sa.id
              FROM sales sa
              WHERE sa."clubId" = $1 AND sa."createdAt" >= now() - interval '30 days'
+               AND sa."totalAmount" > 0
                AND NOT EXISTS (SELECT 1 FROM session_payments sp2 WHERE sp2."saleId" = sa.id)
            )
            SELECT p.amount, p.method, p."createdAt" AS "createdAt", p."sessionId",
-                  ses."customerName", t.id AS "tableId", t.name AS "tableName",
-                  t.number::int AS "tableNumber"
+                  COALESCE(ses."customerName", o."customerName") AS "customerName",
+                  t.id AS "tableId", t.name AS "tableName",
+                  t.number::int AS "tableNumber",
+                  -- Stolsiz bar savdosi (o'yinsiz sotuv)
+                  (p."sessionId" IS NULL) AS "barSale"
            FROM pays p
            LEFT JOIN sessions ses ON ses.id = p."sessionId"
            LEFT JOIN tables t ON t.id = ses."tableId"
+           LEFT JOIN sales sl ON sl.id = p."saleId" AND p."sessionId" IS NULL
+           LEFT JOIN orders o ON o.id = sl."orderId"
            ORDER BY p."createdAt" DESC
            LIMIT 10`,
           [clubId],

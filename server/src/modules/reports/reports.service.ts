@@ -130,7 +130,8 @@ export class ReportsService {
           barRevenue: number;
           avgSessionDuration: number;
         }>(),
-      // To'rtta yig'indi bitta borish-kelishda (yarim ochiq oraliq)
+      // Yig'indilar bitta borish-kelishda (yarim ochiq oraliq). Stolsiz bar savdosi
+      // (sales.orderId) o'yin emas — bar tushumi va hisoblangan summaga alohida qo'shiladi
       this.dataSource.query(
         `SELECT
            (SELECT COALESCE(SUM(sa."totalAmount"), 0)::float FROM sales sa
@@ -140,7 +141,10 @@ export class ReportsService {
            (SELECT COALESCE(SUM(d."totalDebt"), 0)::float FROM debts d
              WHERE d."clubId" = $1 AND d."createdAt" >= $2 AND d."createdAt" < $3) AS "debtsCreated",
            (SELECT COALESCE(SUM(e."amount"), 0)::float FROM expenses e
-             WHERE e."clubId" = $1 AND e."spentAt" >= $2 AND e."spentAt" < $3) AS "expensesTotal"`,
+             WHERE e."clubId" = $1 AND e."spentAt" >= $2 AND e."spentAt" < $3) AS "expensesTotal",
+           (SELECT COUNT(*)::int FROM sales sa WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "barSalesCount",
+           (SELECT COALESCE(SUM(sa."barAmount"), 0)::float FROM sales sa WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "barSalesGross",
+           (SELECT COALESCE(SUM(sa."barAmount" - sa.discount), 0)::float FROM sales sa WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "barSalesBilled"`,
         [clubId, from, to],
       ),
       // To'lov usullari taqsimoti — session_payments (bo'lib to'lash satrlari)
@@ -175,6 +179,9 @@ export class ReportsService {
     const debtPaymentsSum = Number(sums[0]?.debtPaymentsSum ?? 0);
     const debtsCreated = Number(sums[0]?.debtsCreated ?? 0);
     const expensesTotal = Number(sums[0]?.expensesTotal ?? 0);
+    const barSalesCount = Number(sums[0]?.barSalesCount ?? 0);
+    const barSalesGross = Number(sums[0]?.barSalesGross ?? 0);
+    const barSalesBilled = Number(sums[0]?.barSalesBilled ?? 0);
     const collectedRevenue = round2(salesSum + debtPaymentsSum);
 
     return {
@@ -188,10 +195,14 @@ export class ReportsService {
       },
       summary: {
         collectedRevenue,
-        billedRevenue: round2(agg?.billedRevenue ?? 0),
+        // O'yinlar + stolsiz bar savdolari (chegirmadan keyin)
+        billedRevenue: round2((agg?.billedRevenue ?? 0) + barSalesBilled),
         tableRevenue: round2(agg?.tableRevenue ?? 0),
         tableRounding: round2(agg?.tableRounding ?? 0),
-        barRevenue: round2(agg?.barRevenue ?? 0),
+        // Stoldagi bar + stolsiz bar savdosi (chegirmadan oldin, o'yinlardagi kabi)
+        barRevenue: round2((agg?.barRevenue ?? 0) + barSalesGross),
+        /** Stolsiz bar savdolari (bar tushumining bir qismi) */
+        barSales: { count: barSalesCount, amount: round2(barSalesGross) },
         totalSessions: agg?.totalSessions ?? 0,
         avgSessionDuration: agg?.avgSessionDuration ?? 0,
         debtsCreated,
@@ -402,6 +413,63 @@ export class ReportsService {
         lastId = session.id;
       }
       if (rows.length < EXPORT_CHUNK) break;
+    }
+
+    // Stolsiz bar savdolari — o'yinlardan keyin o'sha ustunlarda (jami satr ikkalasini
+    // qamraydi). To'lanmagan qism qarzga yozilgan: olingan pul < hisoblangan summa.
+    // Kursor vaqti MATN ko'rinishida (mikrosekundgacha) saqlanadi: JS Date millisekundga
+    // qisqartiradi va bir millisekunddagi savdo bo'lak chegarasida tushib qolardi.
+    let lastSaleAt: string | null = null;
+    let lastSaleId = 0;
+    for (;;) {
+      const sales = (await this.dataSource.query(
+        `SELECT sa.id, sa."createdAt", sa."createdAt"::text AS "cursorAt",
+                sa."barAmount"::float AS "barAmount", sa.discount::float AS discount,
+                sa."totalAmount"::float AS "paidAmount", sa."paymentMethod", o."customerName"
+           FROM sales sa JOIN orders o ON o.id = sa."orderId"
+          WHERE sa."clubId" = $1 AND sa."createdAt" >= $2 AND sa."createdAt" < $3
+            AND ($4::timestamptz IS NULL OR (sa."createdAt", sa.id) < ($4::timestamptz, $5::int))
+          ORDER BY sa."createdAt" DESC, sa.id DESC
+          LIMIT $6`,
+        [clubId, from, to, lastSaleAt, lastSaleId, EXPORT_CHUNK],
+      )) as Array<{
+        id: number;
+        createdAt: Date;
+        cursorAt: string;
+        barAmount: number;
+        discount: number;
+        paidAmount: number;
+        paymentMethod: string | null;
+        customerName: string | null;
+      }>;
+      for (const sale of sales) {
+        idx += 1;
+        const billed = round2(sale.barAmount - sale.discount);
+        totalBarAmount = round2(totalBarAmount + sale.barAmount);
+        totalDiscount = round2(totalDiscount + sale.discount);
+        totalAmount = round2(totalAmount + billed);
+        const soldAt = fmt.format(new Date(sale.createdAt));
+        sheet
+          .addRow({
+            idx,
+            table: t(lang, 'reports.walkInSale'),
+            customer: sale.customerName ?? '-',
+            start: soldAt,
+            end: soldAt,
+            duration: 0,
+            tableAmount: 0,
+            barAmount: sale.barAmount,
+            discount: sale.discount,
+            adjustment: 0,
+            total: billed,
+            method: sale.paidAmount > 0 && sale.paymentMethod ? t(lang, `payment.${sale.paymentMethod}`) : '-',
+            paid: sale.paidAmount + 0.005 >= billed ? t(lang, 'reports.paidYes') : t(lang, 'reports.paidNo'),
+          })
+          .commit();
+        lastSaleAt = sale.cursorAt;
+        lastSaleId = sale.id;
+      }
+      if (sales.length < EXPORT_CHUNK) break;
     }
 
     const totalRow = sheet.addRow({

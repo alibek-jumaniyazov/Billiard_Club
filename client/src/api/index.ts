@@ -1,4 +1,5 @@
 import client, { isGatewayFailure, LONG_TIMEOUT_MS } from './client';
+import type { BarSalePayload } from '../utils/barSale';
 import type {
   ApiResponse,
   AppRelease,
@@ -6,6 +7,7 @@ import type {
   AuditLog,
   AuthData,
   AuthDeviceSession,
+  BarSaleResult,
   BilliardTable,
   BridgeTokenResult,
   CashShift,
@@ -258,6 +260,11 @@ export const ordersApi = {
     body: { sessionId: number; items: Array<{ productId: number; quantity: number }> },
     key?: string,
   ) => post<Order>('/orders', body, key),
+  /**
+   * STOLSIZ BAR SAVDOSI — billiard o'ynamaydigan mijozga bardan sotish va to'lov.
+   * `key` — bir martalik amal kaliti: tarmoq uzilsa navbatga aynan shu kalit bilan tushadi.
+   */
+  sell: (body: BarSalePayload, key?: string) => post<BarSaleResult>('/orders/sale', body, key),
   /** Ochiq buyurtmani bekor qilish (ombor qaytariladi) */
   cancel: (id: number) => post<Order>(`/orders/${id}/cancel`),
   /** Stoldagi (faol sessiyadagi) ochiq buyurtma — bo'lmasa null */

@@ -202,6 +202,7 @@ export default {
     debtAmount: 'Qarzga yozildi',
     paymentsTitle: "To'lovlar",
     printReceipt: 'Chekni chop etish',
+    rcptBarTitle: 'Bar cheki',
     // Chop etiladigan chek (utils/receipt.ts)
     rcptTime: 'Vaqt',
     rcptCashier: 'Kassir',
@@ -598,6 +599,7 @@ export default {
     debtAmount: 'Записано в долг',
     paymentsTitle: 'Оплаты',
     printReceipt: 'Напечатать чек',
+    rcptBarTitle: 'Чек бара',
     // Печатный чек (utils/receipt.ts)
     rcptTime: 'Время',
     rcptCashier: 'Кассир',

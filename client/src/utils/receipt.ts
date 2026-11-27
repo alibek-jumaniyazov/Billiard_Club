@@ -43,6 +43,11 @@ export interface ReceiptBarLine {
 }
 
 export interface CheckoutReceiptData {
+  /**
+   * Chek turi: 'game' — o'yin hisob-kitobi (standart); 'bar' — stolsiz bar savdosi:
+   * stol, o'yin vaqti va "O'yin" bo'limi chiqmaydi, sarlavha — "Bar cheki".
+   */
+  kind?: 'game' | 'bar';
   /** Klub nomi va manzili (sozlamalardan; telefon chekda chiqmaydi) */
   club: { name: string; address?: string | null };
   /** Chek raqami (sessiya ID). Internetsiz boshlangan o'yinda haqiqiy ID yo'q — null */
@@ -318,8 +323,10 @@ export const renderCheckoutReceipt = (d: CheckoutReceiptData, t: TFunction, curr
     out.push('</section>');
   }
 
+  const barSale = d.kind === 'bar';
+
   // 3. Chek raqami
-  const label = `<span>${e(t('tables.receipt'))}</span>`;
+  const label = `<span>${e(t(barSale ? 'tables.rcptBarTitle' : 'tables.receipt'))}</span>`;
   out.push(
     d.number != null && d.number > 0
       ? `<div class="ticket">${label}<span>№ ${d.number}</span></div>`
@@ -331,9 +338,14 @@ export const renderCheckoutReceipt = (d: CheckoutReceiptData, t: TFunction, curr
   const started = validDate(d.startedAt);
   out.push('<section class="meta">');
   out.push(row(t('common.date'), e(formatDay(ended))));
-  if (d.table) out.push(row(t('common.table'), e(tableLabel(d.table))));
-  if (started) out.push(row(t('tables.rcptTime'), e(timeRange(started, ended))));
-  out.push(row(t('common.duration'), `<span class="n">${e(formatSeconds(d.durationSeconds))}</span>`));
+  if (barSale) {
+    // Stolsiz savdo: faqat sotuv vaqti
+    out.push(row(t('tables.rcptTime'), e(formatClock(ended))));
+  } else {
+    if (d.table) out.push(row(t('common.table'), e(tableLabel(d.table))));
+    if (started) out.push(row(t('tables.rcptTime'), e(timeRange(started, ended))));
+    out.push(row(t('common.duration'), `<span class="n">${e(formatSeconds(d.durationSeconds))}</span>`));
+  }
   if (d.cashier?.trim()) out.push(row(t('tables.rcptCashier'), e(d.cashier.trim())));
   if (d.customer?.trim()) out.push(row(t('common.customer'), e(d.customer.trim())));
   out.push('</section>');
@@ -342,15 +354,18 @@ export const renderCheckoutReceipt = (d: CheckoutReceiptData, t: TFunction, curr
   // ko'rsatilmaydi — mijoz kassaga yozilgan summani ko'radi. Bo'laklar summasi
   // faqat ular stol summasini AYNAN tashkil qilsa chiqadi (bir nechta bo'lak,
   // yaxlitlashsiz) — aks holda aniq summalar yaxlit jamiga mos kelmay qolardi.
-  out.push(section(t('tables.rcptSectionGame')));
-  const segments = d.segments ?? [];
-  const segmentsSum = segments.reduce((acc, seg) => acc + seg.amount, 0);
-  const segmentAmounts = segments.length > 1 && Math.abs(segmentsSum - d.tableAmount) < 0.5;
-  for (const seg of segments) {
-    const rate = `${formatNumber(seg.pricePerHour)} ${currency}/${t('common.hours')}`;
-    out.push(row(`${rate} × ${formatSeconds(seg.billedSeconds)}`, segmentAmounts ? money(seg.amount) : '', 'seg'));
+  // Stolsiz bar savdosida bu bo'lim yo'q
+  if (!barSale) {
+    out.push(section(t('tables.rcptSectionGame')));
+    const segments = d.segments ?? [];
+    const segmentsSum = segments.reduce((acc, seg) => acc + seg.amount, 0);
+    const segmentAmounts = segments.length > 1 && Math.abs(segmentsSum - d.tableAmount) < 0.5;
+    for (const seg of segments) {
+      const rate = `${formatNumber(seg.pricePerHour)} ${currency}/${t('common.hours')}`;
+      out.push(row(`${rate} × ${formatSeconds(seg.billedSeconds)}`, segmentAmounts ? money(seg.amount) : '', 'seg'));
+    }
+    out.push(row(t('tables.tableAmount'), money(d.tableAmount, currency), 'sub'));
   }
-  out.push(row(t('tables.tableAmount'), money(d.tableAmount, currency), 'sub'));
 
   // 6. Bar: pozitsiyalar (bo'lsa) va jami
   const barLines = d.barLines ?? [];

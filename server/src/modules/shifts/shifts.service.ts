@@ -218,15 +218,20 @@ export class ShiftsService {
          (SELECT COALESCE(SUM(s."tableAmount"), 0)::float FROM sessions s
            WHERE s."clubId" = $1 AND s.status = 'completed' AND s."endTime" >= $2 AND s."endTime" < $3) AS "tableRevenue",
          (SELECT COALESCE(SUM(s."barAmount"), 0)::float FROM sessions s
-           WHERE s."clubId" = $1 AND s.status = 'completed' AND s."endTime" >= $2 AND s."endTime" < $3) AS "barRevenue",
+           WHERE s."clubId" = $1 AND s.status = 'completed' AND s."endTime" >= $2 AND s."endTime" < $3)
+         + (SELECT COALESCE(SUM(sa."barAmount"), 0)::float FROM sales sa WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "barRevenue",
          (SELECT COALESCE(SUM(s."totalAmount"), 0)::float FROM sessions s
-           WHERE s."clubId" = $1 AND s.status = 'completed' AND s."endTime" >= $2 AND s."endTime" < $3) AS "billedRevenue",
+           WHERE s."clubId" = $1 AND s.status = 'completed' AND s."endTime" >= $2 AND s."endTime" < $3)
+         + (SELECT COALESCE(SUM(sa."barAmount" - sa.discount), 0)::float FROM sales sa WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "billedRevenue",
+         (SELECT COUNT(*)::int FROM sales sa WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "barSalesCount",
          (SELECT COALESCE(SUM(sa."totalAmount"), 0)::float FROM sales sa
            JOIN sessions s ON s.id = sa."sessionId"
-           WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3) AS "collectedSales",
+           WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3)
+         + (SELECT COALESCE(SUM(sa."totalAmount"), 0)::float FROM sales sa WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "collectedSales",
          (SELECT COALESCE(SUM(sa."discount"), 0)::float FROM sales sa
            JOIN sessions s ON s.id = sa."sessionId"
-           WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3) AS "discounts",
+           WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3)
+         + (SELECT COALESCE(SUM(sa."discount"), 0)::float FROM sales sa WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3) AS "discounts",
          (SELECT COALESCE(SUM(dp."amount"), 0)::float FROM debt_payments dp
            WHERE dp."clubId" = $1 AND dp."createdAt" >= $2 AND dp."createdAt" < $3) AS "debtPayments",
          (SELECT COALESCE(SUM(d."totalDebt"), 0)::float FROM debts d
@@ -251,6 +256,14 @@ export class ShiftsService {
          WHERE sa."clubId" = $1 AND s."clubId" = $1 AND s."endTime" >= $2 AND s."endTime" < $3
            AND NOT EXISTS (SELECT 1 FROM session_payments sp2 WHERE sp2."saleId" = sa.id)
          UNION ALL
+         -- Stolsiz bar savdosi: pul sotuv paytida olinadi (oflaynda — kassada bosilgan payt)
+         SELECT sp.method::text, sp.amount FROM session_payments sp
+         WHERE sp."clubId" = $1 AND sp."sessionId" IS NULL AND sp."createdAt" >= $2 AND sp."createdAt" < $3
+         UNION ALL
+         SELECT sa."paymentMethod"::text, sa."totalAmount" FROM sales sa
+         WHERE sa."clubId" = $1 AND sa."orderId" IS NOT NULL AND sa."createdAt" >= $2 AND sa."createdAt" < $3
+           AND NOT EXISTS (SELECT 1 FROM session_payments sp2 WHERE sp2."saleId" = sa.id)
+         UNION ALL
          SELECT dp."paymentMethod"::text, dp."amount" FROM debt_payments dp
          WHERE dp."clubId" = $1 AND dp."createdAt" >= $2 AND dp."createdAt" < $3
        ) m GROUP BY m.method`,
@@ -272,6 +285,7 @@ export class ShiftsService {
       from: from.toISOString(),
       to: to.toISOString(),
       sessionsCount: n('sessionsCount'),
+      barSalesCount: n('barSalesCount'),
       tableRevenue: round2(n('tableRevenue')),
       barRevenue: round2(n('barRevenue')),
       billedRevenue: round2(n('billedRevenue')),

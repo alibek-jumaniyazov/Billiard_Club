@@ -181,7 +181,11 @@ export class ClubDataService {
          COUNT(s.id) FILTER (WHERE s."createdAt" > now() - interval '30 days') AS "sessions30d",
          COALESCE(SUM(s."totalAmount") FILTER (
            WHERE s.status = 'completed' AND s."createdAt" > now() - interval '30 days'
-         ), 0) AS "revenue30d"
+         ), 0)
+         -- Stolsiz bar savdolari (o'yinsiz sotuv) — o'sha xodimning 30 kunlik savdosi
+         + COALESCE((SELECT SUM(sa."barAmount" - sa.discount) FROM sales sa
+             WHERE sa."clubId" = $1 AND sa."userId" = u.id AND sa."orderId" IS NOT NULL
+               AND sa."createdAt" > now() - interval '30 days'), 0) AS "revenue30d"
        FROM users u
        LEFT JOIN sessions s
          ON s."userId" = u.id

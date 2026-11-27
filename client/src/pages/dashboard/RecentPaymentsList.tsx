@@ -42,10 +42,12 @@ const RecentPaymentsList = memo(({ payments, currency, loading }: RecentPayments
       <div style={{ overflowY: 'auto', flex: 1, marginTop: -6 }}>
         {payments.map((payment, index) => {
           const method = payment.method as PaymentMethod;
-          const title =
-            payment.customerName ||
-            payment.tableName ||
-            (payment.tableNumber !== null ? `№${payment.tableNumber}` : t('dashboard.payment'));
+          // Stolsiz bar savdosi — stol yo'q: "Stolsiz savdo · mijoz"
+          const title = payment.barSale
+            ? [t('orders.walkIn'), payment.customerName].filter(Boolean).join(' · ')
+            : payment.customerName ||
+              payment.tableName ||
+              (payment.tableNumber !== null ? `№${payment.tableNumber}` : t('dashboard.payment'));
 
           return (
             <div
